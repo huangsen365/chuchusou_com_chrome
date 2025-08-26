@@ -1086,6 +1086,15 @@
     shadowRoot.appendChild(style);
     shadowRoot.appendChild(wrapper);
 
+    // 设置标题的完整tooltip，便于悬浮查看全文
+    try {
+      const titleEl = shadowRoot.querySelector('.ccs-title');
+      if (titleEl) {
+        const full = selectedText || getSmartSearchText();
+        if (full) titleEl.title = full;
+      }
+    } catch (_) {}
+
     // 添加按钮
     const buttonsToShow = settings.mode === 'mini' 
       ? settings.miniButtons.map(id => defaultButtons.find(btn => btn.id === id)).filter(Boolean)
@@ -1096,10 +1105,19 @@
       buttonsToShow.forEach(btn => {
         const button = document.createElement('div');
         button.className = 'ccs-button';
+        // 存储id，便于后续根据按钮类型更新tooltip
+        button.dataset.id = btn.id;
         button.innerHTML = `
           <div class="ccs-button-icon">${btn.icon}</div>
           <div class="ccs-button-label">${btn.title}</div>
         `;
+        // 初始hover提示包含完整文本
+        try {
+          const initText = selectedText || getSmartSearchText();
+          button.title = initText ? `${btn.title}: ${initText}` : btn.title;
+        } catch (_) {
+          button.title = btn.title;
+        }
         button.addEventListener('click', () => btn.action(selectedText));
         buttonsContainer.appendChild(button);
       });
@@ -1673,6 +1691,27 @@
         action: 'selectionChanged',
         text: text
       });
+    }
+
+    // 若弹窗存在，则实时更新标题与按钮tooltip
+    if (popover && shadowRoot) {
+      if (text) {
+        selectedText = text;
+        // 更新标题显示与title
+        const titleEl = shadowRoot.querySelector('.ccs-title');
+        if (titleEl) {
+          titleEl.textContent = `🔍 触触搜: "${text}"`;
+          titleEl.title = text;
+        }
+        // 更新各操作按钮的hover提示
+        const renderedButtons = shadowRoot.querySelectorAll('.ccs-button');
+        renderedButtons.forEach(el => {
+          const id = el.dataset.id;
+          const cfg = (id && defaultButtons.find(b => b.id === id)) || null;
+          const base = cfg ? cfg.title : '操作';
+          el.title = `${base}: ${text}`;
+        });
+      }
     }
   }
   
