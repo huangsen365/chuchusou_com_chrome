@@ -7,6 +7,7 @@
     theme: 'default',
     opacity: 1,
     position: null,
+    layout: 'float', // float, bottom
     blacklist: [],
     miniButtons: ['baidu', 'google', 'chuchusou', 'copy', 'lowercase'] // Mini模式默认按钮，包含大小写与搜索
   };
@@ -599,7 +600,7 @@
 
     // 创建HTML结构
     const wrapper = document.createElement('div');
-    wrapper.className = `ccs-popover ${settings.mode === 'mini' ? 'mini-mode' : ''} theme-${settings.theme}`;
+    wrapper.className = `ccs-popover ${settings.mode === 'mini' ? 'mini-mode' : ''} ${settings.layout === 'bottom' ? 'docked-bottom' : ''} theme-${settings.theme}`;
     
     // 统一标题：mini/normal 都显示关键词
     const escapeHtml = (text) => {
@@ -626,10 +627,12 @@
       `;
     } else {
       // 普通模式HTML - 标题显示选中的文本
+      const isDocked = settings.layout === 'bottom';
       wrapper.innerHTML = `
         <div class="ccs-header" data-draggable="true">
           <span class="ccs-title">${displayText}</span>
           <div class="ccs-header-buttons">
+            <button class="ccs-dock-toggle" title="${isDocked ? '悬浮模式' : '底部栏'}">${isDocked ? '↕️' : '📌'}</button>
             <button class="ccs-mini" title="迷你模式">📐</button>
             <button class="ccs-settings" title="设置">⚙️</button>
             <button class="ccs-close" title="关闭">✕</button>
@@ -701,6 +704,12 @@
         min-width: 240px;
       }
 
+      /* 底部停靠模式 */
+      .ccs-popover.docked-bottom {
+        width: 100vw;
+        border-radius: 8px 8px 0 0;
+      }
+
       @keyframes fadeIn {
         from {
           opacity: 0;
@@ -724,6 +733,10 @@
         -webkit-user-select: none;
         -moz-user-select: none;
         -ms-user-select: none;
+      }
+
+      .docked-bottom .ccs-header {
+        cursor: default; /* 底部栏不拖拽 */
       }
 
       .ccs-header.dragging {
@@ -897,6 +910,11 @@
         display: grid;
         grid-template-columns: repeat(5, 1fr);
         gap: 8px;
+      }
+
+      .docked-bottom .ccs-buttons {
+        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+        padding: 10px 12px 12px 12px;
       }
 
       .ccs-mini-buttons {
@@ -1366,6 +1384,28 @@
       settingsBtn.addEventListener('click', toggleSettings);
     }
 
+    // 底部栏切换
+    const dockToggle = shadowRoot.querySelector('.ccs-dock-toggle');
+    if (dockToggle) {
+      dockToggle.addEventListener('click', () => {
+        settings.layout = settings.layout === 'bottom' ? 'float' : 'bottom';
+        saveSettings();
+        // 重新创建并显示（保留文本），覆盖保存位置
+        createPopover(true);
+        const selection = window.getSelection();
+        let x = window.innerWidth / 2 + window.scrollX;
+        let y = window.innerHeight / 3 + window.scrollY;
+        let rect = null;
+        if (selection && selection.rangeCount > 0 && selection.toString().trim()) {
+          const range = selection.getRangeAt(0);
+          rect = range.getBoundingClientRect();
+          x = rect.left + rect.width / 2 + window.scrollX;
+          y = rect.bottom + window.scrollY;
+        }
+        forceShowPopover(x, y, rect, { overrideSavedPosition: true });
+      });
+    }
+
     // 设置面板事件
     const settingsPanel = shadowRoot.querySelector('.ccs-settings-panel');
     if (settingsPanel) {
@@ -1439,7 +1479,9 @@
     // 拖拽功能
     const header = shadowRoot.querySelector('.ccs-header');
     if (header) {
-      header.addEventListener('mousedown', startDragging);
+      if (settings.layout !== 'bottom') {
+        header.addEventListener('mousedown', startDragging);
+      }
     }
   }
 
@@ -1572,7 +1614,20 @@
       savedPosition: settings.position || null,
       scroll: { x: window.scrollX, y: window.scrollY }
     });
-    if (settings.position && !selectionRect && !overrideSaved) {
+    // 底部栏布局：忽略保存的位置，强制使用fixed并贴底
+    if (settings.layout === 'bottom') {
+      console.log('[触触搜] 底部栏布局：忽略保存位置，使用 fixed 贴底');
+      // 覆盖容器定位为fixed全宽
+      popover.style.position = 'fixed';
+      popover.style.left = '0';
+      popover.style.right = '0';
+      popover.style.bottom = '0';
+      popover.style.top = 'auto';
+      // 宽度全屏
+      popover.style.width = '100%';
+      // 贴底栏无需 left/top 位置计算
+      position = { x: 0, y: window.innerHeight + window.scrollY };
+    } else if (settings.position && !selectionRect && !overrideSaved) {
       // 如果有保存的位置且不是新选择，且未强制覆盖，则使用保存的位置
       position = settings.position;
       console.log('[触触搜] 使用已保存的位置', position);
@@ -1593,8 +1648,10 @@
       popover.style.transform = 'scale(0.95)';
     }
     
-    popover.style.left = `${position.x}px`;
-    popover.style.top = `${position.y}px`;
+    if (settings.layout !== 'bottom') {
+      popover.style.left = `${position.x}px`;
+      popover.style.top = `${position.y}px`;
+    }
     
     console.log('[触触搜] Popover 位置已设置:', {
       left: popover.style.left,
