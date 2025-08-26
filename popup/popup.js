@@ -14,8 +14,8 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'toggle':
           toggleExtension();
           break;
-        case 'settings':
-          openSettings();
+        case 'blacklist':
+          toggleBlacklistSection();
           break;
       }
     });
@@ -43,6 +43,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   });
+
+  // 初始化黑名单
+  loadBlacklist();
 });
 
 // 切换插件启用/禁用状态
@@ -91,9 +94,113 @@ function updateToggleButton(enabled) {
   }
 }
 
-// 打开设置页面（预留功能）
-function openSettings() {
-  showToast('设置功能开发中...');
+// 切换黑名单管理界面
+function toggleBlacklistSection() {
+  const blacklistSection = document.querySelector('.blacklist-section');
+  const commandSection = document.querySelector('.command-section');
+  
+  if (blacklistSection.style.display === 'none') {
+    blacklistSection.style.display = 'block';
+    commandSection.style.display = 'none';
+    loadBlacklist(); // 刷新黑名单列表
+  } else {
+    blacklistSection.style.display = 'none';
+    commandSection.style.display = 'block';
+  }
+}
+
+// 加载黑名单列表
+function loadBlacklist() {
+  chrome.storage.local.get(['ccs_settings'], (result) => {
+    const settings = result.ccs_settings || { blacklist: [] };
+    const blacklist = settings.blacklist || [];
+    
+    // 更新计数
+    const countEl = document.querySelector('.blacklist-count');
+    if (countEl) {
+      countEl.textContent = blacklist.length;
+    }
+    
+    // 更新列表
+    const listEl = document.querySelector('.blacklist-list');
+    if (listEl) {
+      if (blacklist.length === 0) {
+        listEl.innerHTML = '<div class="blacklist-empty">黑名单为空</div>';
+      } else {
+        listEl.innerHTML = blacklist.map(host => `
+          <div class="blacklist-item" data-host="${host}">
+            <span class="blacklist-host">${host}</span>
+            <button class="blacklist-remove" data-host="${host}">移除</button>
+          </div>
+        `).join('');
+        
+        // 绑定移除按钮事件
+        listEl.querySelectorAll('.blacklist-remove').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const host = e.target.dataset.host;
+            removeFromBlacklist(host);
+          });
+        });
+      }
+    }
+    
+    // 绑定清空按钮
+    const clearBtn = document.querySelector('.clear-blacklist');
+    if (clearBtn) {
+      clearBtn.onclick = clearAllBlacklist;
+    }
+  });
+}
+
+// 从黑名单移除
+function removeFromBlacklist(host) {
+  chrome.storage.local.get(['ccs_settings'], (result) => {
+    const settings = result.ccs_settings || { blacklist: [] };
+    const index = settings.blacklist.indexOf(host);
+    
+    if (index > -1) {
+      settings.blacklist.splice(index, 1);
+      chrome.storage.local.set({ ccs_settings: settings }, () => {
+        showToast(`已移除: ${host}`);
+        loadBlacklist(); // 刷新列表
+        
+        // 通知content script更新
+        chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+          if (tabs[0]) {
+            chrome.tabs.sendMessage(tabs[0].id, {
+              action: 'updateBlacklist',
+              blacklist: settings.blacklist
+            }).catch(() => {});
+          }
+        });
+      });
+    }
+  });
+}
+
+// 清空所有黑名单
+function clearAllBlacklist() {
+  if (confirm('确定要清空所有黑名单吗？')) {
+    chrome.storage.local.get(['ccs_settings'], (result) => {
+      const settings = result.ccs_settings || {};
+      settings.blacklist = [];
+      
+      chrome.storage.local.set({ ccs_settings: settings }, () => {
+        showToast('黑名单已清空');
+        loadBlacklist(); // 刷新列表
+        
+        // 通知content script更新
+        chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+          if (tabs[0]) {
+            chrome.tabs.sendMessage(tabs[0].id, {
+              action: 'updateBlacklist',
+              blacklist: []
+            }).catch(() => {});
+          }
+        });
+      });
+    });
+  }
 }
 
 // 显示提示消息

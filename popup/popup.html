@@ -81,10 +81,22 @@
             <span class="shortcut-icon">⚡</span>
             <span class="shortcut-label">启用/禁用</span>
           </button>
-          <button class="shortcut-btn" data-action="settings">
-            <span class="shortcut-icon">⚙️</span>
-            <span class="shortcut-label">设置</span>
+          <button class="shortcut-btn" data-action="blacklist">
+            <span class="shortcut-icon">🚫</span>
+            <span class="shortcut-label">黑名单管理</span>
           </button>
+        </div>
+      </section>
+
+      <section class="blacklist-section" style="display: none;">
+        <h2>黑名单管理</h2>
+        <div class="blacklist-info">
+          <p>已屏蔽 <span class="blacklist-count">0</span> 个网站</p>
+          <button class="clear-blacklist">清空全部</button>
+        </div>
+        <div class="blacklist-list"></div>
+        <div class="blacklist-tips">
+          💡 在黑名单网站上右键点击或按 <kbd>Ctrl+Shift+S</kbd> 可以恢复
         </div>
       </section>
     </main>
