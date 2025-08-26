@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>触触搜</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="popup-header">
+      <h1 class="popup-title">触触搜</h1>
+      <span class="popup-version">v1.0.0</span>
+    </header>
+
+    <main class="popup-main">
+      <section class="feature-section">
+        <h2>使用说明</h2>
+        <ul class="feature-list">
+          <li>
+            <span class="feature-icon">👆</span>
+            <span>选中任意文本，自动弹出功能菜单</span>
+          </li>
+          <li>
+            <span class="feature-icon">🔍</span>
+            <span>快速搜索：百度、Google 一键直达</span>
+          </li>
+          <li>
+            <span class="feature-icon">⌨️</span>
+            <span>命令支持：输入 /base64、/md5 等命令</span>
+          </li>
+          <li>
+            <span class="feature-icon">🔒</span>
+            <span>隐私保护：所有操作本地完成</span>
+          </li>
+        </ul>
+      </section>
+
+      <section class="command-section">
+        <h2>支持的命令</h2>
+        <div class="command-list">
+          <div class="command-item">
+            <code>/base64 文本</code>
+            <span>Base64 编码</span>
+          </div>
+          <div class="command-item">
+            <code>/base64 -d 编码</code>
+            <span>Base64 解码</span>
+          </div>
+          <div class="command-item">
+            <code>/md5 文本</code>
+            <span>生成 MD5 哈希</span>
+          </div>
+          <div class="command-item">
+            <code>/url 文本</code>
+            <span>URL 编码</span>
+          </div>
+          <div class="command-item">
+            <code>/url decode 编码</code>
+            <span>URL 解码</span>
+          </div>
+          <div class="command-item">
+            <code>/upper 文本</code>
+            <span>转换为大写</span>
+          </div>
+          <div class="command-item">
+            <code>/lower 文本</code>
+            <span>转换为小写</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="shortcuts-section">
+        <h2>快捷操作</h2>
+        <div class="shortcuts-grid">
+          <button class="shortcut-btn" data-action="toggle">
+            <span class="shortcut-icon">⚡</span>
+            <span class="shortcut-label">启用/禁用</span>
+          </button>
+          <button class="shortcut-btn" data-action="settings">
+            <span class="shortcut-icon">⚙️</span>
+            <span class="shortcut-label">设置</span>
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="popup-footer">
+      <p>更多功能 敬请期待...</p>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

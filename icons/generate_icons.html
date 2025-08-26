@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>生成图标</title>
+</head>
+<body>
+  <h1>触触搜图标生成器</h1>
+  <p>在浏览器中打开此文件，然后右键保存下方的图标</p>
+  
+  <div>
+    <h3>16x16</h3>
+    <canvas id="icon16" width="16" height="16"></canvas>
+  </div>
+  
+  <div>
+    <h3>48x48</h3>
+    <canvas id="icon48" width="48" height="48"></canvas>
+  </div>
+  
+  <div>
+    <h3>128x128</h3>
+    <canvas id="icon128" width="128" height="128"></canvas>
+  </div>
+
+  <script>
+    function drawIcon(canvas, size) {
+      const ctx = canvas.getContext('2d');
+      const scale = size / 128;
+      
+      // 创建渐变背景
+      const gradient = ctx.createLinearGradient(0, 0, size, size);
+      gradient.addColorStop(0, '#667eea');
+      gradient.addColorStop(1, '#764ba2');
+      
+      // 绘制背景圆
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(size/2, size/2, size/2 - 2*scale, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // 设置白色画笔
+      ctx.strokeStyle = 'white';
+      ctx.fillStyle = 'white';
+      ctx.lineWidth = 3 * scale;
+      ctx.lineCap = 'round';
+      
+      // 绘制放大镜
+      const centerX = size/2;
+      const centerY = size/2;
+      
+      // 放大镜圆圈
+      ctx.beginPath();
+      ctx.arc(centerX - 8*scale, centerY - 8*scale, 15*scale, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // 放大镜手柄
+      ctx.beginPath();
+      ctx.moveTo(centerX + 5*scale, centerY + 5*scale);
+      ctx.lineTo(centerX + 18*scale, centerY + 18*scale);
+      ctx.stroke();
+      
+      // 中心点
+      ctx.beginPath();
+      ctx.arc(centerX - 8*scale, centerY - 8*scale, 2*scale, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 生成各种尺寸的图标
+    drawIcon(document.getElementById('icon16'), 16);
+    drawIcon(document.getElementById('icon48'), 48);
+    drawIcon(document.getElementById('icon128'), 128);
+
+    // 自动下载功能
+    function downloadCanvas(canvasId, filename) {
+      const canvas = document.getElementById(canvasId);
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = canvas.toDataURL();
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // 添加下载按钮
+    setTimeout(() => {
+      document.querySelectorAll('canvas').forEach(canvas => {
+        const btn = document.createElement('button');
+        btn.textContent = '下载';
+        btn.style.marginLeft = '10px';
+        btn.onclick = () => {
+          downloadCanvas(canvas.id, canvas.id + '.png');
+        };
+        canvas.parentElement.appendChild(btn);
+      });
+    }, 100);
+  </script>
+</body>
+</html>

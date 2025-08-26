@@ -1,0 +1,11 @@
+/* 触触搜 - 全局样式 */
+
+/* 防止选中文本时的默认蓝色背景影响体验 */
+::selection {
+  background-color: rgba(102, 126, 234, 0.3);
+}
+
+/* 确保popover容器始终在最顶层 */
+#ccs-popover-container {
+  pointer-events: auto !important;
+}
