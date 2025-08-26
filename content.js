@@ -1645,7 +1645,32 @@
     // 快捷键 Ctrl+Shift+S 强制显示popover（即使在黑名单）
     if (e.ctrlKey && e.shiftKey && e.key === 'S') {
       e.preventDefault();
-      forceShowPopover(e.clientX || 100, e.clientY || 100);
+      
+      // 智能获取内容
+      const smartText = getSmartSearchText();
+      if (smartText) {
+        selectedText = smartText; // 设置全局变量
+        
+        // 确定显示位置
+        let x, y;
+        const selection = window.getSelection();
+        
+        // 如果有选中区域，使用选中区域位置
+        if (selection.rangeCount > 0 && selection.toString().trim()) {
+          const range = selection.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+          x = rect.left + rect.width / 2;
+          y = rect.bottom;
+        } else {
+          // 否则显示在屏幕中央偏上
+          x = window.innerWidth / 2;
+          y = window.innerHeight / 3;
+        }
+        
+        forceShowPopover(x, y);
+      } else {
+        showToast('没有找到可搜索的内容');
+      }
     }
   });
 
@@ -1898,6 +1923,72 @@
     });
 
     document.body.appendChild(popover);
+  }
+
+  // 从搜索引擎页面提取关键词
+  function extractSearchKeyword() {
+    const hostname = window.location.hostname;
+    const params = new URLSearchParams(window.location.search);
+    
+    // 搜索引擎配置（参数名）
+    const searchEngines = {
+      'baidu.com': 'wd',
+      'google.com': 'q', 
+      'google.co': 'q', // 支持各国Google域名
+      'bing.com': 'q',
+      'sogou.com': 'query',
+      'so.com': 'q',
+      '360.cn': 'q',
+      'yahoo.com': 'p',
+      'search.yahoo.com': 'p',
+      'duckduckgo.com': 'q',
+      'yandex.com': 'text',
+      'yandex.ru': 'text'
+    };
+    
+    for (const [domain, paramName] of Object.entries(searchEngines)) {
+      if (hostname.includes(domain)) {
+        const keyword = params.get(paramName);
+        if (keyword) {
+          return decodeURIComponent(keyword);
+        }
+      }
+    }
+    return null;
+  }
+
+  // 智能获取要搜索的内容
+  function getSmartSearchText() {
+    // 优先级1: 选中的文本
+    const selection = window.getSelection();
+    const selected = selection.toString().trim();
+    if (selected) {
+      return selected;
+    }
+    
+    // 优先级2: 搜索引擎关键词
+    const searchKeyword = extractSearchKeyword();
+    if (searchKeyword) {
+      return searchKeyword;
+    }
+    
+    // 优先级3: 页面标题（清理后）
+    const title = document.title;
+    if (title) {
+      // 移除常见的网站后缀
+      let cleanTitle = title;
+      // 按常见分隔符分割，取第一部分
+      const separators = [' - ', ' | ', ' — ', ' · ', ' :: ', ' » '];
+      for (const sep of separators) {
+        if (cleanTitle.includes(sep)) {
+          cleanTitle = cleanTitle.split(sep)[0];
+          break;
+        }
+      }
+      return cleanTitle.trim();
+    }
+    
+    return '';
   }
 
   // 强制显示popover（快捷键触发）
