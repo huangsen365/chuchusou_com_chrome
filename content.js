@@ -14,6 +14,7 @@
     globalDock: false, // 悬停模式（全局）
     barClosed: false, // 全局关闭底部栏（优先级最高）
     blacklist: [],
+    isBlacklisted: false, // 当前页面是否在黑名单中
     miniButtons: ['baidu', 'google', 'chuchusou', 'copy', 'lowercase'] // Mini模式默认按钮，包含大小写与搜索
   };
   let isDragging = false;
@@ -22,8 +23,14 @@
 
   // 初始化：加载用户设置 + 调试开关
   chrome.storage.local.get(['ccs_settings', 'ccs_debug'], (result) => {
+    console.log('[触触搜] 加载设置:', result.ccs_settings);
     if (result.ccs_settings) {
       settings = { ...settings, ...result.ccs_settings };
+      // 确保blacklist数组存在
+      if (!Array.isArray(settings.blacklist)) {
+        settings.blacklist = [];
+      }
+      console.log('[触触搜] 合并后设置:', { globalDock: settings.globalDock, layout: settings.layout, barClosed: settings.barClosed, mode: settings.mode, blacklist: settings.blacklist });
       // 迁移：为旧用户的 miniButtons 添加 lowercase
       if (Array.isArray(settings.miniButtons) && !settings.miniButtons.includes('lowercase')) {
         settings.miniButtons.push('lowercase');
@@ -46,34 +53,71 @@
     checkBlacklist();
 
     // 如果开启了全局悬停模式，在普通模式且非禁用且非黑名单页面上自动显示底部栏（未全局关闭）
-    try {
+    console.log('[触触搜] 检查是否需要显示底部栏:', {
+      globalDock: settings.globalDock,
+      mode: settings.mode,
+      isBlacklisted: settings.isBlacklisted,
+      barClosed: settings.barClosed,
+      shouldShow: settings.globalDock && settings.mode === 'normal' && !settings.isBlacklisted && !settings.barClosed
+    });
+    
+    // 定义显示dock bar的函数
+    const initDockBar = () => {
       if (settings.globalDock && settings.mode === 'normal' && !settings.isBlacklisted && !settings.barClosed) {
         settings.layout = 'bottom';
-        // 立即持久化布局选择
+        // 保存布局设置
         chrome.storage.local.set({ ccs_settings: settings });
-        // 异步创建并显示，确保DOM已就绪
-        setTimeout(() => {
-          try {
-            ensureBottomBarVisible(true);
-            scheduleRealtimeUpdate();
-          } catch (e) { console.warn('[触触搜] 全局悬停模式自动显示失败:', e); }
-        }, 0);
+        
+        console.log('[触触搜] 初始化底部栏...');
+        // 创建并显示dock bar
+        createPopover(true);
+        const x = window.innerWidth / 2 + window.scrollX;
+        const y = window.innerHeight / 3 + window.scrollY;
+        forceShowPopover(x, y, null, { overrideSavedPosition: true });
+        
+        // 启动实时更新
+        scheduleRealtimeUpdate();
+        
+        // 设置定期检查，确保dock bar保持可见
+        setInterval(() => {
+          if (settings.globalDock && !settings.barClosed && settings.mode === 'normal' && !settings.isBlacklisted) {
+            ensureBottomBarVisible();
+          }
+        }, 1000);
       }
-    } catch (_) {}
+    };
+    
+    // 确保在合适的时机初始化
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(initDockBar, 200); // 给页面更多时间完成初始化
+      });
+    } else if (document.readyState === 'interactive') {
+      // DOM解析完成但资源还在加载
+      setTimeout(initDockBar, 300);
+    } else {
+      // 页面已完全加载
+      setTimeout(initDockBar, 100);
+    }
   });
 
   // 确保底部栏存在与可见（用于全局模式与SPA页面）
   function ensureBottomBarVisible(force = false) {
     try {
       if (settings.globalDock && !settings.barClosed && settings.mode === 'normal' && !settings.isBlacklisted) {
+        settings.layout = 'bottom'; // 始终确保布局正确
+        
         if (force || !popover || !document.body.contains(popover)) {
-          createPopover();
+          createPopover(true); // 保留文本
           const x = window.innerWidth / 2 + window.scrollX;
           const y = window.innerHeight / 3 + window.scrollY;
           forceShowPopover(x, y, null, { overrideSavedPosition: true });
-          console.log('[触触搜] ensureBottomBarVisible: created/shown');
+          console.log('[触触搜] ensureBottomBarVisible: 重新创建并显示底部栏');
+          
+          // 重新启动实时更新
+          scheduleRealtimeUpdate();
         } else {
-          // 确保固定在底部
+          // 确保固定在底部并且可见
           try {
             popover.style.position = 'fixed';
             popover.style.left = '0';
@@ -86,6 +130,15 @@
             popover.style.opacity = settings.opacity || '1';
             // 允许点击穿透到底层页面
             popover.style.pointerEvents = 'none';
+            
+            // 确保shadow DOM内容也可见
+            if (shadowRoot) {
+              const wrapper = shadowRoot.querySelector('.ccs-wrapper');
+              if (wrapper) {
+                wrapper.style.display = 'block';
+                wrapper.style.visibility = 'visible';
+              }
+            }
           } catch(_) {}
         }
       }
@@ -102,9 +155,38 @@
   try {
     ccsObserver.observe(document.documentElement || document.body, { childList: true, subtree: true });
   } catch (_) {}
-  window.addEventListener('pageshow', () => { ensureBottomBarVisible(false); scheduleRealtimeUpdate(); });
-  window.addEventListener('popstate', () => { ensureBottomBarVisible(false); scheduleRealtimeUpdate(); });
-  window.addEventListener('hashchange', () => { ensureBottomBarVisible(false); scheduleRealtimeUpdate(); });
+  
+  // 监听SPA路由变化和页面事件，确保底部栏在导航后仍然显示
+  const handlePageChange = (eventType) => {
+    console.log(`[触触搜] 检测到${eventType}事件`);
+    setTimeout(() => {
+      ensureBottomBarVisible(true);
+      scheduleRealtimeUpdate();
+    }, 100);
+  };
+  
+  // 监听各种页面变化事件
+  window.addEventListener('pageshow', () => handlePageChange('pageshow'));
+  window.addEventListener('popstate', () => handlePageChange('popstate'));
+  window.addEventListener('hashchange', () => handlePageChange('hashchange'));
+  
+  // 监听History API的pushState和replaceState (用于SPA)
+  const originalPushState = history.pushState;
+  const originalReplaceState = history.replaceState;
+  
+  if (originalPushState) {
+    history.pushState = function() {
+      originalPushState.apply(history, arguments);
+      handlePageChange('pushState');
+    };
+  }
+  
+  if (originalReplaceState) {
+    history.replaceState = function() {
+      originalReplaceState.apply(history, arguments);
+      handlePageChange('replaceState');
+    };
+  }
 
   // 监听 <title> 变化（SPA 常改标题）
   try {
@@ -150,19 +232,22 @@
   // 检查当前网站是否在黑名单中
   function checkBlacklist() {
     const currentHost = window.location.hostname;
-    if (settings.blacklist.includes(currentHost)) {
+    if (settings.blacklist && settings.blacklist.includes(currentHost)) {
       // 不直接禁用，而是标记为黑名单状态
       settings.isBlacklisted = true;
       // 保持原始模式，以便恢复后使用
       settings.originalMode = settings.mode || 'normal';
       settings.mode = 'disabled';
+      console.log('[触触搜] 网站在黑名单中，禁用功能:', currentHost);
     } else {
       settings.isBlacklisted = false;
+      console.log('[触触搜] 网站不在黑名单中:', currentHost);
     }
   }
 
   // 保存设置
   function saveSettings() {
+    console.log('[触触搜] 保存设置:', { globalDock: settings.globalDock, layout: settings.layout, barClosed: settings.barClosed });
     chrome.storage.local.set({ ccs_settings: settings });
   }
 
@@ -901,8 +986,8 @@
           <div class="ccs-header-buttons">
             <button class="ccs-dock-toggle" title="底部栏">📌</button>
             <div class="ccs-dock-menu" style="display:none;">
-              <button class="ccs-dock-global">悬停模式（全局）</button>
-              <button class="ccs-dock-temp">悬停模式（临时）</button>
+              <button class="ccs-dock-global">开启底部栏（全局）</button>
+              <button class="ccs-dock-temp">开启底部栏（当前页）</button>
             </div>
             <button class="ccs-mini" title="迷你模式">📐</button>
             <button class="ccs-settings" title="设置">⚙️</button>
@@ -1874,6 +1959,7 @@
         const tempBtn = dockMenu.querySelector('.ccs-dock-temp');
         if (globalBtn) {
           globalBtn.addEventListener('click', () => {
+            console.log('[触触搜] 点击全局底部栏按钮');
             settings.globalDock = true;
             settings.layout = 'bottom';
             settings.mode = 'normal'; // 确保普通模式
@@ -1887,13 +1973,14 @@
         }
         if (tempBtn) {
           tempBtn.addEventListener('click', () => {
-            // 需求变更：从子菜单打开底部栏时也应记住为“全局开启”
-            settings.globalDock = true; // 记住全局悬停
+            console.log('[触触搜] 点击当前页底部栏按钮');
+            // 开启底部栏（当前页）- 但也保存全局设置以便记住状态
+            settings.globalDock = true; // 保存为全局开启
             settings.layout = 'bottom';
             settings.mode = 'normal'; // 确保普通模式
-            isTempDock = false; // 不再使用临时态
+            isTempDock = false; // 不使用临时标记
             settings.barClosed = false;
-            saveSettings();
+            saveSettings(); // 保存设置以记住状态
             createPopover(true);
             forceShowPopover(window.innerWidth / 2 + window.scrollX, window.innerHeight / 3 + window.scrollY, null, { overrideSavedPosition: true });
             if (dockMenu) dockMenu.style.display = 'none';
@@ -2645,11 +2732,56 @@
       });
     }
     
-    // 检查 Ctrl+Shift+S 或 Alt+S
+    // 检查 Ctrl+Shift+S - 用于切换持久化底部栏
     const isCtrlShiftS = e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's');
+    // 检查 Alt+S - 用于显示浮动搜索框
     const isAltS = e.altKey && !e.ctrlKey && !e.shiftKey && (e.key === 'S' || e.key === 's');
 
-    // 将显示逻辑提取为函数，便于复用
+    // Ctrl+Shift+S: 切换持久化底部栏
+    if (isCtrlShiftS) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      
+      console.log('[触触搜] Ctrl+Shift+S: 切换持久化底部栏');
+      
+      // 切换globalDock设置
+      settings.globalDock = !settings.globalDock;
+      
+      if (settings.globalDock) {
+        // 开启底部栏
+        settings.layout = 'bottom';
+        settings.mode = 'normal';
+        settings.barClosed = false;
+        isTempDock = false;
+        saveSettings();
+        
+        // 创建并显示底部栏
+        createPopover(true);
+        const x = window.innerWidth / 2 + window.scrollX;
+        const y = window.innerHeight / 3 + window.scrollY;
+        forceShowPopover(x, y, null, { overrideSavedPosition: true });
+        scheduleRealtimeUpdate();
+        
+        console.log('[触触搜] 已开启全局底部栏');
+      } else {
+        // 关闭底部栏
+        settings.layout = 'float';
+        settings.barClosed = true;
+        saveSettings();
+        
+        // 隐藏底部栏
+        if (popover) {
+          popover.style.display = 'none';
+        }
+        
+        console.log('[触触搜] 已关闭全局底部栏');
+      }
+      
+      return;
+    }
+
+    // 将显示浮动搜索框的逻辑提取为函数，便于复用
     const showFromShortcut = () => {
       console.log('[触触搜] 准备显示 Popover');
       const t0 = performance.now();
