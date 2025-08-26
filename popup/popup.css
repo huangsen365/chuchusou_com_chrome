@@ -30,6 +30,7 @@ body {
 .popup-title {
   font-size: 24px;
   font-weight: bold;
+  white-space: nowrap; /* 不换行，保持一行美观 */
 }
 
 .popup-version {
