@@ -1885,12 +1885,12 @@
         }
         if (tempBtn) {
           tempBtn.addEventListener('click', () => {
-            // 临时：仅当前页面启用，不保存到存储
-            settings.globalDock = false; // 确保不影响其它页面
+            // 需求变更：从子菜单打开底部栏时也应记住为“全局开启”
+            settings.globalDock = true; // 记住全局悬停
             settings.layout = 'bottom';
-            isTempDock = true;
-            settings.barClosed = false; // 启用
-            // 不调用 saveSettings() 以保持临时
+            isTempDock = false; // 不再使用临时态
+            settings.barClosed = false;
+            saveSettings();
             createPopover(true);
             forceShowPopover(window.innerWidth / 2 + window.scrollX, window.innerHeight / 3 + window.scrollY, null, { overrideSavedPosition: true });
             if (dockMenu) dockMenu.style.display = 'none';
@@ -1947,13 +1947,16 @@
         barEnableCheckbox.addEventListener('change', (e) => {
           const enable = e.target.checked;
           settings.barClosed = !enable;
-          saveSettings();
           if (enable) {
+            // 同步设置为全局悬停：其它页面也默认打开底部栏
+            settings.globalDock = true;
             settings.layout = 'bottom';
             isTempDock = false;
+            saveSettings();
             createPopover(true);
             forceShowPopover(window.innerWidth / 2 + window.scrollX, window.innerHeight / 3 + window.scrollY, null, { overrideSavedPosition: true });
           } else {
+            saveSettings();
             hidePopover();
           }
         });
