@@ -5,6 +5,9 @@ document.addEventListener('DOMContentLoaded', () => {
     updateToggleButton(enabled);
   });
 
+  // 获取当前标签页并提取关键词
+  initQuickSearch();
+
   // 处理快捷按钮点击
   document.querySelectorAll('.shortcut-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -200,6 +203,87 @@ function clearAllBlacklist() {
         });
       });
     });
+  }
+}
+
+// 初始化快速搜索功能
+async function initQuickSearch() {
+  try {
+    // 获取当前活动标签页
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    if (!tab || !tab.url) return;
+    
+    // 发送消息到background获取关键词
+    chrome.runtime.sendMessage({
+      action: 'extractKeywords',
+      url: tab.url,
+      title: tab.title
+    }, (response) => {
+      if (response && response.keywords) {
+        showQuickSearch(response.keywords);
+      }
+    });
+  } catch (error) {
+    console.error('Error getting keywords:', error);
+  }
+}
+
+// 显示快速搜索区域
+function showQuickSearch(keywords) {
+  const section = document.querySelector('.quick-search-section');
+  const keywordText = document.querySelector('.keyword-text');
+  
+  if (section && keywordText && keywords) {
+    keywordText.textContent = keywords;
+    keywordText.title = keywords; // 完整文本显示在tooltip
+    section.style.display = 'block';
+    
+    // 绑定搜索按钮事件
+    document.querySelectorAll('.search-btn').forEach(btn => {
+      btn.onclick = (e) => {
+        const action = e.currentTarget.dataset.action;
+        handleSearchAction(action, keywords);
+      };
+    });
+  }
+}
+
+// 处理搜索动作
+function handleSearchAction(action, keywords) {
+  switch (action) {
+    case 'baidu':
+      chrome.tabs.create({
+        url: `https://www.baidu.com/s?wd=${encodeURIComponent(keywords)}`
+      });
+      break;
+    case 'google':
+      chrome.tabs.create({
+        url: `https://www.google.com/search?q=${encodeURIComponent(keywords)}`
+      });
+      break;
+    case 'chuchusou':
+      chrome.tabs.create({
+        url: `https://chuchusou.com/?q=${encodeURIComponent(keywords)}`
+      });
+      break;
+    case 'copy':
+      navigator.clipboard.writeText(keywords).then(() => {
+        showToast('关键词已复制');
+        // 更新按钮状态
+        const btn = document.querySelector('[data-action="copy"]');
+        if (btn) {
+          btn.style.background = '#27ae60';
+          btn.style.color = 'white';
+          setTimeout(() => {
+            btn.style.background = '';
+            btn.style.color = '';
+          }, 500);
+        }
+      }).catch(() => {
+        showToast('复制失败');
+      });
+      break;
   }
 }
 

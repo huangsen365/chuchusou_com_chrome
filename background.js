@@ -318,8 +318,22 @@ chrome.runtime.onInstalled.addListener(() => {
 // 存储当前选中的文本（每个标签页独立）
 const selectedTextByTab = {};
 
-// 监听来自content script的选择变化消息
+// 监听来自content script和popup的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  // 处理popup的关键词提取请求
+  if (request.action === 'extractKeywords') {
+    extractSearchKeywords(request.url, { title: request.title })
+      .then(keywords => {
+        sendResponse({ keywords });
+      })
+      .catch(error => {
+        console.error('Error extracting keywords:', error);
+        sendResponse({ keywords: null });
+      });
+    return true; // 异步响应
+  }
+  
+  // 处理content script的选择变化
   if (request.action === 'selectionChanged' && sender.tab) {
     const tabId = sender.tab.id;
     const text = request.text;
