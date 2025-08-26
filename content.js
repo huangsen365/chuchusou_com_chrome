@@ -218,9 +218,9 @@
     const popoverWidth = settings.mode === 'mini' ? 200 : 320;
     const popoverHeight = settings.mode === 'mini' ? 120 : 400;
     
-    // 计算选中文本的中心点
-    const selectionCenterX = selectionRect.left + selectionRect.width / 2 + scrollX;
-    const selectionCenterY = selectionRect.top + selectionRect.height / 2 + scrollY;
+    // 使用传入的鼠标位置（已经是选中文本底部中心）
+    const anchorX = mouseX;
+    const anchorY = mouseY;
     
     // 检查是否在输入框内选中文本
     const activeElement = document.activeElement;
@@ -231,7 +231,7 @@
     );
     
     // 定义偏移量，输入框内选中时增加偏移
-    const offset = isInInputField ? 20 : 10;
+    const offset = isInInputField ? 25 : 15;
     
     // 尝试不同的位置
     // 输入框内选中时，优先显示在上方或下方，避免遮挡
@@ -239,12 +239,12 @@
     if (isInInputField) {
       positions = [
         { // 下方居中（优先）
-          x: selectionCenterX - popoverWidth / 2,
-          y: selectionRect.bottom + scrollY + offset,
+          x: anchorX - popoverWidth / 2,
+          y: anchorY + offset,
           arrow: 'top'
         },
         { // 上方居中
-          x: selectionCenterX - popoverWidth / 2,
+          x: anchorX - popoverWidth / 2,
           y: selectionRect.top + scrollY - popoverHeight - offset,
           arrow: 'bottom'
         },
@@ -270,37 +270,37 @@
         }
       ];
     } else {
-      // 普通文本选中，优先右下角
+      // 普通文本选中，优先在选中文本下方
       positions = [
+        { // 下方居中（优先）
+          x: anchorX - popoverWidth / 2,
+          y: anchorY + offset,
+          arrow: 'top'
+        },
         { // 右下
           x: selectionRect.right + scrollX + offset,
-          y: selectionRect.bottom + scrollY + offset,
+          y: anchorY + offset,
           arrow: 'top-left'
+        },
+        { // 左下
+          x: selectionRect.left + scrollX - popoverWidth - offset,
+          y: anchorY + offset,
+          arrow: 'top-right'
+        },
+        { // 上方居中
+          x: anchorX - popoverWidth / 2,
+          y: selectionRect.top + scrollY - popoverHeight - offset,
+          arrow: 'bottom'
         },
         { // 右上
           x: selectionRect.right + scrollX + offset,
           y: selectionRect.top + scrollY - popoverHeight - offset,
           arrow: 'bottom-left'
         },
-        { // 左下
-          x: selectionRect.left + scrollX - popoverWidth - offset,
-          y: selectionRect.bottom + scrollY + offset,
-          arrow: 'top-right'
-        },
         { // 左上
           x: selectionRect.left + scrollX - popoverWidth - offset,
           y: selectionRect.top + scrollY - popoverHeight - offset,
           arrow: 'bottom-right'
-        },
-        { // 下方居中
-          x: selectionCenterX - popoverWidth / 2,
-          y: selectionRect.bottom + scrollY + offset,
-          arrow: 'top'
-        },
-        { // 上方居中
-          x: selectionCenterX - popoverWidth / 2,
-          y: selectionRect.top + scrollY - popoverHeight - offset,
-          arrow: 'bottom'
         }
       ];
     }
@@ -318,9 +318,9 @@
       }
     }
     
-    // 如果没有完全合适的位置，使用鼠标位置附近
-    let finalX = mouseX + offset;
-    let finalY = mouseY + offset;
+    // 如果没有完全合适的位置，使用锚点位置附近
+    let finalX = anchorX - popoverWidth / 2;
+    let finalY = anchorY + offset;
     
     // 确保不超出视窗
     if (finalX + popoverWidth > scrollX + viewportWidth) {
@@ -980,6 +980,14 @@
   function showPopover(x, y, selectionRect = null) {
     if (settings.mode === 'disabled') return;
     
+    // 如果popup已存在且显示相同内容，不重复创建
+    if (popover && shadowRoot) {
+      const existingInput = shadowRoot.querySelector('.ccs-input');
+      if (existingInput && existingInput.value === selectedText) {
+        return; // 避免重复显示
+      }
+    }
+    
     createPopover();
 
     let position;
@@ -994,8 +1002,21 @@
       position = { x, y };
     }
 
+    // 添加平滑过渡动画
+    if (!popover.style.transition) {
+      popover.style.transition = 'opacity 0.2s ease-in-out, transform 0.2s ease-in-out';
+      popover.style.opacity = '0';
+      popover.style.transform = 'scale(0.95)';
+    }
+    
     popover.style.left = `${position.x}px`;
     popover.style.top = `${position.y}px`;
+    
+    // 触发动画
+    requestAnimationFrame(() => {
+      popover.style.opacity = settings.opacity || '1';
+      popover.style.transform = 'scale(1)';
+    });
 
     // 移除自动聚焦，改为hover时聚焦
     // 保持用户选中的文本状态
@@ -1006,6 +1027,7 @@
     if (popover) {
       // 添加淡出动画
       popover.style.opacity = '0';
+      popover.style.transform = 'scale(0.95)';
       setTimeout(() => {
         if (popover) {
           popover.remove();
@@ -1014,12 +1036,15 @@
         }
       }, 200);
     }
-    // 清空选中的文本，避免混乱
+    // 清空选中的文本和记录
     selectedText = '';
+    lastSelectedText = '';
   }
 
-  // 防抖定时器
+  // 防抖定时器和上次选中的文本
   let selectionTimeout;
+  let lastSelectedText = '';
+  let lastSelectionTime = 0;
   
   // 监听文本选择
   document.addEventListener('mouseup', (e) => {
@@ -1038,22 +1063,36 @@
     selectionTimeout = setTimeout(() => {
       const selection = window.getSelection();
       const text = selection.toString().trim();
+      const currentTime = Date.now();
 
       // 更严格的检查：确保真的有选中文本
-      if (text.length > 0 && selection.rangeCount > 0) {
+      if (text.length >= 2 && selection.rangeCount > 0) { // 至少2个字符
         const range = selection.getRangeAt(0);
         // range.collapsed为false表示确实有选中内容
         if (!range.collapsed && settings.mode !== 'disabled') {
+          // 检查是否是重复的选择（避免双击闪现两次）
+          if (text === lastSelectedText && currentTime - lastSelectionTime < 500) {
+            return; // 500ms内相同文本不重复显示
+          }
+          
+          lastSelectedText = text;
+          lastSelectionTime = currentTime;
           selectedText = text;
+          
+          // 使用选中区域的位置而非鼠标位置
           const rect = range.getBoundingClientRect();
-          showPopover(e.clientX + window.scrollX, e.clientY + window.scrollY, rect);
+          // 计算选中文本的底部中心点
+          const centerX = rect.left + rect.width / 2 + window.scrollX;
+          const bottomY = rect.bottom + window.scrollY;
+          
+          showPopover(centerX, bottomY, rect);
         } else {
           hidePopover();
         }
       } else {
         hidePopover();
       }
-    }, 150); // 150ms防抖延迟
+    }, 200); // 增加到200ms防抖延迟
   });
 
   // 点击其他地方隐藏popover
