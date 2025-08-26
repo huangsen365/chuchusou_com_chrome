@@ -351,7 +351,7 @@
     wrapper.className = `ccs-popover ${settings.mode === 'mini' ? 'mini-mode' : ''} theme-${settings.theme}`;
     
     if (settings.mode === 'mini') {
-      // Mini模式HTML - 不显示设置按钮
+      // Mini模式HTML - 不显示设置按钮，标题保持不变
       wrapper.innerHTML = `
         <div class="ccs-header" data-draggable="true">
           <span class="ccs-title">触触搜</span>
@@ -364,10 +364,18 @@
         <div class="ccs-toast"></div>
       `;
     } else {
-      // 普通模式HTML
+      // 普通模式HTML - 标题显示选中的文本
+      const escapeHtml = (text) => {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      };
+      const displayText = selectedText ? 
+        `触触搜: "${escapeHtml(selectedText.substring(0, 15))}${selectedText.length > 15 ? '...' : ''}"` : 
+        '触触搜';
       wrapper.innerHTML = `
         <div class="ccs-header" data-draggable="true">
-          <span class="ccs-title">触触搜</span>
+          <span class="ccs-title">${displayText}</span>
           <div class="ccs-header-buttons">
             <button class="ccs-mini" title="迷你模式">📐</button>
             <button class="ccs-settings" title="设置">⚙️</button>
@@ -1056,7 +1064,7 @@
       const currentTime = Date.now();
 
       // 更严格的检查：确保真的有选中文本
-      if (text.length >= 2 && selection.rangeCount > 0) { // 至少2个字符
+      if (text.length >= 1 && selection.rangeCount > 0) { // 至少1个字符
         const range = selection.getRangeAt(0);
         // range.collapsed为false表示确实有选中内容
         if (!range.collapsed && settings.mode !== 'disabled') {
