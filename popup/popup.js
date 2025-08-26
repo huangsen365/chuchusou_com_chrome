@@ -8,6 +8,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // 获取当前标签页并提取关键词
   initQuickSearch();
 
+  // 初始化调试按钮状态
+  initDebugToggle();
+
   // 处理快捷按钮点击
   document.querySelectorAll('.shortcut-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -19,6 +22,9 @@ document.addEventListener('DOMContentLoaded', () => {
           break;
         case 'blacklist':
           toggleBlacklistSection();
+          break;
+        case 'debug':
+          toggleDebug();
           break;
       }
     });
@@ -95,6 +101,68 @@ function updateToggleButton(enabled) {
       toggleBtn.style.borderColor = '#f44336';
     }
   }
+}
+
+// 初始化/更新调试按钮
+async function initDebugToggle() {
+  const btn = document.querySelector('[data-action="debug"]');
+  if (!btn) return;
+  const label = btn.querySelector('.shortcut-label');
+  const icon = btn.querySelector('.shortcut-icon');
+
+  chrome.storage.local.get(['ccs_debug'], (res) => {
+    const enabled = !!res.ccs_debug;
+    if (enabled) {
+      icon.textContent = '🐞';
+      label.textContent = '调试日志：开';
+      btn.style.background = '#fff8e1';
+      btn.style.borderColor = '#fbc02d';
+    } else {
+      icon.textContent = '🐞';
+      label.textContent = '调试日志：关';
+      btn.style.background = '#f8f9fa';
+      btn.style.borderColor = '#dee2e6';
+    }
+  });
+}
+
+function setDebugButtonState(enabled) {
+  const btn = document.querySelector('[data-action="debug"]');
+  if (!btn) return;
+  const label = btn.querySelector('.shortcut-label');
+  const icon = btn.querySelector('.shortcut-icon');
+  if (enabled) {
+    icon.textContent = '🐞';
+    label.textContent = '调试日志：开';
+    btn.style.background = '#fff8e1';
+    btn.style.borderColor = '#fbc02d';
+  } else {
+    icon.textContent = '🐞';
+    label.textContent = '调试日志：关';
+    btn.style.background = '#f8f9fa';
+    btn.style.borderColor = '#dee2e6';
+  }
+}
+
+// 切换调试开关
+function toggleDebug() {
+  chrome.storage.local.get(['ccs_debug'], (res) => {
+    const current = !!res.ccs_debug;
+    const next = !current;
+    chrome.storage.local.set({ ccs_debug: next }, () => {
+      // 更新按钮显示
+      setDebugButtonState(next);
+      // 通知background更新
+      chrome.runtime.sendMessage({ action: 'updateDebug', enabled: next }).catch(() => {});
+      // 通知当前活动tab的content更新
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]) {
+          chrome.tabs.sendMessage(tabs[0].id, { action: 'updateDebug', enabled: next }).catch(() => {});
+        }
+      });
+      showToast(next ? '调试已开启' : '调试已关闭');
+    });
+  });
 }
 
 // 切换黑名单管理界面

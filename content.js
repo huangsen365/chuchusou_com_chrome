@@ -13,10 +13,18 @@
   let isDragging = false;
   let dragOffset = { x: 0, y: 0 };
 
-  // 初始化：加载用户设置
-  chrome.storage.local.get(['ccs_settings'], (result) => {
+  // 初始化：加载用户设置 + 调试开关
+  chrome.storage.local.get(['ccs_settings', 'ccs_debug'], (result) => {
     if (result.ccs_settings) {
       settings = { ...settings, ...result.ccs_settings };
+      // 迁移：为旧用户的 miniButtons 添加 lowercase
+      if (Array.isArray(settings.miniButtons) && !settings.miniButtons.includes('lowercase')) {
+        settings.miniButtons.push('lowercase');
+        chrome.storage.local.set({ ccs_settings: settings });
+      }
+    }
+    if (typeof result.ccs_debug === 'boolean') {
+      window.CCS_DEBUG = result.ccs_debug;
     }
     checkBlacklist();
   });
@@ -2330,6 +2338,10 @@
 
   // 监听来自popup和background的消息
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'updateDebug') {
+      window.CCS_DEBUG = !!request.enabled;
+      try { showToast(window.CCS_DEBUG ? '调试已开启' : '调试已关闭'); } catch (_) {}
+    }
     if (request.action === 'toggleExtension') {
       settings.mode = request.enabled ? 'normal' : 'disabled';
       saveSettings();

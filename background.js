@@ -1,5 +1,5 @@
 // 提取URL中的搜索关键词或页面标题
-const BG_DEBUG = false;
+let BG_DEBUG = false;
 const BG_DBG = (...args) => { if (BG_DEBUG) console.log(...args); };
 
 async function extractSearchKeywords(url, tab) {
@@ -356,11 +356,24 @@ chrome.runtime.onInstalled.addListener(() => {
   createContextMenus();
 });
 
+// 读取调试开关
+chrome.storage.local.get(['ccs_debug'], (res) => {
+  if (typeof res.ccs_debug === 'boolean') {
+    BG_DEBUG = res.ccs_debug;
+  }
+});
+
 // 存储当前选中的文本（每个标签页独立）
 const selectedTextByTab = {};
 
 // 监听来自content script和popup的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'updateDebug') {
+    BG_DEBUG = !!request.enabled;
+    chrome.storage.local.set({ ccs_debug: BG_DEBUG });
+    sendResponse && sendResponse({ ok: true });
+    return; // stop further handling
+  }
   // 处理popup的关键词提取请求
   if (request.action === 'extractKeywords') {
     extractSearchKeywords(request.url, { title: request.title })
