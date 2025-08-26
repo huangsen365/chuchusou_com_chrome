@@ -345,7 +345,7 @@ function createContextMenus() {
     chrome.contextMenus.create({
       id: 'ccs-show-popover',
       parentId: 'ccs-main',
-      title: '打开触触搜面板',
+      title: '打开触触搜面板 (Ctrl+Shift+S)',
       contexts: ['selection', 'page']
     });
   });
