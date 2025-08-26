@@ -18,6 +18,7 @@
   };
   let isDragging = false;
   let dragOffset = { x: 0, y: 0 };
+  let isProcessingSelection = false; // 防止选择处理重入
 
   // 初始化：加载用户设置 + 调试开关
   chrome.storage.local.get(['ccs_settings', 'ccs_debug'], (result) => {
@@ -83,6 +84,8 @@
             popover.style.display = 'block';
             popover.style.visibility = 'visible';
             popover.style.opacity = settings.opacity || '1';
+            // 允许点击穿透到底层页面
+            popover.style.pointerEvents = 'none';
           } catch(_) {}
         }
       }
@@ -175,23 +178,24 @@
   function updateRealtimeFallbackUI() {
     try {
       if (!shadowRoot || !popover) return;
-      const sel = getActiveSelectionText();
-      if (sel) return; // 有选中文本时不覆盖
-      const t = getRealtimePageTextPreferTitle();
+      // 使用统一的函数获取当前文本
+      const t = getCurrentSearchText();
+      if (!t) return;
+      
       // 更新标题（若存在）
       const titleEl = shadowRoot.querySelector('.ccs-title');
-      if (titleEl && t) {
+      if (titleEl) {
         titleEl.title = t;
         // 文本显示由CSS省略控制，这里直接设全文
         titleEl.textContent = `🔍 触触搜: "${t}"`;
       }
-      // 更新按钮tooltip
+      // 更新按钮tooltip - 使用统一的文本
       const renderedButtons = shadowRoot.querySelectorAll('.ccs-button');
       renderedButtons.forEach(el => {
         const id = el.dataset.id;
         const cfg = (id && defaultButtons.find(b => b.id === id)) || null;
         const base = cfg ? cfg.title : '操作';
-        el.title = t ? `${base}: ${t}` : base;
+        el.title = `${base}: ${t}`;
       });
     } catch (_) {}
   }
@@ -600,6 +604,18 @@
     const scrollX = window.scrollX;
     const scrollY = window.scrollY;
     
+    console.log('[触触搜] calculateSmartPosition 输入:', {
+      selectionRect: {
+        top: selectionRect.top,
+        bottom: selectionRect.bottom,
+        left: selectionRect.left,
+        right: selectionRect.right
+      },
+      mouseX, mouseY,
+      viewport: { width: viewportWidth, height: viewportHeight },
+      scroll: { x: scrollX, y: scrollY }
+    });
+    
     // 根据模式调整尺寸
     // Mini模式宽度根据按钮数量自适应：每个按钮约44px + 间距6px + padding 20px
     const miniButtonCount = settings.miniButtons.length;
@@ -730,34 +746,65 @@
       if (inViewport) return pos;
     }
     
-    // 如果没有完全合适的位置，使用锚点位置附近
-    let finalX = anchorX - popoverWidth / 2;
-    let finalY = anchorY + offset;
+    // 优先使用选中文本附近的位置
+    const selTop = selectionRect.top + scrollY;
+    const selBottom = selectionRect.bottom + scrollY;
+    const spaceBelow = scrollY + viewportHeight - selBottom;
+    const spaceAbove = selTop - scrollY;
     
-    // 确保不超出视窗
+    let finalX = anchorX - popoverWidth / 2;
+    let finalY;
+    
+    // 智能决定垂直位置
+    if (spaceBelow >= popoverHeight + offset) {
+      // 下方有足够空间，放在选中文本下方
+      finalY = selBottom + offset;
+    } else if (spaceAbove >= popoverHeight + offset) {
+      // 上方有足够空间，放在选中文本上方
+      finalY = selTop - popoverHeight - offset;
+    } else {
+      // 空间都不够，选择更大的一边，但避免太靠近边缘
+      if (spaceBelow > spaceAbove && spaceBelow > 100) {
+        // 优先下方，但不要贴底
+        finalY = selBottom + offset;
+        // 确保不会超出底部太多
+        const maxY = scrollY + viewportHeight - popoverHeight - 20;
+        if (finalY > maxY) {
+          finalY = maxY;
+        }
+      } else if (spaceAbove > 100) {
+        // 使用上方，但不要贴顶
+        finalY = selTop - popoverHeight - offset;
+        // 确保不会超出顶部
+        const minY = scrollY + 20;
+        if (finalY < minY) {
+          finalY = minY;
+        }
+      } else {
+        // 实在没空间，放在视口中央
+        finalY = scrollY + (viewportHeight - popoverHeight) / 2;
+      }
+    }
+    
+    // 水平位置调整：确保不超出左右边界
     if (finalX + popoverWidth > scrollX + viewportWidth) {
       finalX = scrollX + viewportWidth - popoverWidth - offset;
     }
-    if (finalY + popoverHeight > scrollY + viewportHeight) {
-      finalY = scrollY + viewportHeight - popoverHeight - offset;
+    if (finalX < scrollX) {
+      finalX = scrollX + offset;
     }
-    if (finalX < scrollX) finalX = scrollX + offset;
-    if (finalY < scrollY) finalY = scrollY + offset;
+    
+    // 最终边界检查
+    finalX = Math.max(scrollX + 10, Math.min(finalX, scrollX + viewportWidth - popoverWidth - 10));
+    finalY = Math.max(scrollY + 10, Math.min(finalY, scrollY + viewportHeight - popoverHeight - 10));
 
-    // 如果仍与选区重叠，尝试在选区上方或下方重新定位
-    const selTop = selectionRect.top + scrollY;
-    const selBottom = selectionRect.bottom + scrollY;
-    const verticalOverlap = (finalY < selBottom) && (finalY + popoverHeight > selTop);
-    if (verticalOverlap) {
-      // 优先放在选区下方，否则放在上方
-      const spaceBelow = scrollY + viewportHeight - selBottom;
-      const spaceAbove = selTop - scrollY;
-      if (spaceBelow >= popoverHeight + offset) {
-        finalY = selBottom + offset;
-      } else if (spaceAbove >= popoverHeight + offset) {
-        finalY = selTop - popoverHeight - offset;
-      }
-    }
+    console.log('[触触搜] calculateSmartPosition 输出:', { 
+      x: finalX, 
+      y: finalY, 
+      popoverSize: { width: popoverWidth, height: popoverHeight },
+      decision: spaceBelow >= popoverHeight + offset ? '下方' : 
+                (spaceAbove >= popoverHeight + offset ? '上方' : '中央')
+    });
 
     return { x: finalX, y: finalY, arrow: 'none' };
   }
@@ -777,6 +824,8 @@
     if (!isModeSwitching) {
       // 移除旧的popover（非模式切换时）
       if (popover) {
+        // 清理拖拽状态
+        cleanupDragState();
         popover.remove();
       }
       
@@ -791,6 +840,8 @@
       shadowRoot = popover.attachShadow({ mode: 'open' });
     } else {
       // 模式切换时，清空shadow DOM内容但保留容器
+      // 同时清理拖拽状态
+      cleanupDragState();
       shadowRoot.innerHTML = '';
     }
     
@@ -933,12 +984,14 @@
       .ccs-popover.mini-mode {
         width: auto;
         min-width: 240px;
+        pointer-events: auto;
       }
 
       /* 底部停靠模式 */
       .ccs-popover.docked-bottom {
         width: 100vw;
         border-radius: 8px 8px 0 0;
+        pointer-events: auto;
       }
 
       .ccs-bottom {
@@ -1454,7 +1507,7 @@
     try {
       const titleEl = shadowRoot.querySelector('.ccs-title');
       if (titleEl) {
-        const full = selectedText || lastNonEmptySelection || getSmartSearchText();
+        const full = getCurrentSearchText();
         if (full) titleEl.title = full;
       }
     } catch (_) {}
@@ -1477,15 +1530,15 @@
           <div class="ccs-button-icon">${btn.icon}</div>
           <div class="ccs-button-label">${btn.title}</div>
         `;
-        // 初始hover提示包含完整文本（无选中时优先标题/URL）
+        // 初始hover提示包含完整文本（使用统一函数）
         try {
-          const initText = selectedText || getSmartSearchText() || lastNonEmptySelection;
+          const initText = getCurrentSearchText();
           button.title = initText ? `${btn.title}: ${initText}` : btn.title;
         } catch (_) {
           button.title = btn.title;
         }
         button.addEventListener('click', () => {
-          const text = getActiveSelectionText() || lastNonEmptySelection || selectedText || getSmartSearchText();
+          const text = getCurrentSearchText();
           if (!text) {
             try { showToast('没有可用的文本'); } catch (_) {}
             return;
@@ -1500,7 +1553,7 @@
             const lastTs = parseInt(button.dataset.hovTs || '0', 10);
             if (now - lastTs < 150) return;
             button.dataset.hovTs = String(now);
-            const t = getActiveSelectionText() || getSmartSearchText() || lastNonEmptySelection;
+            const t = getCurrentSearchText();
             button.title = t ? `${btn.title}: ${t}` : btn.title;
             // 同步更新其他按钮与标题，确保一致
             updateRealtimeFallbackUI();
@@ -1738,7 +1791,16 @@
         settings.mode = 'mini';
         saveSettings();
         createPopover(true); // 传入true保留selectedText和位置
-        // 不需要调用showPopover，位置已经保持不变
+        // 确保popover定位和pointer-events正确
+        if (popover && settings.position) {
+          popover.style.position = 'absolute';
+          popover.style.left = `${settings.position.x}px`;
+          popover.style.top = `${settings.position.y}px`;
+          popover.style.pointerEvents = 'auto';
+          popover.style.width = '';
+          popover.style.right = '';
+          popover.style.bottom = '';
+        }
       });
     }
 
@@ -1749,7 +1811,16 @@
         settings.mode = 'normal';
         saveSettings();
         createPopover(true); // 传入true保留selectedText和位置
-        // 不需要调用showPopover，位置已经保持不变
+        // 确保popover定位和pointer-events正确
+        if (popover && settings.position && settings.layout !== 'bottom') {
+          popover.style.position = 'absolute';
+          popover.style.left = `${settings.position.x}px`;
+          popover.style.top = `${settings.position.y}px`;
+          popover.style.pointerEvents = 'auto';
+          popover.style.width = '';
+          popover.style.right = '';
+          popover.style.bottom = '';
+        }
       });
     }
 
@@ -1834,6 +1905,8 @@
       undockBtn.addEventListener('click', () => {
         settings.layout = 'float';
         isTempDock = false; // 清除临时标记
+        // 清除保存的位置，确保重新定位
+        settings.position = null;
         saveSettings();
         createPopover(true);
         const selection = window.getSelection();
@@ -1912,8 +1985,22 @@
             // 关闭全局：如果当前是底部栏但非临时，切回悬浮
             if (settings.layout === 'bottom' && !isTempDock) {
               settings.layout = 'float';
+              // 清除保存的位置，确保重新定位
+              settings.position = null;
+              saveSettings();
               createPopover(true);
-              // 不强制显示，保持现状
+              // 重新定位到合适位置（基于选中文本或视口中心）
+              const selection = window.getSelection();
+              let x = window.innerWidth / 2 + window.scrollX;
+              let y = window.innerHeight / 3 + window.scrollY;
+              let rect = null;
+              if (selection && selection.rangeCount > 0 && selection.toString().trim()) {
+                const range = selection.getRangeAt(0);
+                rect = range.getBoundingClientRect();
+                x = rect.left + rect.width / 2 + window.scrollX;
+                y = rect.bottom + window.scrollY;
+              }
+              forceShowPopover(x, y, rect, { overrideSavedPosition: true });
             }
           }
         });
@@ -2026,11 +2113,15 @@
     const x = e.clientX - dragOffset.x + window.scrollX;
     const y = e.clientY - dragOffset.y + window.scrollY;
     
-    popover.style.left = `${x}px`;
-    popover.style.top = `${y}px`;
+    // 验证位置是否合理（避免拖到屏幕外）
+    const validX = Math.max(0, Math.min(x, window.innerWidth - 100));
+    const validY = Math.max(0, Math.min(y, window.innerHeight - 50));
+    
+    popover.style.left = `${validX}px`;
+    popover.style.top = `${validY}px`;
     
     // 保存位置
-    settings.position = { x, y };
+    settings.position = { x: validX, y: validY };
   }
 
   // 停止拖拽
@@ -2053,6 +2144,18 @@
     
     // 保存设置
     saveSettings();
+  }
+
+  // 清理拖拽状态（用于模式切换时）
+  function cleanupDragState() {
+    isDragging = false;
+    dragOffset = { x: 0, y: 0 };
+    // 移除可能残留的全局事件监听
+    document.removeEventListener('mousemove', handleDragging);
+    document.removeEventListener('mouseup', stopDragging);
+    // 恢复页面文本选择
+    document.body.classList.remove('ccs-dragging');
+    document.body.style.userSelect = '';
   }
 
   // 切换设置面板
@@ -2102,12 +2205,12 @@
       return;
     }
     
-      console.log('[触触搜] showPopover 开始执行:', {x, y, selectedText, hasPopover: !!popover});
+    console.log('[触触搜] showPopover 开始执行:', {x, y, selectedText, hasPopover: !!popover, hasSelectionRect: !!selectionRect});
 
     // 底部栏模式（仅普通模式）：若已存在且已是fixed定位，避免重建导致闪烁，仅更新提示与可见性
     if (settings.mode === 'normal' && settings.layout === 'bottom' && popover && shadowRoot && window.getComputedStyle(popover).position === 'fixed') {
       try {
-        const current = selectedText || getSmartSearchText();
+        const current = getCurrentSearchText();
         const renderedButtons = shadowRoot.querySelectorAll('.ccs-button');
         renderedButtons.forEach(el => {
           const id = el.dataset.id;
@@ -2126,9 +2229,56 @@
       return;
     }
     
-    // 如果popup已存在，先隐藏再重新显示
+    // 如果popover已存在且不是底部栏模式，尝试只更新位置和内容而不重建
+    if (popover && shadowRoot && settings.layout !== 'bottom') {
+      console.log('[触触搜] Popover 已存在，尝试更新位置和内容');
+      
+      // 如果有选中文本，更新位置
+      if (selectionRect) {
+        const position = calculateSmartPosition(selectionRect, x, y);
+        popover.style.position = 'absolute'; // 确保是absolute定位
+        popover.style.left = `${position.x}px`;
+        popover.style.top = `${position.y}px`;
+        // 清除可能的fixed定位残留样式
+        popover.style.right = '';
+        popover.style.bottom = '';
+        popover.style.width = '';
+        // 确保pointer-events正确
+        popover.style.pointerEvents = 'auto';
+        // 保存新位置
+        settings.position = position;
+        console.log('[触触搜] 更新popover位置:', position);
+      }
+      
+      // 更新标题和按钮提示
+      try {
+        const current = getCurrentSearchText();
+        const titleEl = shadowRoot.querySelector('.ccs-title');
+        if (titleEl) {
+          titleEl.textContent = `🔍 触触搜: "${current}"`;
+          titleEl.title = current;
+        }
+        const renderedButtons = shadowRoot.querySelectorAll('.ccs-button');
+        renderedButtons.forEach(el => {
+          const id = el.dataset.id;
+          const cfg = (id && defaultButtons.find(b => b.id === id)) || null;
+          const base = cfg ? cfg.title : '操作';
+          el.title = current ? `${base}: ${current}` : base;
+        });
+        // 确保可见
+        popover.style.display = 'block';
+        popover.style.visibility = 'visible';
+        popover.style.opacity = settings.opacity || '1';
+        console.log('[触触搜] 成功更新现有popover');
+        return;
+      } catch (err) {
+        console.warn('[触触搜] 更新失败，将重建:', err);
+      }
+    }
+    
+    // 只有在真正需要时才移除并重建
     if (popover) {
-      console.log('[触触搜] Popover 已存在，先移除旧的');
+      console.log('[触触搜] 需要重建 Popover');
       popover.remove();
       popover = null;
       shadowRoot = null;
@@ -2156,16 +2306,34 @@
       popover.style.top = 'auto';
       // 宽度全屏
       popover.style.width = '100%';
+      // 允许点击穿透到底层页面
+      popover.style.pointerEvents = 'none';
       // 贴底栏无需 left/top 位置计算
       position = { x: 0, y: window.innerHeight + window.scrollY };
-    } else if (settings.position && !selectionRect && !overrideSaved) {
-      // 如果有保存的位置且不是新选择，且未强制覆盖，则使用保存的位置
-      position = settings.position;
-      console.log('[触触搜] 使用已保存的位置', position);
     } else if (selectionRect) {
-      // 使用智能定位
+      // 如果有选中文本，始终使用智能定位（优先级最高）
       position = calculateSmartPosition(selectionRect, x, y);
-      console.log('[触触搜] 使用智能定位计算的位置', position);
+      console.log('[触触搜] 使用智能定位计算的位置（基于选中文本）', position);
+    } else if (settings.position && !overrideSaved) {
+      // 没有选中文本时，如果有保存的位置且未强制覆盖，则使用保存的位置
+      // 但需要验证位置是否合理
+      const savedPos = settings.position;
+      // 验证保存的位置是否合理（不要太靠边）
+      const margin = 50;
+      const maxX = window.innerWidth + window.scrollX - 100;
+      const maxY = window.innerHeight + window.scrollY - 100;
+      
+      if (savedPos && typeof savedPos.x === 'number' && typeof savedPos.y === 'number' &&
+          savedPos.x >= margin && savedPos.x <= maxX &&
+          savedPos.y >= margin && savedPos.y <= maxY) {
+        position = savedPos;
+        console.log('[触触搜] 使用已保存的位置', position);
+      } else {
+        // 保存的位置无效，使用传入的位置或默认位置
+        position = { x: x || window.innerWidth / 2, y: y || window.innerHeight / 3 };
+        settings.position = null; // 清除无效位置
+        console.log('[触触搜] 保存的位置无效，使用默认位置', position, '原保存位置:', savedPos);
+      }
     } else {
       // 使用传入的位置
       position = { x, y };
@@ -2180,13 +2348,15 @@
     }
     
     if (!(settings.mode === 'normal' && settings.layout === 'bottom')) {
-      // 非底部栏：清理遗留fixed样式并按计算位置放置
+      // 非底部栏（包括mini模式）：清理遗留fixed样式并按计算位置放置
       popover.style.position = 'absolute';
       popover.style.right = '';
       popover.style.bottom = '';
       popover.style.width = '';
       popover.style.left = `${position.x}px`;
       popover.style.top = `${position.y}px`;
+      // 恢复正常点击 - mini模式和normal float模式都需要正常交互
+      popover.style.pointerEvents = 'auto';
     }
     
     console.log('[触触搜] Popover 位置已设置:', {
@@ -2296,12 +2466,16 @@
       });
     }
 
-    // 若弹窗存在，则实时更新标题与按钮tooltip（选中文本优先，否则回退到搜索URL关键词或页面标题）
+    // 若弹窗存在，则实时更新标题与按钮tooltip（使用统一函数）
     if (popover && shadowRoot) {
-      const current = text || lastNonEmptySelection || getSmartSearchText();
+      // 如果有新的选中文本，则使用它，否则使用统一函数获取
+      const current = text || getCurrentSearchText();
       if (current) {
-        selectedText = current;
-        lastNonEmptySelection = current;
+        if (text) {
+          // 如果是新选中的文本，更新记录
+          selectedText = current;
+          lastNonEmptySelection = current;
+        }
         // 更新标题显示与title（无标题的布局会跳过）
         const titleEl = shadowRoot.querySelector('.ccs-title');
         if (titleEl) {
@@ -2342,39 +2516,68 @@
     
     // 使用防抖，避免频繁触发
     selectionTimeout = setTimeout(() => {
+      // 如果是底部栏模式，不处理选择（底部栏常驻，只更新内容）
+      if (settings.layout === 'bottom') {
+        return;
+      }
+      
       const selection = window.getSelection();
       const text = selection.toString().trim();
-      const currentTime = Date.now();
+      
+      console.log('[触触搜] mouseup检测:', { 
+        text: text || '无',
+        hasSelection: text.length > 0
+      });
 
-      // 更严格的检查：确保真的有选中文本
-      if (text.length >= 1 && selection.rangeCount > 0) { // 至少1个字符
-        const range = selection.getRangeAt(0);
-        // range.collapsed为false表示确实有选中内容
-        if (!range.collapsed && settings.mode !== 'disabled') {
-          // 检查是否是重复的选择（避免双击闪现两次）
-          if (text === lastSelectedText && currentTime - lastSelectionTime < 500) {
-            return; // 500ms内相同文本不重复显示
+      // 简单判断：有选中文本就显示，没有就隐藏
+      if (text.length >= 1) {
+        // 有选中文本
+        const currentTime = Date.now();
+        
+        // 避免重复显示相同文本
+        if (text === lastSelectedText && currentTime - lastSelectionTime < 500) {
+          console.log('[触触搜] 重复选择，跳过');
+          return;
+        }
+        
+        console.log('[触触搜] 显示popover:', text);
+        lastSelectedText = text;
+        lastSelectionTime = currentTime;
+        selectedText = text;
+        lastNonEmptySelection = text;
+        
+        // 清除保存的位置
+        settings.position = null;
+          
+        // 获取选中文本的位置
+        if (selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          let rect = range.getBoundingClientRect();
+          
+          // 如果rect无效，尝试使用getClientRects()[0]
+          if (rect.width === 0 || rect.height === 0) {
+            const rects = range.getClientRects();
+            if (rects && rects.length > 0) {
+              rect = rects[0];
+            }
           }
           
-          lastSelectedText = text;
-          lastSelectionTime = currentTime;
-          selectedText = text;
-          
-          // 使用选中区域的位置而非鼠标位置
-          const rect = range.getBoundingClientRect();
-          // 计算选中文本的底部中心点
+          // 计算位置
           const centerX = rect.left + rect.width / 2 + window.scrollX;
           const bottomY = rect.bottom + window.scrollY;
           
+          // 显示popover
           showPopover(centerX, bottomY, rect);
-        } else {
-          hidePopover();
         }
       } else {
-        // 底部栏模式下保持常驻
-        if (settings.layout !== 'bottom') hidePopover();
+        // 没有选中文本 - 简单地隐藏popover
+        console.log('[触触搜] 无选中，隐藏popover');
+        selectedText = '';
+        if (popover) {
+          hidePopover();
+        }
       }
-    }, 200); // 增加到200ms防抖延迟
+    }, 250); // 增加到250ms防抖延迟，确保单击时选区稳定
   });
 
   // 点击其他地方隐藏popover
@@ -2972,6 +3175,23 @@
     return '';
   }
 
+  // 统一的获取当前搜索文本函数，确保按钮提示和实际搜索内容一致
+  function getCurrentSearchText() {
+    // 统一优先级顺序：
+    // 1. 实时选中的文本（最高优先）
+    const activeSelection = getActiveSelectionText();
+    if (activeSelection) return activeSelection;
+    
+    // 2. 最后一次非空选择
+    if (lastNonEmptySelection) return lastNonEmptySelection;
+    
+    // 3. 初始选中文本（如果有）
+    if (selectedText) return selectedText;
+    
+    // 4. 智能搜索文本（URL关键词或页面标题）
+    return getSmartSearchText();
+  }
+
   // 向background请求关键词（与右键提取一致）
   function requestKeywordsFromBackground() {
     return new Promise((resolve) => {
@@ -3131,8 +3351,8 @@
     }
     // 处理显示popover请求
     if (request.action === 'showPopover') {
-      // 若未传入文本，使用与快捷键一致的智能文本获取
-      selectedText = request.text || getSmartSearchText();
+      // 若未传入文本，使用统一函数获取
+      selectedText = request.text || getCurrentSearchText();
       // 获取当前选中区域位置
       const selection = window.getSelection();
       if (selection.rangeCount > 0) {

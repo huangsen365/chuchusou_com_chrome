@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试单击问题修复</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 40px;
+            line-height: 2;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .test-area {
+            margin: 30px 0;
+            padding: 25px;
+            background: #f8f9fa;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+        }
+        .test-area h2 {
+            color: #495057;
+            margin-top: 0;
+        }
+        .selectable-text {
+            padding: 15px;
+            background: #e7f3ff;
+            border: 1px solid #0066cc;
+            border-radius: 4px;
+            margin: 15px 0;
+            cursor: text;
+            font-size: 16px;
+        }
+        .instruction {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 12px 15px;
+            margin: 15px 0;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .log-area {
+            background: #2b2b2b;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            height: 150px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        .test-button {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .highlight {
+            background: #ffeb3b;
+            padding: 2px 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 触触搜单击问题修复测试</h1>
+    
+    <div class="instruction">
+        <strong>修复内容：</strong>
+        <ul>
+            <li>单击（不选中文本）不会再显示旧文本的popover</li>
+            <li>单击不会导致面板跳到左下角</li>
+            <li>正确区分"单击"和"选中文本"</li>
+            <li>清除无效的选中记录</li>
+        </ul>
+    </div>
+
+    <div class="test-area">
+        <h2>测试场景1：单击 vs 选中</h2>
+        <div class="selectable-text">
+            <span class="highlight">第一段文本</span>：人工智能技术正在改变世界
+        </div>
+        <p>测试步骤：</p>
+        <ol>
+            <li>先<strong>双击</strong>选中"人工智能技术"→ 应该显示popover</li>
+            <li>然后<strong>单击</strong>空白处 → popover应该消失</li>
+            <li>再<strong>单击</strong>文本（不选中）→ <span class="success">不应该显示旧的popover</span></li>
+        </ol>
+    </div>
+
+    <div class="test-area">
+        <h2>测试场景2：连续单击不同位置</h2>
+        <div class="selectable-text">
+            这是第一行文本，包含一些关键词
+        </div>
+        <div class="selectable-text">
+            这是第二行文本，有不同的内容
+        </div>
+        <div class="selectable-text">
+            这是第三行文本，测试单击行为
+        </div>
+        <p>测试步骤：</p>
+        <ol>
+            <li>依次<strong>单击</strong>（不是双击）每一行</li>
+            <li><span class="success">预期：popover不应该出现</span></li>
+            <li><span class="error">错误行为：显示之前选中的文本</span></li>
+        </ol>
+    </div>
+
+    <div class="test-area">
+        <h2>测试场景3：选择后单击</h2>
+        <div class="selectable-text">
+            <span class="highlight">机器学习</span>、<span class="highlight">深度学习</span>、<span class="highlight">神经网络</span>
+        </div>
+        <p>测试步骤：</p>
+        <ol>
+            <li>双击选中"机器学习" → popover显示</li>
+            <li>单击"深度学习"（只是单击，不选中）</li>
+            <li><span class="success">预期：popover消失，不显示旧文本</span></li>
+            <li>双击选中"神经网络" → popover在正确位置显示</li>
+        </ol>
+    </div>
+
+    <div class="test-area">
+        <h2>测试场景4：位置验证</h2>
+        <div class="selectable-text" style="text-align: right;">
+            右对齐文本：测试位置是否正确
+        </div>
+        <div class="selectable-text" style="text-align: center;">
+            居中文本：验证popover定位
+        </div>
+        <div class="selectable-text" style="text-align: left;">
+            左对齐文本：检查是否会跳到左下角
+        </div>
+        <p>测试：</p>
+        <ul>
+            <li>选中任意文本，popover应该在选中文本附近</li>
+            <li>单击时不应该在左下角显示</li>
+        </ul>
+    </div>
+
+    <div class="test-area">
+        <h2>测试场景5：输入框测试</h2>
+        <input type="text" value="在输入框中选择文本测试" style="width: 100%; padding: 10px; font-size: 16px;">
+        <br><br>
+        <textarea style="width: 100%; height: 80px; padding: 10px;">
+多行文本框测试
+选中这里的文本
+然后单击其他地方
+        </textarea>
+        <p>验证输入框中的选择和单击行为是否正常</p>
+    </div>
+
+    <div class="test-area">
+        <h2>控制台日志</h2>
+        <button class="test-button" onclick="clearLog()">清除日志</button>
+        <div id="log" class="log-area"></div>
+    </div>
+
+    <script>
+        const logArea = document.getElementById('log');
+        
+        function log(message) {
+            const time = new Date().toLocaleTimeString();
+            logArea.innerHTML += `[${time}] ${message}\n`;
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+        
+        function clearLog() {
+            logArea.innerHTML = '';
+        }
+        
+        // 监听选择变化
+        document.addEventListener('selectionchange', () => {
+            const selection = window.getSelection();
+            const text = selection.toString();
+            if (text) {
+                log(`选中文本: "${text.substring(0, 30)}${text.length > 30 ? '...' : ''}"`);
+            }
+        });
+        
+        // 监听鼠标事件
+        document.addEventListener('mouseup', (e) => {
+            const selection = window.getSelection();
+            const text = selection.toString();
+            const isCollapsed = selection.rangeCount > 0 ? selection.getRangeAt(0).collapsed : true;
+            
+            if (e.target.classList.contains('selectable-text') || e.target.closest('.selectable-text')) {
+                log(`鼠标抬起 - 选中: ${text ? '"' + text.substring(0, 20) + '"' : '无'}, collapsed: ${isCollapsed}`);
+            }
+        });
+        
+        // 监听单击
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('selectable-text') || e.target.closest('.selectable-text')) {
+                const selection = window.getSelection();
+                if (!selection.toString()) {
+                    log('单击事件 - 无文本选中');
+                }
+            }
+        });
+        
+        // 页面加载完成
+        window.addEventListener('load', () => {
+            log('测试页面已加载，开始测试...');
+            log('提示：打开浏览器控制台查看触触搜的调试信息');
+        });
+    </script>
+</body>
+</html>

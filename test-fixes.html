@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试触触搜修复效果</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            line-height: 1.8;
+            min-height: 150vh;
+            background: linear-gradient(to bottom, #f0f0f0, #ffffff);
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section h2 {
+            color: #2563eb;
+            margin-bottom: 15px;
+        }
+        .highlight {
+            background: #fef3c7;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        .selectable {
+            padding: 15px;
+            background: #e0f2fe;
+            margin: 15px 0;
+            border-radius: 5px;
+            border: 1px solid #0284c7;
+            cursor: text;
+        }
+        .test-button {
+            padding: 10px 20px;
+            margin: 10px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .test-button:hover {
+            background: #2563eb;
+        }
+        .fixed-element {
+            position: fixed;
+            top: 100px;
+            right: 20px;
+            padding: 15px;
+            background: #10b981;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            z-index: 100;
+        }
+        input[type="text"] {
+            width: 100%;
+            max-width: 400px;
+            padding: 12px;
+            margin: 10px 0;
+            font-size: 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 5px;
+        }
+        .success {
+            color: #10b981;
+            font-weight: bold;
+        }
+        .error {
+            color: #ef4444;
+            font-weight: bold;
+        }
+        .info {
+            background: #dbeafe;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border-left: 4px solid #3b82f6;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 触触搜修复效果测试</h1>
+    
+    <div class="info">
+        <strong>修复内容：</strong>
+        <ul>
+            <li>✅ 选择新文本时，面板不再跳到左下角</li>
+            <li>✅ 页面元素始终可点击（pointer-events修复）</li>
+            <li>✅ Mini模式正常显示和定位</li>
+            <li>✅ 拖拽功能在模式切换后正常工作</li>
+            <li>✅ 按钮提示文本与实际搜索内容一致</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>测试1：文本选择不再导致面板跳转</h2>
+        <div class="selectable">
+            选择这段文本：<span class="highlight">人工智能和机器学习</span>
+        </div>
+        <div class="selectable">
+            再选择这段：<span class="highlight">自然语言处理技术</span>
+        </div>
+        <p><span class="success">预期结果：</span>面板应该出现在选中文本附近，而不是跳到左下角</p>
+    </div>
+
+    <div class="test-section">
+        <h2>测试2：悬停模式取消后的表现</h2>
+        <ol>
+            <li>开启悬停模式（全局）</li>
+            <li>关闭悬停模式</li>
+            <li>选择一些文本</li>
+        </ol>
+        <p><span class="success">预期结果：</span>面板应该出现在合适的位置，可以正常拖拽</p>
+    </div>
+
+    <div class="test-section">
+        <h2>测试3：Mini模式切换</h2>
+        <div class="selectable">
+            选择文本后切换到Mini模式：<span class="highlight">深度学习框架</span>
+        </div>
+        <button class="test-button" onclick="testMiniMode()">测试Mini模式</button>
+        <p><span class="success">预期结果：</span>Mini模式面板正常显示，位置正确，可以拖拽</p>
+    </div>
+
+    <div class="test-section">
+        <h2>测试4：页面交互性</h2>
+        <p>当触触搜面板显示时，测试以下元素是否可点击：</p>
+        <button class="test-button" onclick="alert('按钮可以点击！')">点击测试按钮</button>
+        <br>
+        <input type="text" placeholder="输入框是否可以输入..." />
+        <br>
+        <label>
+            <input type="checkbox" /> 复选框是否可以点击
+        </label>
+        <br>
+        <select>
+            <option>下拉菜单选项1</option>
+            <option>下拉菜单选项2</option>
+        </select>
+    </div>
+
+    <div class="test-section">
+        <h2>测试5：输入框文本选择</h2>
+        <input type="text" value="在输入框中选择部分文本进行测试" />
+        <p><span class="success">预期结果：</span>选中输入框内的文本时，面板正确定位，按钮提示更新</p>
+    </div>
+
+    <div class="test-section">
+        <h2>测试6：连续选择不同文本</h2>
+        <p>快速连续选择以下不同的文本片段：</p>
+        <p class="selectable">第一段：<span class="highlight">云计算</span></p>
+        <p class="selectable">第二段：<span class="highlight">区块链</span></p>
+        <p class="selectable">第三段：<span class="highlight">物联网</span></p>
+        <p><span class="success">预期结果：</span>面板平滑更新位置，不会重建，不会跳转</p>
+    </div>
+
+    <div class="fixed-element" onclick="this.style.background='#059669';">
+        固定位置元素<br>点击测试
+    </div>
+
+    <div class="test-section">
+        <h2>验证清单</h2>
+        <ul style="list-style: none;">
+            <li>☐ 选择文本时面板出现在正确位置</li>
+            <li>☐ 面板不会跳到左下角</li>
+            <li>☐ 页面所有元素都可以点击</li>
+            <li>☐ Mini模式正常工作</li>
+            <li>☐ 拖拽功能正常</li>
+            <li>☐ 按钮提示与搜索内容一致</li>
+            <li>☐ 悬停模式切换正常</li>
+            <li>☐ 连续选择文本不会导致问题</li>
+        </ul>
+    </div>
+
+    <script>
+        function testMiniMode() {
+            // 选择一些文本
+            const selection = window.getSelection();
+            const range = document.createRange();
+            const textNode = document.querySelector('.selectable').firstChild;
+            if (textNode) {
+                range.setStart(textNode, 0);
+                range.setEnd(textNode, 10);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+            console.log('已选择文本，请手动切换到Mini模式测试');
+        }
+
+        // 监听选择变化
+        document.addEventListener('selectionchange', () => {
+            const selection = window.getSelection().toString();
+            if (selection) {
+                console.log('选中文本:', selection);
+            }
+        });
+
+        // 页面加载完成提示
+        window.addEventListener('load', () => {
+            console.log('测试页面已就绪');
+            console.log('修复项：');
+            console.log('1. 文本选择不再导致面板跳转到左下角');
+            console.log('2. Pointer-events正确设置，页面保持可交互');
+            console.log('3. Mini模式正常显示');
+            console.log('4. 拖拽功能在各种情况下都正常工作');
+        });
+    </script>
+</body>
+</html>
