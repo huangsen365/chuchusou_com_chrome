@@ -734,7 +734,7 @@
 
     // 添加按钮
     const buttonsToShow = settings.mode === 'mini' 
-      ? defaultButtons.filter(btn => settings.miniButtons.includes(btn.id))
+      ? settings.miniButtons.map(id => defaultButtons.find(btn => btn.id === id)).filter(Boolean)
       : defaultButtons;
     
     const buttonsContainer = shadowRoot.querySelector(settings.mode === 'mini' ? '.ccs-mini-buttons' : '.ccs-buttons');
