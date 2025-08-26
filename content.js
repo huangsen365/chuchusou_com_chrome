@@ -1545,7 +1545,7 @@
   }
 
   // 显示popover
-  function showPopover(x, y, selectionRect = null) {
+  function showPopover(x, y, selectionRect = null, options = {}) {
     if (settings.mode === 'disabled') {
       console.log('[触触搜] showPopover 被禁用 (mode=disabled)');
       return;
@@ -1564,15 +1564,26 @@
     createPopover();
 
     let position;
-    if (settings.position && !selectionRect) {
-      // 如果有保存的位置且不是新选择，使用保存的位置
+    const overrideSaved = options && options.overrideSavedPosition;
+    console.log('[触触搜] showPopover 定位参数:', {
+      incoming: { x, y },
+      hasSelectionRect: !!selectionRect,
+      overrideSaved,
+      savedPosition: settings.position || null,
+      scroll: { x: window.scrollX, y: window.scrollY }
+    });
+    if (settings.position && !selectionRect && !overrideSaved) {
+      // 如果有保存的位置且不是新选择，且未强制覆盖，则使用保存的位置
       position = settings.position;
+      console.log('[触触搜] 使用已保存的位置', position);
     } else if (selectionRect) {
       // 使用智能定位
       position = calculateSmartPosition(selectionRect, x, y);
+      console.log('[触触搜] 使用智能定位计算的位置', position);
     } else {
       // 使用传入的位置
       position = { x, y };
+      console.log('[触触搜] 使用传入的位置', position);
     }
 
     // 添加平滑过渡动画
@@ -1821,15 +1832,15 @@
           // 确定显示位置
           let x, y, selectionRect = null;
           const selection = window.getSelection();
-
+          
           // 如果有选中区域，使用选中区域位置
           if (selection.rangeCount > 0 && selection.toString().trim()) {
             const range = selection.getRangeAt(0);
             const rect = range.getBoundingClientRect();
-            x = rect.left + rect.width / 2;
-            y = rect.bottom;
+            x = rect.left + rect.width / 2 + window.scrollX;
+            y = rect.bottom + window.scrollY;
             selectionRect = rect;
-            console.log('[触触搜] 使用选中区域位置:', {x, y});
+            console.log('[触触搜] 使用选中区域位置:', {x, y, rect});
           } else {
             // 否则显示在屏幕中央偏上（加入滚动补偿，使用文档坐标）
             x = window.innerWidth / 2 + window.scrollX;
@@ -1872,6 +1883,7 @@
         try {
           const rect = popover.getBoundingClientRect();
           const inView = rect.bottom > 0 && rect.right > 0 && rect.top < window.innerHeight && rect.left < window.innerWidth;
+          console.log('[触触搜] Ctrl+Shift+S Toggle 检查可见性:', { rect, inView, viewport: { w: window.innerWidth, h: window.innerHeight }, scroll: { x: window.scrollX, y: window.scrollY } });
           if (!inView) {
             // 重新定位到视口内
             let x, y, selectionRect = null;
@@ -1882,14 +1894,18 @@
               x = selRect.left + selRect.width / 2 + window.scrollX;
               y = selRect.bottom + window.scrollY;
               selectionRect = selRect;
+              console.log('[触触搜] 选择区域存在，准备重定位:', { x, y, selRect });
             } else {
               x = window.innerWidth / 2 + window.scrollX;
               y = window.innerHeight / 3 + window.scrollY;
+              console.log('[触触搜] 无选择区域，重定位到视口中心上方:', { x, y });
             }
-            forceShowPopover(x, y, selectionRect);
+            forceShowPopover(x, y, selectionRect, { overrideSavedPosition: true });
             return false;
           }
-        } catch (_) {}
+        } catch (err) {
+          console.warn('[触触搜] 检查/重定位失败:', err);
+        }
         // 在视口内：执行隐藏
         hidePopover();
         return false;
@@ -2407,7 +2423,7 @@
 
   // 强制显示popover（快捷键/统一入口）
   // 可选传入 selectionRect 以便与右键触发保持一致的智能定位
-  function forceShowPopover(x, y, selectionRect = null) {
+  function forceShowPopover(x, y, selectionRect = null, options = {}) {
     console.log('[触触搜] forceShowPopover 被调用:', {x, y, hasSelectionRect: !!selectionRect, isBlacklisted: settings.isBlacklisted});
     
     if (settings.isBlacklisted) {
@@ -2417,7 +2433,7 @@
       console.log('[触触搜] 准备显示popover');
       try {
         // 传递 selectionRect 以复用与右键一致的智能定位
-        showPopover(x, y, selectionRect);
+        showPopover(x, y, selectionRect, options);
         console.log('[触触搜] showPopover 完成');
       } catch (err) {
         console.error('[触触搜] 显示popover时出错:', err);
