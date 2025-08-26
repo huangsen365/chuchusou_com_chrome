@@ -523,7 +523,7 @@
     );
     
     // 定义偏移量，输入框内选中时增加偏移
-    const offset = isInInputField ? 25 : 15;
+    const offset = isInInputField ? 28 : 24;
     
     // 尝试不同的位置
     // 输入框内选中时，优先显示在上方或下方，避免遮挡
@@ -597,17 +597,40 @@
       ];
     }
     
-    // 找到第一个完全在视窗内的位置
+    // 找到第一个完全在视窗内且不覆盖选区的位置
     for (const pos of positions) {
-      const inViewport = 
-        pos.x >= scrollX && 
-        pos.y >= scrollY && 
-        pos.x + popoverWidth <= scrollX + viewportWidth &&
-        pos.y + popoverHeight <= scrollY + viewportHeight;
-      
-      if (inViewport) {
+      const left = pos.x - scrollX;
+      const top = pos.y - scrollY;
+      const right = left + popoverWidth;
+      const bottom = top + popoverHeight;
+      const inViewport =
+        left >= 0 &&
+        top >= 0 &&
+        right <= viewportWidth &&
+        bottom <= viewportHeight;
+      // 判断与选区是否重叠（加入6px安全边距）
+      const pad = 6;
+      const overlap =
+        right > (selectionRect.left - pad) &&
+        left < (selectionRect.right + pad) &&
+        bottom > (selectionRect.top - pad) &&
+        top < (selectionRect.bottom + pad);
+      if (inViewport && !overlap) {
         return pos;
       }
+    }
+    // 次优：允许覆盖选区，但必须在视窗内
+    for (const pos of positions) {
+      const left = pos.x - scrollX;
+      const top = pos.y - scrollY;
+      const right = left + popoverWidth;
+      const bottom = top + popoverHeight;
+      const inViewport =
+        left >= 0 &&
+        top >= 0 &&
+        right <= viewportWidth &&
+        bottom <= viewportHeight;
+      if (inViewport) return pos;
     }
     
     // 如果没有完全合适的位置，使用锚点位置附近
@@ -623,7 +646,22 @@
     }
     if (finalX < scrollX) finalX = scrollX + offset;
     if (finalY < scrollY) finalY = scrollY + offset;
-    
+
+    // 如果仍与选区重叠，尝试在选区上方或下方重新定位
+    const selTop = selectionRect.top + scrollY;
+    const selBottom = selectionRect.bottom + scrollY;
+    const verticalOverlap = (finalY < selBottom) && (finalY + popoverHeight > selTop);
+    if (verticalOverlap) {
+      // 优先放在选区下方，否则放在上方
+      const spaceBelow = scrollY + viewportHeight - selBottom;
+      const spaceAbove = selTop - scrollY;
+      if (spaceBelow >= popoverHeight + offset) {
+        finalY = selBottom + offset;
+      } else if (spaceAbove >= popoverHeight + offset) {
+        finalY = selTop - popoverHeight - offset;
+      }
+    }
+
     return { x: finalX, y: finalY, arrow: 'none' };
   }
 
