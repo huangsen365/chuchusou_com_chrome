@@ -40,6 +40,206 @@
     chrome.storage.local.set({ ccs_settings: settings });
   }
 
+  // 智能文本类型检测
+  function detectTextType(text) {
+    if (!text) return 'empty';
+    
+    // Base64编码检测（更严格的检查）
+    if (/^[A-Za-z0-9+/]+=*$/.test(text) && text.length > 3 && text.length % 4 === 0) {
+      try {
+        // 尝试解码验证
+        atob(text);
+        return 'base64_encoded';
+      } catch {
+        // 解码失败，不是有效的base64
+      }
+    }
+    
+    // URL编码检测
+    if (/%[0-9A-Fa-f]{2}/.test(text) && text.includes('%')) {
+      return 'url_encoded';
+    }
+    
+    // MD5格式检测（32位十六进制）
+    if (/^[a-f0-9]{32}$/i.test(text)) {
+      return 'md5_hash';
+    }
+    
+    // 纯大写文本
+    if (text === text.toUpperCase() && /[A-Z]/.test(text)) {
+      return 'uppercase';
+    }
+    
+    // 纯小写文本
+    if (text === text.toLowerCase() && /[a-z]/.test(text)) {
+      return 'lowercase';
+    }
+    
+    return 'plain_text';
+  }
+
+  // 获取智能命令建议
+  function getSmartSuggestions(input, selectedText) {
+    const textType = detectTextType(selectedText);
+    const inputLower = input.toLowerCase().trim();
+    
+    // 命令建议配置
+    const suggestions = [];
+    
+    // 智能建议优先级
+    const priority = {
+      exact: [],     // 精确匹配
+      smart: [],     // 智能推荐
+      fuzzy: []      // 模糊匹配
+    };
+    
+    // 所有可用命令
+    const allCommands = [
+      {
+        command: '/base64',
+        keywords: ['base64', 'b64', 'encode', '编码'],
+        icon: '🔤',
+        title: 'Base64编码',
+        description: '将文本编码为Base64格式',
+        condition: () => textType !== 'base64_encoded'
+      },
+      {
+        command: '/base64 -d',
+        keywords: ['decode', 'base64', 'b64', '解码'],
+        icon: '🔓',
+        title: 'Base64解码',
+        description: '解码Base64文本',
+        condition: () => textType === 'base64_encoded',
+        priority: textType === 'base64_encoded' ? 'smart' : 'fuzzy'
+      },
+      {
+        command: '/md5',
+        keywords: ['md5', 'hash', '哈希', '散列'],
+        icon: '#️⃣',
+        title: 'MD5哈希',
+        description: '生成MD5哈希值',
+        condition: () => textType !== 'md5_hash'
+      },
+      {
+        command: '/url',
+        keywords: ['url', 'uri', 'encode', 'urlencode'],
+        icon: '🔗',
+        title: 'URL编码',
+        description: '将文本进行URL编码',
+        condition: () => textType !== 'url_encoded'
+      },
+      {
+        command: '/url decode',
+        keywords: ['urldecode', 'decode', 'url'],
+        icon: '🔗',
+        title: 'URL解码',
+        description: '解码URL编码文本',
+        condition: () => textType === 'url_encoded',
+        priority: textType === 'url_encoded' ? 'smart' : 'fuzzy'
+      },
+      {
+        command: '/upper',
+        keywords: ['upper', 'uppercase', '大写', 'up'],
+        icon: '⬆️',
+        title: '转大写',
+        description: '转换为大写字母',
+        condition: () => textType !== 'uppercase' && /[a-z]/i.test(selectedText)
+      },
+      {
+        command: '/lower',
+        keywords: ['lower', 'lowercase', '小写', 'low'],
+        icon: '⬇️',
+        title: '转小写',
+        description: '转换为小写字母',
+        condition: () => textType !== 'lowercase' && /[A-Z]/i.test(selectedText)
+      },
+      {
+        command: '/search',
+        keywords: ['search', 'google', 'baidu', '搜索', '查找'],
+        icon: '🔍',
+        title: '搜索',
+        description: '在搜索引擎中查找',
+        condition: () => true
+      },
+      {
+        command: '/copy',
+        keywords: ['copy', 'clipboard', '复制', 'cp'],
+        icon: '📋',
+        title: '复制',
+        description: '复制到剪贴板',
+        condition: () => true
+      }
+    ];
+    
+    // 根据文本类型智能推荐
+    if (!inputLower) {
+      // 无输入时，基于文本类型智能推荐
+      if (textType === 'base64_encoded') {
+        priority.smart.push(allCommands.find(c => c.command === '/base64 -d'));
+      } else if (textType === 'url_encoded') {
+        priority.smart.push(allCommands.find(c => c.command === '/url decode'));
+      } else if (textType === 'plain_text') {
+        priority.smart.push(
+          allCommands.find(c => c.command === '/base64'),
+          allCommands.find(c => c.command === '/md5'),
+          allCommands.find(c => c.command === '/search')
+        );
+      }
+      
+      // 添加其他相关命令
+      allCommands.forEach(cmd => {
+        if (cmd.condition() && !priority.smart.includes(cmd)) {
+          priority.fuzzy.push(cmd);
+        }
+      });
+    } else {
+      // 有输入时，进行匹配
+      allCommands.forEach(cmd => {
+        if (!cmd.condition()) return;
+        
+        // 检查命令是否匹配
+        const commandMatch = cmd.command.toLowerCase().includes(inputLower) || 
+                           cmd.command.replace('/', '').startsWith(inputLower);
+        
+        // 检查关键词匹配
+        const keywordMatch = cmd.keywords.some(k => 
+          k.toLowerCase().startsWith(inputLower) || 
+          k.toLowerCase().includes(inputLower)
+        );
+        
+        if (commandMatch) {
+          // 命令精确匹配优先级最高
+          if (cmd.command.replace('/', '').toLowerCase().startsWith(inputLower)) {
+            priority.exact.push(cmd);
+          } else {
+            priority.smart.push(cmd);
+          }
+        } else if (keywordMatch) {
+          // 关键词匹配次之
+          if (cmd.keywords.some(k => k.toLowerCase().startsWith(inputLower))) {
+            priority.smart.push(cmd);
+          } else {
+            priority.fuzzy.push(cmd);
+          }
+        }
+      });
+    }
+    
+    // 合并建议并去重
+    const merged = [...priority.exact, ...priority.smart, ...priority.fuzzy];
+    const uniqueSuggestions = [];
+    const seen = new Set();
+    
+    for (const cmd of merged) {
+      if (cmd && !seen.has(cmd.command)) {
+        seen.add(cmd.command);
+        uniqueSuggestions.push(cmd);
+      }
+    }
+    
+    return uniqueSuggestions.slice(0, 6); // 最多显示6个建议
+  }
+
   // 命令处理函数
   const commands = {
     base64: (args) => {
@@ -72,6 +272,20 @@
     },
     upper: (args) => args.join(' ').toUpperCase(),
     lower: (args) => args.join(' ').toLowerCase(),
+    search: (args) => {
+      const query = args.join(' ');
+      window.open(`https://www.baidu.com/s?wd=${encodeURIComponent(query)}`, '_blank');
+      return `正在搜索: ${query}`;
+    },
+    copy: (args) => {
+      const text = args.join(' ');
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('已复制到剪贴板');
+      }).catch(() => {
+        showToast('复制失败');
+      });
+      return '已复制到剪贴板';
+    }
   };
 
   // 功能按钮配置
@@ -329,25 +543,41 @@
   }
 
   // 创建popover
-  function createPopover() {
+  function createPopover(preserveText = false) {
     if (settings.mode === 'disabled') {
       return;
     }
 
-    // 移除旧的popover
-    if (popover) {
-      popover.remove();
+    // 保存当前选中的文本（如果需要保留）
+    const tempSelectedText = preserveText ? selectedText : '';
+
+    // 如果是切换模式且popover已存在，只更新内容而不移除
+    const isModeSwitching = preserveText && popover;
+    
+    if (!isModeSwitching) {
+      // 移除旧的popover（非模式切换时）
+      if (popover) {
+        popover.remove();
+      }
+      
+      // 创建容器
+      popover = document.createElement('div');
+      popover.id = 'ccs-popover-container';
+      popover.style.position = 'absolute';
+      popover.style.zIndex = '2147483647';
+      popover.style.opacity = settings.opacity;
+
+      // 创建shadow DOM
+      shadowRoot = popover.attachShadow({ mode: 'open' });
+    } else {
+      // 模式切换时，清空shadow DOM内容但保留容器
+      shadowRoot.innerHTML = '';
     }
-
-    // 创建容器
-    popover = document.createElement('div');
-    popover.id = 'ccs-popover-container';
-    popover.style.position = 'absolute';
-    popover.style.zIndex = '2147483647';
-    popover.style.opacity = settings.opacity;
-
-    // 创建shadow DOM
-    shadowRoot = popover.attachShadow({ mode: 'open' });
+    
+    // 恢复选中的文本（如果需要保留）
+    if (preserveText && tempSelectedText) {
+      selectedText = tempSelectedText;
+    }
 
     // 创建HTML结构
     const wrapper = document.createElement('div');
@@ -385,10 +615,14 @@
             <button class="ccs-close" title="关闭">✕</button>
           </div>
         </div>
+        <!-- === 输入框功能暂时禁用 - 2024/08 === -->
+        <!--
         <div class="ccs-input-wrapper">
           <input type="text" class="ccs-input" placeholder="输入命令 (如: /base64 hello)">
           <button class="ccs-execute">执行</button>
+          <div class="ccs-suggestions" style="display: none;"></div>
         </div>
+        -->
         <div class="ccs-buttons"></div>
         <div class="ccs-result" style="display: none;"></div>
         <div class="ccs-footer">更多功能 敬请期待...</div>
@@ -543,6 +777,92 @@
 
       .ccs-execute:hover {
         background: #5a67d8;
+      }
+
+      .ccs-input-wrapper {
+        position: relative;
+      }
+
+      .ccs-suggestions {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 60px;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        margin-top: 4px;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 100;
+        animation: slideDown 0.2s ease-out;
+      }
+      
+      @keyframes slideDown {
+        from {
+          opacity: 0;
+          transform: translateY(-5px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .ccs-suggestion-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: background-color 0.2s;
+        border-bottom: 1px solid #f7fafc;
+      }
+
+      .ccs-suggestion-item:last-child {
+        border-bottom: none;
+      }
+
+      .ccs-suggestion-item:hover,
+      .ccs-suggestion-item.selected {
+        background: #f7fafc;
+      }
+
+      .ccs-suggestion-item.selected {
+        background: #edf2f7;
+      }
+
+      .ccs-suggestion-icon {
+        font-size: 16px;
+        flex-shrink: 0;
+      }
+
+      .ccs-suggestion-content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .ccs-suggestion-command {
+        font-family: monospace;
+        font-size: 13px;
+        color: #2d3748;
+        font-weight: 500;
+      }
+
+      .ccs-suggestion-description {
+        font-size: 11px;
+        color: #718096;
+        margin-top: 2px;
+      }
+
+      .ccs-suggestion-shortcut {
+        font-size: 10px;
+        color: #a0aec0;
+        padding: 2px 6px;
+        background: #f7fafc;
+        border-radius: 3px;
+        flex-shrink: 0;
       }
 
       .ccs-buttons {
@@ -738,7 +1058,10 @@
     // 绑定事件
     bindEvents();
 
-    document.body.appendChild(popover);
+    // 只在新创建时添加到DOM
+    if (!isModeSwitching) {
+      document.body.appendChild(popover);
+    }
   }
 
   // 绑定事件
@@ -751,18 +1074,80 @@
       closeBtn.addEventListener('click', hidePopover);
     }
 
+    // === 输入框功能暂时禁用 - 2024/08 ===
+    /*
     // 执行按钮
     const executeBtn = shadowRoot.querySelector('.ccs-execute');
     if (executeBtn) {
       executeBtn.addEventListener('click', executeCommand);
     }
+    */
 
-    // 输入框事件
+    // === 输入框功能暂时禁用 - 2024/08 ===
+    // 保留代码结构以便将来恢复
+    /*
+    // 输入框事件和建议系统
     const input = shadowRoot.querySelector('.ccs-input');
+    const suggestionsContainer = shadowRoot.querySelector('.ccs-suggestions');
+    let selectedSuggestionIndex = -1;
+    let currentSuggestions = [];
+    let debounceTimer = null;
+    
     if (input) {
-      // 回车执行命令
-      input.addEventListener('keypress', (e) => {
+      // === 智能建议功能暂时禁用 - 2024/08 ===
+      // 保留代码以便将来恢复和优化
+      
+      // 输入监听 - 实时更新建议
+      input.addEventListener('input', (e) => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          updateSuggestions(e.target.value);
+        }, 150);
+      });
+      
+      // 键盘导航
+      input.addEventListener('keydown', (e) => {
+        if (!suggestionsContainer || suggestionsContainer.style.display === 'none') {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            executeCommand();
+          }
+          return;
+        }
+        
+        switch(e.key) {
+          case 'ArrowDown':
+            e.preventDefault();
+            navigateSuggestions(1);
+            break;
+          case 'ArrowUp':
+            e.preventDefault();
+            navigateSuggestions(-1);
+            break;
+          case 'Tab':
+            e.preventDefault();
+            if (selectedSuggestionIndex >= 0 && currentSuggestions[selectedSuggestionIndex]) {
+              applySuggestion(currentSuggestions[selectedSuggestionIndex], false);
+            }
+            break;
+          case 'Enter':
+            e.preventDefault();
+            if (selectedSuggestionIndex >= 0 && currentSuggestions[selectedSuggestionIndex]) {
+              applySuggestion(currentSuggestions[selectedSuggestionIndex], true);
+            } else {
+              executeCommand();
+            }
+            break;
+          case 'Escape':
+            hideSuggestions();
+            break;
+        }
+      });
+      
+      // 保留基础的回车执行功能
+      input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
+          e.preventDefault();
           executeCommand();
         }
       });
@@ -775,8 +1160,112 @@
       // 点击时也聚焦
       input.addEventListener('click', () => {
         input.focus();
+        // 如果输入框为空或只有空格，显示默认建议
+        if (!input.value.trim()) {
+          updateSuggestions('');
+        }
+      });
+      
+      // 聚焦时显示建议
+      input.addEventListener('focus', () => {
+        if (!input.value.trim() && selectedText) {
+          updateSuggestions('');
+        }
+      });
+      
+      // 失焦时隐藏建议（延迟以允许点击建议）
+      input.addEventListener('blur', () => {
+        setTimeout(() => {
+          if (document.activeElement !== input) {
+            hideSuggestions();
+          }
+        }, 200);
       });
     }
+    */
+    
+    // === 建议系统功能暂时禁用 - 2024/08 ===
+    /*
+    // 更新建议列表
+    function updateSuggestions(inputValue) {
+      if (!suggestionsContainer) return;
+      
+      const suggestions = getSmartSuggestions(inputValue, selectedText);
+      currentSuggestions = suggestions;
+      selectedSuggestionIndex = -1;
+      
+      if (suggestions.length === 0) {
+        hideSuggestions();
+        return;
+      }
+      
+      // 构建建议HTML
+      suggestionsContainer.innerHTML = suggestions.map((s, index) => `
+        <div class="ccs-suggestion-item" data-index="${index}">
+          <span class="ccs-suggestion-icon">${s.icon}</span>
+          <div class="ccs-suggestion-content">
+            <div class="ccs-suggestion-command">${s.command}</div>
+            <div class="ccs-suggestion-description">${s.description}</div>
+          </div>
+          ${index === 0 ? '<span class="ccs-suggestion-shortcut">Enter</span>' : ''}
+        </div>
+      `).join('');
+      
+      suggestionsContainer.style.display = 'block';
+      
+      // 绑定鼠标事件
+      suggestionsContainer.querySelectorAll('.ccs-suggestion-item').forEach((item, index) => {
+        item.addEventListener('click', () => {
+          applySuggestion(suggestions[index], true);
+        });
+        item.addEventListener('mouseenter', () => {
+          selectSuggestion(index);
+        });
+      });
+    }
+    
+    // 导航建议
+    function navigateSuggestions(direction) {
+      const newIndex = selectedSuggestionIndex + direction;
+      if (newIndex >= -1 && newIndex < currentSuggestions.length) {
+        selectSuggestion(newIndex);
+      }
+    }
+    
+    // 选择建议
+    function selectSuggestion(index) {
+      const items = suggestionsContainer.querySelectorAll('.ccs-suggestion-item');
+      items.forEach((item, i) => {
+        if (i === index) {
+          item.classList.add('selected');
+        } else {
+          item.classList.remove('selected');
+        }
+      });
+      selectedSuggestionIndex = index;
+    }
+    
+    // 应用建议
+    function applySuggestion(suggestion, execute) {
+      if (!input) return;
+      input.value = suggestion.command + ' ' + selectedText;
+      hideSuggestions();
+      if (execute) {
+        executeCommand();
+      } else {
+        input.focus();
+      }
+    }
+    
+    // 隐藏建议
+    function hideSuggestions() {
+      if (suggestionsContainer) {
+        suggestionsContainer.style.display = 'none';
+        selectedSuggestionIndex = -1;
+        currentSuggestions = [];
+      }
+    }
+    */
 
     // 迷你模式切换
     const miniBtn = shadowRoot.querySelector('.ccs-mini');
@@ -784,9 +1273,8 @@
       miniBtn.addEventListener('click', () => {
         settings.mode = 'mini';
         saveSettings();
-        const pos = { x: parseInt(popover.style.left), y: parseInt(popover.style.top) };
-        createPopover();
-        showPopover(pos.x, pos.y);
+        createPopover(true); // 传入true保留selectedText和位置
+        // 不需要调用showPopover，位置已经保持不变
       });
     }
 
@@ -796,9 +1284,8 @@
       expandBtn.addEventListener('click', () => {
         settings.mode = 'normal';
         saveSettings();
-        const pos = { x: parseInt(popover.style.left), y: parseInt(popover.style.top) };
-        createPopover();
-        showPopover(pos.x, pos.y);
+        createPopover(true); // 传入true保留selectedText和位置
+        // 不需要调用showPopover，位置已经保持不变
       });
     }
 
@@ -826,9 +1313,8 @@
             }
           } else {
             saveSettings();
-            const pos = { x: parseInt(popover.style.left), y: parseInt(popover.style.top) };
-            createPopover();
-            showPopover(pos.x, pos.y);
+            createPopover(true); // 传入true保留selectedText和位置
+            // 不需要调用showPopover，位置已经保持不变
           }
         });
       }
@@ -1021,6 +1507,21 @@
       popover.style.opacity = settings.opacity || '1';
       popover.style.transform = 'scale(1)';
     });
+
+    // === 智能建议功能暂时禁用 ===
+    /*
+    // 自动显示初始建议
+    setTimeout(() => {
+      const input = shadowRoot?.querySelector('.ccs-input');
+      if (input && selectedText) {
+        // 如果输入框为空，显示智能建议
+        if (!input.value.trim()) {
+          const event = new Event('input');
+          input.dispatchEvent(event);
+        }
+      }
+    }, 100);
+    */
 
     // 移除自动聚焦，改为hover时聚焦
     // 保持用户选中的文本状态

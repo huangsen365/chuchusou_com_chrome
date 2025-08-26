@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>触触搜 - 智能命令补全测试页</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      line-height: 1.6;
+      background: #f5f5f5;
+    }
+    
+    h1 {
+      color: #333;
+      border-bottom: 2px solid #667eea;
+      padding-bottom: 10px;
+    }
+    
+    h2 {
+      color: #667eea;
+      margin-top: 30px;
+    }
+    
+    .test-section {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .test-text {
+      background: #f7fafc;
+      padding: 10px 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+      font-family: monospace;
+      user-select: text;
+      cursor: text;
+    }
+    
+    .test-text:hover {
+      background: #edf2f7;
+    }
+    
+    .hint {
+      color: #718096;
+      font-size: 14px;
+      margin: 5px 0;
+    }
+    
+    .highlight {
+      background: yellow;
+      padding: 2px 4px;
+      border-radius: 2px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔍 触触搜 - 智能命令补全测试页</h1>
+  
+  <div class="test-section">
+    <h2>📝 测试说明</h2>
+    <p>选中下面的测试文本，查看智能命令建议功能：</p>
+    <ul>
+      <li>选中文本后，弹出框会自动显示</li>
+      <li>hover到输入框，会自动获得焦点</li>
+      <li>输入框会自动显示智能建议</li>
+      <li>使用 ↑↓ 键导航建议，Tab 补全，Enter 执行</li>
+      <li>系统会智能检测文本类型并推荐相应操作</li>
+    </ul>
+  </div>
+  
+  <div class="test-section">
+    <h2>🧪 Base64 测试</h2>
+    
+    <div class="test-text">
+      hello world
+      <span class="hint">（普通文本 - 会建议Base64编码）</span>
+    </div>
+    
+    <div class="test-text">
+      aGVsbG8gd29ybGQ=
+      <span class="hint">（Base64编码文本 - 会优先建议解码）</span>
+    </div>
+  </div>
+  
+  <div class="test-section">
+    <h2>🔗 URL 编码测试</h2>
+    
+    <div class="test-text">
+      https://www.example.com/搜索?q=测试
+      <span class="hint">（包含中文的URL - 会建议URL编码）</span>
+    </div>
+    
+    <div class="test-text">
+      https%3A%2F%2Fwww.example.com%2F%E6%90%9C%E7%B4%A2%3Fq%3D%E6%B5%8B%E8%AF%95
+      <span class="hint">（URL编码文本 - 会优先建议解码）</span>
+    </div>
+  </div>
+  
+  <div class="test-section">
+    <h2>#️⃣ MD5 测试</h2>
+    
+    <div class="test-text">
+      5d41402abc4b2a76b9719d911017c592
+      <span class="hint">（MD5哈希值 - 不会建议再次MD5）</span>
+    </div>
+    
+    <div class="test-text">
+      password123
+      <span class="hint">（普通文本 - 会建议MD5哈希）</span>
+    </div>
+  </div>
+  
+  <div class="test-section">
+    <h2>🔤 大小写转换测试</h2>
+    
+    <div class="test-text">
+      HELLO WORLD
+      <span class="hint">（大写文本 - 会建议转小写）</span>
+    </div>
+    
+    <div class="test-text">
+      hello world
+      <span class="hint">（小写文本 - 会建议转大写）</span>
+    </div>
+  </div>
+  
+  <div class="test-section">
+    <h2>⚡ 快捷命令测试</h2>
+    <p>选中任意文本后，在输入框中输入以下字符查看建议：</p>
+    <ul>
+      <li><code>b</code> 或 <code>base</code> - 显示Base64相关命令</li>
+      <li><code>m</code> 或 <code>md5</code> - 显示MD5命令</li>
+      <li><code>u</code> 或 <code>url</code> - 显示URL编码命令</li>
+      <li><code>up</code> 或 <code>upper</code> - 显示转大写命令</li>
+      <li><code>low</code> 或 <code>lower</code> - 显示转小写命令</li>
+      <li><code>s</code> 或 <code>search</code> - 显示搜索命令</li>
+      <li><code>c</code> 或 <code>copy</code> - 显示复制命令</li>
+    </ul>
+  </div>
+  
+  <div class="test-section">
+    <h2>🎯 综合测试文本</h2>
+    
+    <div class="test-text">
+      The quick brown fox jumps over the lazy dog
+      <span class="hint">（英文句子 - 测试各种命令）</span>
+    </div>
+    
+    <div class="test-text">
+      人工智能正在改变世界
+      <span class="hint">（中文文本 - 测试搜索和编码）</span>
+    </div>
+    
+    <div class="test-text">
+      user@example.com
+      <span class="hint">（邮箱地址 - 测试各种转换）</span>
+    </div>
+    
+    <div class="test-text">
+      192.168.1.1
+      <span class="hint">（IP地址 - 测试复制和搜索）</span>
+    </div>
+  </div>
+  
+  <div class="test-section">
+    <h2>💡 使用技巧</h2>
+    <ul>
+      <li>直接按 <span class="highlight">Enter</span> 执行第一个建议</li>
+      <li>使用 <span class="highlight">Tab</span> 自动补全命令</li>
+      <li>按 <span class="highlight">Esc</span> 隐藏建议框</li>
+      <li>鼠标悬停在建议上可以预览</li>
+      <li>点击建议直接执行</li>
+    </ul>
+  </div>
+  
+</body>
+</html>
