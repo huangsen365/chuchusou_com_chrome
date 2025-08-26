@@ -315,13 +315,12 @@
     wrapper.className = `ccs-popover ${settings.mode === 'mini' ? 'mini-mode' : ''} theme-${settings.theme}`;
     
     if (settings.mode === 'mini') {
-      // Mini模式HTML
+      // Mini模式HTML - 不显示设置按钮
       wrapper.innerHTML = `
         <div class="ccs-header" data-draggable="true">
           <span class="ccs-title">触触搜</span>
           <div class="ccs-header-buttons">
             <button class="ccs-expand" title="展开">📖</button>
-            <button class="ccs-settings" title="设置">⚙️</button>
             <button class="ccs-close" title="关闭">✕</button>
           </div>
         </div>
@@ -419,10 +418,22 @@
         align-items: center;
         cursor: move;
         user-select: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
       }
 
       .ccs-header.dragging {
         opacity: 0.8;
+        cursor: grabbing;
+      }
+      
+      /* 拖拽时防止选中页面文本 */
+      body.ccs-dragging {
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        -ms-user-select: none !important;
       }
 
       .ccs-title {
@@ -696,13 +707,24 @@
       executeBtn.addEventListener('click', executeCommand);
     }
 
-    // 输入框回车
+    // 输入框事件
     const input = shadowRoot.querySelector('.ccs-input');
     if (input) {
+      // 回车执行命令
       input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
           executeCommand();
         }
+      });
+      
+      // hover时聚焦，避免破坏选中状态
+      input.addEventListener('mouseenter', () => {
+        input.focus();
+      });
+      
+      // 点击时也聚焦
+      input.addEventListener('click', () => {
+        input.focus();
       });
     }
 
@@ -820,11 +842,16 @@
     const header = shadowRoot.querySelector('.ccs-header');
     header.classList.add('dragging');
     
+    // 防止拖拽时选中页面文本
+    document.body.classList.add('ccs-dragging');
+    document.body.style.userSelect = 'none';
+    
     // 添加全局事件监听
     document.addEventListener('mousemove', handleDragging);
     document.addEventListener('mouseup', stopDragging);
     
     e.preventDefault();
+    e.stopPropagation();
   }
 
   // 处理拖拽
@@ -847,7 +874,13 @@
     
     isDragging = false;
     const header = shadowRoot.querySelector('.ccs-header');
-    header.classList.remove('dragging');
+    if (header) {
+      header.classList.remove('dragging');
+    }
+    
+    // 恢复页面文本选择
+    document.body.classList.remove('ccs-dragging');
+    document.body.style.userSelect = '';
     
     // 移除全局事件监听
     document.removeEventListener('mousemove', handleDragging);
@@ -918,13 +951,8 @@
     popover.style.left = `${position.x}px`;
     popover.style.top = `${position.y}px`;
 
-    // 自动聚焦到输入框（如果是普通模式）
-    if (settings.mode === 'normal') {
-      setTimeout(() => {
-        const input = shadowRoot.querySelector('.ccs-input');
-        if (input) input.focus();
-      }, 100);
-    }
+    // 移除自动聚焦，改为hover时聚焦
+    // 保持用户选中的文本状态
   }
 
   // 隐藏popover
@@ -988,18 +1016,25 @@
     }
   });
 
-  // 右键菜单处理
+  // 右键菜单处理 - 不再阻止默认菜单
+  // 使用Alt+右键或Shift+右键触发插件功能
   document.addEventListener('contextmenu', (e) => {
-    // 如果当前网站在黑名单中，右键显示恢复选项
+    // 只有按住Alt键或Shift键时才触发插件功能
+    if (!e.altKey && !e.shiftKey) {
+      return; // 保留默认右键菜单
+    }
+    
+    // 如果当前网站在黑名单中，显示恢复选项
     if (settings.isBlacklisted) {
       e.preventDefault();
       showRecoveryPopover(e.clientX + window.scrollX, e.clientY + window.scrollY);
       return false;
     }
-    // 如果有选中文本，也可以通过右键触发
+    
+    // 如果有选中文本，触发popover
     const selection = window.getSelection();
     const text = selection.toString().trim();
-    if (text.length > 0) {
+    if (text.length > 0 && settings.mode !== 'disabled') {
       e.preventDefault();
       selectedText = text;
       const range = selection.getRangeAt(0);
@@ -1045,7 +1080,7 @@
           <button class="ccs-temp-enable">临时启用（本次）</button>
         </div>
         <div class="ccs-recovery-tips">
-          💡 提示：您也可以使用 <kbd>Ctrl+Shift+S</kbd> 快速唤起
+          💡 提示：<kbd>Ctrl+Shift+S</kbd> 或 <kbd>Alt+右键</kbd> 快速唤起
         </div>
       </div>
     `;

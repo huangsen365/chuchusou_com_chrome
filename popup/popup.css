@@ -74,6 +74,16 @@ h2 {
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
+.feature-list kbd {
+  background: #f0f0f0;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-family: monospace;
+  font-size: 11px;
+  margin: 0 2px;
+}
+
 .feature-list li:hover {
   transform: translateX(3px);
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
