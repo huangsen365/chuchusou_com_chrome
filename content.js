@@ -1061,6 +1061,9 @@
     // 只在新创建时添加到DOM
     if (!isModeSwitching) {
       document.body.appendChild(popover);
+      console.log('[触触搜] Popover 已添加到 DOM');
+    } else {
+      console.log('[触触搜] 模式切换，Popover 保持在 DOM 中');
     }
   }
 
@@ -1468,14 +1471,19 @@
 
   // 显示popover
   function showPopover(x, y, selectionRect = null) {
-    if (settings.mode === 'disabled') return;
+    if (settings.mode === 'disabled') {
+      console.log('[触触搜] showPopover 被禁用 (mode=disabled)');
+      return;
+    }
     
-    // 如果popup已存在且显示相同内容，不重复创建
-    if (popover && shadowRoot) {
-      const existingInput = shadowRoot.querySelector('.ccs-input');
-      if (existingInput && existingInput.value === selectedText) {
-        return; // 避免重复显示
-      }
+    console.log('[触触搜] showPopover 开始执行:', {x, y, selectedText, hasPopover: !!popover});
+    
+    // 如果popup已存在，先隐藏再重新显示
+    if (popover) {
+      console.log('[触触搜] Popover 已存在，先移除旧的');
+      popover.remove();
+      popover = null;
+      shadowRoot = null;
     }
     
     createPopover();
@@ -1502,10 +1510,53 @@
     popover.style.left = `${position.x}px`;
     popover.style.top = `${position.y}px`;
     
+    console.log('[触触搜] Popover 位置已设置:', {
+      left: popover.style.left,
+      top: popover.style.top,
+      display: window.getComputedStyle(popover).display,
+      visibility: window.getComputedStyle(popover).visibility,
+      zIndex: window.getComputedStyle(popover).zIndex,
+      opacity: window.getComputedStyle(popover).opacity
+    });
+    
+    // 强制确保popover可见
+    popover.style.display = 'block';
+    popover.style.visibility = 'visible';
+    
     // 触发动画
     requestAnimationFrame(() => {
       popover.style.opacity = settings.opacity || '1';
       popover.style.transform = 'scale(1)';
+      
+      // 再次检查状态
+      setTimeout(() => {
+        if (popover) {
+          const rect = popover.getBoundingClientRect();
+          const isVisible = rect.width > 0 && rect.height > 0;
+          const computedStyle = window.getComputedStyle(popover);
+          
+          console.log('[触触搜] Popover 最终状态检查:', {
+            isInDOM: document.body.contains(popover),
+            boundingRect: {width: rect.width, height: rect.height, top: rect.top, left: rect.left},
+            isVisible: isVisible,
+            display: computedStyle.display,
+            visibility: computedStyle.visibility,
+            opacity: computedStyle.opacity,
+            zIndex: computedStyle.zIndex,
+            position: computedStyle.position
+          });
+          
+          // 如果不可见，尝试修复
+          if (!isVisible) {
+            console.warn('[触触搜] Popover 不可见！尝试修复...');
+            popover.style.zIndex = '2147483647';
+            popover.style.position = 'fixed';
+            popover.style.display = 'block';
+            popover.style.visibility = 'visible';
+            popover.style.opacity = '1';
+          }
+        }
+      }, 100);
     });
 
     // === 智能建议功能暂时禁用 ===
@@ -1560,12 +1611,10 @@
     // 只在文本变化时通知
     if (text !== lastNotifiedText) {
       lastNotifiedText = text;
-      // 发送给background script更新菜单
-      chrome.runtime.sendMessage({
+      // 安全地发送给background script更新菜单
+      safeChromeSendMessage({
         action: 'selectionChanged',
         text: text
-      }).catch(() => {
-        // 忽略错误（可能background未准备好）
       });
     }
   }
@@ -1637,17 +1686,52 @@
     }
   });
 
-  // ESC键隐藏popover
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      hidePopover();
+  // 调试模式开关（可以通过控制台设置 window.CCS_DEBUG = true 开启）
+  window.CCS_DEBUG = true; // 默认开启调试
+  
+  // 处理快捷键的统一函数
+  function handleSearchShortcut(e) {
+    // 调试：记录所有按键事件
+    if (window.CCS_DEBUG && (e.ctrlKey || e.altKey || e.shiftKey)) {
+      console.log('[触触搜] 键盘事件:', {
+        key: e.key,
+        keyCode: e.keyCode,
+        ctrlKey: e.ctrlKey,
+        shiftKey: e.shiftKey,
+        altKey: e.altKey,
+        metaKey: e.metaKey,
+        target: e.target.tagName,
+        targetId: e.target.id,
+        targetClass: e.target.className,
+        eventPhase: e.eventPhase === 1 ? '捕获' : e.eventPhase === 2 ? '目标' : '冒泡',
+        currentTarget: e.currentTarget === document ? 'document' : e.currentTarget === window ? 'window' : 'body'
+      });
     }
-    // 快捷键 Ctrl+Shift+S 强制显示popover（即使在黑名单）
-    if (e.ctrlKey && e.shiftKey && e.key === 'S') {
+    
+    // 检查 Ctrl+Shift+S 或 Alt+S
+    const isCtrlShiftS = e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's');
+    const isAltS = e.altKey && !e.ctrlKey && !e.shiftKey && (e.key === 'S' || e.key === 's');
+    
+    if (isCtrlShiftS || isAltS) {
+      console.log('[触触搜] ✅ 快捷键触发!', isCtrlShiftS ? 'Ctrl+Shift+S' : 'Alt+S');
+      console.log('[触触搜] 当前状态:', {
+        popover: popover ? '存在' : '不存在',
+        shadowRoot: shadowRoot ? '存在' : '不存在',
+        selectedText: selectedText || '(空)',
+        settings: settings
+      });
+      
+      // 阻止所有默认行为和事件传播
       e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      
+      console.log('[触触搜] 事件已阻止');
       
       // 智能获取内容
       const smartText = getSmartSearchText();
+      console.log('[触触搜] 获取到的文本:', smartText || '(无内容)');
+      
       if (smartText) {
         selectedText = smartText; // 设置全局变量
         
@@ -1661,18 +1745,74 @@
           const rect = range.getBoundingClientRect();
           x = rect.left + rect.width / 2;
           y = rect.bottom;
+          console.log('[触触搜] 使用选中区域位置:', {x, y});
         } else {
           // 否则显示在屏幕中央偏上
           x = window.innerWidth / 2;
           y = window.innerHeight / 3;
+          console.log('[触触搜] 使用屏幕中央位置:', {x, y});
         }
         
-        forceShowPopover(x, y);
+        console.log('[触触搜] 准备调用 forceShowPopover...');
+        try {
+          forceShowPopover(x, y);
+          console.log('[触触搜] forceShowPopover 调用成功');
+        } catch (err) {
+          console.error('[触触搜] forceShowPopover 调用失败:', err);
+        }
       } else {
+        console.log('[触触搜] 没有找到可搜索的内容');
         showToast('没有找到可搜索的内容');
       }
+      
+      return false; // 确保阻止事件
     }
-  });
+    
+    // ESC键隐藏popover
+    if (e.key === 'Escape') {
+      hidePopover();
+    }
+  }
+
+  // 在捕获阶段监听键盘事件（优先级更高）
+  document.addEventListener('keydown', handleSearchShortcut, true);
+  console.log('[触触搜] 已注册 document 键盘监听器（捕获阶段）');
+  
+  // 同时在window上监听作为备份
+  window.addEventListener('keydown', handleSearchShortcut, true);
+  console.log('[触触搜] 已注册 window 键盘监听器（捕获阶段）');
+  
+  // 延迟添加body监听器，确保body已加载
+  if (document.body) {
+    document.body.addEventListener('keydown', handleSearchShortcut, true);
+    console.log('[触触搜] 已注册 body 键盘监听器（捕获阶段）');
+  } else {
+    document.addEventListener('DOMContentLoaded', () => {
+      if (document.body) {
+        document.body.addEventListener('keydown', handleSearchShortcut, true);
+        console.log('[触触搜] DOMContentLoaded后：已注册 body 键盘监听器（捕获阶段）');
+      }
+    });
+  }
+  
+  // 定期检查popover状态（调试用）
+  if (window.CCS_DEBUG) {
+    setInterval(() => {
+      if (popover && document.body.contains(popover)) {
+        const rect = popover.getBoundingClientRect();
+        const style = window.getComputedStyle(popover);
+        if (rect.width === 0 || rect.height === 0 || style.display === 'none' || style.visibility === 'hidden') {
+          console.warn('[触触搜] 警告：Popover 存在但不可见!', {
+            width: rect.width,
+            height: rect.height,
+            display: style.display,
+            visibility: style.visibility,
+            opacity: style.opacity
+          });
+        }
+      }
+    }, 3000); // 每3秒检查一次
+  }
 
   // 右键菜单处理 - 不再阻止默认菜单
   document.addEventListener('contextmenu', (e) => {
@@ -1745,7 +1885,7 @@
           <button class="ccs-temp-enable">临时启用（本次）</button>
         </div>
         <div class="ccs-recovery-tips">
-          💡 提示：<kbd>Ctrl+Shift+S</kbd> 或 <kbd>Alt+右键</kbd> 快速唤起
+          💡 提示：<kbd>Ctrl+Shift+S</kbd> / <kbd>Alt+S</kbd> 或 <kbd>Alt+右键</kbd> 快速唤起
         </div>
       </div>
     `;
@@ -1993,11 +2133,33 @@
 
   // 强制显示popover（快捷键触发）
   function forceShowPopover(x, y) {
+    console.log('[触触搜] forceShowPopover 被调用:', {x, y, isBlacklisted: settings.isBlacklisted});
+    
     if (settings.isBlacklisted) {
+      console.log('[触触搜] 网站在黑名单中，显示恢复界面');
       showRecoveryPopover(x + window.scrollX, y + window.scrollY);
     } else {
-      createPopover();
-      showPopover(x, y);
+      console.log('[触触搜] 准备显示popover');
+      try {
+        // 不要在这里调用 createPopover，showPopover 内部会处理
+        // createPopover();
+        // console.log('[触触搜] createPopover 完成');
+        showPopover(x, y);
+        console.log('[触触搜] showPopover 完成');
+      } catch (err) {
+        console.error('[触触搜] 显示popover时出错:', err);
+      }
+    }
+  }
+
+  // 修复Extension context invalidated错误
+  function safeChromeSendMessage(message) {
+    try {
+      if (chrome.runtime && chrome.runtime.id) {
+        chrome.runtime.sendMessage(message);
+      }
+    } catch (err) {
+      console.warn('[触触搜] Chrome runtime 不可用:', err.message);
     }
   }
 
