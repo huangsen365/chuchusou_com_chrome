@@ -354,7 +354,7 @@
       // Mini模式HTML - 不显示设置按钮，标题保持不变
       wrapper.innerHTML = `
         <div class="ccs-header" data-draggable="true">
-          <span class="ccs-title">触触搜</span>
+          <span class="ccs-title">🔍 触触搜</span>
           <div class="ccs-header-buttons">
             <button class="ccs-expand" title="展开">📖</button>
             <button class="ccs-close" title="关闭">✕</button>
@@ -371,8 +371,8 @@
         return div.innerHTML;
       };
       const displayText = selectedText ? 
-        `触触搜: "${escapeHtml(selectedText.substring(0, 15))}${selectedText.length > 15 ? '...' : ''}"` : 
-        '触触搜';
+        `🔍 触触搜: "${escapeHtml(selectedText.substring(0, 15))}${selectedText.length > 15 ? '...' : ''}"` : 
+        '🔍 触触搜';
       wrapper.innerHTML = `
         <div class="ccs-header" data-draggable="true">
           <span class="ccs-title">${displayText}</span>
@@ -1167,7 +1167,7 @@
     wrapper.className = 'ccs-recovery-popover';
     wrapper.innerHTML = `
       <div class="ccs-header recovery">
-        <span class="ccs-title">触触搜 - 已禁用</span>
+        <span class="ccs-title">🔍 触触搜 - 已禁用</span>
         <button class="ccs-close">✕</button>
       </div>
       <div class="ccs-recovery-content">

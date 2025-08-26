@@ -196,7 +196,7 @@ function createContextMenus() {
     // 创建主菜单 - 对选中文本和页面都生效
     chrome.contextMenus.create({
       id: 'ccs-main',
-      title: '触触搜',
+      title: '🔍 触触搜',
       contexts: ['selection', 'page']
     });
 
@@ -339,7 +339,7 @@ async function updateContextMenuForTab(tab) {
     const displayText = keywords.substring(0, 20) + (keywords.length > 20 ? '...' : '');
     
     chrome.contextMenus.update('ccs-main', {
-      title: `触触搜: "${displayText}"`
+      title: `🔍 触触搜: "${displayText}"`
     });
     
     // 更新顶部标签
@@ -349,7 +349,7 @@ async function updateContextMenuForTab(tab) {
   } else {
     // 恢复默认标题
     chrome.contextMenus.update('ccs-main', {
-      title: '触触搜'
+      title: '🔍 触触搜'
     });
     
     chrome.contextMenus.update('ccs-label', {
