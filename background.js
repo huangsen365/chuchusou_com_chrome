@@ -1,5 +1,5 @@
-// 提取URL中的搜索关键词
-function extractSearchKeywords(url) {
+// 提取URL中的搜索关键词或页面标题
+async function extractSearchKeywords(url, tab) {
   try {
     const urlObj = new URL(url);
     const hostname = urlObj.hostname;
@@ -7,13 +7,13 @@ function extractSearchKeywords(url) {
     
     // 百度搜索
     if (hostname.includes('baidu.com')) {
-      const wd = searchParams.get('wd') || searchParams.get('word');
+      const wd = searchParams.get('wd') || searchParams.get('word') || searchParams.get('kw');
       if (wd) {
         return decodeURIComponent(wd);
       }
     }
     
-    // Google搜索
+    // Google搜索（包括各国域名）
     if (hostname.includes('google.')) {
       const q = searchParams.get('q');
       if (q) {
@@ -21,10 +21,166 @@ function extractSearchKeywords(url) {
       }
     }
     
-    // 其他搜索引擎可以后续添加
-    // Bing: searchParams.get('q')
-    // DuckDuckGo: searchParams.get('q')
-    // 搜狗: searchParams.get('query')
+    // 必应搜索（包括国际版和中国版）
+    if (hostname.includes('bing.com') || hostname.includes('cn.bing.com')) {
+      const q = searchParams.get('q');
+      if (q) {
+        return decodeURIComponent(q);
+      }
+    }
+    
+    // 搜狗搜索
+    if (hostname.includes('sogou.com')) {
+      const query = searchParams.get('query') || searchParams.get('keyword');
+      if (query) {
+        return decodeURIComponent(query);
+      }
+    }
+    
+    // 360搜索
+    if (hostname.includes('so.com') || hostname.includes('360.cn')) {
+      const q = searchParams.get('q');
+      if (q) {
+        return decodeURIComponent(q);
+      }
+    }
+    
+    // 神马搜索
+    if (hostname.includes('m.sm.cn') || hostname.includes('sm.cn')) {
+      const q = searchParams.get('q');
+      if (q) {
+        return decodeURIComponent(q);
+      }
+    }
+    
+    // 头条搜索
+    if (hostname.includes('toutiao.com')) {
+      const keyword = searchParams.get('keyword');
+      if (keyword) {
+        return decodeURIComponent(keyword);
+      }
+    }
+    
+    // DuckDuckGo
+    if (hostname.includes('duckduckgo.com')) {
+      const q = searchParams.get('q');
+      if (q) {
+        return decodeURIComponent(q);
+      }
+    }
+    
+    // Yahoo搜索
+    if (hostname.includes('yahoo.com') || hostname.includes('yahoo.co.jp')) {
+      const p = searchParams.get('p');
+      if (p) {
+        return decodeURIComponent(p);
+      }
+    }
+    
+    // Yandex搜索
+    if (hostname.includes('yandex.')) {
+      const text = searchParams.get('text');
+      if (text) {
+        return decodeURIComponent(text);
+      }
+    }
+    
+    // Startpage
+    if (hostname.includes('startpage.com')) {
+      const query = searchParams.get('query');
+      if (query) {
+        return decodeURIComponent(query);
+      }
+    }
+    
+    // 知乎搜索
+    if (hostname.includes('zhihu.com')) {
+      const q = searchParams.get('q');
+      if (q) {
+        return decodeURIComponent(q);
+      }
+    }
+    
+    // 微博搜索
+    if (hostname.includes('weibo.com') || hostname.includes('weibo.cn')) {
+      const q = searchParams.get('q');
+      if (q) {
+        return decodeURIComponent(q);
+      }
+    }
+    
+    // GitHub搜索
+    if (hostname.includes('github.com')) {
+      const q = searchParams.get('q');
+      if (q) {
+        return decodeURIComponent(q);
+      }
+    }
+    
+    // B站搜索
+    if (hostname.includes('bilibili.com')) {
+      const keyword = searchParams.get('keyword');
+      if (keyword) {
+        return decodeURIComponent(keyword);
+      }
+    }
+    
+    // 淘宝搜索
+    if (hostname.includes('taobao.com') || hostname.includes('tmall.com')) {
+      const q = searchParams.get('q') || searchParams.get('keyword');
+      if (q) {
+        return decodeURIComponent(q);
+      }
+    }
+    
+    // 京东搜索
+    if (hostname.includes('jd.com')) {
+      const keyword = searchParams.get('keyword');
+      if (keyword) {
+        return decodeURIComponent(keyword);
+      }
+    }
+    
+    // 如果都没有匹配，尝试获取页面标题作为关键词
+    if (tab && tab.title) {
+      let title = tab.title;
+      
+      // 清理常见的网站后缀
+      const suffixes = [
+        ' - 百度搜索',
+        ' - Google 搜索',
+        ' - 搜狗搜索',
+        ' - 360搜索',
+        ' - Bing',
+        ' - 知乎',
+        ' - 微博',
+        ' - GitHub',
+        ' - Stack Overflow',
+        ' - CSDN博客',
+        ' - 简书',
+        ' - 掘金',
+        ' - 博客园',
+        ' | ',
+        ' - ',
+        ' – ',
+        ' — '
+      ];
+      
+      for (const suffix of suffixes) {
+        const index = title.lastIndexOf(suffix);
+        if (index > 0) {
+          title = title.substring(0, index);
+          break;
+        }
+      }
+      
+      // 限制长度
+      if (title.length > 50) {
+        title = title.substring(0, 50) + '...';
+      }
+      
+      return title.trim();
+    }
     
   } catch (error) {
     console.error('Error extracting keywords:', error);
@@ -44,6 +200,22 @@ function createContextMenus() {
       contexts: ['selection', 'page']
     });
 
+    // 创建标签项（不可点击，仅显示）
+    chrome.contextMenus.create({
+      id: 'ccs-label',
+      parentId: 'ccs-main',
+      title: '🔍 触触搜',
+      enabled: false,  // 禁用使其不可点击
+      contexts: ['selection', 'page']
+    });
+
+    chrome.contextMenus.create({
+      id: 'ccs-separator-0',
+      parentId: 'ccs-main',
+      type: 'separator',
+      contexts: ['selection', 'page']
+    });
+
     // 创建子菜单项
     chrome.contextMenus.create({
       id: 'ccs-baidu',
@@ -56,6 +228,13 @@ function createContextMenus() {
       id: 'ccs-google',
       parentId: 'ccs-main',
       title: 'Google搜索',
+      contexts: ['selection', 'page']
+    });
+
+    chrome.contextMenus.create({
+      id: 'ccs-chuchusou',
+      parentId: 'ccs-main',
+      title: '🌐 更多搜索引擎...',
       contexts: ['selection', 'page']
     });
 
@@ -139,7 +318,7 @@ chrome.runtime.onInstalled.addListener(() => {
 // 监听标签页更新，动态更新菜单标题
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url) {
-    updateContextMenuForTab(tab.url);
+    updateContextMenuForTab(tab);
   }
 });
 
@@ -147,23 +326,34 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   const tab = await chrome.tabs.get(activeInfo.tabId);
   if (tab.url) {
-    updateContextMenuForTab(tab.url);
+    updateContextMenuForTab(tab);
   }
 });
 
 // 根据URL更新菜单标题
-function updateContextMenuForTab(url) {
-  const keywords = extractSearchKeywords(url);
+async function updateContextMenuForTab(tab) {
+  const keywords = await extractSearchKeywords(tab.url, tab);
   
   if (keywords) {
-    // 如果提取到关键词，更新主菜单标题
+    // 如果提取到关键词，更新主菜单和标签
+    const displayText = keywords.substring(0, 20) + (keywords.length > 20 ? '...' : '');
+    
     chrome.contextMenus.update('ccs-main', {
-      title: `触触搜: "${keywords.substring(0, 20)}${keywords.length > 20 ? '...' : ''}"`
+      title: `触触搜: "${displayText}"`
+    });
+    
+    // 更新顶部标签
+    chrome.contextMenus.update('ccs-label', {
+      title: `🔍 触触搜: "${displayText}"`
     });
   } else {
     // 恢复默认标题
     chrome.contextMenus.update('ccs-main', {
       title: '触触搜'
+    });
+    
+    chrome.contextMenus.update('ccs-label', {
+      title: '🔍 触触搜'
     });
   }
 }
@@ -174,7 +364,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   let text = info.selectionText;
   
   if (!text && tab.url) {
-    text = extractSearchKeywords(tab.url);
+    text = await extractSearchKeywords(tab.url, tab);
     
     // 如果没有提取到关键词，某些功能可能不可用
     if (!text) {
@@ -182,7 +372,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       if (info.menuItemId !== 'ccs-show-popover') {
         chrome.tabs.sendMessage(tab.id, {
           action: 'showToast',
-          message: '没有选中文本或无法从URL提取关键词'
+          message: '没有选中文本或无法提取关键词'
         }).catch(() => {
           // 忽略错误
         });
@@ -204,6 +394,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       if (text) {
         chrome.tabs.create({
           url: `https://www.google.com/search?q=${encodeURIComponent(text)}`
+        });
+      }
+      break;
+      
+    case 'ccs-chuchusou':
+      if (text) {
+        chrome.tabs.create({
+          url: `https://chuchusou.com/?q=${encodeURIComponent(text)}`
         });
       }
       break;

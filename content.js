@@ -106,21 +106,11 @@
       }
     },
     {
-      id: 'cut',
-      icon: '✂️',
-      title: '剪切',
-      action: async (text) => {
-        try {
-          await navigator.clipboard.writeText(text);
-          const selection = window.getSelection();
-          if (selection.rangeCount > 0) {
-            const range = selection.getRangeAt(0);
-            range.deleteContents();
-          }
-          showToast('已剪切到剪贴板');
-        } catch (err) {
-          showToast('剪切失败');
-        }
+      id: 'chuchusou',
+      icon: '🌐',
+      title: '更多搜索',
+      action: (text) => {
+        window.open(`https://chuchusou.com/?q=${encodeURIComponent(text)}`, '_blank');
       }
     },
     {
