@@ -260,11 +260,11 @@
     clearTimeout(realtimeUpdateTimer);
     realtimeUpdateTimer = setTimeout(updateRealtimeFallbackUI, 120);
   }
-  function updateRealtimeFallbackUI() {
+  function updateRealtimeFallbackUI(forceRefresh = false) {
     try {
       if (!shadowRoot || !popover) return;
-      // 使用统一的函数获取当前文本
-      const t = getCurrentSearchText();
+      // 使用统一的函数获取当前文本，支持强制刷新
+      const t = getCurrentSearchText(forceRefresh);
       if (!t) return;
       
       // 更新标题（若存在）
@@ -274,9 +274,10 @@
         // 文本显示由CSS省略控制，这里直接设全文
         titleEl.textContent = `🔍 触触搜: "${t}"`;
       }
-      // 更新按钮tooltip - 使用统一的文本
-      const renderedButtons = shadowRoot.querySelectorAll('.ccs-button');
-      renderedButtons.forEach(el => {
+      // 更新所有按钮的tooltip - 使用统一的文本
+      // 包括普通按钮、迷你按钮和底部栏按钮
+      const allButtons = shadowRoot.querySelectorAll('.ccs-button, .ccs-bottom-buttons .ccs-button, .ccs-mini-buttons .ccs-button');
+      allButtons.forEach(el => {
         const id = el.dataset.id;
         const cfg = (id && defaultButtons.find(b => b.id === id)) || null;
         const base = cfg ? cfg.title : '操作';
@@ -682,7 +683,82 @@
     }
   }
 
-  // 智能定位算法
+  // 检测光标在视口的哪个象限
+  function getViewportQuadrant(x, y) {
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    
+    // 转换为视口相对坐标
+    const relX = x - scrollX;
+    const relY = y - scrollY;
+    
+    const isLeft = relX < viewportWidth / 2;
+    const isTop = relY < viewportHeight / 2;
+    
+    if (isTop && isLeft) return 'top-left';
+    if (isTop && !isLeft) return 'top-right';
+    if (!isTop && isLeft) return 'bottom-left';
+    return 'bottom-right';
+  }
+  
+  // 计算位置得分（越高越好）
+  function scorePosition(pos, cursorX, cursorY, selectionRect, popoverWidth, popoverHeight) {
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    let score = 0;
+    
+    // 1. 距离光标的距离（越远越好，最重要）
+    const cursorDist = Math.sqrt(
+      Math.pow(pos.x + popoverWidth/2 - cursorX, 2) + 
+      Math.pow(pos.y + popoverHeight/2 - cursorY, 2)
+    );
+    const minCursorDist = 60; // 最小安全距离
+    if (cursorDist >= minCursorDist) {
+      score += Math.min(cursorDist / 100, 5) * 100; // 最高500分
+    } else {
+      score -= (minCursorDist - cursorDist) * 10; // 太近扣分
+    }
+    
+    // 2. 是否完全在视口内（重要）
+    const left = pos.x - scrollX;
+    const top = pos.y - scrollY;
+    const right = left + popoverWidth;
+    const bottom = top + popoverHeight;
+    
+    if (left >= 10 && top >= 10 && right <= viewportWidth - 10 && bottom <= viewportHeight - 10) {
+      score += 200; // 完全在视口内加200分
+    } else {
+      // 部分超出视口扣分
+      const overflowLeft = Math.max(0, 10 - left);
+      const overflowTop = Math.max(0, 10 - top);
+      const overflowRight = Math.max(0, right - (viewportWidth - 10));
+      const overflowBottom = Math.max(0, bottom - (viewportHeight - 10));
+      const totalOverflow = overflowLeft + overflowTop + overflowRight + overflowBottom;
+      score -= totalOverflow * 2;
+    }
+    
+    // 3. 是否与选区重叠（如果有选区）
+    if (selectionRect) {
+      const overlap = !(
+        pos.x + popoverWidth < selectionRect.left + scrollX - 10 ||
+        pos.x > selectionRect.right + scrollX + 10 ||
+        pos.y + popoverHeight < selectionRect.top + scrollY - 10 ||
+        pos.y > selectionRect.bottom + scrollY + 10
+      );
+      if (!overlap) {
+        score += 100; // 不重叠加100分
+      }
+    }
+    
+    return score;
+  }
+  
+  // 智能定位算法（增强版）
   function calculateSmartPosition(selectionRect, mouseX, mouseY) {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
@@ -690,12 +766,12 @@
     const scrollY = window.scrollY;
     
     console.log('[触触搜] calculateSmartPosition 输入:', {
-      selectionRect: {
+      selectionRect: selectionRect ? {
         top: selectionRect.top,
         bottom: selectionRect.bottom,
         left: selectionRect.left,
         right: selectionRect.right
-      },
+      } : null,
       mouseX, mouseY,
       viewport: { width: viewportWidth, height: viewportHeight },
       scroll: { x: scrollX, y: scrollY }
@@ -708,7 +784,11 @@
       (miniButtonCount * 50 + 20) : 320;
     const popoverHeight = settings.mode === 'mini' ? 120 : 400;
     
-    // 使用传入的鼠标位置（已经是选中文本底部中心）
+    // 获取光标所在象限
+    const quadrant = getViewportQuadrant(mouseX, mouseY);
+    console.log('[触触搜] 光标象限:', quadrant);
+    
+    // 使用传入的鼠标位置
     const anchorX = mouseX;
     const anchorY = mouseY;
     
@@ -720,178 +800,120 @@
       activeElement.contentEditable === 'true'
     );
     
-    // 定义偏移量，输入框内选中时增加偏移
-    const offset = isInInputField ? 28 : 24;
+    // 定义偏移量
+    const cursorOffset = 50; // 距离光标的最小偏移
+    const selectionOffset = isInInputField ? 28 : 24; // 距离选区的偏移
     
-    // 尝试不同的位置
-    // 输入框内选中时，优先显示在上方或下方，避免遮挡
-    let positions;
-    if (isInInputField) {
-      positions = [
-        { // 下方居中（优先）
-          x: anchorX - popoverWidth / 2,
-          y: anchorY + offset,
-          arrow: 'top'
-        },
-        { // 上方居中
-          x: anchorX - popoverWidth / 2,
-          y: selectionRect.top + scrollY - popoverHeight - offset,
-          arrow: 'bottom'
-        },
-        { // 右下
-          x: selectionRect.right + scrollX + offset,
-          y: selectionRect.bottom + scrollY + offset,
-          arrow: 'top-left'
-        },
-        { // 右上
-          x: selectionRect.right + scrollX + offset,
-          y: selectionRect.top + scrollY - popoverHeight - offset,
-          arrow: 'bottom-left'
-        },
-        { // 左下
-          x: selectionRect.left + scrollX - popoverWidth - offset,
-          y: selectionRect.bottom + scrollY + offset,
-          arrow: 'top-right'
-        },
-        { // 左上
-          x: selectionRect.left + scrollX - popoverWidth - offset,
-          y: selectionRect.top + scrollY - popoverHeight - offset,
-          arrow: 'bottom-right'
-        }
-      ];
+    // 生成候选位置（基于光标象限和选区位置）
+    let positions = [];
+    
+    // 根据光标象限，优先选择对角位置
+    if (quadrant === 'top-left') {
+      // 光标在左上，优先右下
+      positions.push(
+        { x: mouseX + cursorOffset, y: mouseY + cursorOffset }, // 右下
+        { x: mouseX + cursorOffset, y: mouseY - popoverHeight - cursorOffset }, // 右上
+        { x: mouseX - popoverWidth - cursorOffset, y: mouseY + cursorOffset } // 左下
+      );
+    } else if (quadrant === 'top-right') {
+      // 光标在右上，优先左下
+      positions.push(
+        { x: mouseX - popoverWidth - cursorOffset, y: mouseY + cursorOffset }, // 左下
+        { x: mouseX - popoverWidth - cursorOffset, y: mouseY - popoverHeight - cursorOffset }, // 左上
+        { x: mouseX + cursorOffset, y: mouseY + cursorOffset } // 右下
+      );
+    } else if (quadrant === 'bottom-left') {
+      // 光标在左下，优先右上
+      positions.push(
+        { x: mouseX + cursorOffset, y: mouseY - popoverHeight - cursorOffset }, // 右上
+        { x: mouseX + cursorOffset, y: mouseY + cursorOffset }, // 右下
+        { x: mouseX - popoverWidth - cursorOffset, y: mouseY - popoverHeight - cursorOffset } // 左上
+      );
     } else {
-      // 普通文本选中，优先在选中文本下方
-      positions = [
-        { // 下方居中（优先）
-          x: anchorX - popoverWidth / 2,
-          y: anchorY + offset,
-          arrow: 'top'
-        },
-        { // 右下
-          x: selectionRect.right + scrollX + offset,
-          y: anchorY + offset,
-          arrow: 'top-left'
-        },
-        { // 左下
-          x: selectionRect.left + scrollX - popoverWidth - offset,
-          y: anchorY + offset,
-          arrow: 'top-right'
-        },
-        { // 上方居中
-          x: anchorX - popoverWidth / 2,
-          y: selectionRect.top + scrollY - popoverHeight - offset,
-          arrow: 'bottom'
-        },
-        { // 右上
-          x: selectionRect.right + scrollX + offset,
-          y: selectionRect.top + scrollY - popoverHeight - offset,
-          arrow: 'bottom-left'
-        },
-        { // 左上
-          x: selectionRect.left + scrollX - popoverWidth - offset,
-          y: selectionRect.top + scrollY - popoverHeight - offset,
-          arrow: 'bottom-right'
-        }
-      ];
+      // 光标在右下，优先左上
+      positions.push(
+        { x: mouseX - popoverWidth - cursorOffset, y: mouseY - popoverHeight - cursorOffset }, // 左上
+        { x: mouseX - popoverWidth - cursorOffset, y: mouseY + cursorOffset }, // 左下
+        { x: mouseX + cursorOffset, y: mouseY - popoverHeight - cursorOffset } // 右上
+      );
     }
     
-    // 找到第一个完全在视窗内且不覆盖选区的位置
+    // 如果有选区，添加基于选区的候选位置
+    if (selectionRect) {
+      const selCenterX = (selectionRect.left + selectionRect.right) / 2 + scrollX;
+      positions.push(
+        { x: selCenterX - popoverWidth / 2, y: selectionRect.bottom + scrollY + selectionOffset }, // 选区下方
+        { x: selCenterX - popoverWidth / 2, y: selectionRect.top + scrollY - popoverHeight - selectionOffset }, // 选区上方
+        { x: selectionRect.right + scrollX + selectionOffset, y: selectionRect.bottom + scrollY }, // 选区右侧
+        { x: selectionRect.left + scrollX - popoverWidth - selectionOffset, y: selectionRect.bottom + scrollY } // 选区左侧
+      );
+    }
+    
+    // 使用评分系统找到最佳位置
+    let bestPosition = null;
+    let bestScore = -Infinity;
+    
     for (const pos of positions) {
-      const left = pos.x - scrollX;
-      const top = pos.y - scrollY;
-      const right = left + popoverWidth;
-      const bottom = top + popoverHeight;
-      const inViewport =
-        left >= 0 &&
-        top >= 0 &&
-        right <= viewportWidth &&
-        bottom <= viewportHeight;
-      // 判断与选区是否重叠（加入6px安全边距）
-      const pad = 6;
-      const overlap =
-        right > (selectionRect.left - pad) &&
-        left < (selectionRect.right + pad) &&
-        bottom > (selectionRect.top - pad) &&
-        top < (selectionRect.bottom + pad);
-      if (inViewport && !overlap) {
-        return pos;
-      }
-    }
-    // 次优：允许覆盖选区，但必须在视窗内
-    for (const pos of positions) {
-      const left = pos.x - scrollX;
-      const top = pos.y - scrollY;
-      const right = left + popoverWidth;
-      const bottom = top + popoverHeight;
-      const inViewport =
-        left >= 0 &&
-        top >= 0 &&
-        right <= viewportWidth &&
-        bottom <= viewportHeight;
-      if (inViewport) return pos;
-    }
-    
-    // 优先使用选中文本附近的位置
-    const selTop = selectionRect.top + scrollY;
-    const selBottom = selectionRect.bottom + scrollY;
-    const spaceBelow = scrollY + viewportHeight - selBottom;
-    const spaceAbove = selTop - scrollY;
-    
-    let finalX = anchorX - popoverWidth / 2;
-    let finalY;
-    
-    // 智能决定垂直位置
-    if (spaceBelow >= popoverHeight + offset) {
-      // 下方有足够空间，放在选中文本下方
-      finalY = selBottom + offset;
-    } else if (spaceAbove >= popoverHeight + offset) {
-      // 上方有足够空间，放在选中文本上方
-      finalY = selTop - popoverHeight - offset;
-    } else {
-      // 空间都不够，选择更大的一边，但避免太靠近边缘
-      if (spaceBelow > spaceAbove && spaceBelow > 100) {
-        // 优先下方，但不要贴底
-        finalY = selBottom + offset;
-        // 确保不会超出底部太多
-        const maxY = scrollY + viewportHeight - popoverHeight - 20;
-        if (finalY > maxY) {
-          finalY = maxY;
-        }
-      } else if (spaceAbove > 100) {
-        // 使用上方，但不要贴顶
-        finalY = selTop - popoverHeight - offset;
-        // 确保不会超出顶部
-        const minY = scrollY + 20;
-        if (finalY < minY) {
-          finalY = minY;
-        }
-      } else {
-        // 实在没空间，放在视口中央
-        finalY = scrollY + (viewportHeight - popoverHeight) / 2;
+      const score = scorePosition(pos, mouseX, mouseY, selectionRect, popoverWidth, popoverHeight);
+      if (score > bestScore) {
+        bestScore = score;
+        bestPosition = pos;
       }
     }
     
-    // 水平位置调整：确保不超出左右边界
-    if (finalX + popoverWidth > scrollX + viewportWidth) {
-      finalX = scrollX + viewportWidth - popoverWidth - offset;
-    }
-    if (finalX < scrollX) {
-      finalX = scrollX + offset;
+    console.log('[触触搜] 最佳位置得分:', bestScore);
+    
+    // 如果找到了合适的位置，返回
+    if (bestPosition && bestScore > 0) {
+      // 确保位置在视口内
+      bestPosition.x = Math.max(scrollX + 10, Math.min(bestPosition.x, scrollX + viewportWidth - popoverWidth - 10));
+      bestPosition.y = Math.max(scrollY + 10, Math.min(bestPosition.y, scrollY + viewportHeight - popoverHeight - 10));
+      
+      console.log('[触触搜] calculateSmartPosition 输出:', { 
+        x: bestPosition.x, 
+        y: bestPosition.y, 
+        score: bestScore,
+        quadrant: quadrant
+      });
+      
+      return bestPosition;
     }
     
-    // 最终边界检查
-    finalX = Math.max(scrollX + 10, Math.min(finalX, scrollX + viewportWidth - popoverWidth - 10));
-    finalY = Math.max(scrollY + 10, Math.min(finalY, scrollY + viewportHeight - popoverHeight - 10));
+    // 如果所有候选位置得分都很低，使用备用策略
+    // 尽量远离光标，放在视口的安全区域
+    let fallbackX, fallbackY;
+    
+    if (quadrant === 'top-left') {
+      // 光标在左上，放在右下区域
+      fallbackX = scrollX + viewportWidth - popoverWidth - 20;
+      fallbackY = scrollY + viewportHeight - popoverHeight - 20;
+    } else if (quadrant === 'top-right') {
+      // 光标在右上，放在左下区域
+      fallbackX = scrollX + 20;
+      fallbackY = scrollY + viewportHeight - popoverHeight - 20;
+    } else if (quadrant === 'bottom-left') {
+      // 光标在左下，放在右上区域
+      fallbackX = scrollX + viewportWidth - popoverWidth - 20;
+      fallbackY = scrollY + 20;
+    } else {
+      // 光标在右下，放在左上区域
+      fallbackX = scrollX + 20;
+      fallbackY = scrollY + 20;
+    }
+    
+    // 确保备用位置在视口内
+    fallbackX = Math.max(scrollX + 10, Math.min(fallbackX, scrollX + viewportWidth - popoverWidth - 10));
+    fallbackY = Math.max(scrollY + 10, Math.min(fallbackY, scrollY + viewportHeight - popoverHeight - 10));
 
-    console.log('[触触搜] calculateSmartPosition 输出:', { 
-      x: finalX, 
-      y: finalY, 
+    console.log('[触触搜] calculateSmartPosition 输出（备用）:', { 
+      x: fallbackX, 
+      y: fallbackY, 
       popoverSize: { width: popoverWidth, height: popoverHeight },
-      decision: spaceBelow >= popoverHeight + offset ? '下方' : 
-                (spaceAbove >= popoverHeight + offset ? '上方' : '中央')
+      quadrant: quadrant,
+      reason: '使用备用位置'
     });
 
-    return { x: finalX, y: finalY, arrow: 'none' };
+    return { x: fallbackX, y: fallbackY };
   }
 
   // 创建popover
@@ -1633,21 +1655,31 @@
         // 悬停/指针进入/获得焦点时，强制实时刷新（优先标题/URL），并同步刷新整块UI标题
         const refreshHover = () => {
           try {
-            // 节流，避免过多刷新
+            // 减少节流时间，使响应更快
             const now = Date.now();
             const lastTs = parseInt(button.dataset.hovTs || '0', 10);
-            if (now - lastTs < 150) return;
+            if (now - lastTs < 50) return; // 从150ms减少到50ms
             button.dataset.hovTs = String(now);
-            const t = getCurrentSearchText();
+            
+            // 强制刷新，获取最新的实时值
+            const t = getCurrentSearchText(true); // 传递true强制刷新
             button.title = t ? `${btn.title}: ${t}` : btn.title;
-            // 同步更新其他按钮与标题，确保一致
-            updateRealtimeFallbackUI();
-            if (window.CCS_DEBUG) console.log('[触触搜][DEBUG] hover refresh', { id: btn.id, text: t || '(empty)' });
+            
+            // 同步更新其他按钮与标题，确保一致，也强制刷新
+            updateRealtimeFallbackUI(true);
+            
+            if (window.CCS_DEBUG) console.log('[触触搜][DEBUG] hover实时刷新', { 
+              id: btn.id, 
+              text: t || '(空)', 
+              title: document.title,
+              url: window.location.href 
+            });
           } catch (_) {}
         };
-        // 多通道触发：mouseenter（一次）、mouseover（可重复）、pointerenter、focusin
+        // 多通道触发：mouseenter（一次）、mouseover（可重复）、mousemove（移动时）、pointerenter、focusin
         button.addEventListener('mouseenter', refreshHover);
         button.addEventListener('mouseover', refreshHover);
+        button.addEventListener('mousemove', refreshHover); // 添加mousemove以获得更实时的更新
         button.addEventListener('pointerenter', refreshHover);
         button.addEventListener('focusin', refreshHover);
         buttonsContainer.appendChild(button);
@@ -3314,22 +3346,23 @@
   }
 
   // 智能获取要搜索的内容（同步版本，尽量本地推断）
-  function getSmartSearchText() {
+  function getSmartSearchText(skipCache = false) {
     // 优先级1: 选中的文本
     const selected = getActiveSelectionText();
     if (selected) {
       return selected;
     }
-    // 优先级1.5: 最近一次非空选择
-    if (lastNonEmptySelection) return lastNonEmptySelection;
     
-    // 优先级2: 搜索引擎关键词
+    // 如果不跳过缓存，使用最近一次非空选择
+    if (!skipCache && lastNonEmptySelection) return lastNonEmptySelection;
+    
+    // 优先级2: 搜索引擎关键词（实时提取）
     const searchKeyword = extractSearchKeyword();
     if (searchKeyword) {
       return searchKeyword;
     }
     
-    // 优先级3: 页面标题（保留全文）
+    // 优先级3: 页面标题（实时获取，保留全文）
     const title = document.title;
     if (title) {
       // 不再按分隔符截断，保留页面完整标题
@@ -3340,11 +3373,17 @@
   }
 
   // 统一的获取当前搜索文本函数，确保按钮提示和实际搜索内容一致
-  function getCurrentSearchText() {
+  function getCurrentSearchText(forceRefresh = false) {
     // 统一优先级顺序：
     // 1. 实时选中的文本（最高优先）
     const activeSelection = getActiveSelectionText();
     if (activeSelection) return activeSelection;
+    
+    // 如果是强制刷新（hover时），跳过缓存值，直接获取实时值
+    if (forceRefresh) {
+      // 强制重新获取智能搜索文本（URL关键词或页面标题），跳过缓存
+      return getSmartSearchText(true);
+    }
     
     // 2. 最后一次非空选择
     if (lastNonEmptySelection) return lastNonEmptySelection;
