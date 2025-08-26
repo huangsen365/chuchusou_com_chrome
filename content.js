@@ -8,7 +8,7 @@
     opacity: 1,
     position: null,
     blacklist: [],
-    miniButtons: ['baidu', 'google', 'chuchusou', 'copy', 'base64-encode'] // Mini模式默认5个按钮，包含更多搜索
+    miniButtons: ['baidu', 'google', 'chuchusou', 'copy', 'lowercase'] // Mini模式默认按钮，包含大小写与搜索
   };
   let isDragging = false;
   let dragOffset = { x: 0, y: 0 };
@@ -1699,7 +1699,7 @@
   });
 
   // 调试模式开关（可以通过控制台设置 window.CCS_DEBUG = true 开启）
-  window.CCS_DEBUG = true; // 默认开启调试
+  window.CCS_DEBUG = false; // 默认关闭调试，可在控制台设置为true
   
   // 处理快捷键的统一函数
   function handleSearchShortcut(e) {

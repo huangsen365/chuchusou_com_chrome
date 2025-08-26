@@ -1,17 +1,20 @@
 // 提取URL中的搜索关键词或页面标题
+const BG_DEBUG = false;
+const BG_DBG = (...args) => { if (BG_DEBUG) console.log(...args); };
+
 async function extractSearchKeywords(url, tab) {
   try {
     const urlObj = new URL(url);
     const hostname = urlObj.hostname;
     const searchParams = urlObj.searchParams;
-    console.log('[触触搜][BG][DEBUG] extractSearchKeywords called', { url, hostname, title: tab && tab.title });
+    BG_DBG('[触触搜][BG][DEBUG] extractSearchKeywords called', { url, hostname, title: tab && tab.title });
     
     // 百度搜索
     if (hostname.includes('baidu.com')) {
       const wd = searchParams.get('wd') || searchParams.get('word') || searchParams.get('kw');
       if (wd) {
         const kw = decodeURIComponent(wd);
-        console.log('[触触搜][BG][DEBUG] matched baidu wd:', kw);
+        BG_DBG('[触触搜][BG][DEBUG] matched baidu wd:', kw);
         return kw;
       }
     }
@@ -21,7 +24,7 @@ async function extractSearchKeywords(url, tab) {
       const q = searchParams.get('q');
       if (q) {
         const kw = decodeURIComponent(q);
-        console.log('[触触搜][BG][DEBUG] matched google q:', kw);
+        BG_DBG('[触触搜][BG][DEBUG] matched google q:', kw);
         return kw;
       }
     }
@@ -31,7 +34,7 @@ async function extractSearchKeywords(url, tab) {
       const q = searchParams.get('q');
       if (q) {
         const kw = decodeURIComponent(q);
-        console.log('[触触搜][BG][DEBUG] matched bing q:', kw);
+        BG_DBG('[触触搜][BG][DEBUG] matched bing q:', kw);
         return kw;
       }
     }
@@ -41,7 +44,7 @@ async function extractSearchKeywords(url, tab) {
       const query = searchParams.get('query') || searchParams.get('keyword');
       if (query) {
         const kw = decodeURIComponent(query);
-        console.log('[触触搜][BG][DEBUG] matched sogou query:', kw);
+        BG_DBG('[触触搜][BG][DEBUG] matched sogou query:', kw);
         return kw;
       }
     }
@@ -51,7 +54,7 @@ async function extractSearchKeywords(url, tab) {
       const q = searchParams.get('q');
       if (q) {
         const kw = decodeURIComponent(q);
-        console.log('[触触搜][BG][DEBUG] matched 360 q:', kw);
+        BG_DBG('[触触搜][BG][DEBUG] matched 360 q:', kw);
         return kw;
       }
     }
@@ -61,7 +64,7 @@ async function extractSearchKeywords(url, tab) {
       const q = searchParams.get('q');
       if (q) {
         const kw = decodeURIComponent(q);
-        console.log('[触触搜][BG][DEBUG] matched sm q:', kw);
+        BG_DBG('[触触搜][BG][DEBUG] matched sm q:', kw);
         return kw;
       }
     }
@@ -71,7 +74,7 @@ async function extractSearchKeywords(url, tab) {
       const keyword = searchParams.get('keyword');
       if (keyword) {
         const kw = decodeURIComponent(keyword);
-        console.log('[触触搜][BG][DEBUG] matched toutiao keyword:', kw);
+        BG_DBG('[触触搜][BG][DEBUG] matched toutiao keyword:', kw);
         return kw;
       }
     }
@@ -81,7 +84,7 @@ async function extractSearchKeywords(url, tab) {
       const q = searchParams.get('q');
       if (q) {
         const kw = decodeURIComponent(q);
-        console.log('[触触搜][BG][DEBUG] matched ddg q:', kw);
+        BG_DBG('[触触搜][BG][DEBUG] matched ddg q:', kw);
         return kw;
       }
     }
@@ -91,7 +94,7 @@ async function extractSearchKeywords(url, tab) {
       const p = searchParams.get('p');
       if (p) {
         const kw = decodeURIComponent(p);
-        console.log('[触触搜][BG][DEBUG] matched yahoo p:', kw);
+        BG_DBG('[触触搜][BG][DEBUG] matched yahoo p:', kw);
         return kw;
       }
     }
@@ -101,7 +104,7 @@ async function extractSearchKeywords(url, tab) {
       const text = searchParams.get('text');
       if (text) {
         const kw = decodeURIComponent(text);
-        console.log('[触触搜][BG][DEBUG] matched yandex text:', kw);
+        BG_DBG('[触触搜][BG][DEBUG] matched yandex text:', kw);
         return kw;
       }
     }
@@ -111,7 +114,7 @@ async function extractSearchKeywords(url, tab) {
       const query = searchParams.get('query');
       if (query) {
         const kw = decodeURIComponent(query);
-        console.log('[触触搜][BG][DEBUG] matched startpage query:', kw);
+        BG_DBG('[触触搜][BG][DEBUG] matched startpage query:', kw);
         return kw;
       }
     }
@@ -121,7 +124,7 @@ async function extractSearchKeywords(url, tab) {
       const q = searchParams.get('q');
       if (q) {
         const kw = decodeURIComponent(q);
-        console.log('[触触搜][BG][DEBUG] matched zhihu q:', kw);
+        BG_DBG('[触触搜][BG][DEBUG] matched zhihu q:', kw);
         return kw;
       }
     }
@@ -131,7 +134,7 @@ async function extractSearchKeywords(url, tab) {
       const q = searchParams.get('q');
       if (q) {
         const kw = decodeURIComponent(q);
-        console.log('[触触搜][BG][DEBUG] matched weibo q:', kw);
+        BG_DBG('[触触搜][BG][DEBUG] matched weibo q:', kw);
         return kw;
       }
     }
@@ -141,7 +144,7 @@ async function extractSearchKeywords(url, tab) {
       const q = searchParams.get('q');
       if (q) {
         const kw = decodeURIComponent(q);
-        console.log('[触触搜][BG][DEBUG] matched github q:', kw);
+        BG_DBG('[触触搜][BG][DEBUG] matched github q:', kw);
         return kw;
       }
     }
@@ -151,7 +154,7 @@ async function extractSearchKeywords(url, tab) {
       const keyword = searchParams.get('keyword');
       if (keyword) {
         const kw = decodeURIComponent(keyword);
-        console.log('[触触搜][BG][DEBUG] matched bilibili keyword:', kw);
+        BG_DBG('[触触搜][BG][DEBUG] matched bilibili keyword:', kw);
         return kw;
       }
     }
@@ -161,7 +164,7 @@ async function extractSearchKeywords(url, tab) {
       const q = searchParams.get('q') || searchParams.get('keyword');
       if (q) {
         const kw = decodeURIComponent(q);
-        console.log('[触触搜][BG][DEBUG] matched taobao/tmall q:', kw);
+        BG_DBG('[触触搜][BG][DEBUG] matched taobao/tmall q:', kw);
         return kw;
       }
     }
@@ -171,7 +174,7 @@ async function extractSearchKeywords(url, tab) {
       const keyword = searchParams.get('keyword');
       if (keyword) {
         const kw = decodeURIComponent(keyword);
-        console.log('[触触搜][BG][DEBUG] matched jd keyword:', kw);
+        BG_DBG('[触触搜][BG][DEBUG] matched jd keyword:', kw);
         return kw;
       }
     }
@@ -179,7 +182,7 @@ async function extractSearchKeywords(url, tab) {
     // 如果都没有匹配，尝试获取页面标题作为关键词
     if (tab && tab.title) {
       let title = tab.title;
-      console.log('[触触搜][BG][DEBUG] fallback to title:', title);
+      BG_DBG('[触触搜][BG][DEBUG] fallback to title:', title);
       
       // 清理常见的网站后缀
       const suffixes = [
@@ -216,7 +219,7 @@ async function extractSearchKeywords(url, tab) {
       }
       
       const cleaned = title.trim();
-      console.log('[触触搜][BG][DEBUG] final title keyword:', cleaned);
+      BG_DBG('[触触搜][BG][DEBUG] final title keyword:', cleaned);
       return cleaned;
     }
     
