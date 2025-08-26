@@ -1117,12 +1117,19 @@
   });
 
   // 右键菜单处理 - 不再阻止默认菜单
-  // 使用Alt+右键或Shift+右键触发插件功能
   document.addEventListener('contextmenu', (e) => {
-    // 只有按住Alt键或Shift键时才触发插件功能
+    // 普通右键时，隐藏popup让右键菜单接管
     if (!e.altKey && !e.shiftKey) {
+      // 如果有选中文本，隐藏popup让右键菜单处理
+      const selection = window.getSelection();
+      const text = selection.toString().trim();
+      if (text.length > 0 || popover) {
+        hidePopover();
+      }
       return; // 保留默认右键菜单
     }
+    
+    // Alt+右键或Shift+右键时才触发插件功能
     
     // 如果当前网站在黑名单中，显示恢复选项
     if (settings.isBlacklisted) {

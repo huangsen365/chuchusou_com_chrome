@@ -332,6 +332,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 
 // 根据URL更新菜单标题
 async function updateContextMenuForTab(tab) {
+  // 注意：这里只是预显示，实际使用时选中文本优先级更高
   const keywords = await extractSearchKeywords(tab.url, tab);
   
   if (keywords) {
@@ -360,9 +361,13 @@ async function updateContextMenuForTab(tab) {
 
 // 处理右键菜单点击
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  // 优先使用选中的文本，否则尝试从URL提取
+  // 文本优先级：
+  // 1. 优先使用选中的文本
+  // 2. 没有选中文本时，才尝试从URL提取搜索关键词
+  // 3. 最后使用页面标题作为后备
   let text = info.selectionText;
   
+  // 只有在没有选中文本时，才尝试其他来源
   if (!text && tab.url) {
     text = await extractSearchKeywords(tab.url, tab);
     
