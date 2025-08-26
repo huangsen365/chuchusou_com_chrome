@@ -54,6 +54,7 @@
         setTimeout(() => {
           try {
             ensureBottomBarVisible(true);
+            scheduleRealtimeUpdate();
           } catch (e) { console.warn('[触触搜] 全局悬停模式自动显示失败:', e); }
         }, 0);
       }
@@ -90,16 +91,58 @@
     }
   }
 
-  // 监听DOM变化，若底部栏应显示且被移除则重建
+  // 监听DOM变化，若底部栏应显示且被移除则重建，同时尝试刷新UI
   const ccsObserver = new MutationObserver(() => {
     ensureBottomBarVisible(false);
+    scheduleRealtimeUpdate();
   });
   try {
     ccsObserver.observe(document.documentElement || document.body, { childList: true, subtree: true });
   } catch (_) {}
-  window.addEventListener('pageshow', () => ensureBottomBarVisible(false));
-  window.addEventListener('popstate', () => ensureBottomBarVisible(false));
-  window.addEventListener('hashchange', () => ensureBottomBarVisible(false));
+  window.addEventListener('pageshow', () => { ensureBottomBarVisible(false); scheduleRealtimeUpdate(); });
+  window.addEventListener('popstate', () => { ensureBottomBarVisible(false); scheduleRealtimeUpdate(); });
+  window.addEventListener('hashchange', () => { ensureBottomBarVisible(false); scheduleRealtimeUpdate(); });
+
+  // 监听 <title> 变化（SPA 常改标题）
+  try {
+    const titleNode = document.querySelector('title');
+    if (titleNode) {
+      const titleObserver = new MutationObserver(() => {
+        const cur = document.title || '';
+        if (cur !== lastObservedTitle) {
+          lastObservedTitle = cur;
+          scheduleRealtimeUpdate();
+        }
+      });
+      titleObserver.observe(titleNode, { childList: true, characterData: true, subtree: true });
+    }
+  } catch (_) {}
+
+  // 拦截 pushState/replaceState 触发自定义事件
+  try {
+    const _pushState = history.pushState;
+    history.pushState = function() {
+      const ret = _pushState.apply(this, arguments);
+      window.dispatchEvent(new Event('ccs-locationchange'));
+      return ret;
+    }
+    const _replaceState = history.replaceState;
+    history.replaceState = function() {
+      const ret = _replaceState.apply(this, arguments);
+      window.dispatchEvent(new Event('ccs-locationchange'));
+      return ret;
+    }
+    window.addEventListener('ccs-locationchange', () => { ensureBottomBarVisible(false); scheduleRealtimeUpdate(); });
+  } catch (_) {}
+
+  // 兜底轮询 URL 变化（少数站点不触发事件）
+  setInterval(() => {
+    if (window.location.href !== lastObservedHref) {
+      lastObservedHref = window.location.href;
+      ensureBottomBarVisible(false);
+      scheduleRealtimeUpdate();
+    }
+  }, 1500);
 
   // 检查当前网站是否在黑名单中
   function checkBlacklist() {
@@ -121,6 +164,37 @@
   }
 
   // 智能文本类型检测
+  // 监测URL/标题变化，实时更新UI（当无选中文本时）
+  let lastObservedHref = window.location.href;
+  let lastObservedTitle = document.title || '';
+  let realtimeUpdateTimer = null;
+  function scheduleRealtimeUpdate() {
+    clearTimeout(realtimeUpdateTimer);
+    realtimeUpdateTimer = setTimeout(updateRealtimeFallbackUI, 120);
+  }
+  function updateRealtimeFallbackUI() {
+    try {
+      if (!shadowRoot || !popover) return;
+      const sel = getActiveSelectionText();
+      if (sel) return; // 有选中文本时不覆盖
+      const t = getSmartSearchText();
+      // 更新标题（若存在）
+      const titleEl = shadowRoot.querySelector('.ccs-title');
+      if (titleEl && t) {
+        titleEl.title = t;
+        // 文本显示由CSS省略控制，这里直接设全文
+        titleEl.textContent = `🔍 触触搜: "${t}"`;
+      }
+      // 更新按钮tooltip
+      const renderedButtons = shadowRoot.querySelectorAll('.ccs-button');
+      renderedButtons.forEach(el => {
+        const id = el.dataset.id;
+        const cfg = (id && defaultButtons.find(b => b.id === id)) || null;
+        const base = cfg ? cfg.title : '操作';
+        el.title = t ? `${base}: ${t}` : base;
+      });
+    } catch (_) {}
+  }
   function getActiveSelectionText() {
     try {
       const ae = document.activeElement;
