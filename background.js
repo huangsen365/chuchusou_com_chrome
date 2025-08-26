@@ -315,6 +315,44 @@ chrome.runtime.onInstalled.addListener(() => {
   createContextMenus();
 });
 
+// 存储当前选中的文本（每个标签页独立）
+const selectedTextByTab = {};
+
+// 监听来自content script的选择变化消息
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'selectionChanged' && sender.tab) {
+    const tabId = sender.tab.id;
+    const text = request.text;
+    
+    // 存储选中文本
+    if (text) {
+      selectedTextByTab[tabId] = text;
+    } else {
+      delete selectedTextByTab[tabId];
+    }
+    
+    // 获取当前活动标签
+    chrome.tabs.query({active: true, currentWindow: true}, async (tabs) => {
+      if (tabs[0] && tabs[0].id === tabId) {
+        // 只更新当前活动标签的菜单
+        if (text) {
+          // 有选中文本，显示选中文本
+          const displayText = text.substring(0, 20) + (text.length > 20 ? '...' : '');
+          chrome.contextMenus.update('ccs-main', {
+            title: `🔍 触触搜: "${displayText}"`
+          });
+          chrome.contextMenus.update('ccs-label', {
+            title: `🔍 触触搜: "${displayText}"`
+          });
+        } else {
+          // 没有选中文本，回退到URL关键词或默认
+          updateContextMenuForTab(sender.tab);
+        }
+      }
+    });
+  }
+});
+
 // 监听标签页更新，动态更新菜单标题
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url) {
@@ -325,7 +363,19 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 // 监听标签页激活，动态更新菜单标题
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   const tab = await chrome.tabs.get(activeInfo.tabId);
-  if (tab.url) {
+  
+  // 先检查是否有存储的选中文本
+  if (selectedTextByTab[activeInfo.tabId]) {
+    const text = selectedTextByTab[activeInfo.tabId];
+    const displayText = text.substring(0, 20) + (text.length > 20 ? '...' : '');
+    chrome.contextMenus.update('ccs-main', {
+      title: `🔍 触触搜: "${displayText}"`
+    });
+    chrome.contextMenus.update('ccs-label', {
+      title: `🔍 触触搜: "${displayText}"`
+    });
+  } else if (tab.url) {
+    // 没有选中文本时，使用URL关键词
     updateContextMenuForTab(tab);
   }
 });

@@ -1066,6 +1066,32 @@
   let lastSelectedText = '';
   let lastSelectionTime = 0;
   
+  // 监听选择变化，通知background更新菜单
+  let lastNotifiedText = '';
+  function notifySelectionChange() {
+    const selection = window.getSelection();
+    const text = selection.toString().trim();
+    
+    // 只在文本变化时通知
+    if (text !== lastNotifiedText) {
+      lastNotifiedText = text;
+      // 发送给background script更新菜单
+      chrome.runtime.sendMessage({
+        action: 'selectionChanged',
+        text: text
+      }).catch(() => {
+        // 忽略错误（可能background未准备好）
+      });
+    }
+  }
+  
+  // 监听选择变化事件
+  document.addEventListener('selectionchange', () => {
+    // 使用防抖避免频繁更新
+    clearTimeout(window.selectionChangeTimeout);
+    window.selectionChangeTimeout = setTimeout(notifySelectionChange, 100);
+  });
+  
   // 监听文本选择
   document.addEventListener('mouseup', (e) => {
     // 如果在拖拽中，不处理
