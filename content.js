@@ -2,6 +2,7 @@
   let popover = null;
   let shadowRoot = null;
   let selectedText = '';
+  let lastNonEmptySelection = '';
   // 页面会话级的临时停靠标记（不持久化）
   let isTempDock = false;
   let settings = {
@@ -1375,7 +1376,7 @@
     try {
       const titleEl = shadowRoot.querySelector('.ccs-title');
       if (titleEl) {
-        const full = selectedText || getSmartSearchText();
+        const full = selectedText || lastNonEmptySelection || getSmartSearchText();
         if (full) titleEl.title = full;
       }
     } catch (_) {}
@@ -1406,7 +1407,7 @@
           button.title = btn.title;
         }
         button.addEventListener('click', () => {
-          const text = getActiveSelectionText() || selectedText || getSmartSearchText();
+          const text = getActiveSelectionText() || lastNonEmptySelection || selectedText || getSmartSearchText();
           if (!text) {
             try { showToast('没有可用的文本'); } catch (_) {}
             return;
@@ -2180,9 +2181,10 @@
 
     // 若弹窗存在，则实时更新标题与按钮tooltip（选中文本优先，否则回退到搜索URL关键词或页面标题）
     if (popover && shadowRoot) {
-      const current = text || getSmartSearchText();
+      const current = text || lastNonEmptySelection || getSmartSearchText();
       if (current) {
         selectedText = current;
+        lastNonEmptySelection = current;
         // 更新标题显示与title（无标题的布局会跳过）
         const titleEl = shadowRoot.querySelector('.ccs-title');
         if (titleEl) {
@@ -2817,6 +2819,8 @@
     if (selected) {
       return selected;
     }
+    // 优先级1.5: 最近一次非空选择
+    if (lastNonEmptySelection) return lastNonEmptySelection;
     
     // 优先级2: 搜索引擎关键词
     const searchKeyword = extractSearchKeyword();
@@ -2878,6 +2882,7 @@
     // 1) 优先选中文本
     const selected = getActiveSelectionText();
     if (selected) return selected;
+    if (lastNonEmptySelection) return lastNonEmptySelection;
 
     // 2) 尝试与右键一致的 background 提取
     const fromBg = await requestKeywordsFromBackground();
