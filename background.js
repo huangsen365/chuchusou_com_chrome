@@ -4,12 +4,15 @@ async function extractSearchKeywords(url, tab) {
     const urlObj = new URL(url);
     const hostname = urlObj.hostname;
     const searchParams = urlObj.searchParams;
+    console.log('[触触搜][BG][DEBUG] extractSearchKeywords called', { url, hostname, title: tab && tab.title });
     
     // 百度搜索
     if (hostname.includes('baidu.com')) {
       const wd = searchParams.get('wd') || searchParams.get('word') || searchParams.get('kw');
       if (wd) {
-        return decodeURIComponent(wd);
+        const kw = decodeURIComponent(wd);
+        console.log('[触触搜][BG][DEBUG] matched baidu wd:', kw);
+        return kw;
       }
     }
     
@@ -17,7 +20,9 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('google.')) {
       const q = searchParams.get('q');
       if (q) {
-        return decodeURIComponent(q);
+        const kw = decodeURIComponent(q);
+        console.log('[触触搜][BG][DEBUG] matched google q:', kw);
+        return kw;
       }
     }
     
@@ -25,7 +30,9 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('bing.com') || hostname.includes('cn.bing.com')) {
       const q = searchParams.get('q');
       if (q) {
-        return decodeURIComponent(q);
+        const kw = decodeURIComponent(q);
+        console.log('[触触搜][BG][DEBUG] matched bing q:', kw);
+        return kw;
       }
     }
     
@@ -33,7 +40,9 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('sogou.com')) {
       const query = searchParams.get('query') || searchParams.get('keyword');
       if (query) {
-        return decodeURIComponent(query);
+        const kw = decodeURIComponent(query);
+        console.log('[触触搜][BG][DEBUG] matched sogou query:', kw);
+        return kw;
       }
     }
     
@@ -41,7 +50,9 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('so.com') || hostname.includes('360.cn')) {
       const q = searchParams.get('q');
       if (q) {
-        return decodeURIComponent(q);
+        const kw = decodeURIComponent(q);
+        console.log('[触触搜][BG][DEBUG] matched 360 q:', kw);
+        return kw;
       }
     }
     
@@ -49,7 +60,9 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('m.sm.cn') || hostname.includes('sm.cn')) {
       const q = searchParams.get('q');
       if (q) {
-        return decodeURIComponent(q);
+        const kw = decodeURIComponent(q);
+        console.log('[触触搜][BG][DEBUG] matched sm q:', kw);
+        return kw;
       }
     }
     
@@ -57,7 +70,9 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('toutiao.com')) {
       const keyword = searchParams.get('keyword');
       if (keyword) {
-        return decodeURIComponent(keyword);
+        const kw = decodeURIComponent(keyword);
+        console.log('[触触搜][BG][DEBUG] matched toutiao keyword:', kw);
+        return kw;
       }
     }
     
@@ -65,7 +80,9 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('duckduckgo.com')) {
       const q = searchParams.get('q');
       if (q) {
-        return decodeURIComponent(q);
+        const kw = decodeURIComponent(q);
+        console.log('[触触搜][BG][DEBUG] matched ddg q:', kw);
+        return kw;
       }
     }
     
@@ -73,7 +90,9 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('yahoo.com') || hostname.includes('yahoo.co.jp')) {
       const p = searchParams.get('p');
       if (p) {
-        return decodeURIComponent(p);
+        const kw = decodeURIComponent(p);
+        console.log('[触触搜][BG][DEBUG] matched yahoo p:', kw);
+        return kw;
       }
     }
     
@@ -81,7 +100,9 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('yandex.')) {
       const text = searchParams.get('text');
       if (text) {
-        return decodeURIComponent(text);
+        const kw = decodeURIComponent(text);
+        console.log('[触触搜][BG][DEBUG] matched yandex text:', kw);
+        return kw;
       }
     }
     
@@ -89,7 +110,9 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('startpage.com')) {
       const query = searchParams.get('query');
       if (query) {
-        return decodeURIComponent(query);
+        const kw = decodeURIComponent(query);
+        console.log('[触触搜][BG][DEBUG] matched startpage query:', kw);
+        return kw;
       }
     }
     
@@ -97,7 +120,9 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('zhihu.com')) {
       const q = searchParams.get('q');
       if (q) {
-        return decodeURIComponent(q);
+        const kw = decodeURIComponent(q);
+        console.log('[触触搜][BG][DEBUG] matched zhihu q:', kw);
+        return kw;
       }
     }
     
@@ -105,7 +130,9 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('weibo.com') || hostname.includes('weibo.cn')) {
       const q = searchParams.get('q');
       if (q) {
-        return decodeURIComponent(q);
+        const kw = decodeURIComponent(q);
+        console.log('[触触搜][BG][DEBUG] matched weibo q:', kw);
+        return kw;
       }
     }
     
@@ -113,7 +140,9 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('github.com')) {
       const q = searchParams.get('q');
       if (q) {
-        return decodeURIComponent(q);
+        const kw = decodeURIComponent(q);
+        console.log('[触触搜][BG][DEBUG] matched github q:', kw);
+        return kw;
       }
     }
     
@@ -121,7 +150,9 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('bilibili.com')) {
       const keyword = searchParams.get('keyword');
       if (keyword) {
-        return decodeURIComponent(keyword);
+        const kw = decodeURIComponent(keyword);
+        console.log('[触触搜][BG][DEBUG] matched bilibili keyword:', kw);
+        return kw;
       }
     }
     
@@ -129,7 +160,9 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('taobao.com') || hostname.includes('tmall.com')) {
       const q = searchParams.get('q') || searchParams.get('keyword');
       if (q) {
-        return decodeURIComponent(q);
+        const kw = decodeURIComponent(q);
+        console.log('[触触搜][BG][DEBUG] matched taobao/tmall q:', kw);
+        return kw;
       }
     }
     
@@ -137,13 +170,16 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('jd.com')) {
       const keyword = searchParams.get('keyword');
       if (keyword) {
-        return decodeURIComponent(keyword);
+        const kw = decodeURIComponent(keyword);
+        console.log('[触触搜][BG][DEBUG] matched jd keyword:', kw);
+        return kw;
       }
     }
     
     // 如果都没有匹配，尝试获取页面标题作为关键词
     if (tab && tab.title) {
       let title = tab.title;
+      console.log('[触触搜][BG][DEBUG] fallback to title:', title);
       
       // 清理常见的网站后缀
       const suffixes = [
@@ -179,11 +215,13 @@ async function extractSearchKeywords(url, tab) {
         title = title.substring(0, 50) + '...';
       }
       
-      return title.trim();
+      const cleaned = title.trim();
+      console.log('[触触搜][BG][DEBUG] final title keyword:', cleaned);
+      return cleaned;
     }
     
   } catch (error) {
-    console.error('Error extracting keywords:', error);
+    console.error('[触触搜][BG][DEBUG] Error extracting keywords:', error);
   }
   
   return null;

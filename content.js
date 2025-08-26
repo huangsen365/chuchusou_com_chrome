@@ -386,6 +386,16 @@
       }
     },
     {
+      id: 'lowercase',
+      icon: '🔡',
+      title: '转小写',
+      action: (text) => {
+        const lower = text.toLowerCase();
+        navigator.clipboard.writeText(lower);
+        showToast('已转换为小写并复制');
+      }
+    },
+    {
       id: 'md5',
       icon: '#️⃣',
       title: 'MD5哈希',
@@ -583,11 +593,21 @@
     const wrapper = document.createElement('div');
     wrapper.className = `ccs-popover ${settings.mode === 'mini' ? 'mini-mode' : ''} theme-${settings.theme}`;
     
+    // 统一标题：mini/normal 都显示关键词
+    const escapeHtml = (text) => {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      };
+    const displayText = selectedText ? 
+      `🔍 触触搜: "${escapeHtml(selectedText.substring(0, 15))}${selectedText.length > 15 ? '...' : ''}"` : 
+      '🔍 触触搜';
+
     if (settings.mode === 'mini') {
-      // Mini模式HTML - 不显示设置按钮，标题保持不变
+      // Mini模式HTML - 同样显示关键词
       wrapper.innerHTML = `
         <div class="ccs-header" data-draggable="true">
-          <span class="ccs-title">🔍 触触搜</span>
+          <span class="ccs-title">${displayText}</span>
           <div class="ccs-header-buttons">
             <button class="ccs-expand" title="展开">📖</button>
             <button class="ccs-close" title="关闭">✕</button>
@@ -598,14 +618,6 @@
       `;
     } else {
       // 普通模式HTML - 标题显示选中的文本
-      const escapeHtml = (text) => {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-      };
-      const displayText = selectedText ? 
-        `🔍 触触搜: "${escapeHtml(selectedText.substring(0, 15))}${selectedText.length > 15 ? '...' : ''}"` : 
-        '🔍 触触搜';
       wrapper.innerHTML = `
         <div class="ccs-header" data-draggable="true">
           <span class="ccs-title">${displayText}</span>
@@ -1728,42 +1740,45 @@
       
       console.log('[触触搜] 事件已阻止');
       
-      // 智能获取内容
-      const smartText = getSmartSearchText();
-      console.log('[触触搜] 获取到的文本:', smartText || '(无内容)');
-      
-      if (smartText) {
-        selectedText = smartText; // 设置全局变量
-        
-        // 确定显示位置
-        let x, y;
-        const selection = window.getSelection();
-        
-        // 如果有选中区域，使用选中区域位置
-        if (selection.rangeCount > 0 && selection.toString().trim()) {
-          const range = selection.getRangeAt(0);
-          const rect = range.getBoundingClientRect();
-          x = rect.left + rect.width / 2;
-          y = rect.bottom;
-          console.log('[触触搜] 使用选中区域位置:', {x, y});
+      // 异步智能获取内容（与右键一致从background提取为主）
+      const t0 = performance.now();
+      getSmartSearchTextAsync().then((smartText) => {
+        console.log('[触触搜] 获取到的文本:', smartText || '(无内容)');
+        if (window.CCS_DEBUG) console.log('[触触搜][DEBUG] keyword resolve latency(ms):', Math.round(performance.now() - t0));
+        if (smartText) {
+          selectedText = smartText; // 设置全局变量
+
+          // 确定显示位置
+          let x, y, selectionRect = null;
+          const selection = window.getSelection();
+
+          // 如果有选中区域，使用选中区域位置
+          if (selection.rangeCount > 0 && selection.toString().trim()) {
+            const range = selection.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            x = rect.left + rect.width / 2;
+            y = rect.bottom;
+            selectionRect = rect;
+            console.log('[触触搜] 使用选中区域位置:', {x, y});
+          } else {
+            // 否则显示在屏幕中央偏上
+            x = window.innerWidth / 2;
+            y = window.innerHeight / 3;
+            console.log('[触触搜] 使用屏幕中央位置:', {x, y});
+          }
+
+          console.log('[触触搜] 准备调用 forceShowPopover...');
+          try {
+            forceShowPopover(x, y, selectionRect);
+            console.log('[触触搜] forceShowPopover 调用成功');
+          } catch (err) {
+            console.error('[触触搜] forceShowPopover 调用失败:', err);
+          }
         } else {
-          // 否则显示在屏幕中央偏上
-          x = window.innerWidth / 2;
-          y = window.innerHeight / 3;
-          console.log('[触触搜] 使用屏幕中央位置:', {x, y});
+          console.log('[触触搜] 没有找到可搜索的内容');
+          showToast('没有找到可搜索的内容');
         }
-        
-        console.log('[触触搜] 准备调用 forceShowPopover...');
-        try {
-          forceShowPopover(x, y);
-          console.log('[触触搜] forceShowPopover 调用成功');
-        } catch (err) {
-          console.error('[触触搜] forceShowPopover 调用失败:', err);
-        }
-      } else {
-        console.log('[触触搜] 没有找到可搜索的内容');
-        showToast('没有找到可搜索的内容');
-      }
+      });
       
       return false; // 确保阻止事件
     }
@@ -2065,39 +2080,120 @@
     document.body.appendChild(popover);
   }
 
-  // 从搜索引擎页面提取关键词
+  // 从搜索引擎页面提取关键词（与 background.js 规则对齐）
   function extractSearchKeyword() {
-    const hostname = window.location.hostname;
-    const params = new URLSearchParams(window.location.search);
-    
-    // 搜索引擎配置（参数名）
-    const searchEngines = {
-      'baidu.com': 'wd',
-      'google.com': 'q', 
-      'google.co': 'q', // 支持各国Google域名
-      'bing.com': 'q',
-      'sogou.com': 'query',
-      'so.com': 'q',
-      '360.cn': 'q',
-      'yahoo.com': 'p',
-      'search.yahoo.com': 'p',
-      'duckduckgo.com': 'q',
-      'yandex.com': 'text',
-      'yandex.ru': 'text'
-    };
-    
-    for (const [domain, paramName] of Object.entries(searchEngines)) {
-      if (hostname.includes(domain)) {
-        const keyword = params.get(paramName);
-        if (keyword) {
-          return decodeURIComponent(keyword);
-        }
+    try {
+      const hostname = window.location.hostname;
+      const params = new URLSearchParams(window.location.search);
+
+      // 百度
+      if (hostname.includes('baidu.com')) {
+        const wd = params.get('wd') || params.get('word') || params.get('kw');
+        if (wd) return decodeURIComponent(wd);
       }
+
+      // Google（各国域名）
+      if (hostname.includes('google.')) {
+        const q = params.get('q');
+        if (q) return decodeURIComponent(q);
+      }
+
+      // Bing
+      if (hostname.includes('bing.com') || hostname.includes('cn.bing.com')) {
+        const q = params.get('q');
+        if (q) return decodeURIComponent(q);
+      }
+
+      // 搜狗
+      if (hostname.includes('sogou.com')) {
+        const query = params.get('query') || params.get('keyword');
+        if (query) return decodeURIComponent(query);
+      }
+
+      // 360搜索
+      if (hostname.includes('so.com') || hostname.includes('360.cn')) {
+        const q = params.get('q');
+        if (q) return decodeURIComponent(q);
+      }
+
+      // 神马
+      if (hostname.includes('m.sm.cn') || hostname.includes('sm.cn')) {
+        const q = params.get('q');
+        if (q) return decodeURIComponent(q);
+      }
+
+      // 头条
+      if (hostname.includes('toutiao.com')) {
+        const keyword = params.get('keyword');
+        if (keyword) return decodeURIComponent(keyword);
+      }
+
+      // DuckDuckGo
+      if (hostname.includes('duckduckgo.com')) {
+        const q = params.get('q');
+        if (q) return decodeURIComponent(q);
+      }
+
+      // Yahoo
+      if (hostname.includes('yahoo.com') || hostname.includes('yahoo.co.jp')) {
+        const p = params.get('p');
+        if (p) return decodeURIComponent(p);
+      }
+
+      // Yandex
+      if (hostname.includes('yandex.')) {
+        const text = params.get('text');
+        if (text) return decodeURIComponent(text);
+      }
+
+      // Startpage
+      if (hostname.includes('startpage.com')) {
+        const query = params.get('query');
+        if (query) return decodeURIComponent(query);
+      }
+
+      // 知乎
+      if (hostname.includes('zhihu.com')) {
+        const q = params.get('q');
+        if (q) return decodeURIComponent(q);
+      }
+
+      // 微博
+      if (hostname.includes('weibo.com') || hostname.includes('weibo.cn')) {
+        const q = params.get('q');
+        if (q) return decodeURIComponent(q);
+      }
+
+      // GitHub
+      if (hostname.includes('github.com')) {
+        const q = params.get('q');
+        if (q) return decodeURIComponent(q);
+      }
+
+      // B站
+      if (hostname.includes('bilibili.com')) {
+        const keyword = params.get('keyword');
+        if (keyword) return decodeURIComponent(keyword);
+      }
+
+      // 淘宝/天猫
+      if (hostname.includes('taobao.com') || hostname.includes('tmall.com')) {
+        const q = params.get('q') || params.get('keyword');
+        if (q) return decodeURIComponent(q);
+      }
+
+      // 京东
+      if (hostname.includes('jd.com')) {
+        const keyword = params.get('keyword');
+        if (keyword) return decodeURIComponent(keyword);
+      }
+    } catch (e) {
+      // 忽略错误，返回空
     }
     return null;
   }
 
-  // 智能获取要搜索的内容
+  // 智能获取要搜索的内容（同步版本，尽量本地推断）
   function getSmartSearchText() {
     // 优先级1: 选中的文本
     const selection = window.getSelection();
@@ -2131,9 +2227,80 @@
     return '';
   }
 
-  // 强制显示popover（快捷键触发）
-  function forceShowPopover(x, y) {
-    console.log('[触触搜] forceShowPopover 被调用:', {x, y, isBlacklisted: settings.isBlacklisted});
+  // 向background请求关键词（与右键提取一致）
+  function requestKeywordsFromBackground() {
+    return new Promise((resolve) => {
+      try {
+        if (!(chrome.runtime && chrome.runtime.id)) {
+          resolve(null);
+          return;
+        }
+        const reqId = ++DEBUG_REQUEST_ID;
+        if (window.CCS_DEBUG) {
+          console.log('[触触搜][DEBUG] requestKeywordsFromBackground start', { reqId, url: window.location.href, title: document.title });
+        }
+        let settled = false;
+        const payload = {
+          action: 'extractKeywords',
+          url: window.location.href,
+          title: document.title || ''
+        };
+        chrome.runtime.sendMessage(payload, (response) => {
+          settled = true;
+          if (window.CCS_DEBUG) console.log('[触触搜][DEBUG] background response', { reqId, response });
+          if (response && response.keywords) {
+            resolve(response.keywords);
+          } else {
+            resolve(null);
+          }
+        });
+        setTimeout(() => {
+          if (!settled) {
+            if (window.CCS_DEBUG) console.warn('[触触搜][DEBUG] background response timeout', { reqId });
+            resolve(null);
+          }
+        }, 1200);
+      } catch (_) {
+        resolve(null);
+      }
+    });
+  }
+
+  // 智能获取要搜索的内容（优先使用右键同源的background提取）
+  async function getSmartSearchTextAsync() {
+    // 1) 优先选中文本
+    const selection = window.getSelection();
+    const selected = selection.toString().trim();
+    if (selected) return selected;
+
+    // 2) 尝试与右键一致的 background 提取
+    const fromBg = await requestKeywordsFromBackground();
+    if (fromBg) return fromBg;
+
+    // 3) 回退到本地URL解析
+    const local = extractSearchKeyword();
+    if (local) return local;
+
+    // 4) 最后回退到页面标题（与同步逻辑的清理方式一致）
+    const title = document.title || '';
+    if (title) {
+      let cleanTitle = title;
+      const separators = [' - ', ' | ', ' — ', ' · ', ' :: ', ' » '];
+      for (const sep of separators) {
+        if (cleanTitle.includes(sep)) {
+          cleanTitle = cleanTitle.split(sep)[0];
+          break;
+        }
+      }
+      return cleanTitle.trim();
+    }
+    return '';
+  }
+
+  // 强制显示popover（快捷键/统一入口）
+  // 可选传入 selectionRect 以便与右键触发保持一致的智能定位
+  function forceShowPopover(x, y, selectionRect = null) {
+    console.log('[触触搜] forceShowPopover 被调用:', {x, y, hasSelectionRect: !!selectionRect, isBlacklisted: settings.isBlacklisted});
     
     if (settings.isBlacklisted) {
       console.log('[触触搜] 网站在黑名单中，显示恢复界面');
@@ -2141,10 +2308,8 @@
     } else {
       console.log('[触触搜] 准备显示popover');
       try {
-        // 不要在这里调用 createPopover，showPopover 内部会处理
-        // createPopover();
-        // console.log('[触触搜] createPopover 完成');
-        showPopover(x, y);
+        // 传递 selectionRect 以复用与右键一致的智能定位
+        showPopover(x, y, selectionRect);
         console.log('[触触搜] showPopover 完成');
       } catch (err) {
         console.error('[触触搜] 显示popover时出错:', err);
@@ -2195,8 +2360,8 @@
           result = btoa(unescape(encodeURIComponent(request.text)));
           break;
         case 'md5':
-          // 简单的MD5实现（示例用）
-          result = 'MD5: ' + btoa(request.text).substring(0, 32);
+          // 与弹窗按钮一致，使用相同的md5逻辑
+          result = commands.md5([request.text]);
           break;
         case 'url-encode':
           result = encodeURIComponent(request.text);
@@ -2216,7 +2381,8 @@
     }
     // 处理显示popover请求
     if (request.action === 'showPopover') {
-      selectedText = request.text;
+      // 若未传入文本，使用与快捷键一致的智能文本获取
+      selectedText = request.text || getSmartSearchText();
       // 获取当前选中区域位置
       const selection = window.getSelection();
       if (selection.rangeCount > 0) {
