@@ -222,42 +222,88 @@
     const selectionCenterX = selectionRect.left + selectionRect.width / 2 + scrollX;
     const selectionCenterY = selectionRect.top + selectionRect.height / 2 + scrollY;
     
-    // 定义偏移量
-    const offset = 10;
+    // 检查是否在输入框内选中文本
+    const activeElement = document.activeElement;
+    const isInInputField = activeElement && (
+      activeElement.tagName === 'INPUT' ||
+      activeElement.tagName === 'TEXTAREA' ||
+      activeElement.contentEditable === 'true'
+    );
     
-    // 尝试不同的位置，优先级：右下 > 右上 > 左下 > 左上
-    const positions = [
-      { // 右下
-        x: selectionRect.right + scrollX + offset,
-        y: selectionRect.bottom + scrollY + offset,
-        arrow: 'top-left'
-      },
-      { // 右上
-        x: selectionRect.right + scrollX + offset,
-        y: selectionRect.top + scrollY - popoverHeight - offset,
-        arrow: 'bottom-left'
-      },
-      { // 左下
-        x: selectionRect.left + scrollX - popoverWidth - offset,
-        y: selectionRect.bottom + scrollY + offset,
-        arrow: 'top-right'
-      },
-      { // 左上
-        x: selectionRect.left + scrollX - popoverWidth - offset,
-        y: selectionRect.top + scrollY - popoverHeight - offset,
-        arrow: 'bottom-right'
-      },
-      { // 下方居中
-        x: selectionCenterX - popoverWidth / 2,
-        y: selectionRect.bottom + scrollY + offset,
-        arrow: 'top'
-      },
-      { // 上方居中
-        x: selectionCenterX - popoverWidth / 2,
-        y: selectionRect.top + scrollY - popoverHeight - offset,
-        arrow: 'bottom'
-      }
-    ];
+    // 定义偏移量，输入框内选中时增加偏移
+    const offset = isInInputField ? 20 : 10;
+    
+    // 尝试不同的位置
+    // 输入框内选中时，优先显示在上方或下方，避免遮挡
+    let positions;
+    if (isInInputField) {
+      positions = [
+        { // 下方居中（优先）
+          x: selectionCenterX - popoverWidth / 2,
+          y: selectionRect.bottom + scrollY + offset,
+          arrow: 'top'
+        },
+        { // 上方居中
+          x: selectionCenterX - popoverWidth / 2,
+          y: selectionRect.top + scrollY - popoverHeight - offset,
+          arrow: 'bottom'
+        },
+        { // 右下
+          x: selectionRect.right + scrollX + offset,
+          y: selectionRect.bottom + scrollY + offset,
+          arrow: 'top-left'
+        },
+        { // 右上
+          x: selectionRect.right + scrollX + offset,
+          y: selectionRect.top + scrollY - popoverHeight - offset,
+          arrow: 'bottom-left'
+        },
+        { // 左下
+          x: selectionRect.left + scrollX - popoverWidth - offset,
+          y: selectionRect.bottom + scrollY + offset,
+          arrow: 'top-right'
+        },
+        { // 左上
+          x: selectionRect.left + scrollX - popoverWidth - offset,
+          y: selectionRect.top + scrollY - popoverHeight - offset,
+          arrow: 'bottom-right'
+        }
+      ];
+    } else {
+      // 普通文本选中，优先右下角
+      positions = [
+        { // 右下
+          x: selectionRect.right + scrollX + offset,
+          y: selectionRect.bottom + scrollY + offset,
+          arrow: 'top-left'
+        },
+        { // 右上
+          x: selectionRect.right + scrollX + offset,
+          y: selectionRect.top + scrollY - popoverHeight - offset,
+          arrow: 'bottom-left'
+        },
+        { // 左下
+          x: selectionRect.left + scrollX - popoverWidth - offset,
+          y: selectionRect.bottom + scrollY + offset,
+          arrow: 'top-right'
+        },
+        { // 左上
+          x: selectionRect.left + scrollX - popoverWidth - offset,
+          y: selectionRect.top + scrollY - popoverHeight - offset,
+          arrow: 'bottom-right'
+        },
+        { // 下方居中
+          x: selectionCenterX - popoverWidth / 2,
+          y: selectionRect.bottom + scrollY + offset,
+          arrow: 'top'
+        },
+        { // 上方居中
+          x: selectionCenterX - popoverWidth / 2,
+          y: selectionRect.top + scrollY - popoverHeight - offset,
+          arrow: 'bottom'
+        }
+      ];
+    }
     
     // 找到第一个完全在视窗内的位置
     for (const pos of positions) {
@@ -968,8 +1014,13 @@
         }
       }, 200);
     }
+    // 清空选中的文本，避免混乱
+    selectedText = '';
   }
 
+  // 防抖定时器
+  let selectionTimeout;
+  
   // 监听文本选择
   document.addEventListener('mouseup', (e) => {
     // 如果在拖拽中，不处理
@@ -980,17 +1031,29 @@
       return;
     }
 
-    const selection = window.getSelection();
-    const text = selection.toString().trim();
+    // 清除之前的定时器
+    clearTimeout(selectionTimeout);
+    
+    // 使用防抖，避免频繁触发
+    selectionTimeout = setTimeout(() => {
+      const selection = window.getSelection();
+      const text = selection.toString().trim();
 
-    if (text.length > 0) {
-      selectedText = text;
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      showPopover(e.clientX + window.scrollX, e.clientY + window.scrollY, rect);
-    } else {
-      hidePopover();
-    }
+      // 更严格的检查：确保真的有选中文本
+      if (text.length > 0 && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        // range.collapsed为false表示确实有选中内容
+        if (!range.collapsed && settings.mode !== 'disabled') {
+          selectedText = text;
+          const rect = range.getBoundingClientRect();
+          showPopover(e.clientX + window.scrollX, e.clientY + window.scrollY, rect);
+        } else {
+          hidePopover();
+        }
+      } else {
+        hidePopover();
+      }
+    }, 150); // 150ms防抖延迟
   });
 
   // 点击其他地方隐藏popover
@@ -1270,7 +1333,7 @@
     }
   }
 
-  // 监听来自popup的消息
+  // 监听来自popup和background的消息
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'toggleExtension') {
       settings.mode = request.enabled ? 'normal' : 'disabled';
@@ -1288,5 +1351,91 @@
         hidePopover();
       }
     }
+    // 处理右键菜单复制文本
+    if (request.action === 'copyText') {
+      navigator.clipboard.writeText(request.text).then(() => {
+        showContextMenuToast('已复制到剪贴板');
+      });
+    }
+    // 处理右键菜单命令
+    if (request.action === 'processCommand') {
+      let result;
+      switch (request.command) {
+        case 'base64':
+          result = btoa(unescape(encodeURIComponent(request.text)));
+          break;
+        case 'md5':
+          // 简单的MD5实现（示例用）
+          result = 'MD5: ' + btoa(request.text).substring(0, 32);
+          break;
+        case 'url-encode':
+          result = encodeURIComponent(request.text);
+          break;
+        case 'upper':
+          result = request.text.toUpperCase();
+          break;
+        case 'lower':
+          result = request.text.toLowerCase();
+          break;
+      }
+      if (result) {
+        navigator.clipboard.writeText(result).then(() => {
+          showContextMenuToast(`处理完成并已复制: ${result.substring(0, 50)}${result.length > 50 ? '...' : ''}`);
+        });
+      }
+    }
+    // 处理显示popover请求
+    if (request.action === 'showPopover') {
+      selectedText = request.text;
+      // 获取当前选中区域位置
+      const selection = window.getSelection();
+      if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        showPopover(rect.left + window.scrollX, rect.bottom + window.scrollY, rect);
+      }
+    }
   });
+
+  // 显示右键菜单操作的Toast提示
+  function showContextMenuToast(message) {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 6px;
+      font-size: 14px;
+      z-index: 2147483647;
+      animation: slideIn 0.3s ease-out;
+    `;
+    toast.textContent = message;
+    
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateX(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+    `;
+    document.head.appendChild(style);
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+      toast.style.animation = 'slideIn 0.3s ease-out reverse';
+      setTimeout(() => {
+        toast.remove();
+        style.remove();
+      }, 300);
+    }, 3000);
+  }
 })();
