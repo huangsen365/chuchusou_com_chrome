@@ -35,6 +35,24 @@
       window.CCS_DEBUG = result.ccs_debug;
     }
     checkBlacklist();
+
+    // 如果开启了全局悬停模式，在非禁用且非黑名单页面上自动显示底部栏
+    try {
+      if (settings.globalDock && !settings.isBlacklisted && settings.mode !== 'disabled') {
+        settings.layout = 'bottom';
+        // 立即持久化布局选择
+        chrome.storage.local.set({ ccs_settings: settings });
+        // 异步创建并显示，确保DOM已就绪
+        setTimeout(() => {
+          try {
+            if (!popover) createPopover();
+            const x = window.innerWidth / 2 + window.scrollX;
+            const y = window.innerHeight / 3 + window.scrollY;
+            forceShowPopover(x, y, null, { overrideSavedPosition: true });
+          } catch (e) { console.warn('[触触搜] 全局悬停模式自动显示失败:', e); }
+        }, 0);
+      }
+    } catch (_) {}
   });
 
   // 检查当前网站是否在黑名单中
@@ -876,6 +894,13 @@
         padding: 2px 6px;
         border-radius: 4px;
         transition: background-color 0.2s;
+      }
+
+      /* Dock menu buttons must stay dark on white background */
+      .ccs-header .ccs-dock-menu button {
+        color: #2d3748 !important;
+        background: #ffffff !important;
+        border: 1px solid #e2e8f0 !important;
       }
 
       .ccs-header button:hover {
