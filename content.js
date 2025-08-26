@@ -1405,7 +1405,7 @@
         `;
         // 初始hover提示包含完整文本
         try {
-          const initText = selectedText || getSmartSearchText();
+          const initText = selectedText || lastNonEmptySelection || getSmartSearchText();
           button.title = initText ? `${btn.title}: ${initText}` : btn.title;
         } catch (_) {
           button.title = btn.title;
@@ -1417,6 +1417,13 @@
             return;
           }
           btn.action(text);
+        });
+        // 悬停时实时刷新tooltip，确保无选中文本时使用最新URL/标题
+        button.addEventListener('mouseenter', () => {
+          try {
+            const t = getActiveSelectionText() || lastNonEmptySelection || getSmartSearchText();
+            button.title = t ? `${btn.title}: ${t}` : btn.title;
+          } catch (_) {}
         });
         buttonsContainer.appendChild(button);
       });
@@ -2085,7 +2092,12 @@
       popover.style.transform = 'scale(0.95)';
     }
     
-    if (settings.layout !== 'bottom') {
+    if (!(settings.mode === 'normal' && settings.layout === 'bottom')) {
+      // 非底部栏：清理遗留fixed样式并按计算位置放置
+      popover.style.position = 'absolute';
+      popover.style.right = '';
+      popover.style.bottom = '';
+      popover.style.width = '';
       popover.style.left = `${position.x}px`;
       popover.style.top = `${position.y}px`;
     }
