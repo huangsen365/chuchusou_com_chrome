@@ -11,6 +11,7 @@
     position: null,
     layout: 'float', // float, bottom
     globalDock: false, // 悬停模式（全局）
+    barClosed: false, // 全局关闭底部栏（优先级最高）
     blacklist: [],
     miniButtons: ['baidu', 'google', 'chuchusou', 'copy', 'lowercase'] // Mini模式默认按钮，包含大小写与搜索
   };
@@ -26,9 +27,9 @@
         settings.miniButtons.push('lowercase');
         chrome.storage.local.set({ ccs_settings: settings });
       }
-      // 若开启全局悬停模式，默认使用底部栏布局（非禁用、非黑名单时）
+      // 若开启全局悬停模式，默认使用底部栏布局（非禁用、非黑名单时），但若全局关闭则不显示
       try {
-        if (settings.globalDock && settings.mode !== 'disabled') {
+        if (settings.globalDock && settings.mode !== 'disabled' && !settings.barClosed) {
           settings.layout = 'bottom';
         }
       } catch (_) {}
@@ -38,9 +39,9 @@
     }
     checkBlacklist();
 
-    // 如果开启了全局悬停模式，在非禁用且非黑名单页面上自动显示底部栏
+    // 如果开启了全局悬停模式，在非禁用且非黑名单页面上自动显示底部栏（未全局关闭）
     try {
-      if (settings.globalDock && !settings.isBlacklisted && settings.mode !== 'disabled') {
+      if (settings.globalDock && !settings.isBlacklisted && settings.mode !== 'disabled' && !settings.barClosed) {
         settings.layout = 'bottom';
         // 立即持久化布局选择
         chrome.storage.local.set({ ccs_settings: settings });
@@ -660,6 +661,7 @@
           <div class="ccs-bottom-buttons"></div>
           <div class="ccs-bottom-controls">
             ${badgeHtml}
+            <button class="ccs-close-bottom" title="关闭底部栏">✕</button>
             <button class="ccs-undock" title="悬浮模式">↕️</button>
           </div>
         </div>
@@ -788,6 +790,17 @@
       .ccs-undock:hover {
         background: rgba(255,255,255,0.3);
       }
+      .ccs-close-bottom {
+        background: rgba(255,255,255,0.2);
+        border: none;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        margin-right: 4px;
+      }
+      .ccs-close-bottom:hover { background: rgba(255,255,255,0.3); }
 
       @keyframes fadeIn {
         from {
@@ -1546,6 +1559,7 @@
         settings.globalDock = true;
         settings.layout = 'bottom';
         isTempDock = false;
+        settings.barClosed = false; // 确保启用
         saveSettings();
         createPopover(true);
         const selection = window.getSelection();
@@ -1582,6 +1596,7 @@
             settings.globalDock = true;
             settings.layout = 'bottom';
             isTempDock = false;
+            settings.barClosed = false;
             saveSettings();
             createPopover(true);
             forceShowPopover(window.innerWidth / 2 + window.scrollX, window.innerHeight / 3 + window.scrollY, null, { overrideSavedPosition: true });
@@ -1594,6 +1609,7 @@
             settings.globalDock = false; // 确保不影响其它页面
             settings.layout = 'bottom';
             isTempDock = true;
+            settings.barClosed = false; // 启用
             // 不调用 saveSettings() 以保持临时
             createPopover(true);
             forceShowPopover(window.innerWidth / 2 + window.scrollX, window.innerHeight / 3 + window.scrollY, null, { overrideSavedPosition: true });
@@ -1624,6 +1640,16 @@
         forceShowPopover(x, y, rect, { overrideSavedPosition: true });
       });
     }
+    const closeBottomBtn = shadowRoot.querySelector('.ccs-close-bottom');
+    if (closeBottomBtn) {
+      closeBottomBtn.addEventListener('click', () => {
+        settings.barClosed = true; // 全局关闭优先
+        // 关闭底部栏也应清空临时标记
+        isTempDock = false;
+        saveSettings();
+        hidePopover();
+      });
+    }
 
       // 设置面板事件
       const settingsPanel = shadowRoot.querySelector('.ccs-settings-panel');
@@ -1638,6 +1664,7 @@
             // 立即启用底部栏
             settings.layout = 'bottom';
             isTempDock = false;
+            settings.barClosed = false;
             createPopover(true);
             forceShowPopover(window.innerWidth / 2 + window.scrollX, window.innerHeight / 3 + window.scrollY, null, { overrideSavedPosition: true });
           } else {
