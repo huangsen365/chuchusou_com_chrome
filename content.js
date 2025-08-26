@@ -2429,23 +2429,40 @@
     });
   }
   
-  // 定期检查popover状态（调试用）
-  if (window.CCS_DEBUG) {
+  // 定期检查popover状态（调试用，顶层窗口 + 节流）
+  let lastInvisibleWarnTs = 0;
+  let invisibleWarnCount = 0;
+  if (window.top === window.self && window.CCS_DEBUG) {
     setInterval(() => {
-      if (popover && document.body.contains(popover)) {
-        const rect = popover.getBoundingClientRect();
-        const style = window.getComputedStyle(popover);
-        if (rect.width === 0 || rect.height === 0 || style.display === 'none' || style.visibility === 'hidden') {
-          console.warn('[触触搜] 警告：Popover 存在但不可见!', {
-            width: rect.width,
-            height: rect.height,
-            display: style.display,
-            visibility: style.visibility,
-            opacity: style.opacity
-          });
+      try {
+        if (popover && document.body.contains(popover)) {
+          const rect = popover.getBoundingClientRect();
+          const style = window.getComputedStyle(popover);
+          const invisible = rect.width === 0 || rect.height === 0 || style.display === 'none' || style.visibility === 'hidden';
+          if (invisible) {
+            invisibleWarnCount++;
+            const now = Date.now();
+            // 仅每30秒输出一次汇总，避免刷屏
+            if (now - lastInvisibleWarnTs > 30000) {
+              lastInvisibleWarnTs = now;
+              console.debug('[触触搜][DEBUG] Popover 存在但不可见', {
+                countSinceLast: invisibleWarnCount,
+                width: rect.width,
+                height: rect.height,
+                display: style.display,
+                visibility: style.visibility,
+                opacity: style.opacity
+              });
+              invisibleWarnCount = 0;
+            }
+            // 自愈：若为底部栏应当可见，尝试恢复
+            if (settings.mode === 'normal' && settings.layout === 'bottom') {
+              ensureBottomBarVisible(false);
+            }
+          }
         }
-      }
-    }, 3000); // 每3秒检查一次
+      } catch (_) {}
+    }, 3000);
   }
 
   // 右键菜单处理 - 不再阻止默认菜单
