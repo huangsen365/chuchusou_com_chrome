@@ -1499,11 +1499,14 @@
             button.title = t ? `${btn.title}: ${t}` : btn.title;
             // 同步更新其他按钮与标题，确保一致
             updateRealtimeFallbackUI();
+            if (window.CCS_DEBUG) console.log('[触触搜][DEBUG] hover refresh', { id: btn.id, text: t || '(empty)' });
           } catch (_) {}
         };
+        // 多通道触发：mouseenter（一次）、mouseover（可重复）、pointerenter、focusin
         button.addEventListener('mouseenter', refreshHover);
+        button.addEventListener('mouseover', refreshHover);
         button.addEventListener('pointerenter', refreshHover);
-        button.addEventListener('focus', refreshHover, true);
+        button.addEventListener('focusin', refreshHover);
         buttonsContainer.appendChild(button);
       });
     }
