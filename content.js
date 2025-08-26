@@ -36,6 +36,10 @@
     }
     if (typeof result.ccs_debug === 'boolean') {
       window.CCS_DEBUG = result.ccs_debug;
+    } else {
+      // 首次默认开启调试
+      chrome.storage.local.set({ ccs_debug: true });
+      window.CCS_DEBUG = true;
     }
     checkBlacklist();
 
@@ -1985,7 +1989,7 @@
       return;
     }
     
-    console.log('[触触搜] showPopover 开始执行:', {x, y, selectedText, hasPopover: !!popover});
+      console.log('[触触搜] showPopover 开始执行:', {x, y, selectedText, hasPopover: !!popover});
 
     // 底部栏模式（仅普通模式）：若已存在且已是fixed定位，避免重建导致闪烁，仅更新提示与可见性
     if (settings.mode === 'normal' && settings.layout === 'bottom' && popover && shadowRoot && window.getComputedStyle(popover).position === 'fixed') {
@@ -2265,8 +2269,8 @@
     }
   });
 
-  // 调试模式开关（可以通过控制台设置 window.CCS_DEBUG = true 开启）
-  window.CCS_DEBUG = false; // 默认关闭调试，可在控制台设置为true
+  // 调试模式开关（默认开启，便于排查问题；可在设置或控制台调整）
+  window.CCS_DEBUG = true;
   
   // 处理快捷键的统一函数
   function handleSearchShortcut(e) {
@@ -2927,6 +2931,7 @@
     if (request.action === 'updateDebug') {
       window.CCS_DEBUG = !!request.enabled;
       try { showToast(window.CCS_DEBUG ? '调试已开启' : '调试已关闭'); } catch (_) {}
+      chrome.storage.local.set({ ccs_debug: window.CCS_DEBUG });
     }
     if (request.action === 'toggleExtension') {
       settings.mode = request.enabled ? 'normal' : 'disabled';

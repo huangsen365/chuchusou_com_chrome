@@ -1,5 +1,5 @@
 // 提取URL中的搜索关键词或页面标题
-let BG_DEBUG = false;
+let BG_DEBUG = true;
 const BG_DBG = (...args) => { if (BG_DEBUG) console.log(...args); };
 
 async function extractSearchKeywords(url, tab) {
