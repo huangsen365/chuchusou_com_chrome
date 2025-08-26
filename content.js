@@ -625,14 +625,25 @@
         <div class="ccs-mini-buttons"></div>
         <div class="ccs-toast"></div>
       `;
+    } else if (settings.layout === 'bottom') {
+      // 底部停靠布局：不显示标题/页脚，仅显示按钮和控制
+      wrapper.innerHTML = `
+        <div class="ccs-bottom" data-draggable="false">
+          <div class="ccs-bottom-buttons"></div>
+          <div class="ccs-bottom-controls">
+            <button class="ccs-undock" title="悬浮模式">↕️</button>
+          </div>
+        </div>
+        <div class="ccs-toast"></div>
+      `;
     } else {
       // 普通模式HTML - 标题显示选中的文本
-      const isDocked = settings.layout === 'bottom';
+      const isDocked = false;
       wrapper.innerHTML = `
         <div class="ccs-header" data-draggable="true">
           <span class="ccs-title">${displayText}</span>
           <div class="ccs-header-buttons">
-            <button class="ccs-dock-toggle" title="${isDocked ? '悬浮模式' : '底部栏'}">${isDocked ? '↕️' : '📌'}</button>
+            <button class="ccs-dock-toggle" title="底部栏">📌</button>
             <button class="ccs-mini" title="迷你模式">📐</button>
             <button class="ccs-settings" title="设置">⚙️</button>
             <button class="ccs-close" title="关闭">✕</button>
@@ -648,7 +659,6 @@
         -->
         <div class="ccs-buttons"></div>
         <div class="ccs-result" style="display: none;"></div>
-        <div class="ccs-footer">更多功能 敬请期待...</div>
         <div class="ccs-toast"></div>
         <div class="ccs-settings-panel" style="display: none;">
           <h3>设置</h3>
@@ -708,6 +718,38 @@
       .ccs-popover.docked-bottom {
         width: 100vw;
         border-radius: 8px 8px 0 0;
+      }
+
+      .ccs-bottom {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 8px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+      }
+      .ccs-bottom-buttons {
+        flex: 1;
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        scrollbar-width: thin;
+      }
+      .ccs-bottom-controls {
+        margin-left: 8px;
+        flex-shrink: 0;
+      }
+      .ccs-undock {
+        background: rgba(255,255,255,0.2);
+        border: none;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 4px 8px;
+        border-radius: 4px;
+      }
+      .ccs-undock:hover {
+        background: rgba(255,255,255,0.3);
       }
 
       @keyframes fadeIn {
@@ -912,10 +954,19 @@
         gap: 8px;
       }
 
-      .docked-bottom .ccs-buttons {
-        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-        padding: 10px 12px 12px 12px;
+      .docked-bottom .ccs-buttons { display: none; }
+      .docked-bottom .ccs-mini-buttons { display: none; }
+
+      /* 压缩按钮风格（底部栏） */
+      .docked-bottom .ccs-button {
+        flex: 0 0 auto;
+        min-width: 64px;
+        padding: 6px 6px;
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        background: rgba(247, 250, 252, 0.9);
       }
+      .docked-bottom .ccs-button-icon { font-size: 16px; }
+      .docked-bottom .ccs-button-label { font-size: 9px; color: #2d3748; }
 
       .ccs-mini-buttons {
         padding: 10px;
@@ -1117,8 +1168,10 @@
     const buttonsToShow = settings.mode === 'mini' 
       ? settings.miniButtons.map(id => defaultButtons.find(btn => btn.id === id)).filter(Boolean)
       : defaultButtons;
-    
-    const buttonsContainer = shadowRoot.querySelector(settings.mode === 'mini' ? '.ccs-mini-buttons' : '.ccs-buttons');
+
+    const buttonsContainer = shadowRoot.querySelector(
+      settings.mode === 'mini' ? '.ccs-mini-buttons' : (settings.layout === 'bottom' ? '.ccs-bottom-buttons' : '.ccs-buttons')
+    );
     if (buttonsContainer) {
       buttonsToShow.forEach(btn => {
         const button = document.createElement('div');
@@ -1391,6 +1444,27 @@
         settings.layout = settings.layout === 'bottom' ? 'float' : 'bottom';
         saveSettings();
         // 重新创建并显示（保留文本），覆盖保存位置
+        createPopover(true);
+        const selection = window.getSelection();
+        let x = window.innerWidth / 2 + window.scrollX;
+        let y = window.innerHeight / 3 + window.scrollY;
+        let rect = null;
+        if (selection && selection.rangeCount > 0 && selection.toString().trim()) {
+          const range = selection.getRangeAt(0);
+          rect = range.getBoundingClientRect();
+          x = rect.left + rect.width / 2 + window.scrollX;
+          y = rect.bottom + window.scrollY;
+        }
+        forceShowPopover(x, y, rect, { overrideSavedPosition: true });
+      });
+    }
+
+    // 底部栏：解除停靠按钮
+    const undockBtn = shadowRoot.querySelector('.ccs-undock');
+    if (undockBtn) {
+      undockBtn.addEventListener('click', () => {
+        settings.layout = 'float';
+        saveSettings();
         createPopover(true);
         const selection = window.getSelection();
         let x = window.innerWidth / 2 + window.scrollX;
@@ -1834,7 +1908,8 @@
           hidePopover();
         }
       } else {
-        hidePopover();
+        // 底部栏模式下保持常驻
+        if (settings.layout !== 'bottom') hidePopover();
       }
     }, 200); // 增加到200ms防抖延迟
   });
@@ -1844,7 +1919,7 @@
     if (popover && !popover.contains(e.target)) {
       const selection = window.getSelection();
       const text = selection.toString().trim();
-      if (text.length === 0) {
+      if (text.length === 0 && settings.layout !== 'bottom') {
         hidePopover();
       }
     }
