@@ -27,9 +27,9 @@
         settings.miniButtons.push('lowercase');
         chrome.storage.local.set({ ccs_settings: settings });
       }
-      // 若开启全局悬停模式，默认使用底部栏布局（非禁用、非黑名单时），但若全局关闭则不显示
+      // 若开启全局悬停模式，默认使用底部栏布局（仅普通模式，且非禁用/非黑名单），但若全局关闭则不显示
       try {
-        if (settings.globalDock && settings.mode !== 'disabled' && !settings.barClosed) {
+        if (settings.globalDock && settings.mode === 'normal' && !settings.barClosed) {
           settings.layout = 'bottom';
         }
       } catch (_) {}
@@ -39,9 +39,9 @@
     }
     checkBlacklist();
 
-    // 如果开启了全局悬停模式，在非禁用且非黑名单页面上自动显示底部栏（未全局关闭）
+    // 如果开启了全局悬停模式，在普通模式且非禁用且非黑名单页面上自动显示底部栏（未全局关闭）
     try {
-      if (settings.globalDock && !settings.isBlacklisted && settings.mode !== 'disabled' && !settings.barClosed) {
+      if (settings.globalDock && settings.mode === 'normal' && !settings.isBlacklisted && !settings.barClosed) {
         settings.layout = 'bottom';
         // 立即持久化布局选择
         chrome.storage.local.set({ ccs_settings: settings });
@@ -58,7 +58,7 @@
   // 确保底部栏存在与可见（用于全局模式与SPA页面）
   function ensureBottomBarVisible(force = false) {
     try {
-      if (settings.globalDock && !settings.barClosed && settings.mode !== 'disabled' && !settings.isBlacklisted) {
+      if (settings.globalDock && !settings.barClosed && settings.mode === 'normal' && !settings.isBlacklisted) {
         if (force || !popover || !document.body.contains(popover)) {
           createPopover();
           const x = window.innerWidth / 2 + window.scrollX;
@@ -666,7 +666,8 @@
 
     // 创建HTML结构
     const wrapper = document.createElement('div');
-    wrapper.className = `ccs-popover ${settings.mode === 'mini' ? 'mini-mode' : ''} ${settings.layout === 'bottom' ? 'docked-bottom' : ''} theme-${settings.theme}`;
+    const isDockedBottom = (settings.mode === 'normal' && settings.layout === 'bottom');
+    wrapper.className = `ccs-popover ${settings.mode === 'mini' ? 'mini-mode' : ''} ${isDockedBottom ? 'docked-bottom' : ''} theme-${settings.theme}`;
     
     // 统一标题：mini/normal 都显示关键词
     const escapeHtml = (text) => {
@@ -691,7 +692,7 @@
         <div class="ccs-mini-buttons"></div>
         <div class="ccs-toast"></div>
       `;
-    } else if (settings.layout === 'bottom') {
+    } else if (settings.mode === 'normal' && settings.layout === 'bottom') {
       // 底部停靠布局：不显示标题/页脚，仅显示按钮和控制
       const badgeHtml = settings.globalDock ? '<span class="ccs-global-badge" title="悬停模式（全局）">全局</span>' : (isTempDock ? '<span class="ccs-temp-badge" title="悬停模式（临时）">临时</span>' : '');
       wrapper.innerHTML = `
@@ -1930,8 +1931,8 @@
     
     console.log('[触触搜] showPopover 开始执行:', {x, y, selectedText, hasPopover: !!popover});
 
-    // 底部栏模式：若已存在且已是fixed定位，避免重建导致闪烁，仅更新提示与可见性
-    if (settings.layout === 'bottom' && popover && shadowRoot && window.getComputedStyle(popover).position === 'fixed') {
+    // 底部栏模式（仅普通模式）：若已存在且已是fixed定位，避免重建导致闪烁，仅更新提示与可见性
+    if (settings.mode === 'normal' && settings.layout === 'bottom' && popover && shadowRoot && window.getComputedStyle(popover).position === 'fixed') {
       try {
         const current = selectedText || getSmartSearchText();
         const renderedButtons = shadowRoot.querySelectorAll('.ccs-button');
@@ -1971,8 +1972,8 @@
       savedPosition: settings.position || null,
       scroll: { x: window.scrollX, y: window.scrollY }
     });
-    // 底部栏布局：忽略保存的位置，强制使用fixed并贴底
-    if (settings.layout === 'bottom') {
+    // 底部栏布局（仅普通模式）：忽略保存的位置，强制使用fixed并贴底
+    if (settings.mode === 'normal' && settings.layout === 'bottom') {
       console.log('[触触搜] 底部栏布局：忽略保存位置，使用 fixed 贴底');
       // 覆盖容器定位为fixed全宽
       popover.style.position = 'fixed';
