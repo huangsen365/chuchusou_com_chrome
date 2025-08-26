@@ -1835,15 +1835,16 @@
       });
     }
 
-    // 若弹窗存在，则实时更新标题与按钮tooltip
+    // 若弹窗存在，则实时更新标题与按钮tooltip（选中文本优先，否则回退到搜索URL关键词或页面标题）
     if (popover && shadowRoot) {
-      if (text) {
-        selectedText = text;
-        // 更新标题显示与title
+      const current = text || getSmartSearchText();
+      if (current) {
+        selectedText = current;
+        // 更新标题显示与title（无标题的布局会跳过）
         const titleEl = shadowRoot.querySelector('.ccs-title');
         if (titleEl) {
-          titleEl.textContent = `🔍 触触搜: "${text}"`;
-          titleEl.title = text;
+          titleEl.textContent = `🔍 触触搜: "${current}"`;
+          titleEl.title = current;
         }
         // 更新各操作按钮的hover提示
         const renderedButtons = shadowRoot.querySelectorAll('.ccs-button');
@@ -1851,7 +1852,7 @@
           const id = el.dataset.id;
           const cfg = (id && defaultButtons.find(b => b.id === id)) || null;
           const base = cfg ? cfg.title : '操作';
-          el.title = `${base}: ${text}`;
+          el.title = `${base}: ${current}`;
         });
       }
     }
