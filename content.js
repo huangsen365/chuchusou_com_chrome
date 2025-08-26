@@ -1492,13 +1492,18 @@
           }
           btn.action(text);
         });
-        // 悬停时实时刷新tooltip，确保无选中文本时优先使用最新URL/标题
-        button.addEventListener('mouseenter', () => {
+        // 悬停/指针进入/获得焦点时，强制实时刷新（优先URL/标题），并同步刷新整块UI标题
+        const refreshHover = () => {
           try {
             const t = getActiveSelectionText() || getSmartSearchText() || lastNonEmptySelection;
             button.title = t ? `${btn.title}: ${t}` : btn.title;
+            // 同步更新其他按钮与标题，确保一致
+            updateRealtimeFallbackUI();
           } catch (_) {}
-        });
+        };
+        button.addEventListener('mouseenter', refreshHover);
+        button.addEventListener('pointerenter', refreshHover);
+        button.addEventListener('focus', refreshHover, true);
         buttonsContainer.appendChild(button);
       });
     }
