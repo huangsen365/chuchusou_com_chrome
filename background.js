@@ -508,7 +508,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     case 'ccs-baidu':
       if (text) {
         chrome.tabs.create({
-          url: `https://www.baidu.com/s?wd=${encodeURIComponent(text)}`
+          url: `https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${encodeURIComponent(text)}`
         });
       }
       break;

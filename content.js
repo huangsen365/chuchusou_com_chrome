@@ -450,7 +450,7 @@
     lower: (args) => args.join(' ').toLowerCase(),
     search: (args) => {
       const query = args.join(' ');
-      window.open(`https://www.baidu.com/s?wd=${encodeURIComponent(query)}`, '_blank');
+      window.open(`https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${encodeURIComponent(query)}`, '_blank');
       return `正在搜索: ${query}`;
     },
     copy: (args) => {
@@ -471,7 +471,7 @@
       icon: '🔍',
       title: '百度搜索',
       action: (text) => {
-        window.open(`https://www.baidu.com/s?wd=${encodeURIComponent(text)}`, '_blank');
+        window.open(`https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${encodeURIComponent(text)}`, '_blank');
       }
     },
     {
@@ -1903,23 +1903,28 @@
     const undockBtn = shadowRoot.querySelector('.ccs-undock');
     if (undockBtn) {
       undockBtn.addEventListener('click', () => {
+        // 从底部悬停模式切换到弹出（浮动）模式
+        // 要求：切换后若无选区，保持隐藏；并将全局悬停关掉（持久化），以便其它页面保持一致模式
         settings.layout = 'float';
+        settings.globalDock = false; // 关闭全局悬停（持久化）
         isTempDock = false; // 清除临时标记
-        // 清除保存的位置，确保重新定位
-        settings.position = null;
+        settings.position = null; // 清除保存的位置，确保重新定位
         saveSettings();
-        createPopover(true);
+
         const selection = window.getSelection();
-        let x = window.innerWidth / 2 + window.scrollX;
-        let y = window.innerHeight / 3 + window.scrollY;
-        let rect = null;
-        if (selection && selection.rangeCount > 0 && selection.toString().trim()) {
+        const hasSelection = !!(selection && selection.rangeCount > 0 && selection.toString().trim());
+        if (hasSelection) {
+          // 仅在有选中时显示 Popover
+          createPopover(true);
           const range = selection.getRangeAt(0);
-          rect = range.getBoundingClientRect();
-          x = rect.left + rect.width / 2 + window.scrollX;
-          y = rect.bottom + window.scrollY;
+          const rect = range.getBoundingClientRect();
+          const x = rect.left + rect.width / 2 + window.scrollX;
+          const y = rect.bottom + window.scrollY;
+          forceShowPopover(x, y, rect, { overrideSavedPosition: true });
+        } else {
+          // 无选中：隐藏并等待用户双击或键盘扩展选择后再显示
+          hidePopover();
         }
-        forceShowPopover(x, y, rect, { overrideSavedPosition: true });
       });
     }
     const closeBottomBtn = shadowRoot.querySelector('.ccs-close-bottom');
@@ -1988,19 +1993,19 @@
               // 清除保存的位置，确保重新定位
               settings.position = null;
               saveSettings();
-              createPopover(true);
-              // 重新定位到合适位置（基于选中文本或视口中心）
+              // 若无选中，则保持隐藏；有选中才显示
               const selection = window.getSelection();
-              let x = window.innerWidth / 2 + window.scrollX;
-              let y = window.innerHeight / 3 + window.scrollY;
-              let rect = null;
-              if (selection && selection.rangeCount > 0 && selection.toString().trim()) {
+              const hasSelection = !!(selection && selection.rangeCount > 0 && selection.toString().trim());
+              if (hasSelection) {
+                createPopover(true);
                 const range = selection.getRangeAt(0);
-                rect = range.getBoundingClientRect();
-                x = rect.left + rect.width / 2 + window.scrollX;
-                y = rect.bottom + window.scrollY;
+                const rect = range.getBoundingClientRect();
+                const x = rect.left + rect.width / 2 + window.scrollX;
+                const y = rect.bottom + window.scrollY;
+                forceShowPopover(x, y, rect, { overrideSavedPosition: true });
+              } else {
+                hidePopover();
               }
-              forceShowPopover(x, y, rect, { overrideSavedPosition: true });
             }
           }
         });
@@ -2194,7 +2199,7 @@
       }
     } else {
       // 如果不是命令，默认进行百度搜索
-      window.open(`https://www.baidu.com/s?wd=${encodeURIComponent(inputValue)}`, '_blank');
+      window.open(`https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${encodeURIComponent(inputValue)}`, '_blank');
     }
   }
 
@@ -2465,6 +2470,26 @@
         text: text
       });
     }
+
+    // 若切换到弹出（浮动）模式后处于隐藏状态，且出现了有效选区，则自动显示 Popover
+    try {
+      if (!popover && settings.layout !== 'bottom' && text && text.trim().length > 0) {
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          let rect = range.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) {
+            const rects = range.getClientRects();
+            if (rects && rects.length > 0) rect = rects[0];
+          }
+          const centerX = rect.left + rect.width / 2 + window.scrollX;
+          const bottomY = rect.bottom + window.scrollY;
+          selectedText = text.trim();
+          lastNonEmptySelection = selectedText;
+          showPopover(centerX, bottomY, rect);
+        }
+      }
+    } catch (_) {}
 
     // 若弹窗存在，则实时更新标题与按钮tooltip（使用统一函数）
     if (popover && shadowRoot) {
