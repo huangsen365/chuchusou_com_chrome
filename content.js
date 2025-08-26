@@ -1838,6 +1838,7 @@
       dockToggle.addEventListener('click', () => {
         settings.globalDock = true;
         settings.layout = 'bottom';
+        settings.mode = 'normal'; // 确保使用普通模式以显示底部栏
         isTempDock = false;
         settings.barClosed = false; // 确保启用
         saveSettings();
@@ -1875,6 +1876,7 @@
           globalBtn.addEventListener('click', () => {
             settings.globalDock = true;
             settings.layout = 'bottom';
+            settings.mode = 'normal'; // 确保普通模式
             isTempDock = false;
             settings.barClosed = false;
             saveSettings();
@@ -1888,6 +1890,7 @@
             // 需求变更：从子菜单打开底部栏时也应记住为“全局开启”
             settings.globalDock = true; // 记住全局悬停
             settings.layout = 'bottom';
+            settings.mode = 'normal'; // 确保普通模式
             isTempDock = false; // 不再使用临时态
             settings.barClosed = false;
             saveSettings();
@@ -1951,6 +1954,7 @@
             // 同步设置为全局悬停：其它页面也默认打开底部栏
             settings.globalDock = true;
             settings.layout = 'bottom';
+            settings.mode = 'normal'; // 确保普通模式
             isTempDock = false;
             saveSettings();
             createPopover(true);
