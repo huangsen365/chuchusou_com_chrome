@@ -8,7 +8,7 @@
     opacity: 1,
     position: null,
     blacklist: [],
-    miniButtons: ['baidu', 'google', 'copy', 'base64-encode', 'md5'] // Mini模式默认5个按钮
+    miniButtons: ['baidu', 'google', 'chuchusou', 'copy', 'base64-encode'] // Mini模式默认5个按钮，包含更多搜索
   };
   let isDragging = false;
   let dragOffset = { x: 0, y: 0 };
