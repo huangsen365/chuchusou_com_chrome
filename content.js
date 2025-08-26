@@ -116,6 +116,24 @@
   }
 
   // 智能文本类型检测
+  function getActiveSelectionText() {
+    try {
+      const ae = document.activeElement;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) {
+        const start = ae.selectionStart;
+        const end = ae.selectionEnd;
+        if (typeof start === 'number' && typeof end === 'number' && end > start) {
+          return String(ae.value).substring(start, end).trim();
+        }
+      }
+    } catch (_) {}
+    try {
+      return window.getSelection().toString().trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
   function detectTextType(text) {
     if (!text) return 'empty';
     
@@ -1384,7 +1402,7 @@
           button.title = btn.title;
         }
         button.addEventListener('click', () => {
-          const text = selectedText || getSmartSearchText();
+          const text = getActiveSelectionText() || selectedText || getSmartSearchText();
           if (!text) {
             try { showToast('没有可用的文本'); } catch (_) {}
             return;
@@ -2144,8 +2162,7 @@
   // 监听选择变化，通知background更新菜单
   let lastNotifiedText = '';
   function notifySelectionChange() {
-    const selection = window.getSelection();
-    const text = selection.toString().trim();
+    const text = getActiveSelectionText();
     
     // 只在文本变化时通知
     if (text !== lastNotifiedText) {
@@ -2181,11 +2198,11 @@
   }
   
   // 监听选择变化事件
-  document.addEventListener('selectionchange', () => {
-    // 使用防抖避免频繁更新
-    clearTimeout(window.selectionChangeTimeout);
-    window.selectionChangeTimeout = setTimeout(notifySelectionChange, 100);
-  });
+    document.addEventListener('selectionchange', () => {
+      // 使用防抖避免频繁更新
+      clearTimeout(window.selectionChangeTimeout);
+      window.selectionChangeTimeout = setTimeout(notifySelectionChange, 100);
+    });
   
   // 监听文本选择
   document.addEventListener('mouseup', (e) => {
@@ -2792,8 +2809,7 @@
   // 智能获取要搜索的内容（同步版本，尽量本地推断）
   function getSmartSearchText() {
     // 优先级1: 选中的文本
-    const selection = window.getSelection();
-    const selected = selection.toString().trim();
+    const selected = getActiveSelectionText();
     if (selected) {
       return selected;
     }
@@ -2856,8 +2872,7 @@
   // 智能获取要搜索的内容（优先使用右键同源的background提取）
   async function getSmartSearchTextAsync() {
     // 1) 优先选中文本
-    const selection = window.getSelection();
-    const selected = selection.toString().trim();
+    const selected = getActiveSelectionText();
     if (selected) return selected;
 
     // 2) 尝试与右键一致的 background 提取
