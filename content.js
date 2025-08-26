@@ -205,7 +205,10 @@
     const scrollY = window.scrollY;
     
     // 根据模式调整尺寸
-    const popoverWidth = settings.mode === 'mini' ? 240 : 320;
+    // Mini模式宽度根据按钮数量自适应：每个按钮约44px + 间距6px + padding 20px
+    const miniButtonCount = settings.miniButtons.length;
+    const popoverWidth = settings.mode === 'mini' ? 
+      (miniButtonCount * 50 + 20) : 320;
     const popoverHeight = settings.mode === 'mini' ? 120 : 400;
     
     // 使用传入的鼠标位置（已经是选中文本底部中心）
@@ -439,7 +442,8 @@
       }
 
       .ccs-popover.mini-mode {
-        width: 240px;
+        width: auto;
+        min-width: 240px;
       }
 
       @keyframes fadeIn {
@@ -551,28 +555,8 @@
       .ccs-mini-buttons {
         padding: 10px;
         display: flex;
-        overflow-x: auto;
         gap: 6px;
-        scroll-behavior: smooth;
-      }
-      
-      /* 滚动条样式 */
-      .ccs-mini-buttons::-webkit-scrollbar {
-        height: 4px;
-      }
-      
-      .ccs-mini-buttons::-webkit-scrollbar-track {
-        background: rgba(0, 0, 0, 0.05);
-        border-radius: 2px;
-      }
-      
-      .ccs-mini-buttons::-webkit-scrollbar-thumb {
-        background: rgba(0, 0, 0, 0.2);
-        border-radius: 2px;
-      }
-      
-      .ccs-mini-buttons::-webkit-scrollbar-thumb:hover {
-        background: rgba(0, 0, 0, 0.3);
+        flex-wrap: nowrap;
       }
 
       .ccs-button {
@@ -590,9 +574,9 @@
       }
 
       .mini-mode .ccs-button {
-        padding: 8px 4px;
-        flex-shrink: 0;
-        min-width: 42px;
+        padding: 8px 6px;
+        flex: 0 0 auto;
+        min-width: 44px;
       }
 
       .ccs-button:hover {
