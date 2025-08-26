@@ -711,6 +711,10 @@
             <span class="opacity-value">${Math.round(settings.opacity * 100)}%</span>
           </div>
           <div class="setting-item">
+            <label>启用底部栏：</label>
+            <input type="checkbox" class="bar-enable-toggle" ${!settings.barClosed ? 'checked' : ''}>
+          </div>
+          <div class="setting-item">
             <label>底部栏（全局）：</label>
             <input type="checkbox" class="global-dock-toggle" ${settings.globalDock ? 'checked' : ''}>
           </div>
@@ -1302,7 +1306,14 @@
         } catch (_) {
           button.title = btn.title;
         }
-        button.addEventListener('click', () => btn.action(selectedText));
+        button.addEventListener('click', () => {
+          const text = selectedText || getSmartSearchText();
+          if (!text) {
+            try { showToast('没有可用的文本'); } catch (_) {}
+            return;
+          }
+          btn.action(text);
+        });
         buttonsContainer.appendChild(button);
       });
     }
@@ -1654,6 +1665,24 @@
       // 设置面板事件
       const settingsPanel = shadowRoot.querySelector('.ccs-settings-panel');
       if (settingsPanel) {
+      // 启用底部栏（全局关闭开关）
+      const barEnableCheckbox = settingsPanel.querySelector('.bar-enable-toggle');
+      if (barEnableCheckbox) {
+        barEnableCheckbox.addEventListener('change', (e) => {
+          const enable = e.target.checked;
+          settings.barClosed = !enable;
+          saveSettings();
+          if (enable) {
+            settings.layout = 'bottom';
+            isTempDock = false;
+            createPopover(true);
+            forceShowPopover(window.innerWidth / 2 + window.scrollX, window.innerHeight / 3 + window.scrollY, null, { overrideSavedPosition: true });
+          } else {
+            hidePopover();
+          }
+        });
+      }
+
       // 全局底部栏开关
       const globalDockCheckbox = settingsPanel.querySelector('.global-dock-toggle');
       if (globalDockCheckbox) {
