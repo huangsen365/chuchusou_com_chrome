@@ -1807,24 +1807,10 @@
     // 检查 Ctrl+Shift+S 或 Alt+S
     const isCtrlShiftS = e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's');
     const isAltS = e.altKey && !e.ctrlKey && !e.shiftKey && (e.key === 'S' || e.key === 's');
-    
-    if (isCtrlShiftS || isAltS) {
-      console.log('[触触搜] ✅ 快捷键触发!', isCtrlShiftS ? 'Ctrl+Shift+S' : 'Alt+S');
-      console.log('[触触搜] 当前状态:', {
-        popover: popover ? '存在' : '不存在',
-        shadowRoot: shadowRoot ? '存在' : '不存在',
-        selectedText: selectedText || '(空)',
-        settings: settings
-      });
-      
-      // 阻止所有默认行为和事件传播
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      
-      console.log('[触触搜] 事件已阻止');
-      
-      // 异步智能获取内容（与右键一致从background提取为主）
+
+    // 将显示逻辑提取为函数，便于复用
+    const showFromShortcut = () => {
+      console.log('[触触搜] 准备显示 Popover');
       const t0 = performance.now();
       getSmartSearchTextAsync().then((smartText) => {
         console.log('[触触搜] 获取到的文本:', smartText || '(无内容)');
@@ -1863,8 +1849,39 @@
           showToast('没有找到可搜索的内容');
         }
       });
-      
-      return false; // 确保阻止事件
+    };
+
+    if (isCtrlShiftS) {
+      console.log('[触触搜] ✅ 快捷键触发! Ctrl+Shift+S');
+      console.log('[触触搜] 当前状态:', {
+        popover: popover ? '存在' : '不存在',
+        shadowRoot: shadowRoot ? '存在' : '不存在',
+        selectedText: selectedText || '(空)',
+        settings: settings
+      });
+
+      // 阻止所有默认行为和事件传播
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      // 切换逻辑：存在则关闭，不存在则打开
+      if (popover) {
+        hidePopover();
+        return false;
+      } else {
+        showFromShortcut();
+        return false;
+      }
+    }
+
+    if (isAltS) {
+      console.log('[触触搜] ✅ 快捷键触发! Alt+S');
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      showFromShortcut();
+      return false;
     }
     
     // ESC键隐藏popover
