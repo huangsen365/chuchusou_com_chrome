@@ -2,6 +2,8 @@
   let popover = null;
   let shadowRoot = null;
   let selectedText = '';
+  // 页面会话级的临时停靠标记（不持久化）
+  let isTempDock = false;
   let settings = {
     mode: 'normal', // normal, mini, disabled
     theme: 'default',
@@ -652,11 +654,12 @@
       `;
     } else if (settings.layout === 'bottom') {
       // 底部停靠布局：不显示标题/页脚，仅显示按钮和控制
+      const badgeHtml = settings.globalDock ? '<span class="ccs-global-badge" title="悬停模式（全局）">全局</span>' : (isTempDock ? '<span class="ccs-temp-badge" title="悬停模式（临时）">临时</span>' : '');
       wrapper.innerHTML = `
         <div class="ccs-bottom" data-draggable="false">
           <div class="ccs-bottom-buttons"></div>
           <div class="ccs-bottom-controls">
-            ${settings.globalDock ? '<span class="ccs-global-badge" title="悬停模式（全局）">全局</span>' : ''}
+            ${badgeHtml}
             <button class="ccs-undock" title="悬浮模式">↕️</button>
           </div>
         </div>
@@ -845,6 +848,16 @@
         display: inline-block;
         background: rgba(255,255,255,0.85);
         color: #4c51bf;
+        border: 1px solid rgba(226,232,240,0.9);
+        border-radius: 10px;
+        font-size: 10px;
+        padding: 2px 6px;
+        margin-right: 6px;
+      }
+      .ccs-temp-badge {
+        display: inline-block;
+        background: rgba(255,255,255,0.85);
+        color: #2b6cb0;
         border: 1px solid rgba(226,232,240,0.9);
         border-radius: 10px;
         font-size: 10px;
@@ -1532,6 +1545,7 @@
       dockToggle.addEventListener('click', () => {
         settings.globalDock = true;
         settings.layout = 'bottom';
+        isTempDock = false;
         saveSettings();
         createPopover(true);
         const selection = window.getSelection();
@@ -1567,6 +1581,7 @@
           globalBtn.addEventListener('click', () => {
             settings.globalDock = true;
             settings.layout = 'bottom';
+            isTempDock = false;
             saveSettings();
             createPopover(true);
             forceShowPopover(window.innerWidth / 2 + window.scrollX, window.innerHeight / 3 + window.scrollY, null, { overrideSavedPosition: true });
@@ -1578,6 +1593,7 @@
             // 临时：仅当前页面启用，不保存到存储
             settings.globalDock = false; // 确保不影响其它页面
             settings.layout = 'bottom';
+            isTempDock = true;
             // 不调用 saveSettings() 以保持临时
             createPopover(true);
             forceShowPopover(window.innerWidth / 2 + window.scrollX, window.innerHeight / 3 + window.scrollY, null, { overrideSavedPosition: true });
@@ -1592,6 +1608,7 @@
     if (undockBtn) {
       undockBtn.addEventListener('click', () => {
         settings.layout = 'float';
+        isTempDock = false; // 清除临时标记
         saveSettings();
         createPopover(true);
         const selection = window.getSelection();
@@ -1620,8 +1637,16 @@
           if (settings.globalDock) {
             // 立即启用底部栏
             settings.layout = 'bottom';
+            isTempDock = false;
             createPopover(true);
             forceShowPopover(window.innerWidth / 2 + window.scrollX, window.innerHeight / 3 + window.scrollY, null, { overrideSavedPosition: true });
+          } else {
+            // 关闭全局：如果当前是底部栏但非临时，切回悬浮
+            if (settings.layout === 'bottom' && !isTempDock) {
+              settings.layout = 'float';
+              createPopover(true);
+              // 不强制显示，保持现状
+            }
           }
         });
       }
