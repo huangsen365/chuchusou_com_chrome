@@ -2,25 +2,53 @@
   let popover = null;
   let shadowRoot = null;
   let selectedText = '';
+  let settings = {
+    mode: 'normal', // normal, mini, disabled
+    theme: 'default',
+    opacity: 1,
+    position: null,
+    blacklist: [],
+    miniButtons: ['baidu', 'google', 'copy', 'base64-encode', 'md5'] // Mini模式默认5个按钮
+  };
+  let isDragging = false;
+  let dragOffset = { x: 0, y: 0 };
+
+  // 初始化：加载用户设置
+  chrome.storage.local.get(['ccs_settings'], (result) => {
+    if (result.ccs_settings) {
+      settings = { ...settings, ...result.ccs_settings };
+    }
+    checkBlacklist();
+  });
+
+  // 检查当前网站是否在黑名单中
+  function checkBlacklist() {
+    const currentHost = window.location.hostname;
+    if (settings.blacklist.includes(currentHost)) {
+      settings.mode = 'disabled';
+    }
+  }
+
+  // 保存设置
+  function saveSettings() {
+    chrome.storage.local.set({ ccs_settings: settings });
+  }
 
   // 命令处理函数
   const commands = {
     base64: (args) => {
       if (args[0] === '-d') {
-        // 解码
         try {
           return atob(args.slice(1).join(' '));
         } catch (e) {
           return '解码失败: 无效的 base64 字符串';
         }
       } else {
-        // 编码
         return btoa(unescape(encodeURIComponent(args.join(' '))));
       }
     },
     md5: (args) => {
       const text = args.join(' ');
-      // 简单的MD5实现（仅作示例，实际使用需要更完整的实现）
       let hash = 0;
       for (let i = 0; i < text.length; i++) {
         const char = text.charCodeAt(i);
@@ -78,7 +106,6 @@
       action: async (text) => {
         try {
           await navigator.clipboard.writeText(text);
-          // 清空选中的文本
           const selection = window.getSelection();
           if (selection.rangeCount > 0) {
             const range = selection.getRangeAt(0);
@@ -167,15 +194,101 @@
     const toast = shadowRoot.querySelector('.ccs-toast');
     if (toast) {
       toast.textContent = message;
-      toast.style.display = 'block';
+      toast.classList.add('show');
       setTimeout(() => {
-        toast.style.display = 'none';
+        toast.classList.remove('show');
       }, 2000);
     }
   }
 
+  // 智能定位算法
+  function calculateSmartPosition(selectionRect, mouseX, mouseY) {
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    
+    // 根据模式调整尺寸
+    const popoverWidth = settings.mode === 'mini' ? 200 : 320;
+    const popoverHeight = settings.mode === 'mini' ? 120 : 400;
+    
+    // 计算选中文本的中心点
+    const selectionCenterX = selectionRect.left + selectionRect.width / 2 + scrollX;
+    const selectionCenterY = selectionRect.top + selectionRect.height / 2 + scrollY;
+    
+    // 定义偏移量
+    const offset = 10;
+    
+    // 尝试不同的位置，优先级：右下 > 右上 > 左下 > 左上
+    const positions = [
+      { // 右下
+        x: selectionRect.right + scrollX + offset,
+        y: selectionRect.bottom + scrollY + offset,
+        arrow: 'top-left'
+      },
+      { // 右上
+        x: selectionRect.right + scrollX + offset,
+        y: selectionRect.top + scrollY - popoverHeight - offset,
+        arrow: 'bottom-left'
+      },
+      { // 左下
+        x: selectionRect.left + scrollX - popoverWidth - offset,
+        y: selectionRect.bottom + scrollY + offset,
+        arrow: 'top-right'
+      },
+      { // 左上
+        x: selectionRect.left + scrollX - popoverWidth - offset,
+        y: selectionRect.top + scrollY - popoverHeight - offset,
+        arrow: 'bottom-right'
+      },
+      { // 下方居中
+        x: selectionCenterX - popoverWidth / 2,
+        y: selectionRect.bottom + scrollY + offset,
+        arrow: 'top'
+      },
+      { // 上方居中
+        x: selectionCenterX - popoverWidth / 2,
+        y: selectionRect.top + scrollY - popoverHeight - offset,
+        arrow: 'bottom'
+      }
+    ];
+    
+    // 找到第一个完全在视窗内的位置
+    for (const pos of positions) {
+      const inViewport = 
+        pos.x >= scrollX && 
+        pos.y >= scrollY && 
+        pos.x + popoverWidth <= scrollX + viewportWidth &&
+        pos.y + popoverHeight <= scrollY + viewportHeight;
+      
+      if (inViewport) {
+        return pos;
+      }
+    }
+    
+    // 如果没有完全合适的位置，使用鼠标位置附近
+    let finalX = mouseX + offset;
+    let finalY = mouseY + offset;
+    
+    // 确保不超出视窗
+    if (finalX + popoverWidth > scrollX + viewportWidth) {
+      finalX = scrollX + viewportWidth - popoverWidth - offset;
+    }
+    if (finalY + popoverHeight > scrollY + viewportHeight) {
+      finalY = scrollY + viewportHeight - popoverHeight - offset;
+    }
+    if (finalX < scrollX) finalX = scrollX + offset;
+    if (finalY < scrollY) finalY = scrollY + offset;
+    
+    return { x: finalX, y: finalY, arrow: 'none' };
+  }
+
   // 创建popover
   function createPopover() {
+    if (settings.mode === 'disabled') {
+      return;
+    }
+
     // 移除旧的popover
     if (popover) {
       popover.remove();
@@ -186,27 +299,73 @@
     popover.id = 'ccs-popover-container';
     popover.style.position = 'absolute';
     popover.style.zIndex = '2147483647';
+    popover.style.opacity = settings.opacity;
 
     // 创建shadow DOM
     shadowRoot = popover.attachShadow({ mode: 'open' });
 
     // 创建HTML结构
     const wrapper = document.createElement('div');
-    wrapper.className = 'ccs-popover';
-    wrapper.innerHTML = `
-      <div class="ccs-header">
-        <span class="ccs-title">触触搜</span>
-        <button class="ccs-close">✕</button>
-      </div>
-      <div class="ccs-input-wrapper">
-        <input type="text" class="ccs-input" placeholder="输入命令 (如: /base64 hello)">
-        <button class="ccs-execute">执行</button>
-      </div>
-      <div class="ccs-buttons"></div>
-      <div class="ccs-result" style="display: none;"></div>
-      <div class="ccs-footer">更多功能 敬请期待...</div>
-      <div class="ccs-toast"></div>
-    `;
+    wrapper.className = `ccs-popover ${settings.mode === 'mini' ? 'mini-mode' : ''} theme-${settings.theme}`;
+    
+    if (settings.mode === 'mini') {
+      // Mini模式HTML
+      wrapper.innerHTML = `
+        <div class="ccs-header" data-draggable="true">
+          <span class="ccs-title">触触搜</span>
+          <div class="ccs-header-buttons">
+            <button class="ccs-expand" title="展开">📖</button>
+            <button class="ccs-settings" title="设置">⚙️</button>
+            <button class="ccs-close" title="关闭">✕</button>
+          </div>
+        </div>
+        <div class="ccs-mini-buttons"></div>
+        <div class="ccs-toast"></div>
+      `;
+    } else {
+      // 普通模式HTML
+      wrapper.innerHTML = `
+        <div class="ccs-header" data-draggable="true">
+          <span class="ccs-title">触触搜</span>
+          <div class="ccs-header-buttons">
+            <button class="ccs-mini" title="迷你模式">📐</button>
+            <button class="ccs-settings" title="设置">⚙️</button>
+            <button class="ccs-close" title="关闭">✕</button>
+          </div>
+        </div>
+        <div class="ccs-input-wrapper">
+          <input type="text" class="ccs-input" placeholder="输入命令 (如: /base64 hello)">
+          <button class="ccs-execute">执行</button>
+        </div>
+        <div class="ccs-buttons"></div>
+        <div class="ccs-result" style="display: none;"></div>
+        <div class="ccs-footer">更多功能 敬请期待...</div>
+        <div class="ccs-toast"></div>
+        <div class="ccs-settings-panel" style="display: none;">
+          <h3>设置</h3>
+          <div class="setting-item">
+            <label>显示模式：</label>
+            <select class="mode-select">
+              <option value="normal">普通</option>
+              <option value="mini">迷你</option>
+              <option value="disabled">禁用</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label>透明度：</label>
+            <input type="range" class="opacity-slider" min="0.3" max="1" step="0.1" value="${settings.opacity}">
+            <span class="opacity-value">${Math.round(settings.opacity * 100)}%</span>
+          </div>
+          <div class="setting-item">
+            <label>当前网站：</label>
+            <button class="blacklist-toggle">加入黑名单</button>
+          </div>
+          <div class="setting-note">
+            💡 禁用后可在Chrome扩展管理页重新启用
+          </div>
+        </div>
+      `;
+    }
 
     // 添加样式
     const style = document.createElement('style');
@@ -226,44 +385,67 @@
         font-size: 14px;
         color: #333;
         overflow: hidden;
+        animation: fadeIn 0.2s ease-out;
+        transition: opacity 0.2s;
+      }
+
+      .ccs-popover.mini-mode {
+        width: 200px;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
       }
 
       .ccs-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        padding: 10px 15px;
+        padding: 8px 12px;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        cursor: move;
+        user-select: none;
+      }
+
+      .ccs-header.dragging {
+        opacity: 0.8;
       }
 
       .ccs-title {
         font-weight: bold;
-        font-size: 16px;
+        font-size: 14px;
       }
 
-      .ccs-close {
+      .ccs-header-buttons {
+        display: flex;
+        gap: 5px;
+      }
+
+      .ccs-header button {
         background: none;
         border: none;
         color: white;
         cursor: pointer;
-        font-size: 18px;
-        padding: 0;
-        width: 24px;
-        height: 24px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        font-size: 14px;
+        padding: 2px 6px;
         border-radius: 4px;
         transition: background-color 0.2s;
       }
 
-      .ccs-close:hover {
+      .ccs-header button:hover {
         background-color: rgba(255,255,255,0.2);
       }
 
       .ccs-input-wrapper {
-        padding: 15px;
+        padding: 12px;
         display: flex;
         gap: 8px;
         border-bottom: 1px solid #eee;
@@ -271,7 +453,7 @@
 
       .ccs-input {
         flex: 1;
-        padding: 8px 12px;
+        padding: 6px 10px;
         border: 1px solid #ddd;
         border-radius: 4px;
         font-size: 13px;
@@ -284,7 +466,7 @@
       }
 
       .ccs-execute {
-        padding: 8px 16px;
+        padding: 6px 14px;
         background: #667eea;
         color: white;
         border: none;
@@ -299,24 +481,35 @@
       }
 
       .ccs-buttons {
-        padding: 15px;
+        padding: 12px;
         display: grid;
         grid-template-columns: repeat(5, 1fr);
-        gap: 10px;
+        gap: 8px;
+      }
+
+      .ccs-mini-buttons {
+        padding: 10px;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 6px;
       }
 
       .ccs-button {
         background: #f7fafc;
         border: 1px solid #e2e8f0;
         border-radius: 6px;
-        padding: 12px 8px;
+        padding: 10px 6px;
         cursor: pointer;
         text-align: center;
         transition: all 0.2s;
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 4px;
+        gap: 3px;
+      }
+
+      .mini-mode .ccs-button {
+        padding: 8px 4px;
       }
 
       .ccs-button:hover {
@@ -326,47 +519,130 @@
       }
 
       .ccs-button-icon {
-        font-size: 20px;
+        font-size: 18px;
+      }
+
+      .mini-mode .ccs-button-icon {
+        font-size: 16px;
       }
 
       .ccs-button-label {
-        font-size: 11px;
+        font-size: 10px;
         color: #718096;
       }
 
+      .mini-mode .ccs-button-label {
+        font-size: 9px;
+      }
+
       .ccs-result {
-        padding: 10px 15px;
+        padding: 10px 12px;
         background: #f7fafc;
         border-top: 1px solid #e2e8f0;
         font-family: monospace;
         font-size: 12px;
-        max-height: 100px;
+        max-height: 80px;
         overflow-y: auto;
         word-break: break-all;
       }
 
       .ccs-footer {
-        padding: 10px 15px;
+        padding: 8px 12px;
         background: #f7fafc;
         color: #718096;
-        font-size: 12px;
+        font-size: 11px;
         text-align: center;
         border-top: 1px solid #e2e8f0;
       }
 
       .ccs-toast {
         position: absolute;
-        bottom: 60px;
+        bottom: 50px;
         left: 50%;
         transform: translateX(-50%);
         background: rgba(0, 0, 0, 0.8);
         color: white;
-        padding: 8px 16px;
+        padding: 6px 12px;
         border-radius: 4px;
         font-size: 12px;
-        display: none;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s;
         white-space: nowrap;
         z-index: 1000;
+      }
+
+      .ccs-toast.show {
+        opacity: 1;
+      }
+
+      .ccs-settings-panel {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border-radius: 0 0 8px 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        padding: 15px;
+        z-index: 10;
+      }
+
+      .ccs-settings-panel h3 {
+        font-size: 14px;
+        margin-bottom: 12px;
+        color: #667eea;
+      }
+
+      .setting-item {
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .setting-item label {
+        font-size: 12px;
+        color: #4a5568;
+      }
+
+      .setting-item select,
+      .setting-item button {
+        padding: 4px 8px;
+        border: 1px solid #cbd5e0;
+        border-radius: 4px;
+        font-size: 12px;
+        background: white;
+        cursor: pointer;
+      }
+
+      .setting-item input[type="range"] {
+        width: 80px;
+      }
+
+      .opacity-value {
+        font-size: 12px;
+        color: #718096;
+        margin-left: 8px;
+      }
+
+      .blacklist-toggle {
+        background: #f56565;
+        color: white;
+        border: none;
+      }
+
+      .blacklist-toggle:hover {
+        background: #e53e3e;
+      }
+
+      .setting-note {
+        font-size: 11px;
+        color: #a0aec0;
+        text-align: center;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid #e2e8f0;
       }
     `;
 
@@ -374,28 +650,213 @@
     shadowRoot.appendChild(wrapper);
 
     // 添加按钮
-    const buttonsContainer = shadowRoot.querySelector('.ccs-buttons');
-    defaultButtons.forEach(btn => {
-      const button = document.createElement('div');
-      button.className = 'ccs-button';
-      button.innerHTML = `
-        <div class="ccs-button-icon">${btn.icon}</div>
-        <div class="ccs-button-label">${btn.title}</div>
-      `;
-      button.addEventListener('click', () => btn.action(selectedText));
-      buttonsContainer.appendChild(button);
-    });
+    const buttonsToShow = settings.mode === 'mini' 
+      ? defaultButtons.filter(btn => settings.miniButtons.includes(btn.id))
+      : defaultButtons;
+    
+    const buttonsContainer = shadowRoot.querySelector(settings.mode === 'mini' ? '.ccs-mini-buttons' : '.ccs-buttons');
+    if (buttonsContainer) {
+      buttonsToShow.forEach(btn => {
+        const button = document.createElement('div');
+        button.className = 'ccs-button';
+        button.innerHTML = `
+          <div class="ccs-button-icon">${btn.icon}</div>
+          <div class="ccs-button-label">${btn.title}</div>
+        `;
+        button.addEventListener('click', () => btn.action(selectedText));
+        buttonsContainer.appendChild(button);
+      });
+    }
 
     // 绑定事件
-    shadowRoot.querySelector('.ccs-close').addEventListener('click', hidePopover);
-    shadowRoot.querySelector('.ccs-execute').addEventListener('click', executeCommand);
-    shadowRoot.querySelector('.ccs-input').addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        executeCommand();
-      }
-    });
+    bindEvents();
 
     document.body.appendChild(popover);
+  }
+
+  // 绑定事件
+  function bindEvents() {
+    if (!shadowRoot) return;
+
+    // 关闭按钮
+    const closeBtn = shadowRoot.querySelector('.ccs-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', hidePopover);
+    }
+
+    // 执行按钮
+    const executeBtn = shadowRoot.querySelector('.ccs-execute');
+    if (executeBtn) {
+      executeBtn.addEventListener('click', executeCommand);
+    }
+
+    // 输入框回车
+    const input = shadowRoot.querySelector('.ccs-input');
+    if (input) {
+      input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          executeCommand();
+        }
+      });
+    }
+
+    // 迷你模式切换
+    const miniBtn = shadowRoot.querySelector('.ccs-mini');
+    if (miniBtn) {
+      miniBtn.addEventListener('click', () => {
+        settings.mode = 'mini';
+        saveSettings();
+        const pos = { x: parseInt(popover.style.left), y: parseInt(popover.style.top) };
+        createPopover();
+        showPopover(pos.x, pos.y);
+      });
+    }
+
+    // 展开按钮（从mini到normal）
+    const expandBtn = shadowRoot.querySelector('.ccs-expand');
+    if (expandBtn) {
+      expandBtn.addEventListener('click', () => {
+        settings.mode = 'normal';
+        saveSettings();
+        const pos = { x: parseInt(popover.style.left), y: parseInt(popover.style.top) };
+        createPopover();
+        showPopover(pos.x, pos.y);
+      });
+    }
+
+    // 设置按钮
+    const settingsBtn = shadowRoot.querySelector('.ccs-settings');
+    if (settingsBtn) {
+      settingsBtn.addEventListener('click', toggleSettings);
+    }
+
+    // 设置面板事件
+    const settingsPanel = shadowRoot.querySelector('.ccs-settings-panel');
+    if (settingsPanel) {
+      // 模式选择
+      const modeSelect = settingsPanel.querySelector('.mode-select');
+      if (modeSelect) {
+        modeSelect.value = settings.mode;
+        modeSelect.addEventListener('change', (e) => {
+          settings.mode = e.target.value;
+          if (settings.mode === 'disabled') {
+            if (confirm('禁用后需要在Chrome扩展管理页重新启用，确定要禁用吗？')) {
+              saveSettings();
+              hidePopover();
+            } else {
+              modeSelect.value = 'normal';
+            }
+          } else {
+            saveSettings();
+            const pos = { x: parseInt(popover.style.left), y: parseInt(popover.style.top) };
+            createPopover();
+            showPopover(pos.x, pos.y);
+          }
+        });
+      }
+
+      // 透明度滑块
+      const opacitySlider = settingsPanel.querySelector('.opacity-slider');
+      const opacityValue = settingsPanel.querySelector('.opacity-value');
+      if (opacitySlider) {
+        opacitySlider.addEventListener('input', (e) => {
+          settings.opacity = parseFloat(e.target.value);
+          opacityValue.textContent = Math.round(settings.opacity * 100) + '%';
+          popover.style.opacity = settings.opacity;
+          saveSettings();
+        });
+      }
+
+      // 黑名单按钮
+      const blacklistBtn = settingsPanel.querySelector('.blacklist-toggle');
+      if (blacklistBtn) {
+        const currentHost = window.location.hostname;
+        if (settings.blacklist.includes(currentHost)) {
+          blacklistBtn.textContent = '移出黑名单';
+          blacklistBtn.style.background = '#48bb78';
+        }
+        
+        blacklistBtn.addEventListener('click', () => {
+          const index = settings.blacklist.indexOf(currentHost);
+          if (index > -1) {
+            settings.blacklist.splice(index, 1);
+            blacklistBtn.textContent = '加入黑名单';
+            blacklistBtn.style.background = '#f56565';
+            showToast('已移出黑名单');
+          } else {
+            settings.blacklist.push(currentHost);
+            blacklistBtn.textContent = '移出黑名单';
+            blacklistBtn.style.background = '#48bb78';
+            showToast('已加入黑名单');
+          }
+          saveSettings();
+        });
+      }
+    }
+
+    // 拖拽功能
+    const header = shadowRoot.querySelector('.ccs-header');
+    if (header) {
+      header.addEventListener('mousedown', startDragging);
+    }
+  }
+
+  // 开始拖拽
+  function startDragging(e) {
+    if (e.target.tagName === 'BUTTON') return; // 点击按钮时不拖拽
+    
+    isDragging = true;
+    const rect = popover.getBoundingClientRect();
+    dragOffset.x = e.clientX - rect.left;
+    dragOffset.y = e.clientY - rect.top;
+    
+    // 添加拖拽样式
+    const header = shadowRoot.querySelector('.ccs-header');
+    header.classList.add('dragging');
+    
+    // 添加全局事件监听
+    document.addEventListener('mousemove', handleDragging);
+    document.addEventListener('mouseup', stopDragging);
+    
+    e.preventDefault();
+  }
+
+  // 处理拖拽
+  function handleDragging(e) {
+    if (!isDragging) return;
+    
+    const x = e.clientX - dragOffset.x + window.scrollX;
+    const y = e.clientY - dragOffset.y + window.scrollY;
+    
+    popover.style.left = `${x}px`;
+    popover.style.top = `${y}px`;
+    
+    // 保存位置
+    settings.position = { x, y };
+  }
+
+  // 停止拖拽
+  function stopDragging() {
+    if (!isDragging) return;
+    
+    isDragging = false;
+    const header = shadowRoot.querySelector('.ccs-header');
+    header.classList.remove('dragging');
+    
+    // 移除全局事件监听
+    document.removeEventListener('mousemove', handleDragging);
+    document.removeEventListener('mouseup', stopDragging);
+    
+    // 保存设置
+    saveSettings();
+  }
+
+  // 切换设置面板
+  function toggleSettings() {
+    const panel = shadowRoot.querySelector('.ccs-settings-panel');
+    if (panel) {
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    }
   }
 
   // 执行命令
@@ -431,41 +892,55 @@
   }
 
   // 显示popover
-  function showPopover(x, y) {
+  function showPopover(x, y, selectionRect = null) {
+    if (settings.mode === 'disabled') return;
+    
     createPopover();
 
-    // 计算位置
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const popoverWidth = 320;
-    const popoverHeight = 400; // 估计高度
-
-    let left = x;
-    let top = y + 10;
-
-    // 确保不超出视窗
-    if (left + popoverWidth > viewportWidth) {
-      left = viewportWidth - popoverWidth - 10;
-    }
-    if (top + popoverHeight > viewportHeight) {
-      top = y - popoverHeight - 10;
+    let position;
+    if (settings.position && !selectionRect) {
+      // 如果有保存的位置且不是新选择，使用保存的位置
+      position = settings.position;
+    } else if (selectionRect) {
+      // 使用智能定位
+      position = calculateSmartPosition(selectionRect, x, y);
+    } else {
+      // 使用传入的位置
+      position = { x, y };
     }
 
-    popover.style.left = `${left}px`;
-    popover.style.top = `${top}px`;
+    popover.style.left = `${position.x}px`;
+    popover.style.top = `${position.y}px`;
+
+    // 自动聚焦到输入框（如果是普通模式）
+    if (settings.mode === 'normal') {
+      setTimeout(() => {
+        const input = shadowRoot.querySelector('.ccs-input');
+        if (input) input.focus();
+      }, 100);
+    }
   }
 
   // 隐藏popover
   function hidePopover() {
     if (popover) {
-      popover.remove();
-      popover = null;
-      shadowRoot = null;
+      // 添加淡出动画
+      popover.style.opacity = '0';
+      setTimeout(() => {
+        if (popover) {
+          popover.remove();
+          popover = null;
+          shadowRoot = null;
+        }
+      }, 200);
     }
   }
 
   // 监听文本选择
   document.addEventListener('mouseup', (e) => {
+    // 如果在拖拽中，不处理
+    if (isDragging) return;
+    
     // 如果点击在popover内部，不处理
     if (popover && popover.contains(e.target)) {
       return;
@@ -478,7 +953,7 @@
       selectedText = text;
       const range = selection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
-      showPopover(rect.left + window.scrollX, rect.bottom + window.scrollY);
+      showPopover(e.clientX + window.scrollX, e.clientY + window.scrollY, rect);
     } else {
       hidePopover();
     }
@@ -499,6 +974,17 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       hidePopover();
+    }
+  });
+
+  // 监听来自popup的消息
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'toggleExtension') {
+      settings.mode = request.enabled ? 'normal' : 'disabled';
+      saveSettings();
+      if (!request.enabled) {
+        hidePopover();
+      }
     }
   });
 })();
