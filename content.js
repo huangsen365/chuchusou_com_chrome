@@ -1831,9 +1831,9 @@
             selectionRect = rect;
             console.log('[触触搜] 使用选中区域位置:', {x, y});
           } else {
-            // 否则显示在屏幕中央偏上
-            x = window.innerWidth / 2;
-            y = window.innerHeight / 3;
+            // 否则显示在屏幕中央偏上（加入滚动补偿，使用文档坐标）
+            x = window.innerWidth / 2 + window.scrollX;
+            y = window.innerHeight / 3 + window.scrollY;
             console.log('[触触搜] 使用屏幕中央位置:', {x, y});
           }
 
@@ -1865,8 +1865,32 @@
       e.stopPropagation();
       e.stopImmediatePropagation();
 
-      // 切换逻辑：存在则关闭，不存在则打开
+      // 切换逻辑：
+      // - 如果已存在但不在视口内，则重新定位到视口内靠近选择/居中位置
+      // - 否则执行开/关切换
       if (popover) {
+        try {
+          const rect = popover.getBoundingClientRect();
+          const inView = rect.bottom > 0 && rect.right > 0 && rect.top < window.innerHeight && rect.left < window.innerWidth;
+          if (!inView) {
+            // 重新定位到视口内
+            let x, y, selectionRect = null;
+            const selection = window.getSelection();
+            if (selection && selection.rangeCount > 0 && selection.toString().trim()) {
+              const range = selection.getRangeAt(0);
+              const selRect = range.getBoundingClientRect();
+              x = selRect.left + selRect.width / 2 + window.scrollX;
+              y = selRect.bottom + window.scrollY;
+              selectionRect = selRect;
+            } else {
+              x = window.innerWidth / 2 + window.scrollX;
+              y = window.innerHeight / 3 + window.scrollY;
+            }
+            forceShowPopover(x, y, selectionRect);
+            return false;
+          }
+        } catch (_) {}
+        // 在视口内：执行隐藏
         hidePopover();
         return false;
       } else {
@@ -2309,20 +2333,11 @@
       return searchKeyword;
     }
     
-    // 优先级3: 页面标题（清理后）
+    // 优先级3: 页面标题（保留全文）
     const title = document.title;
     if (title) {
-      // 移除常见的网站后缀
-      let cleanTitle = title;
-      // 按常见分隔符分割，取第一部分
-      const separators = [' - ', ' | ', ' — ', ' · ', ' :: ', ' » '];
-      for (const sep of separators) {
-        if (cleanTitle.includes(sep)) {
-          cleanTitle = cleanTitle.split(sep)[0];
-          break;
-        }
-      }
-      return cleanTitle.trim();
+      // 不再按分隔符截断，保留页面完整标题
+      return title.trim();
     }
     
     return '';
@@ -2382,18 +2397,10 @@
     const local = extractSearchKeyword();
     if (local) return local;
 
-    // 4) 最后回退到页面标题（与同步逻辑的清理方式一致）
+    // 4) 最后回退到页面标题（保留全文）
     const title = document.title || '';
     if (title) {
-      let cleanTitle = title;
-      const separators = [' - ', ' | ', ' — ', ' · ', ' :: ', ' » '];
-      for (const sep of separators) {
-        if (cleanTitle.includes(sep)) {
-          cleanTitle = cleanTitle.split(sep)[0];
-          break;
-        }
-      }
-      return cleanTitle.trim();
+      return title.trim();
     }
     return '';
   }
