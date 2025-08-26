@@ -1479,7 +1479,7 @@
         `;
         // 初始hover提示包含完整文本（无选中时优先标题/URL）
         try {
-          const initText = selectedText || getRealtimePageTextPreferTitle() || lastNonEmptySelection;
+          const initText = selectedText || getSmartSearchText() || lastNonEmptySelection;
           button.title = initText ? `${btn.title}: ${initText}` : btn.title;
         } catch (_) {
           button.title = btn.title;
@@ -1500,7 +1500,7 @@
             const lastTs = parseInt(button.dataset.hovTs || '0', 10);
             if (now - lastTs < 150) return;
             button.dataset.hovTs = String(now);
-            const t = getActiveSelectionText() || getRealtimePageTextPreferTitle() || lastNonEmptySelection;
+            const t = getActiveSelectionText() || getSmartSearchText() || lastNonEmptySelection;
             button.title = t ? `${btn.title}: ${t}` : btn.title;
             // 同步更新其他按钮与标题，确保一致
             updateRealtimeFallbackUI();
