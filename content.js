@@ -8,6 +8,7 @@
     opacity: 1,
     position: null,
     layout: 'float', // float, bottom
+    globalDock: false, // 悬停模式（全局）
     blacklist: [],
     miniButtons: ['baidu', 'google', 'chuchusou', 'copy', 'lowercase'] // Mini模式默认按钮，包含大小写与搜索
   };
@@ -23,6 +24,12 @@
         settings.miniButtons.push('lowercase');
         chrome.storage.local.set({ ccs_settings: settings });
       }
+      // 若开启全局悬停模式，默认使用底部栏布局（非禁用、非黑名单时）
+      try {
+        if (settings.globalDock && settings.mode !== 'disabled') {
+          settings.layout = 'bottom';
+        }
+      } catch (_) {}
     }
     if (typeof result.ccs_debug === 'boolean') {
       window.CCS_DEBUG = result.ccs_debug;
@@ -644,6 +651,10 @@
           <span class="ccs-title">${displayText}</span>
           <div class="ccs-header-buttons">
             <button class="ccs-dock-toggle" title="底部栏">📌</button>
+            <div class="ccs-dock-menu" style="display:none;">
+              <button class="ccs-dock-global">悬停模式（全局）</button>
+              <button class="ccs-dock-temp">悬停模式（临时）</button>
+            </div>
             <button class="ccs-mini" title="迷你模式">📐</button>
             <button class="ccs-settings" title="设置">⚙️</button>
             <button class="ccs-close" title="关闭">✕</button>
@@ -776,6 +787,35 @@
         -moz-user-select: none;
         -ms-user-select: none;
       }
+
+      .ccs-header-buttons { position: relative; }
+      .ccs-dock-menu {
+        position: absolute;
+        right: 68px; /* roughly left of mini/settings */
+        top: 28px;
+        background: white;
+        color: #2d3748;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+        padding: 6px;
+        display: none;
+        z-index: 20;
+      }
+      .ccs-dock-menu button {
+        display: block;
+        width: 160px;
+        text-align: left;
+        background: white;
+        border: 1px solid #e2e8f0;
+        color: #2d3748;
+        border-radius: 4px;
+        font-size: 12px;
+        padding: 6px 8px;
+        margin: 4px 0;
+        cursor: pointer;
+      }
+      .ccs-dock-menu button:hover { background: #f7fafc; }
 
       .docked-bottom .ccs-header {
         cursor: default; /* 底部栏不拖拽 */
@@ -1439,11 +1479,13 @@
 
     // 底部栏切换
     const dockToggle = shadowRoot.querySelector('.ccs-dock-toggle');
+    const dockMenu = shadowRoot.querySelector('.ccs-dock-menu');
     if (dockToggle) {
+      // 默认点击：开启悬停模式（全局）
       dockToggle.addEventListener('click', () => {
-        settings.layout = settings.layout === 'bottom' ? 'float' : 'bottom';
+        settings.globalDock = true;
+        settings.layout = 'bottom';
         saveSettings();
-        // 重新创建并显示（保留文本），覆盖保存位置
         createPopover(true);
         const selection = window.getSelection();
         let x = window.innerWidth / 2 + window.scrollX;
@@ -1457,6 +1499,45 @@
         }
         forceShowPopover(x, y, rect, { overrideSavedPosition: true });
       });
+      // 悬停显示菜单
+      let dockMenuTimer = null;
+      const showDockMenu = () => {
+        clearTimeout(dockMenuTimer);
+        if (dockMenu) dockMenu.style.display = 'block';
+      };
+      const hideDockMenu = () => {
+        clearTimeout(dockMenuTimer);
+        dockMenuTimer = setTimeout(() => { if (dockMenu) dockMenu.style.display = 'none'; }, 150);
+      };
+      dockToggle.addEventListener('mouseenter', showDockMenu);
+      dockToggle.addEventListener('mouseleave', hideDockMenu);
+      if (dockMenu) {
+        dockMenu.addEventListener('mouseenter', showDockMenu);
+        dockMenu.addEventListener('mouseleave', hideDockMenu);
+        const globalBtn = dockMenu.querySelector('.ccs-dock-global');
+        const tempBtn = dockMenu.querySelector('.ccs-dock-temp');
+        if (globalBtn) {
+          globalBtn.addEventListener('click', () => {
+            settings.globalDock = true;
+            settings.layout = 'bottom';
+            saveSettings();
+            createPopover(true);
+            forceShowPopover(window.innerWidth / 2 + window.scrollX, window.innerHeight / 3 + window.scrollY, null, { overrideSavedPosition: true });
+            if (dockMenu) dockMenu.style.display = 'none';
+          });
+        }
+        if (tempBtn) {
+          tempBtn.addEventListener('click', () => {
+            // 临时：仅当前页面启用，不保存到存储
+            settings.globalDock = false; // 确保不影响其它页面
+            settings.layout = 'bottom';
+            // 不调用 saveSettings() 以保持临时
+            createPopover(true);
+            forceShowPopover(window.innerWidth / 2 + window.scrollX, window.innerHeight / 3 + window.scrollY, null, { overrideSavedPosition: true });
+            if (dockMenu) dockMenu.style.display = 'none';
+          });
+        }
+      }
     }
 
     // 底部栏：解除停靠按钮
