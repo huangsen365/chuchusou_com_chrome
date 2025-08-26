@@ -664,6 +664,7 @@
           </div>
           <div class="setting-item">
             <label>当前网站：</label>
+            <span class="current-host" title="${window.location.hostname}">${window.location.hostname}</span>
             <button class="blacklist-toggle">加入黑名单</button>
           </div>
           <div class="setting-note">
@@ -741,11 +742,17 @@
       .ccs-title {
         font-weight: bold;
         font-size: 14px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        flex: 1;
+        min-width: 0;
       }
 
       .ccs-header-buttons {
         display: flex;
         gap: 5px;
+        flex-shrink: 0;
       }
 
       .ccs-header button {
@@ -993,12 +1000,13 @@
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         padding: 15px;
         z-index: 10;
+        color: #2d3748;
       }
 
       .ccs-settings-panel h3 {
         font-size: 14px;
         margin-bottom: 12px;
-        color: #667eea;
+        color: #4c51bf;
       }
 
       .setting-item {
@@ -1006,21 +1014,40 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
+        gap: 8px;
       }
 
       .setting-item label {
-        font-size: 12px;
-        color: #4a5568;
+        font-size: 13px;
+        color: #2d3748;
+        font-weight: 600;
       }
 
       .setting-item select,
       .setting-item button {
-        padding: 4px 8px;
+        padding: 6px 10px;
         border: 1px solid #cbd5e0;
         border-radius: 4px;
         font-size: 12px;
         background: white;
         cursor: pointer;
+        flex-shrink: 0;
+      }
+
+      .current-host {
+        flex: 1;
+        min-width: 0;
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+        color: #1a202c;
+        background: #edf2f7;
+        border: 1px solid #cbd5e0;
+        border-radius: 6px;
+        padding: 4px 8px;
       }
 
       .setting-item input[type="range"] {
@@ -1034,13 +1061,16 @@
       }
 
       .blacklist-toggle {
-        background: #f56565;
-        color: white;
-        border: none;
+        background: #ffffff;
+        color: #c53030; /* dark red text for readability */
+        border: 1px solid #c53030;
+        font-weight: 600;
       }
 
       .blacklist-toggle:hover {
-        background: #e53e3e;
+        background: #fff5f5;
+        border-color: #9b2c2c;
+        color: #9b2c2c;
       }
 
       .setting-note {
@@ -1361,6 +1391,8 @@
         if (settings.blacklist.includes(currentHost)) {
           blacklistBtn.textContent = '移出黑名单';
           blacklistBtn.style.background = '#48bb78';
+          blacklistBtn.style.borderColor = '#2f855a';
+          blacklistBtn.style.color = '#ffffff';
         }
         
         blacklistBtn.addEventListener('click', () => {
@@ -1368,12 +1400,17 @@
           if (index > -1) {
             settings.blacklist.splice(index, 1);
             blacklistBtn.textContent = '加入黑名单';
-            blacklistBtn.style.background = '#f56565';
+            // default style: light background with red text for clarity
+            blacklistBtn.style.background = '#ffffff';
+            blacklistBtn.style.borderColor = '#c53030';
+            blacklistBtn.style.color = '#c53030';
             showToast('已移出黑名单');
           } else {
             settings.blacklist.push(currentHost);
             blacklistBtn.textContent = '移出黑名单';
             blacklistBtn.style.background = '#48bb78';
+            blacklistBtn.style.borderColor = '#2f855a';
+            blacklistBtn.style.color = '#ffffff';
             showToast('已加入黑名单');
           }
           saveSettings();
