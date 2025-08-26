@@ -1668,6 +1668,28 @@
     }
     
     console.log('[触触搜] showPopover 开始执行:', {x, y, selectedText, hasPopover: !!popover});
+
+    // 底部栏模式：若已存在，避免重建导致闪烁，仅更新提示与可见性
+    if (settings.layout === 'bottom' && popover && shadowRoot) {
+      try {
+        const current = selectedText || getSmartSearchText();
+        const renderedButtons = shadowRoot.querySelectorAll('.ccs-button');
+        renderedButtons.forEach(el => {
+          const id = el.dataset.id;
+          const cfg = (id && defaultButtons.find(b => b.id === id)) || null;
+          const base = cfg ? cfg.title : '操作';
+          el.title = current ? `${base}: ${current}` : base;
+        });
+        // 确保可见
+        popover.style.display = 'block';
+        popover.style.visibility = 'visible';
+        popover.style.opacity = settings.opacity || '1';
+        console.log('[触触搜] 底部栏已存在，执行无闪烁更新');
+      } catch (err) {
+        console.warn('[触触搜] 底部栏更新失败，回退到重建:', err);
+      }
+      return;
+    }
     
     // 如果popup已存在，先隐藏再重新显示
     if (popover) {
