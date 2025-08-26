@@ -1010,6 +1010,7 @@
             <div class="ccs-dock-menu" style="display:none;">
               <button class="ccs-dock-global">开启底部栏（全局）</button>
               <button class="ccs-dock-temp">开启底部栏（当前页）</button>
+              <div class="ccs-dock-shortcut">打开触触搜面板 (Ctrl+Shift+S)</div>
             </div>
             <button class="ccs-mini" title="迷你模式">📐</button>
             <button class="ccs-settings" title="设置">⚙️</button>
@@ -1198,6 +1199,19 @@
         cursor: pointer;
       }
       .ccs-dock-menu button:hover { background: #f7fafc; }
+      
+      .ccs-dock-shortcut {
+        display: block;
+        width: 160px;
+        padding: 8px;
+        margin-top: 4px;
+        border-top: 1px solid #e2e8f0;
+        color: #718096;
+        font-size: 11px;
+        text-align: center;
+        font-style: italic;
+        cursor: default;
+      }
 
       .ccs-global-badge {
         display: inline-block;
