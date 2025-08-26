@@ -38,9 +38,9 @@
     if (typeof result.ccs_debug === 'boolean') {
       window.CCS_DEBUG = result.ccs_debug;
     } else {
-      // 首次默认开启调试
-      chrome.storage.local.set({ ccs_debug: true });
-      window.CCS_DEBUG = true;
+      // 首次默认关闭调试
+      chrome.storage.local.set({ ccs_debug: false });
+      window.CCS_DEBUG = false;
     }
     checkBlacklist();
 
@@ -797,6 +797,10 @@
         <div class="ccs-toast"></div>
         <div class="ccs-settings-panel" style="display: none;">
           <h3>设置</h3>
+          <div class="setting-item">
+            <label>调试日志：</label>
+            <input type="checkbox" class="debug-toggle" ${window.CCS_DEBUG ? 'checked' : ''}>
+          </div>
           <div class="setting-item">
             <label>显示模式：</label>
             <select class="mode-select">
@@ -1780,6 +1784,20 @@
           } else {
             hidePopover();
           }
+        });
+      }
+
+      // 调试日志开关
+      const debugToggle = settingsPanel.querySelector('.debug-toggle');
+      if (debugToggle) {
+        debugToggle.addEventListener('change', (e) => {
+          const enabled = !!e.target.checked;
+          window.CCS_DEBUG = enabled;
+          chrome.storage.local.set({ ccs_debug: enabled });
+          try { showToast(enabled ? '调试已开启' : '调试已关闭'); } catch (_) {}
+          console.log(`[触触搜] 调试日志已${enabled ? '开启' : '关闭'}。可在设置中随时切换。`);
+          // 同步到后台
+          try { chrome.runtime.sendMessage({ action: 'updateDebug', enabled }); } catch (_) {}
         });
       }
 
