@@ -1393,7 +1393,16 @@
         const range = selection.getRangeAt(0);
         const rect = range.getBoundingClientRect();
         showPopover(rect.left + window.scrollX, rect.bottom + window.scrollY, rect);
+      } else {
+        // 如果没有选中区域，显示在屏幕中央
+        const x = window.innerWidth / 2 + window.scrollX;
+        const y = window.innerHeight / 2 + window.scrollY;
+        showPopover(x, y);
       }
+    }
+    // 处理显示Toast提示
+    if (request.action === 'showToast') {
+      showContextMenuToast(request.message);
     }
   });
 
