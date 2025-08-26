@@ -1477,9 +1477,9 @@
           <div class="ccs-button-icon">${btn.icon}</div>
           <div class="ccs-button-label">${btn.title}</div>
         `;
-        // 初始hover提示包含完整文本
+        // 初始hover提示包含完整文本（无选中时优先URL/标题）
         try {
-          const initText = selectedText || lastNonEmptySelection || getSmartSearchText();
+          const initText = selectedText || getSmartSearchText() || lastNonEmptySelection;
           button.title = initText ? `${btn.title}: ${initText}` : btn.title;
         } catch (_) {
           button.title = btn.title;
@@ -1492,10 +1492,10 @@
           }
           btn.action(text);
         });
-        // 悬停时实时刷新tooltip，确保无选中文本时使用最新URL/标题
+        // 悬停时实时刷新tooltip，确保无选中文本时优先使用最新URL/标题
         button.addEventListener('mouseenter', () => {
           try {
-            const t = getActiveSelectionText() || lastNonEmptySelection || getSmartSearchText();
+            const t = getActiveSelectionText() || getSmartSearchText() || lastNonEmptySelection;
             button.title = t ? `${btn.title}: ${t}` : btn.title;
           } catch (_) {}
         });
