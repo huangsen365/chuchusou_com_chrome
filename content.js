@@ -48,15 +48,53 @@
         // 异步创建并显示，确保DOM已就绪
         setTimeout(() => {
           try {
-            if (!popover) createPopover();
-            const x = window.innerWidth / 2 + window.scrollX;
-            const y = window.innerHeight / 3 + window.scrollY;
-            forceShowPopover(x, y, null, { overrideSavedPosition: true });
+            ensureBottomBarVisible(true);
           } catch (e) { console.warn('[触触搜] 全局悬停模式自动显示失败:', e); }
         }, 0);
       }
     } catch (_) {}
   });
+
+  // 确保底部栏存在与可见（用于全局模式与SPA页面）
+  function ensureBottomBarVisible(force = false) {
+    try {
+      if (settings.globalDock && !settings.barClosed && settings.mode !== 'disabled' && !settings.isBlacklisted) {
+        if (force || !popover || !document.body.contains(popover)) {
+          createPopover();
+          const x = window.innerWidth / 2 + window.scrollX;
+          const y = window.innerHeight / 3 + window.scrollY;
+          forceShowPopover(x, y, null, { overrideSavedPosition: true });
+          console.log('[触触搜] ensureBottomBarVisible: created/shown');
+        } else {
+          // 确保固定在底部
+          try {
+            popover.style.position = 'fixed';
+            popover.style.left = '0';
+            popover.style.right = '0';
+            popover.style.bottom = '0';
+            popover.style.top = 'auto';
+            popover.style.width = '100%';
+            popover.style.display = 'block';
+            popover.style.visibility = 'visible';
+            popover.style.opacity = settings.opacity || '1';
+          } catch(_) {}
+        }
+      }
+    } catch (e) {
+      console.warn('[触触搜] ensureBottomBarVisible error:', e);
+    }
+  }
+
+  // 监听DOM变化，若底部栏应显示且被移除则重建
+  const ccsObserver = new MutationObserver(() => {
+    ensureBottomBarVisible(false);
+  });
+  try {
+    ccsObserver.observe(document.documentElement || document.body, { childList: true, subtree: true });
+  } catch (_) {}
+  window.addEventListener('pageshow', () => ensureBottomBarVisible(false));
+  window.addEventListener('popstate', () => ensureBottomBarVisible(false));
+  window.addEventListener('hashchange', () => ensureBottomBarVisible(false));
 
   // 检查当前网站是否在黑名单中
   function checkBlacklist() {
@@ -2355,7 +2393,7 @@
       // 如果有选中文本，隐藏popup让右键菜单处理
       const selection = window.getSelection();
       const text = selection.toString().trim();
-      if (text.length > 0 || popover) {
+      if ((text.length > 0 || popover) && settings.layout !== 'bottom') {
         hidePopover();
       }
       return; // 保留默认右键菜单
