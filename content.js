@@ -93,6 +93,14 @@
       }
     },
     {
+      id: 'chuchusou',
+      icon: '🌐',
+      title: '更多搜索',
+      action: (text) => {
+        window.open(`https://chuchusou.com/?q=${encodeURIComponent(text)}`, '_blank');
+      }
+    },
+    {
       id: 'copy',
       icon: '📝',
       title: '复制',
@@ -103,14 +111,6 @@
         } catch (err) {
           showToast('复制失败');
         }
-      }
-    },
-    {
-      id: 'chuchusou',
-      icon: '🌐',
-      title: '更多搜索',
-      action: (text) => {
-        window.open(`https://chuchusou.com/?q=${encodeURIComponent(text)}`, '_blank');
       }
     },
     {
