@@ -177,7 +177,7 @@
       if (!shadowRoot || !popover) return;
       const sel = getActiveSelectionText();
       if (sel) return; // 有选中文本时不覆盖
-      const t = getSmartSearchText();
+      const t = getRealtimePageTextPreferTitle();
       // 更新标题（若存在）
       const titleEl = shadowRoot.querySelector('.ccs-title');
       if (titleEl && t) {
@@ -1477,9 +1477,9 @@
           <div class="ccs-button-icon">${btn.icon}</div>
           <div class="ccs-button-label">${btn.title}</div>
         `;
-        // 初始hover提示包含完整文本（无选中时优先URL/标题）
+        // 初始hover提示包含完整文本（无选中时优先标题/URL）
         try {
-          const initText = selectedText || getSmartSearchText() || lastNonEmptySelection;
+          const initText = selectedText || getRealtimePageTextPreferTitle() || lastNonEmptySelection;
           button.title = initText ? `${btn.title}: ${initText}` : btn.title;
         } catch (_) {
           button.title = btn.title;
@@ -1492,10 +1492,15 @@
           }
           btn.action(text);
         });
-        // 悬停/指针进入/获得焦点时，强制实时刷新（优先URL/标题），并同步刷新整块UI标题
+        // 悬停/指针进入/获得焦点时，强制实时刷新（优先标题/URL），并同步刷新整块UI标题
         const refreshHover = () => {
           try {
-            const t = getActiveSelectionText() || getSmartSearchText() || lastNonEmptySelection;
+            // 节流，避免过多刷新
+            const now = Date.now();
+            const lastTs = parseInt(button.dataset.hovTs || '0', 10);
+            if (now - lastTs < 150) return;
+            button.dataset.hovTs = String(now);
+            const t = getActiveSelectionText() || getRealtimePageTextPreferTitle() || lastNonEmptySelection;
             button.title = t ? `${btn.title}: ${t}` : btn.title;
             // 同步更新其他按钮与标题，确保一致
             updateRealtimeFallbackUI();
@@ -3026,6 +3031,14 @@
     if (title) {
       return title.trim();
     }
+    return '';
+  }
+  // 实时页面文本（Hover/无选中时用）：优先标题，再回退到URL关键词
+  function getRealtimePageTextPreferTitle() {
+    const title = (document.title || '').trim();
+    if (title) return title;
+    const kw = extractSearchKeyword();
+    if (kw) return kw;
     return '';
   }
 
