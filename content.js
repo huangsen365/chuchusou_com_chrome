@@ -274,15 +274,8 @@
         // 文本显示由CSS省略控制，这里直接设全文
         titleEl.textContent = `🔍 触触搜: "${t}"`;
       }
-      // 更新所有按钮的tooltip - 使用统一的文本
-      // 包括普通按钮、迷你按钮和底部栏按钮
-      const allButtons = shadowRoot.querySelectorAll('.ccs-button, .ccs-bottom-buttons .ccs-button, .ccs-mini-buttons .ccs-button');
-      allButtons.forEach(el => {
-        const id = el.dataset.id;
-        const cfg = (id && defaultButtons.find(b => b.id === id)) || null;
-        const base = cfg ? cfg.title : '操作';
-        el.title = `${base}: ${t}`;
-      });
+      // 使用统一的函数更新所有按钮，确保data属性和tooltip一致
+      updateAllButtonsWithSameText(t);
     } catch (_) {}
   }
   function getActiveSelectionText() {
@@ -1645,21 +1638,26 @@
       buttonsToShow.forEach(btn => {
         const button = document.createElement('div');
         button.className = 'ccs-button';
-        // 存储id，便于后续根据按钮类型更新tooltip
+        // 存储id和button配置，便于后续根据按钮类型更新tooltip
         button.dataset.id = btn.id;
+        button.dataset.btnTitle = btn.title;
         button.innerHTML = `
           <div class="ccs-button-icon">${btn.icon}</div>
           <div class="ccs-button-label">${btn.title}</div>
         `;
         // 初始hover提示包含完整文本（使用统一函数）
+        // 同时存储文本到data属性，确保alt text和action使用相同值
         try {
           const initText = getCurrentSearchText();
+          button.dataset.searchText = initText || '';
           button.title = initText ? `${btn.title}: ${initText}` : btn.title;
         } catch (_) {
+          button.dataset.searchText = '';
           button.title = btn.title;
         }
         button.addEventListener('click', () => {
-          const text = getCurrentSearchText();
+          // 优先使用存储的文本值，确保与alt text一致
+          const text = button.dataset.searchText || getCurrentSearchText();
           if (!text) {
             try { showToast('没有可用的文本'); } catch (_) {}
             return;
@@ -1675,11 +1673,15 @@
             if (now - lastTs < 50) return; // 从150ms减少到50ms
             button.dataset.hovTs = String(now);
             
-            // 强制刷新，获取最新的实时值
+            // 强制刷新，获取最新的实时值，并存储到data属性
             const t = getCurrentSearchText(true); // 传递true强制刷新
+            button.dataset.searchText = t || '';
             button.title = t ? `${btn.title}: ${t}` : btn.title;
             
-            // 同步更新其他按钮与标题，确保一致，也强制刷新
+            // 同步更新其他按钮，使用相同的文本值
+            updateAllButtonsWithSameText(t);
+            
+            // 同步更新标题，确保一致
             updateRealtimeFallbackUI(true);
             
             if (window.CCS_DEBUG) console.log('[触触搜][DEBUG] hover实时刷新', { 
@@ -2343,6 +2345,20 @@
     }
   }
 
+  // 更新所有按钮使用相同的文本值，确保alt text和action一致
+  function updateAllButtonsWithSameText(text) {
+    if (!shadowRoot) return;
+    const buttons = shadowRoot.querySelectorAll('.ccs-button');
+    buttons.forEach(button => {
+      const btnTitle = button.dataset.btnTitle;
+      if (btnTitle) {
+        // 更新存储的文本值和tooltip
+        button.dataset.searchText = text || '';
+        button.title = text ? `${btnTitle}: ${text}` : btnTitle;
+      }
+    });
+  }
+
   // 显示popover
   function showPopover(x, y, selectionRect = null, options = {}) {
     if (settings.mode === 'disabled') {
@@ -2356,13 +2372,8 @@
     if (settings.mode === 'normal' && settings.layout === 'bottom' && popover && shadowRoot && window.getComputedStyle(popover).position === 'fixed') {
       try {
         const current = getCurrentSearchText();
-        const renderedButtons = shadowRoot.querySelectorAll('.ccs-button');
-        renderedButtons.forEach(el => {
-          const id = el.dataset.id;
-          const cfg = (id && defaultButtons.find(b => b.id === id)) || null;
-          const base = cfg ? cfg.title : '操作';
-          el.title = current ? `${base}: ${current}` : base;
-        });
+        // 使用统一的函数更新所有按钮，确保一致性
+        updateAllButtonsWithSameText(current);
         // 确保可见
         popover.style.display = 'block';
         popover.style.visibility = 'visible';
@@ -2403,13 +2414,8 @@
           titleEl.textContent = `🔍 触触搜: "${current}"`;
           titleEl.title = current;
         }
-        const renderedButtons = shadowRoot.querySelectorAll('.ccs-button');
-        renderedButtons.forEach(el => {
-          const id = el.dataset.id;
-          const cfg = (id && defaultButtons.find(b => b.id === id)) || null;
-          const base = cfg ? cfg.title : '操作';
-          el.title = current ? `${base}: ${current}` : base;
-        });
+        // 使用统一的函数更新所有按钮
+        updateAllButtonsWithSameText(current);
         // 确保可见
         popover.style.display = 'block';
         popover.style.visibility = 'visible';
@@ -2647,14 +2653,8 @@
           titleEl.textContent = `🔍 触触搜: "${current}"`;
           titleEl.title = current;
         }
-        // 更新各操作按钮的hover提示
-        const renderedButtons = shadowRoot.querySelectorAll('.ccs-button');
-        renderedButtons.forEach(el => {
-          const id = el.dataset.id;
-          const cfg = (id && defaultButtons.find(b => b.id === id)) || null;
-          const base = cfg ? cfg.title : '操作';
-          el.title = `${base}: ${current}`;
-        });
+        // 使用统一的函数更新所有按钮，确保data属性和tooltip一致
+        updateAllButtonsWithSameText(current);
       }
     }
   }
