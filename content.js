@@ -638,6 +638,7 @@
         <div class="ccs-bottom" data-draggable="false">
           <div class="ccs-bottom-buttons"></div>
           <div class="ccs-bottom-controls">
+            ${settings.globalDock ? '<span class="ccs-global-badge" title="悬停模式（全局）">全局</span>' : ''}
             <button class="ccs-undock" title="悬浮模式">↕️</button>
           </div>
         </div>
@@ -685,6 +686,10 @@
             <label>透明度：</label>
             <input type="range" class="opacity-slider" min="0.3" max="1" step="0.1" value="${settings.opacity}">
             <span class="opacity-value">${Math.round(settings.opacity * 100)}%</span>
+          </div>
+          <div class="setting-item">
+            <label>底部栏（全局）：</label>
+            <input type="checkbox" class="global-dock-toggle" ${settings.globalDock ? 'checked' : ''}>
           </div>
           <div class="setting-item">
             <label>当前网站：</label>
@@ -791,8 +796,8 @@
       .ccs-header-buttons { position: relative; }
       .ccs-dock-menu {
         position: absolute;
-        right: 68px; /* roughly left of mini/settings */
-        top: 28px;
+        right: 0;
+        top: 30px;
         background: white;
         color: #2d3748;
         border: 1px solid #e2e8f0;
@@ -800,8 +805,9 @@
         box-shadow: 0 6px 16px rgba(0,0,0,0.15);
         padding: 6px;
         display: none;
-        z-index: 20;
+        z-index: 9999;
       }
+      .ccs-header-buttons:hover .ccs-dock-menu { display: block; }
       .ccs-dock-menu button {
         display: block;
         width: 160px;
@@ -816,6 +822,17 @@
         cursor: pointer;
       }
       .ccs-dock-menu button:hover { background: #f7fafc; }
+
+      .ccs-global-badge {
+        display: inline-block;
+        background: rgba(255,255,255,0.85);
+        color: #4c51bf;
+        border: 1px solid rgba(226,232,240,0.9);
+        border-radius: 10px;
+        font-size: 10px;
+        padding: 2px 6px;
+        margin-right: 6px;
+      }
 
       .docked-bottom .ccs-header {
         cursor: default; /* 底部栏不拖拽 */
@@ -1141,6 +1158,11 @@
         background: white;
         cursor: pointer;
         flex-shrink: 0;
+      }
+      .setting-item input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
       }
 
       .current-host {
@@ -1561,9 +1583,23 @@
       });
     }
 
-    // 设置面板事件
-    const settingsPanel = shadowRoot.querySelector('.ccs-settings-panel');
-    if (settingsPanel) {
+      // 设置面板事件
+      const settingsPanel = shadowRoot.querySelector('.ccs-settings-panel');
+      if (settingsPanel) {
+      // 全局底部栏开关
+      const globalDockCheckbox = settingsPanel.querySelector('.global-dock-toggle');
+      if (globalDockCheckbox) {
+        globalDockCheckbox.addEventListener('change', (e) => {
+          settings.globalDock = e.target.checked;
+          saveSettings();
+          if (settings.globalDock) {
+            // 立即启用底部栏
+            settings.layout = 'bottom';
+            createPopover(true);
+            forceShowPopover(window.innerWidth / 2 + window.scrollX, window.innerHeight / 3 + window.scrollY, null, { overrideSavedPosition: true });
+          }
+        });
+      }
       // 模式选择
       const modeSelect = settingsPanel.querySelector('.mode-select');
       if (modeSelect) {
