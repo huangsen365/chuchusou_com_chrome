@@ -1669,8 +1669,8 @@
     
     console.log('[触触搜] showPopover 开始执行:', {x, y, selectedText, hasPopover: !!popover});
 
-    // 底部栏模式：若已存在，避免重建导致闪烁，仅更新提示与可见性
-    if (settings.layout === 'bottom' && popover && shadowRoot) {
+    // 底部栏模式：若已存在且已是fixed定位，避免重建导致闪烁，仅更新提示与可见性
+    if (settings.layout === 'bottom' && popover && shadowRoot && window.getComputedStyle(popover).position === 'fixed') {
       try {
         const current = selectedText || getSmartSearchText();
         const renderedButtons = shadowRoot.querySelectorAll('.ccs-button');
