@@ -3,8 +3,6 @@
   let shadowRoot = null;
   let selectedText = '';
   let lastNonEmptySelection = '';
-  // 页面会话级的临时停靠标记（不持久化）
-  let isTempDock = false;
   let settings = {
     mode: 'normal', // normal, mini, disabled
     theme: 'default',
@@ -21,6 +19,65 @@
   let isDragging = false;
   let dragOffset = { x: 0, y: 0 };
   let isProcessingSelection = false; // 防止选择处理重入
+
+  // 初始化 DockBar 模块
+  if (window.DockBar) {
+    window.DockBar.init(settings, {
+      onEnableGlobalDock: () => {
+        saveSettings();
+        createPopover(true);
+        const x = window.innerWidth / 2 + window.scrollX;
+        const y = window.innerHeight / 3 + window.scrollY;
+        forceShowPopover(x, y, null, { overrideSavedPosition: true });
+      },
+      onEnableTempDock: () => {
+        saveSettings();
+        createPopover(true);
+        const x = window.innerWidth / 2 + window.scrollX;
+        const y = window.innerHeight / 3 + window.scrollY;
+        forceShowPopover(x, y, null, { overrideSavedPosition: true });
+      },
+      onUndock: () => {
+        saveSettings();
+        const selection = window.getSelection();
+        const hasSelection = selection.rangeCount > 0 && selection.toString().trim().length > 0;
+        
+        if (hasSelection) {
+          createPopover(true);
+          const range = selection.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+          const x = rect.left + rect.width / 2 + window.scrollX;
+          const y = rect.bottom + window.scrollY;
+          forceShowPopover(x, y, rect, { overrideSavedPosition: true });
+        } else {
+          hidePopover();
+        }
+      },
+      onClose: () => {
+        saveSettings();
+        hidePopover();
+      },
+      onEnsureVisible: (force) => {
+        if (force || !popover || !document.body.contains(popover)) {
+          createPopover(true);
+          const x = window.innerWidth / 2 + window.scrollX;
+          const y = window.innerHeight / 3 + window.scrollY;
+          forceShowPopover(x, y, null, { overrideSavedPosition: true });
+          console.log('[触触搜] ensureBottomBarVisible: 重新创建并显示底部栏');
+        } else if (popover) {
+          popover.style.display = 'block';
+          popover.style.visibility = 'visible';
+        }
+      },
+      onInitDockBar: () => {
+        createPopover(true);
+        const x = window.innerWidth / 2 + window.scrollX;
+        const y = window.innerHeight / 3 + window.scrollY;
+        forceShowPopover(x, y, null, { overrideSavedPosition: true });
+        scheduleRealtimeUpdate();
+      }
+    });
+  }
 
   // 初始化：加载用户设置 + 调试开关
   chrome.storage.local.get(['ccs_settings', 'ccs_debug'], (result) => {
@@ -62,82 +119,64 @@
       shouldShow: settings.globalDock && settings.mode === 'normal' && !settings.isBlacklisted && !settings.barClosed
     });
     
-    // 定义显示dock bar的函数（现在不自动调用，由Alt+S触发）
-    const initDockBar = () => {
-      if (settings.mode === 'normal' && !settings.isBlacklisted) {
-        settings.layout = 'bottom';
-        settings.globalDock = true;
-        settings.barClosed = false;
-        // 保存布局设置
-        chrome.storage.local.set({ ccs_settings: settings });
-        
-        console.log('[触触搜] 初始化底部栏...');
-        // 创建并显示dock bar
-        createPopover(true);
-        const x = window.innerWidth / 2 + window.scrollX;
-        const y = window.innerHeight / 3 + window.scrollY;
-        forceShowPopover(x, y, null, { overrideSavedPosition: true });
-        
-        // 启动实时更新
-        scheduleRealtimeUpdate();
-        
-        // 设置定期检查，确保dock bar保持可见
-        setInterval(() => {
-          if (settings.globalDock && !settings.barClosed && settings.mode === 'normal' && !settings.isBlacklisted) {
-            ensureBottomBarVisible();
-          }
-        }, 1000);
+    // 使用 DockBar 模块的初始化函数
+    window.__initDockBar = () => {
+      if (window.DockBar) {
+        window.DockBar.initDockBar();
       }
     };
-    
-    // 不再自动初始化，改为由快捷键触发
-    // 保存initDockBar函数到全局，供快捷键调用
-    window.__initDockBar = initDockBar;
   });
 
-  // 确保底部栏存在与可见（用于全局模式与SPA页面）
+  // 确保底部栏存在与可见（委托给 DockBar 模块）
   function ensureBottomBarVisible(force = false) {
-    try {
-      if (settings.globalDock && !settings.barClosed && settings.mode === 'normal' && !settings.isBlacklisted) {
-        settings.layout = 'bottom'; // 始终确保布局正确
-        
-        if (force || !popover || !document.body.contains(popover)) {
-          createPopover(true); // 保留文本
-          const x = window.innerWidth / 2 + window.scrollX;
-          const y = window.innerHeight / 3 + window.scrollY;
-          forceShowPopover(x, y, null, { overrideSavedPosition: true });
-          console.log('[触触搜] ensureBottomBarVisible: 重新创建并显示底部栏');
+    if (window.DockBar) {
+      window.DockBar.ensureBottomBarVisible(force);
+    } else {
+      // 后备实现（如果 DockBar 未加载）
+      try {
+        if (settings.globalDock && !settings.barClosed && settings.mode === 'normal' && !settings.isBlacklisted) {
+          settings.layout = 'bottom';
+          
+          if (force || !popover || !document.body.contains(popover)) {
+            createPopover(true);
+            const x = window.innerWidth / 2 + window.scrollX;
+            const y = window.innerHeight / 3 + window.scrollY;
+            forceShowPopover(x, y, null, { overrideSavedPosition: true });
+            console.log('[触触搜] ensureBottomBarVisible: 重新创建并显示底部栏');
+          }
           
           // 重新启动实时更新
           scheduleRealtimeUpdate();
         } else {
           // 确保固定在底部并且可见
-          try {
-            popover.style.position = 'fixed';
-            popover.style.left = '0';
-            popover.style.right = '0';
-            popover.style.bottom = '0';
-            popover.style.top = 'auto';
-            popover.style.width = '100%';
-            popover.style.display = 'block';
-            popover.style.visibility = 'visible';
-            popover.style.opacity = settings.opacity || '1';
-            // 允许点击穿透到底层页面
-            popover.style.pointerEvents = 'none';
-            
-            // 确保shadow DOM内容也可见
-            if (shadowRoot) {
-              const wrapper = shadowRoot.querySelector('.ccs-wrapper');
-              if (wrapper) {
-                wrapper.style.display = 'block';
-                wrapper.style.visibility = 'visible';
+          if (popover) {
+            try {
+              popover.style.position = 'fixed';
+              popover.style.left = '0';
+              popover.style.right = '0';
+              popover.style.bottom = '0';
+              popover.style.top = 'auto';
+              popover.style.width = '100%';
+              popover.style.display = 'block';
+              popover.style.visibility = 'visible';
+              popover.style.opacity = settings.opacity || '1';
+              // 允许点击穿透到底层页面
+              popover.style.pointerEvents = 'none';
+              
+              // 确保shadow DOM内容也可见
+              if (shadowRoot) {
+                const wrapper = shadowRoot.querySelector('.ccs-wrapper');
+                if (wrapper) {
+                  wrapper.style.display = 'block';
+                  wrapper.style.visibility = 'visible';
+                }
               }
-            }
-          } catch(_) {}
+            } catch(_) {}
+          }
         }
+      } catch (e) {
+        console.warn('[触触搜] ensureBottomBarVisible error:', e);
       }
-    } catch (e) {
-      console.warn('[触触搜] ensureBottomBarVisible error:', e);
     }
   }
 
@@ -981,19 +1020,24 @@
         <div class="ccs-toast"></div>
       `;
     } else if (settings.mode === 'normal' && settings.layout === 'bottom') {
-      // 底部停靠布局：不显示标题/页脚，仅显示按钮和控制
-      const badgeHtml = settings.globalDock ? '<span class="ccs-global-badge" title="悬停模式（全局）">全局</span>' : (isTempDock ? '<span class="ccs-temp-badge" title="悬停模式（临时）">临时</span>' : '');
-      wrapper.innerHTML = `
-        <div class="ccs-bottom" data-draggable="false">
-          <div class="ccs-bottom-buttons"></div>
-          <div class="ccs-bottom-controls">
-            ${badgeHtml}
-            <button class="ccs-close-bottom" title="关闭底部栏">✕</button>
-            <button class="ccs-undock" title="悬浮模式">↕️</button>
+      // 使用 DockBar 模块生成底部停靠布局
+      if (window.DockBar) {
+        wrapper.innerHTML = window.DockBar.createDockBarHTML(displayText) + '<div class="ccs-toast"></div>';
+      } else {
+        // 后备实现
+        const badgeHtml = settings.globalDock ? '<span class="ccs-global-badge" title="悬停模式（全局）">全局</span>' : '';
+        wrapper.innerHTML = `
+          <div class="ccs-bottom" data-draggable="false">
+            <div class="ccs-bottom-buttons"></div>
+            <div class="ccs-bottom-controls">
+              ${badgeHtml}
+              <button class="ccs-close-bottom" title="关闭底部栏">✕</button>
+              <button class="ccs-undock" title="悬浮模式">↕️</button>
+            </div>
           </div>
-        </div>
-        <div class="ccs-toast"></div>
-      `;
+          <div class="ccs-toast"></div>
+        `;
+      }
     } else {
       // 普通模式HTML - 标题显示选中的文本
       const isDocked = false;
@@ -1001,12 +1045,14 @@
         <div class="ccs-header" data-draggable="true">
           <span class="ccs-title">${displayText}</span>
           <div class="ccs-header-buttons">
-            <button class="ccs-dock-toggle" title="底部栏">📌</button>
-            <div class="ccs-dock-menu" style="display:none;">
-              <button class="ccs-dock-global">开启底部栏（全局）</button>
-              <button class="ccs-dock-temp">开启底部栏（当前页）</button>
-              <div class="ccs-dock-shortcut">打开触触搜面板 (Alt+S)</div>
-            </div>
+            ${window.DockBar ? window.DockBar.createDockMenuHTML() : `
+              <button class="ccs-dock-toggle" title="底部栏">📌</button>
+              <div class="ccs-dock-menu" style="display:none;">
+                <button class="ccs-dock-global">开启底部栏（全局）</button>
+                <button class="ccs-dock-temp">开启底部栏（当前页）</button>
+                <div class="ccs-dock-shortcut">打开触触搜面板 (Alt+S)</div>
+              </div>
+            `}
             <button class="ccs-mini" title="迷你模式">📐</button>
             <button class="ccs-settings" title="设置">⚙️</button>
             <button class="ccs-close" title="关闭">✕</button>
@@ -1073,8 +1119,9 @@
       `;
     }
 
-    // 添加样式
+    // 添加样式（包括 DockBar 模块的样式）
     const style = document.createElement('style');
+    const dockBarStyles = window.DockBar ? window.DockBar.getStyles() : '';
     style.textContent = `
       * {
         box-sizing: border-box;
@@ -1625,6 +1672,8 @@
         padding-top: 12px;
         border-top: 1px solid #e2e8f0;
       }
+      
+      ${dockBarStyles}
     `;
 
     shadowRoot.appendChild(style);
@@ -1971,117 +2020,67 @@
       settingsBtn.addEventListener('click', toggleSettings);
     }
 
-    // 底部栏切换
-    const dockToggle = shadowRoot.querySelector('.ccs-dock-toggle');
-    const dockMenu = shadowRoot.querySelector('.ccs-dock-menu');
-    if (dockToggle) {
-      // 默认点击：开启悬停模式（全局）
-      dockToggle.addEventListener('click', () => {
-        settings.globalDock = true;
-        settings.layout = 'bottom';
-        settings.mode = 'normal'; // 确保使用普通模式以显示底部栏
-        isTempDock = false;
-        settings.barClosed = false; // 确保启用
-        saveSettings();
-        createPopover(true);
-        const selection = window.getSelection();
-        let x = window.innerWidth / 2 + window.scrollX;
-        let y = window.innerHeight / 3 + window.scrollY;
-        let rect = null;
-        if (selection && selection.rangeCount > 0 && selection.toString().trim()) {
-          const range = selection.getRangeAt(0);
-          rect = range.getBoundingClientRect();
-          x = rect.left + rect.width / 2 + window.scrollX;
-          y = rect.bottom + window.scrollY;
-        }
-        forceShowPopover(x, y, rect, { overrideSavedPosition: true });
-      });
-      // 悬停显示菜单
-      let dockMenuTimer = null;
-      const showDockMenu = () => {
-        clearTimeout(dockMenuTimer);
-        if (dockMenu) dockMenu.style.display = 'block';
-      };
-      const hideDockMenu = () => {
-        clearTimeout(dockMenuTimer);
-        dockMenuTimer = setTimeout(() => { if (dockMenu) dockMenu.style.display = 'none'; }, 150);
-      };
-      dockToggle.addEventListener('mouseenter', showDockMenu);
-      dockToggle.addEventListener('mouseleave', hideDockMenu);
-      if (dockMenu) {
-        dockMenu.addEventListener('mouseenter', showDockMenu);
-        dockMenu.addEventListener('mouseleave', hideDockMenu);
-        const globalBtn = dockMenu.querySelector('.ccs-dock-global');
-        const tempBtn = dockMenu.querySelector('.ccs-dock-temp');
-        if (globalBtn) {
-          globalBtn.addEventListener('click', () => {
-            console.log('[触触搜] 点击全局底部栏按钮');
-            settings.globalDock = true;
-            settings.layout = 'bottom';
-            settings.mode = 'normal'; // 确保普通模式
-            isTempDock = false;
-            settings.barClosed = false;
-            saveSettings();
-            createPopover(true);
-            forceShowPopover(window.innerWidth / 2 + window.scrollX, window.innerHeight / 3 + window.scrollY, null, { overrideSavedPosition: true });
-            if (dockMenu) dockMenu.style.display = 'none';
-          });
-        }
-        if (tempBtn) {
-          tempBtn.addEventListener('click', () => {
-            console.log('[触触搜] 点击当前页底部栏按钮');
-            // 开启底部栏（当前页）- 但也保存全局设置以便记住状态
-            settings.globalDock = true; // 保存为全局开启
-            settings.layout = 'bottom';
-            settings.mode = 'normal'; // 确保普通模式
-            isTempDock = false; // 不使用临时标记
-            settings.barClosed = false;
-            saveSettings(); // 保存设置以记住状态
-            createPopover(true);
-            forceShowPopover(window.innerWidth / 2 + window.scrollX, window.innerHeight / 3 + window.scrollY, null, { overrideSavedPosition: true });
-            if (dockMenu) dockMenu.style.display = 'none';
-          });
-        }
-      }
-    }
-
-    // 底部栏：解除停靠按钮
-    const undockBtn = shadowRoot.querySelector('.ccs-undock');
-    if (undockBtn) {
-      undockBtn.addEventListener('click', () => {
-        // 从底部悬停模式切换到弹出（浮动）模式
-        // 要求：切换后若无选区，保持隐藏；并将全局悬停关掉（持久化），以便其它页面保持一致模式
-        settings.layout = 'float';
-        settings.globalDock = false; // 关闭全局悬停（持久化）
-        isTempDock = false; // 清除临时标记
-        settings.position = null; // 清除保存的位置，确保重新定位
-        saveSettings();
-
-        const selection = window.getSelection();
-        const hasSelection = !!(selection && selection.rangeCount > 0 && selection.toString().trim());
-        if (hasSelection) {
-          // 仅在有选中时显示 Popover
+    // 使用 DockBar 模块绑定事件
+    if (window.DockBar) {
+      window.DockBar.bindDockBarEvents(shadowRoot);
+    } else {
+      // 后备实现：底部栏切换
+      const dockToggle = shadowRoot.querySelector('.ccs-dock-toggle');
+      const dockMenu = shadowRoot.querySelector('.ccs-dock-menu');
+      if (dockToggle) {
+        dockToggle.addEventListener('click', () => {
+          settings.globalDock = true;
+          settings.layout = 'bottom';
+          settings.mode = 'normal';
+          settings.barClosed = false;
+          saveSettings();
           createPopover(true);
-          const range = selection.getRangeAt(0);
-          const rect = range.getBoundingClientRect();
-          const x = rect.left + rect.width / 2 + window.scrollX;
-          const y = rect.bottom + window.scrollY;
+          const selection = window.getSelection();
+          let x = window.innerWidth / 2 + window.scrollX;
+          let y = window.innerHeight / 3 + window.scrollY;
+          let rect = null;
+          if (selection && selection.rangeCount > 0 && selection.toString().trim()) {
+            const range = selection.getRangeAt(0);
+            rect = range.getBoundingClientRect();
+            x = rect.left + rect.width / 2 + window.scrollX;
+            y = rect.bottom + window.scrollY;
+          }
           forceShowPopover(x, y, rect, { overrideSavedPosition: true });
-        } else {
-          // 无选中：隐藏并等待用户双击或键盘扩展选择后再显示
+        });
+      }
+      
+      // 底部栏：解除停靠按钮
+      const undockBtn = shadowRoot.querySelector('.ccs-undock');
+      if (undockBtn) {
+        undockBtn.addEventListener('click', () => {
+          settings.layout = 'float';
+          settings.globalDock = false;
+          settings.position = null;
+          saveSettings();
+          const selection = window.getSelection();
+          const hasSelection = !!(selection && selection.rangeCount > 0 && selection.toString().trim());
+          if (hasSelection) {
+            createPopover(true);
+            const range = selection.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            const x = rect.left + rect.width / 2 + window.scrollX;
+            const y = rect.bottom + window.scrollY;
+            forceShowPopover(x, y, rect, { overrideSavedPosition: true });
+          } else {
+            hidePopover();
+          }
+        });
+      }
+      
+      // 关闭底部栏按钮
+      const closeBottomBtn = shadowRoot.querySelector('.ccs-close-bottom');
+      if (closeBottomBtn) {
+        closeBottomBtn.addEventListener('click', () => {
+          settings.barClosed = true;
+          saveSettings();
           hidePopover();
-        }
-      });
-    }
-    const closeBottomBtn = shadowRoot.querySelector('.ccs-close-bottom');
-    if (closeBottomBtn) {
-      closeBottomBtn.addEventListener('click', () => {
-        settings.barClosed = true; // 全局关闭优先
-        // 关闭底部栏也应清空临时标记
-        isTempDock = false;
-        saveSettings();
-        hidePopover();
-      });
+        });
+      }
     }
 
       // 设置面板事件
@@ -2098,7 +2097,7 @@
             settings.globalDock = true;
             settings.layout = 'bottom';
             settings.mode = 'normal'; // 确保普通模式
-            isTempDock = false;
+            if (window.DockBar) window.DockBar.setTempDock(false);
             saveSettings();
             createPopover(true);
             forceShowPopover(window.innerWidth / 2 + window.scrollX, window.innerHeight / 3 + window.scrollY, null, { overrideSavedPosition: true });
@@ -2132,13 +2131,14 @@
           if (settings.globalDock) {
             // 立即启用底部栏
             settings.layout = 'bottom';
-            isTempDock = false;
+            if (window.DockBar) window.DockBar.setTempDock(false);
             settings.barClosed = false;
             createPopover(true);
             forceShowPopover(window.innerWidth / 2 + window.scrollX, window.innerHeight / 3 + window.scrollY, null, { overrideSavedPosition: true });
           } else {
             // 关闭全局：如果当前是底部栏但非临时，切回悬浮
-            if (settings.layout === 'bottom' && !isTempDock) {
+            const tempDock = window.DockBar ? window.DockBar.state.isTempDock : false;
+            if (settings.layout === 'bottom' && !tempDock) {
               settings.layout = 'float';
               // 清除保存的位置，确保重新定位
               settings.position = null;
