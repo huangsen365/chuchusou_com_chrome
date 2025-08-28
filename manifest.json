@@ -23,6 +23,11 @@
         "modules/utils.js",
         "modules/toast.js",
         "modules/settings.js",
+        "modules/selection.js",
+        "modules/buttons.js",
+        "modules/search.js",
+        "modules/shortcuts.js",
+        "modules/dragging.js",
         "dockbar.js",
         "content.js"
       ],
