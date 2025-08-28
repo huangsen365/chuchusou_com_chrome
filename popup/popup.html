@@ -58,7 +58,7 @@
           </li>
           <li>
             <span class="feature-icon">⌨️</span>
-            <span>快捷键：<kbd>Ctrl+Shift+S</kbd> 或 <kbd>Alt+S</kbd> 智能搜索</span>
+            <span>快捷键：<kbd>Alt+S</kbd> 切换面板（可自定义）</span>
           </li>
           <li>
             <span class="feature-icon">⚡</span>
@@ -128,7 +128,27 @@
             <span class="shortcut-icon">🐞</span>
             <span class="shortcut-label">调试日志：关</span>
           </button>
+          <button class="shortcut-btn" data-action="shortcut-settings">
+            <span class="shortcut-icon">⌨️</span>
+            <span class="shortcut-label">快捷键设置</span>
+          </button>
         </div>
+      </section>
+
+      <section class="shortcut-settings-section" style="display: none;">
+        <h2>快捷键设置</h2>
+        <div class="shortcut-settings">
+          <label>切换面板快捷键：</label>
+          <select class="shortcut-key-select">
+            <option value="Alt+S">Alt+S（默认）</option>
+            <option value="Ctrl+Shift+S">Ctrl+Shift+S</option>
+            <option value="Alt+Shift+S">Alt+Shift+S</option>
+            <option value="Ctrl+Alt+S">Ctrl+Alt+S</option>
+            <option value="Alt+Q">Alt+Q</option>
+            <option value="Alt+E">Alt+E</option>
+          </select>
+        </div>
+        <button class="save-shortcut">保存设置</button>
       </section>
 
       <section class="blacklist-section" style="display: none;">
@@ -139,7 +159,7 @@
         </div>
         <div class="blacklist-list"></div>
         <div class="blacklist-tips">
-          💡 黑名单网站恢复：<kbd>Alt+右键</kbd> / <kbd>Ctrl+Shift+S</kbd> / <kbd>Alt+S</kbd>
+          💡 黑名单网站恢复：<kbd>Alt+右键</kbd> / <kbd>Alt+S</kbd>
         </div>
       </section>
     </main>

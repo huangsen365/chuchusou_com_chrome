@@ -26,6 +26,9 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'debug':
           toggleDebug();
           break;
+        case 'shortcut-settings':
+          toggleShortcutSettings();
+          break;
       }
     });
   });
@@ -55,6 +58,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 初始化黑名单
   loadBlacklist();
+  
+  // 初始化快捷键设置
+  initShortcutSettings();
 });
 
 // 切换插件启用/禁用状态
@@ -400,4 +406,67 @@ function showToast(message) {
       style.remove();
     }, 300);
   }, 2000);
+}
+
+// 初始化快捷键设置
+function initShortcutSettings() {
+  // 加载当前快捷键设置
+  chrome.storage.local.get(['ccs_settings'], (result) => {
+    const settings = result.ccs_settings || {};
+    const shortcutKey = settings.shortcutKey || 'Alt+S';
+    
+    const select = document.querySelector('.shortcut-key-select');
+    if (select) {
+      select.value = shortcutKey;
+    }
+  });
+  
+  // 绑定保存按钮
+  const saveBtn = document.querySelector('.save-shortcut');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', saveShortcutSettings);
+  }
+}
+
+// 切换快捷键设置界面
+function toggleShortcutSettings() {
+  const shortcutSection = document.querySelector('.shortcut-settings-section');
+  const commandSection = document.querySelector('.command-section');
+  const blacklistSection = document.querySelector('.blacklist-section');
+  
+  if (shortcutSection.style.display === 'none') {
+    shortcutSection.style.display = 'block';
+    commandSection.style.display = 'none';
+    blacklistSection.style.display = 'none';
+  } else {
+    shortcutSection.style.display = 'none';
+    commandSection.style.display = 'block';
+  }
+}
+
+// 保存快捷键设置
+function saveShortcutSettings() {
+  const select = document.querySelector('.shortcut-key-select');
+  if (!select) return;
+  
+  const newShortcut = select.value;
+  
+  chrome.storage.local.get(['ccs_settings'], (result) => {
+    const settings = result.ccs_settings || {};
+    settings.shortcutKey = newShortcut;
+    
+    chrome.storage.local.set({ ccs_settings: settings }, () => {
+      showToast('快捷键已更新为: ' + newShortcut);
+      
+      // 通知所有标签页更新快捷键
+      chrome.tabs.query({}, (tabs) => {
+        tabs.forEach(tab => {
+          chrome.tabs.sendMessage(tab.id, {
+            action: 'updateShortcut',
+            shortcutKey: newShortcut
+          }).catch(() => {});
+        });
+      });
+    });
+  });
 }

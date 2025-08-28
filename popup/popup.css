@@ -243,6 +243,61 @@ h2 {
   font-size: 18px;
 }
 
+/* 快捷键设置部分 */
+.shortcut-settings-section {
+  margin-bottom: 20px;
+}
+
+.shortcut-settings {
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.shortcut-settings label {
+  font-size: 14px;
+  color: #4a5568;
+}
+
+.shortcut-key-select {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.shortcut-key-select:hover {
+  border-color: #667eea;
+}
+
+.shortcut-key-select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.save-shortcut {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.save-shortcut:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
 /* 滚动条样式 */
 .popup-main::-webkit-scrollbar {
   width: 6px;

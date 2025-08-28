@@ -15,7 +15,8 @@
     barClosed: false, // 全局关闭底部栏（优先级最高）
     blacklist: [],
     isBlacklisted: false, // 当前页面是否在黑名单中
-    miniButtons: ['baidu', 'google', 'chuchusou', 'copy', 'lowercase'] // Mini模式默认按钮，包含大小写与搜索
+    miniButtons: ['baidu', 'google', 'chuchusou', 'copy', 'lowercase'], // Mini模式默认按钮，包含大小写与搜索
+    shortcutKey: 'Alt+S' // 可自定义快捷键，默认为Alt+S
   };
   let isDragging = false;
   let dragOffset = { x: 0, y: 0 };
@@ -61,10 +62,12 @@
       shouldShow: settings.globalDock && settings.mode === 'normal' && !settings.isBlacklisted && !settings.barClosed
     });
     
-    // 定义显示dock bar的函数
+    // 定义显示dock bar的函数（现在不自动调用，由Alt+S触发）
     const initDockBar = () => {
-      if (settings.globalDock && settings.mode === 'normal' && !settings.isBlacklisted && !settings.barClosed) {
+      if (settings.mode === 'normal' && !settings.isBlacklisted) {
         settings.layout = 'bottom';
+        settings.globalDock = true;
+        settings.barClosed = false;
         // 保存布局设置
         chrome.storage.local.set({ ccs_settings: settings });
         
@@ -87,18 +90,9 @@
       }
     };
     
-    // 确保在合适的时机初始化
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(initDockBar, 200); // 给页面更多时间完成初始化
-      });
-    } else if (document.readyState === 'interactive') {
-      // DOM解析完成但资源还在加载
-      setTimeout(initDockBar, 300);
-    } else {
-      // 页面已完全加载
-      setTimeout(initDockBar, 100);
-    }
+    // 不再自动初始化，改为由快捷键触发
+    // 保存initDockBar函数到全局，供快捷键调用
+    window.__initDockBar = initDockBar;
   });
 
   // 确保底部栏存在与可见（用于全局模式与SPA页面）
@@ -561,6 +555,14 @@
         window.open(`https://www.google.com/search?q=${encodeURIComponent(text)}`, '_blank');
       }
     },
+	{
+      id: 'chatgpt',
+      icon: '🌐',
+      title: 'ChatGPT',
+      action: (text) => {
+        window.open(`https://chatgpt.com/?prompt=${encodeURIComponent(text)}`, '_blank');
+      }
+    },
     {
       id: 'chuchusou',
       icon: '🌐',
@@ -1003,7 +1005,7 @@
             <div class="ccs-dock-menu" style="display:none;">
               <button class="ccs-dock-global">开启底部栏（全局）</button>
               <button class="ccs-dock-temp">开启底部栏（当前页）</button>
-              <div class="ccs-dock-shortcut">打开触触搜面板 (Ctrl+Shift+S)</div>
+              <div class="ccs-dock-shortcut">打开触触搜面板 (Alt+S)</div>
             </div>
             <button class="ccs-mini" title="迷你模式">📐</button>
             <button class="ccs-settings" title="设置">⚙️</button>
@@ -1047,6 +1049,17 @@
           <div class="setting-item">
             <label>底部栏（全局）：</label>
             <input type="checkbox" class="global-dock-toggle" ${settings.globalDock ? 'checked' : ''}>
+          </div>
+          <div class="setting-item">
+            <label>快捷键：</label>
+            <select class="shortcut-select">
+              <option value="Alt+S" ${settings.shortcutKey === 'Alt+S' ? 'selected' : ''}>Alt+S（默认）</option>
+              <option value="Ctrl+Shift+S" ${settings.shortcutKey === 'Ctrl+Shift+S' ? 'selected' : ''}>Ctrl+Shift+S</option>
+              <option value="Alt+Shift+S" ${settings.shortcutKey === 'Alt+Shift+S' ? 'selected' : ''}>Alt+Shift+S</option>
+              <option value="Ctrl+Alt+S" ${settings.shortcutKey === 'Ctrl+Alt+S' ? 'selected' : ''}>Ctrl+Alt+S</option>
+              <option value="Alt+Q" ${settings.shortcutKey === 'Alt+Q' ? 'selected' : ''}>Alt+Q</option>
+              <option value="Alt+E" ${settings.shortcutKey === 'Alt+E' ? 'selected' : ''}>Alt+E</option>
+            </select>
           </div>
           <div class="setting-item">
             <label>当前网站：</label>
@@ -1656,8 +1669,8 @@
           button.title = btn.title;
         }
         button.addEventListener('click', () => {
-          // 优先使用存储的文本值，确保与alt text一致
-          const text = button.dataset.searchText || getCurrentSearchText();
+          // 点击时重新同步文本，确保使用最新值
+          const text = syncAllTextVariables();
           if (!text) {
             try { showToast('没有可用的文本'); } catch (_) {}
             return;
@@ -1673,13 +1686,8 @@
             if (now - lastTs < 50) return; // 从150ms减少到50ms
             button.dataset.hovTs = String(now);
             
-            // 强制刷新，获取最新的实时值，并存储到data属性
-            const t = getCurrentSearchText(true); // 传递true强制刷新
-            button.dataset.searchText = t || '';
-            button.title = t ? `${btn.title}: ${t}` : btn.title;
-            
-            // 同步更新其他按钮，使用相同的文本值
-            updateAllButtonsWithSameText(t);
+            // 使用统一的同步函数，确保所有变量一致
+            const t = syncAllTextVariables();
             
             // 同步更新标题，确保一致
             updateRealtimeFallbackUI(true);
@@ -2152,6 +2160,17 @@
           }
         });
       }
+      
+      // 快捷键选择
+      const shortcutSelect = settingsPanel.querySelector('.shortcut-select');
+      if (shortcutSelect) {
+        shortcutSelect.addEventListener('change', (e) => {
+          settings.shortcutKey = e.target.value;
+          saveSettings();
+          showToast('快捷键已更改为: ' + settings.shortcutKey);
+        });
+      }
+      
       // 模式选择
       const modeSelect = settingsPanel.querySelector('.mode-select');
       if (modeSelect) {
@@ -2346,6 +2365,35 @@
   }
 
   // 更新所有按钮使用相同的文本值，确保alt text和action一致
+  // 统一同步所有文本相关变量
+  function syncAllTextVariables() {
+    // 使用统一函数获取最新的文本（强制刷新，跳过缓存）
+    const latestText = getUnifiedSearchText({ forceRefresh: true, skipCache: true });
+    
+    // 更新全局变量，确保后续使用时优先级一致
+    selectedText = latestText || '';
+    
+    // 更新最近的非空选择（如果有新的选中文本）
+    const currentSelection = getActiveSelectionText();
+    if (currentSelection) {
+      lastNonEmptySelection = currentSelection;
+    }
+    
+    // 更新输入框（如果存在）
+    if (shadowRoot) {
+      const input = shadowRoot.querySelector('.ccs-input');
+      if (input) {
+        input.value = selectedText;
+      }
+    }
+    
+    // 更新所有按钮的文本和tooltip
+    updateAllButtonsWithSameText(selectedText);
+    
+    // 返回同步后的文本
+    return selectedText;
+  }
+
   function updateAllButtonsWithSameText(text) {
     if (!shadowRoot) return;
     const buttons = shadowRoot.querySelectorAll('.ccs-button');
@@ -2759,6 +2807,29 @@
   // 调试模式开关（默认开启，便于排查问题；可在设置或控制台调整）
   window.CCS_DEBUG = true;
   
+  // 解析快捷键字符串并检查是否匹配当前按键
+  function matchesShortcut(e, shortcutStr) {
+    const parts = shortcutStr.toLowerCase().split('+');
+    const key = parts[parts.length - 1];
+    const modifiers = parts.slice(0, -1);
+    
+    // 检查按键是否匹配
+    if (e.key.toLowerCase() !== key.toLowerCase()) {
+      return false;
+    }
+    
+    // 检查修饰键
+    const hasCtrl = modifiers.includes('ctrl') || modifiers.includes('control');
+    const hasAlt = modifiers.includes('alt');
+    const hasShift = modifiers.includes('shift');
+    const hasMeta = modifiers.includes('meta') || modifiers.includes('cmd') || modifiers.includes('command');
+    
+    return e.ctrlKey === hasCtrl && 
+           e.altKey === hasAlt && 
+           e.shiftKey === hasShift && 
+           e.metaKey === hasMeta;
+  }
+
   // 处理快捷键的统一函数
   function handleSearchShortcut(e) {
     // 调试：记录所有按键事件
@@ -2778,53 +2849,77 @@
       });
     }
     
-    // 检查 Ctrl+Shift+S - 用于切换持久化底部栏
-    const isCtrlShiftS = e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's');
-    // 检查 Alt+S - 用于显示浮动搜索框
-    const isAltS = e.altKey && !e.ctrlKey && !e.shiftKey && (e.key === 'S' || e.key === 's');
+    // 检查自定义快捷键（默认Alt+S）
+    const isCustomShortcut = matchesShortcut(e, settings.shortcutKey || 'Alt+S');
+    // 检查备用快捷键（兼容旧版本）
+    const isLegacyShortcut = matchesShortcut(e, 'Ctrl+Shift+S');
 
-    // Ctrl+Shift+S: 切换持久化底部栏
-    if (isCtrlShiftS) {
+    // 自定义快捷键: 切换面板
+    if (isCustomShortcut) {
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
       
-      console.log('[触触搜] Ctrl+Shift+S: 切换持久化底部栏');
+      console.log('[触触搜] 快捷键触发: ' + (settings.shortcutKey || 'Alt+S'));
       
-      // 切换globalDock设置
-      settings.globalDock = !settings.globalDock;
-      
-      if (settings.globalDock) {
-        // 开启底部栏
+      // 新的切换逻辑：
+      if (popover) {
+        // 面板存在，检查是否可见
+        const computedStyle = window.getComputedStyle(popover);
+        const isVisible = popover.style.display !== 'none' && computedStyle.display !== 'none';
+        
+        if (isVisible) {
+          // 如果可见，隐藏它（但不删除）
+          console.log('[触触搜] 隐藏面板');
+          popover.style.display = 'none';
+          // 同时更新设置，记住面板被关闭了
+          settings.barClosed = true;
+          saveSettings();
+        } else {
+          // 如果不可见，显示它
+          console.log('[触触搜] 显示已存在的面板');
+          popover.style.display = 'block';
+          popover.style.opacity = '1';
+          popover.style.transform = 'scale(1)';
+          // 更新设置，记住面板被打开了
+          settings.barClosed = false;
+          saveSettings();
+          
+          // 同步所有文本变量，确保一致性
+          const syncedText = syncAllTextVariables();
+          console.log('[触触搜] 文本同步完成:', syncedText || '(空)');
+        }
+      } else {
+        // 面板不存在，创建并显示底部栏
+        console.log('[触触搜] 创建新的底部栏面板');
+        
+        // 获取选中的文本（如果有）
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0 && selection.toString().trim()) {
+          selectedText = selection.toString().trim();
+        } else {
+          // 没有选中文本时，使用空字符串或默认文本
+          selectedText = '';
+        }
+        
+        // 设置为底部栏模式
         settings.layout = 'bottom';
-        settings.mode = 'normal';
+        settings.globalDock = true;
         settings.barClosed = false;
-        isTempDock = false;
+        settings.mode = 'normal';
         saveSettings();
         
-        // 创建并显示底部栏
+        // 创建并显示面板
         createPopover(true);
         const x = window.innerWidth / 2 + window.scrollX;
         const y = window.innerHeight / 3 + window.scrollY;
         forceShowPopover(x, y, null, { overrideSavedPosition: true });
+        
+        // 启动实时更新
         scheduleRealtimeUpdate();
-        
-        console.log('[触触搜] 已开启全局底部栏');
-      } else {
-        // 关闭底部栏
-        settings.layout = 'float';
-        settings.barClosed = true;
-        saveSettings();
-        
-        // 隐藏底部栏
-        if (popover) {
-          popover.style.display = 'none';
-        }
-        
-        console.log('[触触搜] 已关闭全局底部栏');
       }
       
-      return;
+      return false;
     }
 
     // 将显示浮动搜索框的逻辑提取为函数，便于复用
@@ -2870,65 +2965,70 @@
       });
     };
 
-    if (isCtrlShiftS) {
-      console.log('[触触搜] ✅ 快捷键触发! Ctrl+Shift+S');
-      console.log('[触触搜] 当前状态:', {
-        popover: popover ? '存在' : '不存在',
-        shadowRoot: shadowRoot ? '存在' : '不存在',
-        selectedText: selectedText || '(空)',
-        settings: settings
-      });
-
-      // 阻止所有默认行为和事件传播
+    // 备用快捷键（向后兼容）
+    if (isLegacyShortcut && !isCustomShortcut) {
+      console.log('[触触搜] ✅ 快捷键触发! Ctrl+Shift+S (备用)');
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
-
-      // 切换逻辑：
-      // - 如果已存在但不在视口内，则重新定位到视口内靠近选择/居中位置
-      // - 否则执行开/关切换
+      
+      // 执行与主快捷键相同的切换逻辑
       if (popover) {
-        try {
-          const rect = popover.getBoundingClientRect();
-          const inView = rect.bottom > 0 && rect.right > 0 && rect.top < window.innerHeight && rect.left < window.innerWidth;
-          console.log('[触触搜] Ctrl+Shift+S Toggle 检查可见性:', { rect, inView, viewport: { w: window.innerWidth, h: window.innerHeight }, scroll: { x: window.scrollX, y: window.scrollY } });
-          if (!inView) {
-            // 重新定位到视口内
-            let x, y, selectionRect = null;
-            const selection = window.getSelection();
-            if (selection && selection.rangeCount > 0 && selection.toString().trim()) {
-              const range = selection.getRangeAt(0);
-              const selRect = range.getBoundingClientRect();
-              x = selRect.left + selRect.width / 2 + window.scrollX;
-              y = selRect.bottom + window.scrollY;
-              selectionRect = selRect;
-              console.log('[触触搜] 选择区域存在，准备重定位:', { x, y, selRect });
-            } else {
-              x = window.innerWidth / 2 + window.scrollX;
-              y = window.innerHeight / 3 + window.scrollY;
-              console.log('[触触搜] 无选择区域，重定位到视口中心上方:', { x, y });
-            }
-            forceShowPopover(x, y, selectionRect, { overrideSavedPosition: true });
-            return false;
-          }
-        } catch (err) {
-          console.warn('[触触搜] 检查/重定位失败:', err);
+        // 面板存在，检查是否可见
+        const computedStyle = window.getComputedStyle(popover);
+        const isVisible = popover.style.display !== 'none' && computedStyle.display !== 'none';
+        
+        if (isVisible) {
+          // 如果可见，隐藏它（但不删除）
+          console.log('[触触搜] 隐藏面板');
+          popover.style.display = 'none';
+          // 同时更新设置，记住面板被关闭了
+          settings.barClosed = true;
+          saveSettings();
+        } else {
+          // 如果不可见，显示它
+          console.log('[触触搜] 显示已存在的面板');
+          popover.style.display = 'block';
+          popover.style.opacity = '1';
+          popover.style.transform = 'scale(1)';
+          // 更新设置，记住面板被打开了
+          settings.barClosed = false;
+          saveSettings();
+          
+          // 同步所有文本变量，确保一致性
+          const syncedText = syncAllTextVariables();
+          console.log('[触触搜] 文本同步完成:', syncedText || '(空)');
         }
-        // 在视口内：执行隐藏
-        hidePopover();
-        return false;
       } else {
-        showFromShortcut();
-        return false;
+        // 面板不存在，创建并显示底部栏
+        console.log('[触触搜] 创建新的底部栏面板');
+        
+        // 获取选中的文本（如果有）
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0 && selection.toString().trim()) {
+          selectedText = selection.toString().trim();
+        } else {
+          // 没有选中文本时，使用空字符串或默认文本
+          selectedText = '';
+        }
+        
+        // 设置为底部栏模式
+        settings.layout = 'bottom';
+        settings.globalDock = true;
+        settings.barClosed = false;
+        settings.mode = 'normal';
+        saveSettings();
+        
+        // 创建并显示面板
+        createPopover(true);
+        const x = window.innerWidth / 2 + window.scrollX;
+        const y = window.innerHeight / 3 + window.scrollY;
+        forceShowPopover(x, y, null, { overrideSavedPosition: true });
+        
+        // 启动实时更新
+        scheduleRealtimeUpdate();
       }
-    }
-
-    if (isAltS) {
-      console.log('[触触搜] ✅ 快捷键触发! Alt+S');
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      showFromShortcut();
+      
       return false;
     }
     
@@ -3066,7 +3166,7 @@
           <button class="ccs-temp-enable">临时启用（本次）</button>
         </div>
         <div class="ccs-recovery-tips">
-          💡 提示：<kbd>Ctrl+Shift+S</kbd> / <kbd>Alt+S</kbd> 或 <kbd>Alt+右键</kbd> 快速唤起
+          💡 提示：<kbd>Alt+S</kbd> 或 <kbd>Alt+右键</kbd> 快速唤起
         </div>
       </div>
     `;
@@ -3359,54 +3459,48 @@
     return null;
   }
 
-  // 智能获取要搜索的内容（同步版本，尽量本地推断）
-  function getSmartSearchText(skipCache = false) {
-    // 优先级1: 选中的文本
+  // 【统一的文本获取函数】- 所有地方都应该使用这个函数
+  // 统一优先级：1.选中文本 > 2.URL关键词 > 3.页面标题
+  function getUnifiedSearchText(options = {}) {
+    const { skipCache = false, forceRefresh = false } = options;
+    
+    // 优先级1: 实时选中的文本（最高优先）
     const selected = getActiveSelectionText();
     if (selected) {
       return selected;
     }
     
-    // 如果不跳过缓存，使用最近一次非空选择
-    if (!skipCache && lastNonEmptySelection) return lastNonEmptySelection;
+    // 优先级2: 缓存的选中文本（如果不跳过缓存）
+    if (!skipCache && !forceRefresh) {
+      if (lastNonEmptySelection) return lastNonEmptySelection;
+      if (selectedText) return selectedText;
+    }
     
-    // 优先级2: 搜索引擎关键词（实时提取）
+    // 优先级3: URL中的搜索关键词（比如百度、Google的搜索词）
     const searchKeyword = extractSearchKeyword();
     if (searchKeyword) {
       return searchKeyword;
     }
     
-    // 优先级3: 页面标题（实时获取，保留全文）
+    // 优先级4: 页面标题（最低优先级）
     const title = document.title;
     if (title) {
-      // 不再按分隔符截断，保留页面完整标题
       return title.trim();
     }
     
     return '';
   }
 
+  // 智能获取要搜索的内容（同步版本，尽量本地推断）
+  function getSmartSearchText(skipCache = false) {
+    // 直接调用统一函数
+    return getUnifiedSearchText({ skipCache });
+  }
+
   // 统一的获取当前搜索文本函数，确保按钮提示和实际搜索内容一致
   function getCurrentSearchText(forceRefresh = false) {
-    // 统一优先级顺序：
-    // 1. 实时选中的文本（最高优先）
-    const activeSelection = getActiveSelectionText();
-    if (activeSelection) return activeSelection;
-    
-    // 如果是强制刷新（hover时），跳过缓存值，直接获取实时值
-    if (forceRefresh) {
-      // 强制重新获取智能搜索文本（URL关键词或页面标题），跳过缓存
-      return getSmartSearchText(true);
-    }
-    
-    // 2. 最后一次非空选择
-    if (lastNonEmptySelection) return lastNonEmptySelection;
-    
-    // 3. 初始选中文本（如果有）
-    if (selectedText) return selectedText;
-    
-    // 4. 智能搜索文本（URL关键词或页面标题）
-    return getSmartSearchText();
+    // 直接调用统一函数，传递forceRefresh参数
+    return getUnifiedSearchText({ forceRefresh, skipCache: forceRefresh });
   }
 
   // 向background请求关键词（与右键提取一致）
@@ -3470,13 +3564,10 @@
     }
     return '';
   }
-  // 实时页面文本（Hover/无选中时用）：优先标题，再回退到URL关键词
+  // 实时页面文本（Hover/无选中时用）- 使用统一函数确保优先级一致
   function getRealtimePageTextPreferTitle() {
-    const title = (document.title || '').trim();
-    if (title) return title;
-    const kw = extractSearchKeyword();
-    if (kw) return kw;
-    return '';
+    // 使用统一函数，强制刷新以获取最新值
+    return getUnifiedSearchText({ forceRefresh: true, skipCache: true });
   }
 
   // 强制显示popover（快捷键/统一入口）
@@ -3532,6 +3623,12 @@
       if (settings.isBlacklisted) {
         hidePopover();
       }
+    }
+    // 处理快捷键更新
+    if (request.action === 'updateShortcut') {
+      settings.shortcutKey = request.shortcutKey;
+      saveSettings();
+      try { showToast('快捷键已更新为: ' + settings.shortcutKey); } catch (_) {}
     }
     // 处理右键菜单复制文本
     if (request.action === 'copyText') {
