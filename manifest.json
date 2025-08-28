@@ -19,7 +19,13 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["dockbar.js", "content.js"],
+      "js": [
+        "modules/utils.js",
+        "modules/toast.js",
+        "modules/settings.js",
+        "dockbar.js",
+        "content.js"
+      ],
       "css": ["content.css"],
       "run_at": "document_idle",
       "all_frames": true
