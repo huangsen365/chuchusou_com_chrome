@@ -30,6 +30,7 @@
         "modules/dragging.js",
         "modules/commands.js",
         "modules/textSync.js",
+        "modules/positioning.js",
         "dockbar.js",
         "content.js"
       ],
