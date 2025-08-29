@@ -27,6 +27,7 @@
         "modules/keywordExtractor.js",
         "modules/realtimeUpdate.js",
         "modules/recoveryPopover.js",
+        "modules/buttonDefinitions.js",
         "modules/selection.js",
         "modules/buttons.js",
         "modules/search.js",

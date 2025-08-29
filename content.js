@@ -375,131 +375,12 @@
   // 使用 window.detectTextType() 和 window.getSmartSuggestions()
   // 或使用模块 API: window.CCSModules.Suggestions
 
-  const defaultButtons = [
-    {
-      id: 'baidu',
-      icon: '🔍',
-      title: '百度搜索',
-      action: (text) => {
-        window.open(`https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${encodeURIComponent(text)}`, '_blank');
-      }
-    },
-    {
-      id: 'google',
-      icon: '🔍',
-      title: 'Google搜索',
-      action: (text) => {
-        window.open(`https://www.google.com/search?q=${encodeURIComponent(text)}`, '_blank');
-      }
-    },
-	{
-      id: 'chatgpt',
-      icon: '🌐',
-      title: 'ChatGPT',
-      action: (text) => {
-        window.open(`https://chatgpt.com/?prompt=${encodeURIComponent(text)}`, '_blank');
-      }
-    },
-    {
-      id: 'chuchusou',
-      icon: '🌐',
-      title: '更多搜索',
-      action: (text) => {
-        window.open(`https://chuchusou.com/?q=${encodeURIComponent(text)}`, '_blank');
-      }
-    },
-    {
-      id: 'copy',
-      icon: '📝',
-      title: '复制',
-      action: async (text) => {
-        try {
-          await navigator.clipboard.writeText(text);
-          showToast('已复制到剪贴板');
-        } catch (err) {
-          showToast('复制失败');
-        }
-      }
-    },
-    {
-      id: 'base64-encode',
-      icon: '🔤',
-      title: 'Base64编码',
-      action: (text) => {
-        const encoded = btoa(unescape(encodeURIComponent(text)));
-        navigator.clipboard.writeText(encoded);
-        showToast(`已编码并复制: ${encoded.slice(0, 20)}...`);
-      }
-    },
-    {
-      id: 'base64-decode',
-      icon: '🔓',
-      title: 'Base64解码',
-      action: (text) => {
-        try {
-          const decoded = atob(text);
-          navigator.clipboard.writeText(decoded);
-          showToast(`已解码并复制: ${decoded.slice(0, 20)}...`);
-        } catch (e) {
-          showToast('解码失败: 无效的 base64');
-        }
-      }
-    },
-    {
-      id: 'url-encode',
-      icon: '🔗',
-      title: 'URL编码',
-      action: (text) => {
-        const encoded = encodeURIComponent(text);
-        navigator.clipboard.writeText(encoded);
-        showToast(`已URL编码: ${encoded.slice(0, 20)}...`);
-      }
-    },
-    {
-      id: 'url-decode',
-      icon: '🔓',
-      title: 'URL解码',
-      action: (text) => {
-        try {
-          const decoded = decodeURIComponent(text);
-          navigator.clipboard.writeText(decoded);
-          showToast(`已URL解码: ${decoded.slice(0, 20)}...`);
-        } catch (e) {
-          showToast('URL解码失败');
-        }
-      }
-    },
-    {
-      id: 'uppercase',
-      icon: '🔠',
-      title: '转大写',
-      action: (text) => {
-        const upper = text.toUpperCase();
-        navigator.clipboard.writeText(upper);
-        showToast('已转换为大写并复制');
-      }
-    },
-    {
-      id: 'lowercase',
-      icon: '🔡',
-      title: '转小写',
-      action: (text) => {
-        const lower = text.toLowerCase();
-        navigator.clipboard.writeText(lower);
-        showToast('已转换为小写并复制');
-      }
-    },
-    {
-      id: 'md5',
-      icon: '#️⃣',
-      title: 'MD5哈希',
-      action: (text) => {
-        const hash = window.commands?.md5 ? window.commands.md5([text]) : '';
-        navigator.clipboard.writeText(hash);
-        showToast(`MD5: ${hash}`);
-      }
-    }
-  ];
+  // 按钮定义已移至 modules/buttonDefinitions.js
+  // 使用全局变量: defaultButtons
+  // 或使用模块 API: window.CCSModules.ButtonDefinitions
+  const defaultButtons = window.CCSModules?.ButtonDefinitions ? 
+    window.CCSModules.ButtonDefinitions.getDefaultButtons() : 
+    (window.defaultButtons || []);
 
   // 显示提示信息
   function showToast(message) {
@@ -1271,7 +1152,9 @@
 
     // 添加按钮
     const buttonsToShow = settings.mode === 'mini' 
-      ? settings.miniButtons.map(id => defaultButtons.find(btn => btn.id === id)).filter(Boolean)
+      ? (window.CCSModules?.ButtonDefinitions ? 
+          window.CCSModules.ButtonDefinitions.getButtonsByIds(settings.miniButtons) :
+          settings.miniButtons.map(id => defaultButtons.find(btn => btn.id === id)).filter(Boolean))
       : defaultButtons;
 
     const buttonsContainer = shadowRoot.querySelector(
