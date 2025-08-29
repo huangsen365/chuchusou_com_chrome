@@ -3485,7 +3485,7 @@
   }
 
   // 【统一的文本获取函数】- 所有地方都应该使用这个函数
-  // 统一优先级：1.选中文本 > 2.URL关键词 > 3.缓存文本 > 4.页面标题
+  // 统一优先级：1.选中文本 > 2.URL关键词 > 3.页面标题 > 4.缓存文本
   function getUnifiedSearchText(options = {}) {
     const { skipCache = false, forceRefresh = false } = options;
     
@@ -3521,10 +3521,32 @@
     }
     console.log('[触触搜] Fallback 优先级2 - URL中没有搜索关键词');
     
-    // 优先级3: 缓存的选中文本（如果不跳过缓存）
+    // 优先级3: 页面标题
+    const title = document.title;
+    if (title) {
+      // 清理标题中的无关信息（如通知计数等）
+      let trimmedTitle = title.trim();
+      // 移除知乎等网站的通知计数前缀，如 "(74 封私信 / 80 条消息) "
+      trimmedTitle = trimmedTitle.replace(/^\([^)]+\)\s*/, '');
+      // 移除常见的网站后缀
+      trimmedTitle = trimmedTitle.replace(/\s*[-–—]\s*(知乎|百度|Google|微博|豆瓣|简书|CSDN|博客园|掘金|SegmentFault|Stack Overflow).*$/, '');
+      
+      if (trimmedTitle) {
+        console.log('[触触搜] Fallback 优先级3 - 使用页面标题:', {
+          text: trimmedTitle,
+          length: trimmedTitle.length,
+          source: 'page_title',
+          originalTitle: title
+        });
+        return trimmedTitle;
+      }
+    }
+    console.log('[触触搜] Fallback 优先级3 - 页面标题为空或无效');
+    
+    // 优先级4: 缓存的选中文本（如果不跳过缓存）
     if (!skipCache && !forceRefresh) {
       if (lastNonEmptySelection) {
-        console.log('[触触搜] Fallback 优先级3 - 使用缓存的最近选中文本:', {
+        console.log('[触触搜] Fallback 优先级4 - 使用缓存的最近选中文本:', {
           text: lastNonEmptySelection,
           length: lastNonEmptySelection.length,
           source: 'lastNonEmptySelection'
@@ -3532,30 +3554,17 @@
         return lastNonEmptySelection;
       }
       if (selectedText) {
-        console.log('[触触搜] Fallback 优先级3 - 使用缓存的全局选中文本:', {
+        console.log('[触触搜] Fallback 优先级4 - 使用缓存的全局选中文本:', {
           text: selectedText,
           length: selectedText.length,
           source: 'selectedText'
         });
         return selectedText;
       }
-      console.log('[触触搜] Fallback 优先级3 - 没有缓存的文本');
+      console.log('[触触搜] Fallback 优先级4 - 没有缓存的文本');
     } else {
-      console.log('[触触搜] Fallback 优先级3 - 跳过缓存 (skipCache=' + skipCache + ', forceRefresh=' + forceRefresh + ')');
+      console.log('[触触搜] Fallback 优先级4 - 跳过缓存 (skipCache=' + skipCache + ', forceRefresh=' + forceRefresh + ')');
     }
-    
-    // 优先级4: 页面标题（最低优先级）
-    const title = document.title;
-    if (title) {
-      const trimmedTitle = title.trim();
-      console.log('[触触搜] Fallback 优先级4 - 使用页面标题:', {
-        text: trimmedTitle,
-        length: trimmedTitle.length,
-        source: 'page_title'
-      });
-      return trimmedTitle;
-    }
-    console.log('[触触搜] Fallback 优先级4 - 页面标题为空');
     
     console.log('[触触搜] Fallback 所有优先级均无结果，返回空字符串');
     return '';
