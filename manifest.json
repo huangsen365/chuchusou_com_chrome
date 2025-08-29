@@ -23,6 +23,7 @@
         "modules/utils.js",
         "modules/toast.js",
         "modules/settings.js",
+        "modules/blacklist.js",
         "modules/selection.js",
         "modules/buttons.js",
         "modules/search.js",
@@ -32,6 +33,7 @@
         "modules/textSync.js",
         "modules/positioning.js",
         "modules/domMonitor.js",
+        "modules/suggestions.js",
         "dockbar.js",
         "content.js"
       ],

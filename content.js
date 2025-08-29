@@ -282,17 +282,21 @@
 
   // 检查当前网站是否在黑名单中
   function checkBlacklist() {
-    const currentHost = window.location.hostname;
-    if (settings.blacklist && settings.blacklist.includes(currentHost)) {
-      // 不直接禁用，而是标记为黑名单状态
-      settings.isBlacklisted = true;
-      // 保持原始模式，以便恢复后使用
-      settings.originalMode = settings.mode || 'normal';
-      settings.mode = 'disabled';
-      console.log('[触触搜] 网站在黑名单中，禁用功能:', currentHost);
+    // 使用 Blacklist 模块检查
+    if (window.CCSModules?.Blacklist) {
+      window.CCSModules.Blacklist.init(settings);
     } else {
-      settings.isBlacklisted = false;
-      console.log('[触触搜] 网站不在黑名单中:', currentHost);
+      // 后备方案：如果模块未加载，使用原逻辑
+      const currentHost = window.location.hostname;
+      if (settings.blacklist && settings.blacklist.includes(currentHost)) {
+        settings.isBlacklisted = true;
+        settings.originalMode = settings.mode || 'normal';
+        settings.mode = 'disabled';
+        console.log('[触触搜] 网站在黑名单中，禁用功能:', currentHost);
+      } else {
+        settings.isBlacklisted = false;
+        console.log('[触触搜] 网站不在黑名单中:', currentHost);
+      }
     }
   }
 
@@ -366,210 +370,10 @@
     }
   }
 
-  function detectTextType(text) {
-    if (!text) return 'empty';
-    
-    // Base64编码检测（更严格的检查）
-    if (/^[A-Za-z0-9+/]+=*$/.test(text) && text.length > 3 && text.length % 4 === 0) {
-      try {
-        // 尝试解码验证
-        atob(text);
-        return 'base64_encoded';
-      } catch {
-        // 解码失败，不是有效的base64
-      }
-    }
-    
-    // URL编码检测
-    if (/%[0-9A-Fa-f]{2}/.test(text) && text.includes('%')) {
-      return 'url_encoded';
-    }
-    
-    // MD5格式检测（32位十六进制）
-    if (/^[a-f0-9]{32}$/i.test(text)) {
-      return 'md5_hash';
-    }
-    
-    // 纯大写文本
-    if (text === text.toUpperCase() && /[A-Z]/.test(text)) {
-      return 'uppercase';
-    }
-    
-    // 纯小写文本
-    if (text === text.toLowerCase() && /[a-z]/.test(text)) {
-      return 'lowercase';
-    }
-    
-    return 'plain_text';
-  }
+  // 建议系统功能已移至 modules/suggestions.js
+  // 使用 window.detectTextType() 和 window.getSmartSuggestions()
+  // 或使用模块 API: window.CCSModules.Suggestions
 
-  // 获取智能命令建议
-  function getSmartSuggestions(input, selectedText) {
-    const textType = detectTextType(selectedText);
-    const inputLower = input.toLowerCase().trim();
-    
-    // 命令建议配置
-    const suggestions = [];
-    
-    // 智能建议优先级
-    const priority = {
-      exact: [],     // 精确匹配
-      smart: [],     // 智能推荐
-      fuzzy: []      // 模糊匹配
-    };
-    
-    // 所有可用命令
-    const allCommands = [
-      {
-        command: '/base64',
-        keywords: ['base64', 'b64', 'encode', '编码'],
-        icon: '🔤',
-        title: 'Base64编码',
-        description: '将文本编码为Base64格式',
-        condition: () => textType !== 'base64_encoded'
-      },
-      {
-        command: '/base64 -d',
-        keywords: ['decode', 'base64', 'b64', '解码'],
-        icon: '🔓',
-        title: 'Base64解码',
-        description: '解码Base64文本',
-        condition: () => textType === 'base64_encoded',
-        priority: textType === 'base64_encoded' ? 'smart' : 'fuzzy'
-      },
-      {
-        command: '/md5',
-        keywords: ['md5', 'hash', '哈希', '散列'],
-        icon: '#️⃣',
-        title: 'MD5哈希',
-        description: '生成MD5哈希值',
-        condition: () => textType !== 'md5_hash'
-      },
-      {
-        command: '/url',
-        keywords: ['url', 'uri', 'encode', 'urlencode'],
-        icon: '🔗',
-        title: 'URL编码',
-        description: '将文本进行URL编码',
-        condition: () => textType !== 'url_encoded'
-      },
-      {
-        command: '/url decode',
-        keywords: ['urldecode', 'decode', 'url'],
-        icon: '🔗',
-        title: 'URL解码',
-        description: '解码URL编码文本',
-        condition: () => textType === 'url_encoded',
-        priority: textType === 'url_encoded' ? 'smart' : 'fuzzy'
-      },
-      {
-        command: '/upper',
-        keywords: ['upper', 'uppercase', '大写', 'up'],
-        icon: '⬆️',
-        title: '转大写',
-        description: '转换为大写字母',
-        condition: () => textType !== 'uppercase' && /[a-z]/i.test(selectedText)
-      },
-      {
-        command: '/lower',
-        keywords: ['lower', 'lowercase', '小写', 'low'],
-        icon: '⬇️',
-        title: '转小写',
-        description: '转换为小写字母',
-        condition: () => textType !== 'lowercase' && /[A-Z]/i.test(selectedText)
-      },
-      {
-        command: '/search',
-        keywords: ['search', 'google', 'baidu', '搜索', '查找'],
-        icon: '🔍',
-        title: '搜索',
-        description: '在搜索引擎中查找',
-        condition: () => true
-      },
-      {
-        command: '/copy',
-        keywords: ['copy', 'clipboard', '复制', 'cp'],
-        icon: '📋',
-        title: '复制',
-        description: '复制到剪贴板',
-        condition: () => true
-      }
-    ];
-    
-    // 根据文本类型智能推荐
-    if (!inputLower) {
-      // 无输入时，基于文本类型智能推荐
-      if (textType === 'base64_encoded') {
-        priority.smart.push(allCommands.find(c => c.command === '/base64 -d'));
-      } else if (textType === 'url_encoded') {
-        priority.smart.push(allCommands.find(c => c.command === '/url decode'));
-      } else if (textType === 'plain_text') {
-        priority.smart.push(
-          allCommands.find(c => c.command === '/base64'),
-          allCommands.find(c => c.command === '/md5'),
-          allCommands.find(c => c.command === '/search')
-        );
-      }
-      
-      // 添加其他相关命令
-      allCommands.forEach(cmd => {
-        if (cmd.condition() && !priority.smart.includes(cmd)) {
-          priority.fuzzy.push(cmd);
-        }
-      });
-    } else {
-      // 有输入时，进行匹配
-      allCommands.forEach(cmd => {
-        if (!cmd.condition()) return;
-        
-        // 检查命令是否匹配
-        const commandMatch = cmd.command.toLowerCase().includes(inputLower) || 
-                           cmd.command.replace('/', '').startsWith(inputLower);
-        
-        // 检查关键词匹配
-        const keywordMatch = cmd.keywords.some(k => 
-          k.toLowerCase().startsWith(inputLower) || 
-          k.toLowerCase().includes(inputLower)
-        );
-        
-        if (commandMatch) {
-          // 命令精确匹配优先级最高
-          if (cmd.command.replace('/', '').toLowerCase().startsWith(inputLower)) {
-            priority.exact.push(cmd);
-          } else {
-            priority.smart.push(cmd);
-          }
-        } else if (keywordMatch) {
-          // 关键词匹配次之
-          if (cmd.keywords.some(k => k.toLowerCase().startsWith(inputLower))) {
-            priority.smart.push(cmd);
-          } else {
-            priority.fuzzy.push(cmd);
-          }
-        }
-      });
-    }
-    
-    // 合并建议并去重
-    const merged = [...priority.exact, ...priority.smart, ...priority.fuzzy];
-    const uniqueSuggestions = [];
-    const seen = new Set();
-    
-    for (const cmd of merged) {
-      if (cmd && !seen.has(cmd.command)) {
-        seen.add(cmd.command);
-        uniqueSuggestions.push(cmd);
-      }
-    }
-    
-    return uniqueSuggestions.slice(0, 6); // 最多显示6个建议
-  }
-
-  // 命令处理函数
-  // 命令系统已移至 modules/commands.js
-  // 使用 window.commands 或 window.CCSModules.Commands
-
-  // 功能按钮配置
   const defaultButtons = [
     {
       id: 'baidu',
@@ -1778,7 +1582,9 @@
     function updateSuggestions(inputValue) {
       if (!suggestionsContainer) return;
       
-      const suggestions = getSmartSuggestions(inputValue, selectedText);
+      const suggestions = window.CCSModules?.Suggestions ? 
+        window.CCSModules.Suggestions.getSmartSuggestions(inputValue, selectedText) :
+        window.getSmartSuggestions ? window.getSmartSuggestions(inputValue, selectedText) : [];
       currentSuggestions = suggestions;
       selectedSuggestionIndex = -1;
       
