@@ -2675,6 +2675,13 @@
         } else {
           // 如果不可见，显示它
           console.log('[触触搜] 显示已存在的面板');
+          
+          // 检查面板是否在 DOM 中，如果不在则重新添加
+          if (!document.body.contains(popover)) {
+            console.log('[触触搜] 面板不在 DOM 中，重新添加');
+            document.body.appendChild(popover);
+          }
+          
           popover.style.display = 'block';
           popover.style.opacity = '1';
           popover.style.transform = 'scale(1)';
@@ -2903,6 +2910,13 @@
         } else {
           // 如果不可见，显示它
           console.log('[触触搜] 显示已存在的面板');
+          
+          // 检查面板是否在 DOM 中，如果不在则重新添加
+          if (!document.body.contains(popover)) {
+            console.log('[触触搜] 面板不在 DOM 中，重新添加');
+            document.body.appendChild(popover);
+          }
+          
           popover.style.display = 'block';
           popover.style.opacity = '1';
           popover.style.transform = 'scale(1)';
