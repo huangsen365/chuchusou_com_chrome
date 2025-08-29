@@ -1,7 +1,12 @@
 (() => {
+  console.log('[触触搜] Extension loaded - Version: 2024.12.20.enhanced-dom-tracking');
+  
   let popover = null;
   let shadowRoot = null;
   let selectedText = '';
+  
+  // DOM变化监视器
+  let domObserver = null;
   let lastNonEmptySelection = '';
   let settings = {
     mode: 'normal', // normal, mini, disabled
@@ -138,41 +143,39 @@
           settings.layout = 'bottom';
           
           if (force || !popover || !document.body.contains(popover)) {
+            console.log('[触触搜] ensureBottomBarVisible: 需要重新创建底部栏');
             createPopover(true);
             const x = window.innerWidth / 2 + window.scrollX;
             const y = window.innerHeight / 3 + window.scrollY;
             forceShowPopover(x, y, null, { overrideSavedPosition: true });
-            console.log('[触触搜] ensureBottomBarVisible: 重新创建并显示底部栏');
+            console.log('[触触搜] ensureBottomBarVisible: 重新创建并显示底部栏完成');
+          } else {
+            // 面板存在且在DOM中，只需确保可见
+            console.log('[触触搜] ensureBottomBarVisible: 面板存在，确保可见');
+            popover.style.position = 'fixed';
+            popover.style.left = '0';
+            popover.style.right = '0';
+            popover.style.bottom = '0';
+            popover.style.top = 'auto';
+            popover.style.width = '100%';
+            popover.style.display = 'block';
+            popover.style.visibility = 'visible';
+            popover.style.opacity = settings.opacity || '1';
+            // 保持可交互性
+            popover.style.pointerEvents = 'auto';
+            
+            // 确保shadow DOM内容也可见
+            if (shadowRoot) {
+              const wrapper = shadowRoot.querySelector('.ccs-popover');
+              if (wrapper) {
+                wrapper.style.display = 'block';
+                wrapper.style.visibility = 'visible';
+              }
+            }
           }
           
           // 重新启动实时更新
           scheduleRealtimeUpdate();
-        } else {
-          // 确保固定在底部并且可见
-          if (popover) {
-            try {
-              popover.style.position = 'fixed';
-              popover.style.left = '0';
-              popover.style.right = '0';
-              popover.style.bottom = '0';
-              popover.style.top = 'auto';
-              popover.style.width = '100%';
-              popover.style.display = 'block';
-              popover.style.visibility = 'visible';
-              popover.style.opacity = settings.opacity || '1';
-              // 允许点击穿透到底层页面
-              popover.style.pointerEvents = 'none';
-              
-              // 确保shadow DOM内容也可见
-              if (shadowRoot) {
-                const wrapper = shadowRoot.querySelector('.ccs-wrapper');
-                if (wrapper) {
-                  wrapper.style.display = 'block';
-                  wrapper.style.visibility = 'visible';
-                }
-              }
-            } catch(_) {}
-          }
         }
       } catch (e) {
         console.warn('[触触搜] ensureBottomBarVisible error:', e);
@@ -307,8 +310,9 @@
         // 文本显示由CSS省略控制，这里直接设全文
         titleEl.textContent = `🔍 触触搜: "${t}"`;
       }
-      // 使用统一的函数更新所有按钮，确保data属性和tooltip一致
-      updateAllButtonsWithSameText(t);
+      // 注意：不再自动更新按钮的 data-search-text
+      // 让每个按钮独立管理自己的文本
+      // updateAllButtonsWithSameText(t);
     } catch (_) {}
   }
   function getActiveSelectionText() {
@@ -1162,6 +1166,7 @@
         padding: 6px 8px;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
+        pointer-events: auto !important;
       }
       .ccs-bottom-buttons {
         flex: 1;
@@ -1169,6 +1174,7 @@
         gap: 8px;
         overflow-x: auto;
         scrollbar-width: thin;
+        pointer-events: auto !important;
       }
       .ccs-bottom-controls {
         margin-left: 8px;
@@ -1697,12 +1703,17 @@
       settings.mode === 'mini' ? '.ccs-mini-buttons' : (settings.layout === 'bottom' ? '.ccs-bottom-buttons' : '.ccs-buttons')
     );
     if (buttonsContainer) {
+      // 清空旧按钮，避免重复
+      buttonsContainer.innerHTML = '';
+      
       buttonsToShow.forEach(btn => {
         const button = document.createElement('div');
         button.className = 'ccs-button';
         // 存储id和button配置，便于后续根据按钮类型更新tooltip
         button.dataset.id = btn.id;
         button.dataset.btnTitle = btn.title;
+        // 添加唯一标识符用于调试
+        button.dataset.instanceId = `${btn.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         button.innerHTML = `
           <div class="ccs-button-icon">${btn.icon}</div>
           <div class="ccs-button-label">${btn.title}</div>
@@ -1710,51 +1721,138 @@
         // 初始hover提示包含完整文本（使用统一函数）
         // 同时存储文本到data属性，确保alt text和action使用相同值
         try {
-          const initText = getCurrentSearchText();
+          // 优先使用选中的文本
+          let initText = getActiveSelectionText();
+          
+          // 如果没有选中文本，才使用fallback
+          if (!initText) {
+            initText = getCurrentSearchText();
+          }
+          
           button.dataset.searchText = initText || '';
           button.title = initText ? `${btn.title}: ${initText}` : btn.title;
+          
+          console.log('[触触搜] Initial button setup:', {
+            buttonId: btn.id,
+            instanceId: button.dataset.instanceId,
+            initText: initText,
+            dataSearchTextSet: button.dataset.searchText,
+            buttonTitle: button.title,
+            source: getActiveSelectionText() ? 'selection' : 'fallback'
+          });
         } catch (_) {
           button.dataset.searchText = '';
           button.title = btn.title;
+          console.log('[触触搜] Initial button setup failed, using empty text');
         }
-        button.addEventListener('click', () => {
-          // 点击时重新同步文本，确保使用最新值
-          const text = syncAllTextVariables();
-          if (!text) {
-            try { showToast('没有可用的文本'); } catch (_) {}
-            return;
-          }
-          btn.action(text);
-        });
-        // 悬停/指针进入/获得焦点时，强制实时刷新（优先标题/URL），并同步刷新整块UI标题
-        const refreshHover = () => {
-          try {
-            // 减少节流时间，使响应更快
-            const now = Date.now();
-            const lastTs = parseInt(button.dataset.hovTs || '0', 10);
-            if (now - lastTs < 50) return; // 从150ms减少到50ms
-            button.dataset.hovTs = String(now);
+        
+        // 使用立即执行函数创建独立的作用域，确保每个按钮有自己的引用
+        ((currentButton, currentBtn) => {
+          currentButton.addEventListener('click', (event) => {
+            // 从被点击的按钮元素获取存储的搜索文本
+            const clickedButton = event.currentTarget;
+            let text = clickedButton.dataset.searchText;
             
-            // 使用统一的同步函数，确保所有变量一致
-            const t = syncAllTextVariables();
-            
-            // 同步更新标题，确保一致
-            updateRealtimeFallbackUI(true);
-            
-            if (window.CCS_DEBUG) console.log('[触触搜][DEBUG] hover实时刷新', { 
-              id: btn.id, 
-              text: t || '(空)', 
-              title: document.title,
-              url: window.location.href 
+            console.log('[触触搜] Button Click Debug:', {
+              buttonId: currentBtn.id,
+              buttonTitle: currentBtn.title,
+              instanceId: clickedButton.dataset.instanceId,
+              dataSearchText: clickedButton.dataset.searchText,
+              hasDataSearchText: !!clickedButton.dataset.searchText,
+              textBeforeFallback: text,
+              buttonElement: clickedButton
             });
-          } catch (_) {}
-        };
-        // 多通道触发：mouseenter（一次）、mouseover（可重复）、mousemove（移动时）、pointerenter、focusin
-        button.addEventListener('mouseenter', refreshHover);
-        button.addEventListener('mouseover', refreshHover);
-        button.addEventListener('mousemove', refreshHover); // 添加mousemove以获得更实时的更新
-        button.addEventListener('pointerenter', refreshHover);
-        button.addEventListener('focusin', refreshHover);
+            
+            // 如果没有存储的文本，则重新获取
+            if (!text) {
+              text = syncAllTextVariables();
+              console.log('[触触搜] Fallback to syncAllTextVariables:', text);
+            }
+            
+            if (!text) {
+              try { showToast('没有可用的文本'); } catch (_) {}
+              return;
+            }
+            
+            console.log('[触触搜] Final text for action:', text);
+            console.log('[触触搜] Button action about to execute for:', currentBtn.id);
+            
+            currentBtn.action(text);
+          });
+        })(button, btn);
+        // 使用立即执行函数为悬停事件创建独立作用域
+        ((currentButton, currentBtn) => {
+          const refreshHover = (event) => {
+            try {
+              const hoveredButton = event.currentTarget;
+              // 减少节流时间，使响应更快
+              const now = Date.now();
+              const lastTs = parseInt(hoveredButton.dataset.hovTs || '0', 10);
+              if (now - lastTs < 50) return; // 从150ms减少到50ms
+              hoveredButton.dataset.hovTs = String(now);
+              
+              // 只有当没有存储的文本，或者有新的选中文本时才更新
+              const currentSelection = getActiveSelectionText();
+              
+              // 如果有新的选中文本，使用它
+              if (currentSelection) {
+                const oldText = hoveredButton.dataset.searchText;
+                hoveredButton.dataset.searchText = currentSelection;
+                hoveredButton.title = `${currentBtn.title}: ${currentSelection}`;
+                
+                console.log('[触触搜] Hover refresh - new selection found:', {
+                  buttonId: currentBtn.id,
+                  instanceId: hoveredButton.dataset.instanceId,
+                  oldText: oldText,
+                  newText: currentSelection,
+                  updated: oldText !== currentSelection,
+                  buttonElement: hoveredButton
+                });
+              } 
+              // 如果没有选中文本且按钮也没有存储的文本，才使用fallback
+              else if (!hoveredButton.dataset.searchText) {
+                const t = syncAllTextVariables();
+                if (t) {
+                  hoveredButton.dataset.searchText = t;
+                  hoveredButton.title = `${currentBtn.title}: ${t}`;
+                  
+                  console.log('[触触搜] Hover refresh - using fallback text:', {
+                    buttonId: currentBtn.id,
+                    fallbackText: t,
+                    reason: 'no stored text and no selection',
+                    buttonElement: hoveredButton
+                  });
+                }
+              }
+              // 否则保持原有的 data-search-text 不变
+              else {
+                console.log('[触触搜] Hover refresh - keeping existing text:', {
+                  buttonId: currentBtn.id,
+                  existingText: hoveredButton.dataset.searchText,
+                  buttonElement: hoveredButton
+                });
+              }
+              
+              // 同步更新标题，确保一致
+              updateRealtimeFallbackUI(true);
+              
+              if (window.CCS_DEBUG) console.log('[触触搜][DEBUG] hover实时刷新', { 
+                id: currentBtn.id, 
+                text: hoveredButton.dataset.searchText || '(空)', 
+                title: document.title,
+                url: window.location.href 
+              });
+            } catch (_) {}
+          };
+          
+          // 多通道触发：mouseenter（一次）、mouseover（可重复）、mousemove（移动时）、pointerenter、focusin
+          currentButton.addEventListener('mouseenter', refreshHover);
+          currentButton.addEventListener('mouseover', refreshHover);
+          currentButton.addEventListener('mousemove', refreshHover); // 添加mousemove以获得更实时的更新
+          currentButton.addEventListener('pointerenter', refreshHover);
+          currentButton.addEventListener('focusin', refreshHover);
+        })(button, btn);
+        
         buttonsContainer.appendChild(button);
       });
     }
@@ -1766,6 +1864,8 @@
     if (!isModeSwitching) {
       document.body.appendChild(popover);
       console.log('[触触搜] Popover 已添加到 DOM');
+      // 启动DOM监控
+      startDOMMonitoring();
     } else {
       console.log('[触触搜] 模式切换，Popover 保持在 DOM 中');
     }
@@ -2387,8 +2487,9 @@
       }
     }
     
-    // 更新所有按钮的文本和tooltip
-    updateAllButtonsWithSameText(selectedText);
+    // 注意：不再自动更新所有按钮的 data-search-text
+    // 按钮的文本应该由悬停事件单独管理，避免覆盖用户选择的文本
+    // updateAllButtonsWithSameText(selectedText); // 已注释掉
     
     // 返回同步后的文本
     return selectedText;
@@ -2420,7 +2521,8 @@
     if (settings.mode === 'normal' && settings.layout === 'bottom' && popover && shadowRoot && window.getComputedStyle(popover).position === 'fixed') {
       try {
         const current = getCurrentSearchText();
-        // 使用统一的函数更新所有按钮，确保一致性
+        // 底部栏模式：更新所有按钮使用相同的文本
+        // 因为底部栏是持久存在的，需要统一更新
         updateAllButtonsWithSameText(current);
         // 确保可见
         popover.style.display = 'block';
@@ -2462,8 +2564,9 @@
           titleEl.textContent = `🔍 触触搜: "${current}"`;
           titleEl.title = current;
         }
-        // 使用统一的函数更新所有按钮
-        updateAllButtonsWithSameText(current);
+        // 对于非底部栏模式，不自动更新按钮文本
+        // 让按钮保持各自的选中文本
+        // updateAllButtonsWithSameText(current);
         // 确保可见
         popover.style.display = 'block';
         popover.style.visibility = 'visible';
@@ -2505,8 +2608,8 @@
       popover.style.top = 'auto';
       // 宽度全屏
       popover.style.width = '100%';
-      // 允许点击穿透到底层页面
-      popover.style.pointerEvents = 'none';
+      // 保持可交互性
+      popover.style.pointerEvents = 'auto';
       // 贴底栏无需 left/top 位置计算
       position = { x: 0, y: window.innerHeight + window.scrollY };
     } else if (selectionRect) {
@@ -2626,19 +2729,66 @@
     // 保持用户选中的文本状态
   }
 
+  // 监控popover的DOM状态
+  function startDOMMonitoring() {
+    if (domObserver) {
+      domObserver.disconnect();
+    }
+    
+    domObserver = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'childList') {
+          mutation.removedNodes.forEach((node) => {
+            if (node === popover || (node.nodeType === 1 && node.contains && popover && node.contains(popover))) {
+              console.error('[触触搜] ⚠️ Popover被从DOM中移除！', {
+                removedNode: node,
+                isPopover: node === popover,
+                containsPopover: node.contains && popover && node.contains(popover),
+                parentNode: mutation.target,
+                stackTrace: new Error().stack
+              });
+            }
+          });
+        }
+      });
+    });
+    
+    // 监控document.body的所有子节点变化
+    domObserver.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+    
+    console.log('[触触搜] DOM监控已启动');
+  }
+
   // 隐藏popover
   function hidePopover() {
+    console.log('[触触搜] hidePopover被调用，调用栈:', new Error().stack.split('\n').slice(1, 5).join('\n'));
+    
     if (popover) {
-      // 添加淡出动画
-      popover.style.opacity = '0';
-      popover.style.transform = 'scale(0.95)';
-      setTimeout(() => {
-        if (popover) {
-          popover.remove();
-          popover = null;
-          shadowRoot = null;
-        }
-      }, 200);
+      // 底部栏模式：只隐藏不移除
+      if (settings.layout === 'bottom' && settings.mode === 'normal') {
+        console.log('[触触搜] hidePopover: 底部栏模式，只隐藏不移除');
+        popover.style.display = 'none';
+        // 记住状态
+        settings.barClosed = true;
+        saveSettings();
+      } else {
+        // 其他模式：移除popover
+        console.log('[触触搜] hidePopover: 非底部栏模式，移除popover');
+        // 添加淡出动画
+        popover.style.opacity = '0';
+        popover.style.transform = 'scale(0.95)';
+        setTimeout(() => {
+          if (popover) {
+            console.log('[触触搜] 执行popover.remove()');
+            popover.remove();
+            popover = null;
+            shadowRoot = null;
+          }
+        }, 200);
+      }
     }
     // 清空选中的文本和记录
     selectedText = '';
@@ -2701,8 +2851,11 @@
           titleEl.textContent = `🔍 触触搜: "${current}"`;
           titleEl.title = current;
         }
-        // 使用统一的函数更新所有按钮，确保data属性和tooltip一致
-        updateAllButtonsWithSameText(current);
+        // 底部栏模式需要统一更新所有按钮
+        if (settings.layout === 'bottom') {
+          updateAllButtonsWithSameText(current);
+        }
+        // 普通模式让按钮各自管理文本
       }
     }
   }
@@ -2813,6 +2966,18 @@
     const key = parts[parts.length - 1];
     const modifiers = parts.slice(0, -1);
     
+    // 调试日志
+    if (window.CCS_DEBUG && e.altKey) {
+      console.log('[触触搜] matchesShortcut检查:', {
+        shortcutStr: shortcutStr,
+        eventKey: e.key,
+        expectedKey: key,
+        keyMatch: e.key.toLowerCase() === key.toLowerCase(),
+        eventModifiers: {ctrl: e.ctrlKey, alt: e.altKey, shift: e.shiftKey, meta: e.metaKey},
+        expectedModifiers: {ctrl: modifiers.includes('ctrl'), alt: modifiers.includes('alt'), shift: modifiers.includes('shift')}
+      });
+    }
+    
     // 检查按键是否匹配
     if (e.key.toLowerCase() !== key.toLowerCase()) {
       return false;
@@ -2824,10 +2989,16 @@
     const hasShift = modifiers.includes('shift');
     const hasMeta = modifiers.includes('meta') || modifiers.includes('cmd') || modifiers.includes('command');
     
-    return e.ctrlKey === hasCtrl && 
+    const matches = e.ctrlKey === hasCtrl && 
            e.altKey === hasAlt && 
            e.shiftKey === hasShift && 
            e.metaKey === hasMeta;
+    
+    if (window.CCS_DEBUG && matches) {
+      console.log('[触触搜] 快捷键匹配成功:', shortcutStr);
+    }
+    
+    return matches;
   }
 
   // 处理快捷键的统一函数
@@ -2872,6 +3043,15 @@
           // 如果可见，隐藏它（但不删除）
           console.log('[触触搜] 隐藏面板');
           popover.style.display = 'none';
+          
+          // 调试：检查隐藏后的状态
+          console.log('[触触搜] 隐藏后的面板状态:', {
+            exists: !!popover,
+            inDOM: popover && document.body.contains(popover),
+            display: popover?.style.display,
+            computedDisplay: popover ? window.getComputedStyle(popover).display : null
+          });
+          
           // 同时更新设置，记住面板被关闭了
           settings.barClosed = true;
           saveSettings();
@@ -2881,6 +3061,95 @@
           popover.style.display = 'block';
           popover.style.opacity = '1';
           popover.style.transform = 'scale(1)';
+          
+          // 调试：检查显示后的完整样式
+          const updatedComputedStyle = window.getComputedStyle(popover);
+          const rect = popover.getBoundingClientRect();
+          console.log('[触触搜] 显示后的面板详细状态:', {
+            exists: !!popover,
+            inDOM: document.body.contains(popover),
+            id: popover.id,
+            className: popover.className,
+            position: {
+              style: popover.style.position,
+              computed: updatedComputedStyle.position,
+              left: popover.style.left,
+              top: popover.style.top,
+              bottom: popover.style.bottom,
+              right: popover.style.right
+            },
+            visibility: {
+              display: popover.style.display,
+              computedDisplay: updatedComputedStyle.display,
+              visibility: popover.style.visibility,
+              computedVisibility: updatedComputedStyle.visibility,
+              opacity: popover.style.opacity,
+              computedOpacity: updatedComputedStyle.opacity
+            },
+            dimensions: {
+              width: rect.width,
+              height: rect.height,
+              clientWidth: popover.clientWidth,
+              clientHeight: popover.clientHeight
+            },
+            rect: {
+              top: rect.top,
+              left: rect.left,
+              bottom: rect.bottom,
+              right: rect.right
+            },
+            zIndex: {
+              style: popover.style.zIndex,
+              computed: updatedComputedStyle.zIndex
+            },
+            pointerEvents: {
+              style: popover.style.pointerEvents,
+              computed: updatedComputedStyle.pointerEvents
+            },
+            shadowRoot: {
+              exists: !!shadowRoot,
+              mode: shadowRoot?.mode,
+              hasChildren: shadowRoot?.children?.length > 0
+            },
+            innerHTML: popover.innerHTML ? `${popover.innerHTML.substring(0, 100)}...` : 'empty'
+          });
+          
+          // 检查shadowRoot内容
+          if (shadowRoot) {
+            const bottomBar = shadowRoot.querySelector('.ccs-bottom');
+            const bottomButtons = shadowRoot.querySelector('.ccs-bottom-buttons');
+            const buttons = shadowRoot.querySelectorAll('.ccs-button');
+            
+            console.log('[触触搜] 底部栏元素检查:', {
+              bottomBarExists: !!bottomBar,
+              bottomBarDisplay: bottomBar ? window.getComputedStyle(bottomBar).display : null,
+              bottomBarRect: bottomBar ? bottomBar.getBoundingClientRect() : null,
+              bottomButtonsExists: !!bottomButtons,
+              buttonCount: buttons.length,
+              shadowRootChildren: shadowRoot.children.length,
+              shadowRootHTML: shadowRoot.innerHTML ? `${shadowRoot.innerHTML.substring(0, 200)}...` : 'empty'
+            });
+            
+            // 检查是否真的可见
+            if (bottomBar) {
+              const rect = bottomBar.getBoundingClientRect();
+              const isVisible = rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
+              console.log('[触触搜] 底部栏可见性分析:', {
+                isVisible: isVisible,
+                width: rect.width,
+                height: rect.height,
+                top: rect.top,
+                bottom: rect.bottom,
+                windowHeight: window.innerHeight,
+                analysis: !isVisible ? '不可见原因: ' + 
+                  (rect.width === 0 ? '宽度为0' : 
+                   rect.height === 0 ? '高度为0' : 
+                   rect.bottom <= 0 ? '在屏幕上方' : 
+                   rect.top >= window.innerHeight ? '在屏幕下方' : '未知') : '可见'
+              });
+            }
+          }
+          
           // 更新设置，记住面板被打开了
           settings.barClosed = false;
           saveSettings();
@@ -2913,7 +3182,36 @@
         createPopover(true);
         const x = window.innerWidth / 2 + window.scrollX;
         const y = window.innerHeight / 3 + window.scrollY;
+        
+        console.log('[触触搜] 创建面板后的初始状态:', {
+          popoverExists: !!popover,
+          popoverId: popover?.id,
+          inDOM: popover && document.body.contains(popover),
+          shadowRootExists: !!shadowRoot,
+          layoutSetting: settings.layout,
+          modeSetting: settings.mode
+        });
+        
         forceShowPopover(x, y, null, { overrideSavedPosition: true });
+        
+        // 再次检查状态
+        if (popover) {
+          const finalStyle = window.getComputedStyle(popover);
+          const finalRect = popover.getBoundingClientRect();
+          console.log('[触触搜] forceShowPopover后的最终状态:', {
+            display: finalStyle.display,
+            position: finalStyle.position,
+            visibility: finalStyle.visibility,
+            opacity: finalStyle.opacity,
+            rect: {
+              top: finalRect.top,
+              bottom: finalRect.bottom,
+              width: finalRect.width,
+              height: finalRect.height
+            },
+            zIndex: finalStyle.zIndex
+          });
+        }
         
         // 启动实时更新
         scheduleRealtimeUpdate();
@@ -3023,7 +3321,36 @@
         createPopover(true);
         const x = window.innerWidth / 2 + window.scrollX;
         const y = window.innerHeight / 3 + window.scrollY;
+        
+        console.log('[触触搜] 创建面板后的初始状态:', {
+          popoverExists: !!popover,
+          popoverId: popover?.id,
+          inDOM: popover && document.body.contains(popover),
+          shadowRootExists: !!shadowRoot,
+          layoutSetting: settings.layout,
+          modeSetting: settings.mode
+        });
+        
         forceShowPopover(x, y, null, { overrideSavedPosition: true });
+        
+        // 再次检查状态
+        if (popover) {
+          const finalStyle = window.getComputedStyle(popover);
+          const finalRect = popover.getBoundingClientRect();
+          console.log('[触触搜] forceShowPopover后的最终状态:', {
+            display: finalStyle.display,
+            position: finalStyle.position,
+            visibility: finalStyle.visibility,
+            opacity: finalStyle.opacity,
+            rect: {
+              top: finalRect.top,
+              bottom: finalRect.bottom,
+              width: finalRect.width,
+              height: finalRect.height
+            },
+            zIndex: finalStyle.zIndex
+          });
+        }
         
         // 启动实时更新
         scheduleRealtimeUpdate();

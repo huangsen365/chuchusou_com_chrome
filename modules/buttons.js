@@ -13,7 +13,13 @@
         icon: '🔍',
         title: '百度搜索',
         action: (text) => {
-          window.open(`https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${encodeURIComponent(text)}`, '_blank');
+          const url = `https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${encodeURIComponent(text)}`;
+          console.log('[触触搜] Baidu Search URL:', {
+            searchText: text,
+            encodedText: encodeURIComponent(text),
+            fullURL: url
+          });
+          window.open(url, '_blank');
         }
       },
       {
@@ -21,7 +27,13 @@
         icon: '🔍',
         title: 'Google搜索',
         action: (text) => {
-          window.open(`https://www.google.com/search?q=${encodeURIComponent(text)}`, '_blank');
+          const url = `https://www.google.com/search?q=${encodeURIComponent(text)}`;
+          console.log('[触触搜] Google Search URL:', {
+            searchText: text,
+            encodedText: encodeURIComponent(text),
+            fullURL: url
+          });
+          window.open(url, '_blank');
         }
       },
       {
@@ -37,7 +49,13 @@
         icon: '🌐',
         title: '更多搜索',
         action: (text) => {
-          window.open(`https://chuchusou.com/?q=${encodeURIComponent(text)}`, '_blank');
+          const url = `https://chuchusou.com/?q=${encodeURIComponent(text)}`;
+          console.log('[触触搜] Chuchusou Search URL:', {
+            searchText: text,
+            encodedText: encodeURIComponent(text),
+            fullURL: url
+          });
+          window.open(url, '_blank');
         }
       },
       {
@@ -216,9 +234,22 @@
 
     // 执行按钮动作
     executeAction(buttonId, text) {
+      console.log('[触触搜][executeAction] Called with:', {
+        buttonId: buttonId,
+        text: text,
+        textLength: text ? text.length : 0
+      });
+      
       const button = this.getButtonById(buttonId);
+      console.log('[触触搜][executeAction] Found button:', {
+        found: !!button,
+        buttonId: button?.id,
+        buttonTitle: button?.title
+      });
+      
       if (button && button.action) {
         try {
+          console.log('[触触搜][executeAction] Executing action for:', buttonId, 'with text:', text);
           button.action(text);
         } catch (e) {
           console.error('[触触搜] 执行按钮动作失败:', e);
@@ -258,7 +289,23 @@
           `;
           
           button.onclick = () => {
-            const text = window.CCSModules?.Selection?.getCurrentSearchText() || '';
+            // 优先使用按钮上存储的搜索文本
+            let text = button.dataset.searchText;
+            
+            console.log('[触触搜][Modules] Mini Button Click:', {
+              buttonId: buttonConfig,
+              dataSearchText: button.dataset.searchText,
+              hasDataSearchText: !!button.dataset.searchText
+            });
+            
+            // 如果没有存储的文本，则从Selection模块获取
+            if (!text) {
+              text = window.CCSModules?.Selection?.getCurrentSearchText() || '';
+              console.log('[触触搜][Modules] Fallback to Selection module:', text);
+            }
+            
+            console.log('[触触搜][Modules] Final text for mini button:', text);
+            
             if (text) {
               this.executeAction(buttonConfig, text);
             }
@@ -274,7 +321,24 @@
           `;
           
           button.onclick = () => {
-            const text = window.CCSModules?.Selection?.getCurrentSearchText() || '';
+            // 优先使用按钮上存储的搜索文本
+            let text = button.dataset.searchText;
+            
+            console.log('[触触搜][Modules] Normal Button Click:', {
+              buttonId: buttonConfig.id,
+              buttonTitle: buttonConfig.title,
+              dataSearchText: button.dataset.searchText,
+              hasDataSearchText: !!button.dataset.searchText
+            });
+            
+            // 如果没有存储的文本，则从Selection模块获取
+            if (!text) {
+              text = window.CCSModules?.Selection?.getCurrentSearchText() || '';
+              console.log('[触触搜][Modules] Fallback to Selection module:', text);
+            }
+            
+            console.log('[触触搜][Modules] Final text for normal button:', text);
+            
             if (text) {
               buttonConfig.action(text);
             }
