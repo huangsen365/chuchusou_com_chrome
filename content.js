@@ -3098,43 +3098,13 @@
     return getUnifiedSearchText({ forceRefresh, skipCache: forceRefresh });
   }
 
-  // 向background请求关键词（与右键提取一致）
+  // 向background请求关键词 - 使用 BackgroundComm 模块
   function requestKeywordsFromBackground() {
-    return new Promise((resolve) => {
-      try {
-        if (!(chrome.runtime && chrome.runtime.id)) {
-          resolve(null);
-          return;
-        }
-        const reqId = ++DEBUG_REQUEST_ID;
-        if (window.CCS_DEBUG) {
-          console.log('[触触搜][DEBUG] requestKeywordsFromBackground start', { reqId, url: window.location.href, title: document.title });
-        }
-        let settled = false;
-        const payload = {
-          action: 'extractKeywords',
-          url: window.location.href,
-          title: document.title || ''
-        };
-        chrome.runtime.sendMessage(payload, (response) => {
-          settled = true;
-          if (window.CCS_DEBUG) console.log('[触触搜][DEBUG] background response', { reqId, response });
-          if (response && response.keywords) {
-            resolve(response.keywords);
-          } else {
-            resolve(null);
-          }
-        });
-        setTimeout(() => {
-          if (!settled) {
-            if (window.CCS_DEBUG) console.warn('[触触搜][DEBUG] background response timeout', { reqId });
-            resolve(null);
-          }
-        }, 1200);
-      } catch (_) {
-        resolve(null);
-      }
-    });
+    if (window.CCSModules?.BackgroundComm) {
+      return window.CCSModules.BackgroundComm.requestKeywordsFromBackground();
+    }
+    // 后备方案
+    return window.requestKeywordsFromBackground ? window.requestKeywordsFromBackground() : Promise.resolve(null);
   }
 
   // 智能获取要搜索的内容（优先使用右键同源的background提取）
@@ -3175,8 +3145,12 @@
     }
   }
 
-  // 修复Extension context invalidated错误
+  // 修复Extension context invalidated错误 - 使用 BackgroundComm 模块
   function safeChromeSendMessage(message) {
+    if (window.CCSModules?.BackgroundComm) {
+      return window.CCSModules.BackgroundComm.sendMessage(message);
+    }
+    // 后备方案
     try {
       if (chrome.runtime && chrome.runtime.id) {
         chrome.runtime.sendMessage(message);
@@ -3186,131 +3160,130 @@
     }
   }
 
-  // 监听来自popup和background的消息
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === 'updateDebug') {
-      window.CCS_DEBUG = !!request.enabled;
-      try { showToast(window.CCS_DEBUG ? '调试已开启' : '调试已关闭'); } catch (_) {}
-      chrome.storage.local.set({ ccs_debug: window.CCS_DEBUG });
-    }
-    if (request.action === 'toggleExtension') {
-      settings.mode = request.enabled ? 'normal' : 'disabled';
-      saveSettings();
-      if (!request.enabled) {
-        hidePopover();
+  // 监听来自popup和background的消息 - 使用 BackgroundComm 模块
+  if (window.CCSModules?.BackgroundComm) {
+    window.CCSModules.BackgroundComm.init({
+      onToggleExtension: (enabled) => {
+        settings.mode = enabled ? 'normal' : 'disabled';
+        saveSettings();
+        if (!enabled) {
+          hidePopover();
+        }
+      },
+      onUpdateBlacklist: (blacklist) => {
+        settings.blacklist = blacklist;
+        checkBlacklist();
+        saveSettings();
+        if (settings.isBlacklisted) {
+          hidePopover();
+        }
+      },
+      onUpdateShortcut: (shortcutKey) => {
+        settings.shortcutKey = shortcutKey;
+        saveSettings();
+        try { showToast('快捷键已更新为: ' + settings.shortcutKey); } catch (_) {}
+      },
+      onShowPopover: (text) => {
+        // 若未传入文本，使用统一函数获取
+        selectedText = text || getCurrentSearchText();
+        // 获取当前选中区域位置
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+          showPopover(rect.left + window.scrollX, rect.bottom + window.scrollY, rect);
+        } else {
+          // 如果没有选中区域，显示在屏幕中央
+          const x = window.innerWidth / 2 + window.scrollX;
+          const y = window.innerHeight / 2 + window.scrollY;
+          showPopover(x, y);
+        }
       }
-    }
-    // 处理黑名单更新
-    if (request.action === 'updateBlacklist') {
-      settings.blacklist = request.blacklist;
-      checkBlacklist();
-      saveSettings();
-      if (settings.isBlacklisted) {
-        hidePopover();
+    });
+  } else {
+    // 后备实现
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      if (request.action === 'updateDebug') {
+        window.CCS_DEBUG = !!request.enabled;
+        try { showToast(window.CCS_DEBUG ? '调试已开启' : '调试已关闭'); } catch (_) {}
+        chrome.storage.local.set({ ccs_debug: window.CCS_DEBUG });
       }
-    }
-    // 处理快捷键更新
-    if (request.action === 'updateShortcut') {
-      settings.shortcutKey = request.shortcutKey;
-      saveSettings();
-      try { showToast('快捷键已更新为: ' + settings.shortcutKey); } catch (_) {}
-    }
-    // 处理右键菜单复制文本
-    if (request.action === 'copyText') {
-      navigator.clipboard.writeText(request.text).then(() => {
-        showContextMenuToast('已复制到剪贴板');
-      });
-    }
-    // 处理右键菜单命令
-    if (request.action === 'processCommand') {
-      let result;
-      switch (request.command) {
-        case 'base64':
-          result = btoa(unescape(encodeURIComponent(request.text)));
-          break;
-        case 'md5':
-          // 与弹窗按钮一致，使用相同的md5逻辑
-          result = window.commands?.md5 ? window.commands.md5([request.text]) : '';
-          break;
-        case 'url-encode':
-          result = encodeURIComponent(request.text);
-          break;
-        case 'upper':
-          result = request.text.toUpperCase();
-          break;
-        case 'lower':
-          result = request.text.toLowerCase();
-          break;
+      if (request.action === 'toggleExtension') {
+        settings.mode = request.enabled ? 'normal' : 'disabled';
+        saveSettings();
+        if (!request.enabled) {
+          hidePopover();
+        }
       }
-      if (result) {
-        navigator.clipboard.writeText(result).then(() => {
-          showContextMenuToast(`处理完成并已复制: ${result.substring(0, 50)}${result.length > 50 ? '...' : ''}`);
+      if (request.action === 'updateBlacklist') {
+        settings.blacklist = request.blacklist;
+        checkBlacklist();
+        saveSettings();
+        if (settings.isBlacklisted) {
+          hidePopover();
+        }
+      }
+      if (request.action === 'updateShortcut') {
+        settings.shortcutKey = request.shortcutKey;
+        saveSettings();
+        try { showToast('快捷键已更新为: ' + settings.shortcutKey); } catch (_) {}
+      }
+      if (request.action === 'copyText') {
+        navigator.clipboard.writeText(request.text).then(() => {
+          showContextMenuToast('已复制到剪贴板');
         });
       }
-    }
-    // 处理显示popover请求
-    if (request.action === 'showPopover') {
-      // 若未传入文本，使用统一函数获取
-      selectedText = request.text || getCurrentSearchText();
-      // 获取当前选中区域位置
-      const selection = window.getSelection();
-      if (selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
-        showPopover(rect.left + window.scrollX, rect.bottom + window.scrollY, rect);
-      } else {
-        // 如果没有选中区域，显示在屏幕中央
-        const x = window.innerWidth / 2 + window.scrollX;
-        const y = window.innerHeight / 2 + window.scrollY;
-        showPopover(x, y);
+      if (request.action === 'processCommand') {
+        let result;
+        switch (request.command) {
+          case 'base64':
+            result = btoa(unescape(encodeURIComponent(request.text)));
+            break;
+          case 'md5':
+            result = window.commands?.md5 ? window.commands.md5([request.text]) : '';
+            break;
+          case 'url-encode':
+            result = encodeURIComponent(request.text);
+            break;
+          case 'upper':
+            result = request.text.toUpperCase();
+            break;
+          case 'lower':
+            result = request.text.toLowerCase();
+            break;
+        }
+        if (result) {
+          navigator.clipboard.writeText(result).then(() => {
+            showContextMenuToast(`处理完成并已复制: ${result.substring(0, 50)}${result.length > 50 ? '...' : ''}`);
+          });
+        }
       }
-    }
-    // 处理显示Toast提示
-    if (request.action === 'showToast') {
-      showContextMenuToast(request.message);
-    }
-  });
+      if (request.action === 'showPopover') {
+        selectedText = request.text || getCurrentSearchText();
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+          showPopover(rect.left + window.scrollX, rect.bottom + window.scrollY, rect);
+        } else {
+          const x = window.innerWidth / 2 + window.scrollX;
+          const y = window.innerHeight / 2 + window.scrollY;
+          showPopover(x, y);
+        }
+      }
+      if (request.action === 'showToast') {
+        showContextMenuToast(request.message);
+      }
+    });
+  }
 
-  // 显示右键菜单操作的Toast提示
+  // 显示右键菜单操作的Toast提示 - 使用 BackgroundComm 模块
   function showContextMenuToast(message) {
-    const toast = document.createElement('div');
-    toast.style.cssText = `
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: rgba(0, 0, 0, 0.8);
-      color: white;
-      padding: 12px 20px;
-      border-radius: 6px;
-      font-size: 14px;
-      z-index: 2147483647;
-      animation: slideIn 0.3s ease-out;
-    `;
-    toast.textContent = message;
-    
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes slideIn {
-        from {
-          opacity: 0;
-          transform: translateX(20px);
-        }
-        to {
-          opacity: 1;
-          transform: translateX(0);
-        }
-      }
-    `;
-    document.head.appendChild(style);
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-      toast.style.animation = 'slideIn 0.3s ease-out reverse';
-      setTimeout(() => {
-        toast.remove();
-        style.remove();
-      }, 300);
-    }, 3000);
+    if (window.CCSModules?.BackgroundComm) {
+      window.CCSModules.BackgroundComm.showContextMenuToast(message);
+    } else if (window.showContextMenuToast && window.showContextMenuToast !== showContextMenuToast) {
+      window.showContextMenuToast(message);
+    }
   }
   
   // 导出函数到全局，供模块使用
