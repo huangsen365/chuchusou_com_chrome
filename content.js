@@ -2895,225 +2895,37 @@
     }
   });
 
-  // 显示恢复popover（黑名单网站专用）
+  // 显示恢复popover - 使用 RecoveryPopover 模块
   function showRecoveryPopover(x, y) {
-    // 移除旧的popover
-    if (popover) {
-      popover.remove();
-    }
-
-    // 创建容器
-    popover = document.createElement('div');
-    popover.id = 'ccs-popover-container';
-    popover.style.position = 'absolute';
-    popover.style.zIndex = '2147483647';
-    popover.style.left = `${x}px`;
-    popover.style.top = `${y}px`;
-
-    // 创建shadow DOM
-    shadowRoot = popover.attachShadow({ mode: 'open' });
-    
-    // 初始化 TextSync 模块
-    if (window.CCSModules?.TextSync) {
-      window.CCSModules.TextSync.setShadowRoot(shadowRoot);
-    }
-
-    // 创建恢复界面HTML
-    const wrapper = document.createElement('div');
-    wrapper.className = 'ccs-recovery-popover';
-    wrapper.innerHTML = `
-      <div class="ccs-header recovery">
-        <span class="ccs-title">🔍 触触搜 - 已禁用</span>
-        <button class="ccs-close">✕</button>
-      </div>
-      <div class="ccs-recovery-content">
-        <div class="ccs-message">
-          <span class="icon">🚫</span>
-          <p>当前网站 <strong>${window.location.hostname}</strong> 在黑名单中</p>
-        </div>
-        <div class="ccs-recovery-actions">
-          <button class="ccs-remove-blacklist">移出黑名单并启用</button>
-          <button class="ccs-temp-enable">临时启用（本次）</button>
-        </div>
-        <div class="ccs-recovery-tips">
-          💡 提示：<kbd>Alt+S</kbd> 或 <kbd>Alt+右键</kbd> 快速唤起
-        </div>
-      </div>
-    `;
-
-    // 添加恢复popover的样式
-    const style = document.createElement('style');
-    style.textContent = `
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-      
-      .ccs-recovery-popover {
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        width: 280px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-        font-size: 14px;
-        color: #333;
-        overflow: hidden;
-        animation: fadeIn 0.2s ease-out;
-      }
-
-      @keyframes fadeIn {
-        from { opacity: 0; transform: scale(0.95); }
-        to { opacity: 1; transform: scale(1); }
-      }
-
-      .ccs-header.recovery {
-        background: linear-gradient(135deg, #f56565 0%, #c53030 100%);
-        color: white;
-        padding: 10px 12px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-
-      .ccs-title {
-        font-weight: bold;
-        font-size: 14px;
-      }
-
-      .ccs-close {
-        background: none;
-        border: none;
-        color: white;
-        cursor: pointer;
-        font-size: 16px;
-        padding: 0;
-        width: 24px;
-        height: 24px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 4px;
-        transition: background-color 0.2s;
-      }
-
-      .ccs-close:hover {
-        background-color: rgba(255,255,255,0.2);
-      }
-
-      .ccs-recovery-content {
-        padding: 15px;
-      }
-
-      .ccs-message {
-        text-align: center;
-        margin-bottom: 15px;
-      }
-
-      .ccs-message .icon {
-        font-size: 32px;
-        display: block;
-        margin-bottom: 8px;
-      }
-
-      .ccs-message p {
-        font-size: 13px;
-        color: #4a5568;
-      }
-
-      .ccs-message strong {
-        color: #2d3748;
-      }
-
-      .ccs-recovery-actions {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        margin-bottom: 12px;
-      }
-
-      .ccs-recovery-actions button {
-        padding: 8px 12px;
-        border: none;
-        border-radius: 6px;
-        font-size: 13px;
-        cursor: pointer;
-        transition: all 0.2s;
-      }
-
-      .ccs-remove-blacklist {
-        background: #48bb78;
-        color: white;
-      }
-
-      .ccs-remove-blacklist:hover {
-        background: #38a169;
-      }
-
-      .ccs-temp-enable {
-        background: #f7fafc;
-        color: #4a5568;
-        border: 1px solid #e2e8f0;
-      }
-
-      .ccs-temp-enable:hover {
-        background: #edf2f7;
-        border-color: #cbd5e0;
-      }
-
-      .ccs-recovery-tips {
-        font-size: 11px;
-        color: #718096;
-        text-align: center;
-        padding-top: 10px;
-        border-top: 1px solid #e2e8f0;
-      }
-
-      kbd {
-        background: #f7fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 3px;
-        padding: 2px 4px;
-        font-family: monospace;
-        font-size: 10px;
-      }
-    `;
-
-    shadowRoot.appendChild(style);
-    shadowRoot.appendChild(wrapper);
-
-    // 绑定事件
-    shadowRoot.querySelector('.ccs-close').addEventListener('click', hidePopover);
-    
-    shadowRoot.querySelector('.ccs-remove-blacklist').addEventListener('click', () => {
-      const currentHost = window.location.hostname;
-      const index = settings.blacklist.indexOf(currentHost);
-      if (index > -1) {
-        settings.blacklist.splice(index, 1);
-        settings.isBlacklisted = false;
-        settings.mode = settings.originalMode || 'normal';
-        saveSettings();
-        showToast('已移出黑名单，插件已启用');
-        // 关闭恢复界面，显示正常popover
-        hidePopover();
+    if (window.CCSModules?.RecoveryPopover) {
+      // 使用模块
+      const onRemoveFromBlacklist = () => {
+        window.CCSModules.RecoveryPopover.handleRemoveFromBlacklist(settings, saveSettings);
+        // 延迟后显示正常popover
         setTimeout(() => {
           createPopover();
           showPopover(x, y);
         }, 300);
-      }
-    });
-
-    shadowRoot.querySelector('.ccs-temp-enable').addEventListener('click', () => {
-      settings.mode = 'normal';
-      // 不保存，只是临时启用
-      hidePopover();
-      setTimeout(() => {
-        createPopover();
-        showPopover(x, y);
-      }, 300);
-    });
-
-    document.body.appendChild(popover);
+      };
+      
+      const onTempEnable = () => {
+        settings.mode = 'normal';
+        // 不保存，只是临时启用
+        setTimeout(() => {
+          createPopover();
+          showPopover(x, y);
+        }, 300);
+      };
+      
+      window.CCSModules.RecoveryPopover.show(x, y, {
+        onRemoveFromBlacklist,
+        onTempEnable,
+        onClose: hidePopover
+      });
+    } else if (window.showRecoveryPopover && window.showRecoveryPopover !== showRecoveryPopover) {
+      // 使用全局函数
+      window.showRecoveryPopover(x, y);
+    }
   }
 
   // 从搜索引擎页面提取关键词（与 background.js 规则对齐）
