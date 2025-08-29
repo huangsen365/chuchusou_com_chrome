@@ -8,26 +8,6 @@
   // DOM变化监视器
   let domObserver = null;
   let lastNonEmptySelection = '';
-  
-  // 设置全局变量的 setter - 使用 StateManager 模块
-  function setSelectedText(value) {
-    if (window.CCSModules?.StateManager) {
-      window.CCSModules.StateManager.setSelectedText(value);
-    } else {
-      selectedText = value;
-      window.selectedText = value;
-    }
-  }
-  
-  function setLastNonEmptySelection(value) {
-    if (window.CCSModules?.StateManager) {
-      window.CCSModules.StateManager.setLastNonEmptySelection(value);
-    } else {
-      lastNonEmptySelection = value;
-      window.lastNonEmptySelection = value;
-    }
-  }
-  
   // 初始化导出到 window
   window.selectedText = selectedText;
   window.lastNonEmptySelection = lastNonEmptySelection;
@@ -341,41 +321,6 @@
       window.CCSModules.RealtimeUpdate.updateUI(forceRefresh);
     } else if (window.updateRealtimeFallbackUI && window.updateRealtimeFallbackUI !== updateRealtimeFallbackUI) {
       window.updateRealtimeFallbackUI(forceRefresh);
-    }
-  }
-  function getActiveSelectionText() {
-    try {
-      const ae = document.activeElement;
-      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) {
-        const start = ae.selectionStart;
-        const end = ae.selectionEnd;
-        if (typeof start === 'number' && typeof end === 'number' && end > start) {
-          const text = String(ae.value).substring(start, end).trim();
-          if (text) {
-            console.log('[触触搜] getActiveSelectionText - 从输入框获取选中文本:', {
-              element: ae.tagName,
-              text: text,
-              length: text.length
-            });
-            return text;
-          }
-        }
-      }
-    } catch (_) {}
-    try {
-      const selection = window.getSelection().toString().trim();
-      if (selection) {
-        console.log('[触触搜] getActiveSelectionText - 从window.getSelection获取选中文本:', {
-          text: selection,
-          length: selection.length
-        });
-      } else {
-        console.log('[触触搜] getActiveSelectionText - 没有选中文本');
-      }
-      return selection;
-    } catch (_) {
-      console.log('[触触搜] getActiveSelectionText - 获取选中文本失败');
-      return '';
     }
   }
 
@@ -1153,7 +1098,7 @@
     try {
       const titleEl = shadowRoot.querySelector('.ccs-title');
       if (titleEl) {
-        const full = getCurrentSearchText();
+        const full = window.getCurrentSearchText();
         if (full) titleEl.title = full;
       }
     } catch (_) {}
@@ -1188,11 +1133,11 @@
         // 同时存储文本到data属性，确保alt text和action使用相同值
         try {
           // 优先使用选中的文本
-          let initText = getActiveSelectionText();
+          let initText = window.getActiveSelectionText();
           
           // 如果没有选中文本，才使用fallback
           if (!initText) {
-            initText = getCurrentSearchText();
+            initText = window.getCurrentSearchText();
           }
           
           button.dataset.searchText = initText || '';
@@ -1204,7 +1149,7 @@
             initText: initText,
             dataSearchTextSet: button.dataset.searchText,
             buttonTitle: button.title,
-            source: getActiveSelectionText() ? 'selection' : 'fallback'
+            source: window.getActiveSelectionText() ? 'selection' : 'fallback'
           });
         } catch (_) {
           button.dataset.searchText = '';
@@ -1264,7 +1209,7 @@
               hoveredButton.dataset.hovTs = String(now);
               
               // 只有当没有存储的文本，或者有新的选中文本时才更新
-              const currentSelection = getActiveSelectionText();
+              const currentSelection = window.getActiveSelectionText();
               
               // 如果有新的选中文本，使用它
               if (currentSelection) {
@@ -1869,7 +1814,7 @@
     // 底部栏模式（仅普通模式）：若已存在且已是fixed定位，避免重建导致闪烁，仅更新提示与可见性
     if (settings.mode === 'normal' && settings.layout === 'bottom' && popover && shadowRoot && window.getComputedStyle(popover).position === 'fixed') {
       try {
-        const current = getCurrentSearchText();
+        const current = window.getCurrentSearchText();
         // 底部栏模式：更新所有按钮使用相同的文本
         // 因为底部栏是持久存在的，需要统一更新
         updateAllButtonsWithSameText(current);
@@ -1907,7 +1852,7 @@
       
       // 更新标题和按钮提示
       try {
-        const current = getCurrentSearchText();
+        const current = window.getCurrentSearchText();
         const titleEl = shadowRoot.querySelector('.ccs-title');
         if (titleEl) {
           titleEl.textContent = `🔍 触触搜: "${current}"`;
@@ -2119,71 +2064,11 @@
   let lastSelectedText = '';
   let lastSelectionTime = 0;
   
-  // 监听选择变化，通知background更新菜单
-  let lastNotifiedText = '';
-  function notifySelectionChange() {
-    const text = getActiveSelectionText();
-    
-    // 只在文本变化时通知
-    if (text !== lastNotifiedText) {
-      lastNotifiedText = text;
-      // 安全地发送给background script更新菜单
-      safeChromeSendMessage({
-        action: 'selectionChanged',
-        text: text
-      });
-    }
-
-    // 若切换到弹出（浮动）模式后处于隐藏状态，且出现了有效选区，则自动显示 Popover
-    try {
-      if (!popover && settings.layout !== 'bottom' && text && text.trim().length > 0) {
-        const selection = window.getSelection();
-        if (selection && selection.rangeCount > 0) {
-          const range = selection.getRangeAt(0);
-          let rect = range.getBoundingClientRect();
-          if (rect.width === 0 || rect.height === 0) {
-            const rects = range.getClientRects();
-            if (rects && rects.length > 0) rect = rects[0];
-          }
-          const centerX = rect.left + rect.width / 2 + window.scrollX;
-          const bottomY = rect.bottom + window.scrollY;
-          selectedText = text.trim();
-          lastNonEmptySelection = selectedText;
-          showPopover(centerX, bottomY, rect);
-        }
-      }
-    } catch (_) {}
-
-    // 若弹窗存在，则实时更新标题与按钮tooltip（使用统一函数）
-    if (popover && shadowRoot) {
-      // 如果有新的选中文本，则使用它，否则使用统一函数获取
-      const current = text || getCurrentSearchText();
-      if (current) {
-        if (text) {
-          // 如果是新选中的文本，更新记录
-          selectedText = current;
-          lastNonEmptySelection = current;
-        }
-        // 更新标题显示与title（无标题的布局会跳过）
-        const titleEl = shadowRoot.querySelector('.ccs-title');
-        if (titleEl) {
-          titleEl.textContent = `🔍 触触搜: "${current}"`;
-          titleEl.title = current;
-        }
-        // 底部栏模式需要统一更新所有按钮
-        if (settings.layout === 'bottom') {
-          updateAllButtonsWithSameText(current);
-        }
-        // 普通模式让按钮各自管理文本
-      }
-    }
-  }
-  
   // 监听选择变化事件
     document.addEventListener('selectionchange', () => {
       // 使用防抖避免频繁更新
       clearTimeout(window.selectionChangeTimeout);
-      window.selectionChangeTimeout = setTimeout(notifySelectionChange, 100);
+      window.selectionChangeTimeout = setTimeout(window.notifySelectionChange, 100);
     });
   
   // 监听文本选择
@@ -2550,7 +2435,7 @@
     const showFromShortcut = () => {
       console.log('[触触搜] 准备显示 Popover');
       const t0 = performance.now();
-      getSmartSearchTextAsync().then((smartText) => {
+      window.getSmartSearchTextAsync().then((smartText) => {
         console.log('[触触搜] 获取到的文本:', smartText || '(无内容)');
         if (window.CCS_DEBUG) console.log('[触触搜][DEBUG] keyword resolve latency(ms):', Math.round(performance.now() - t0));
         if (smartText) {
@@ -2824,318 +2709,6 @@
   }
 
   // 从搜索引擎页面提取关键词（与 background.js 规则对齐）
-  function extractSearchKeyword() {
-    try {
-      const hostname = window.location.hostname;
-      const params = new URLSearchParams(window.location.search);
-      
-      console.log('[触触搜] extractSearchKeyword - 开始检查URL关键词:', {
-        hostname: hostname,
-        search: window.location.search,
-        paramsCount: Array.from(params.keys()).length
-      });
-
-      // 百度
-      if (hostname.includes('baidu.com')) {
-        const wd = params.get('wd') || params.get('word') || params.get('kw');
-        if (wd) {
-          const decoded = decodeURIComponent(wd);
-          console.log('[触触搜] extractSearchKeyword - 百度搜索关键词:', decoded);
-          return decoded;
-        }
-      }
-
-      // Google（各国域名）
-      if (hostname.includes('google.')) {
-        const q = params.get('q');
-        if (q) {
-          const decoded = decodeURIComponent(q);
-          console.log('[触触搜] extractSearchKeyword - Google搜索关键词:', decoded);
-          return decoded;
-        }
-      }
-
-      // Bing
-      if (hostname.includes('bing.com') || hostname.includes('cn.bing.com')) {
-        const q = params.get('q');
-        if (q) {
-          const decoded = decodeURIComponent(q);
-          console.log('[触触搜] extractSearchKeyword - Bing搜索关键词:', decoded);
-          return decoded;
-        }
-      }
-
-      // 搜狗
-      if (hostname.includes('sogou.com')) {
-        const query = params.get('query') || params.get('keyword');
-        if (query) {
-          const decoded = decodeURIComponent(query);
-          console.log('[触触搜] extractSearchKeyword - 搜狗搜索关键词:', decoded);
-          return decoded;
-        }
-      }
-
-      // 360搜索
-      if (hostname.includes('so.com') || hostname.includes('360.cn')) {
-        const q = params.get('q');
-        if (q) {
-          const decoded = decodeURIComponent(q);
-          console.log('[触触搜] extractSearchKeyword - 360搜索关键词:', decoded);
-          return decoded;
-        }
-      }
-
-      // 神马
-      if (hostname.includes('m.sm.cn') || hostname.includes('sm.cn')) {
-        const q = params.get('q');
-        if (q) {
-          const decoded = decodeURIComponent(q);
-          console.log('[触触搜] extractSearchKeyword - 神马搜索关键词:', decoded);
-          return decoded;
-        }
-      }
-
-      // 头条
-      if (hostname.includes('toutiao.com')) {
-        const keyword = params.get('keyword');
-        if (keyword) {
-          const decoded = decodeURIComponent(keyword);
-          console.log('[触触搜] extractSearchKeyword - 头条搜索关键词:', decoded);
-          return decoded;
-        }
-      }
-
-      // DuckDuckGo
-      if (hostname.includes('duckduckgo.com')) {
-        const q = params.get('q');
-        if (q) {
-          const decoded = decodeURIComponent(q);
-          console.log('[触触搜] extractSearchKeyword - DuckDuckGo搜索关键词:', decoded);
-          return decoded;
-        }
-      }
-
-      // Yahoo
-      if (hostname.includes('yahoo.com') || hostname.includes('yahoo.co.jp')) {
-        const p = params.get('p');
-        if (p) {
-          const decoded = decodeURIComponent(p);
-          console.log('[触触搜] extractSearchKeyword - Yahoo搜索关键词:', decoded);
-          return decoded;
-        }
-      }
-
-      // Yandex
-      if (hostname.includes('yandex.')) {
-        const text = params.get('text');
-        if (text) {
-          const decoded = decodeURIComponent(text);
-          console.log('[触触搜] extractSearchKeyword - Yandex搜索关键词:', decoded);
-          return decoded;
-        }
-      }
-
-      // Startpage
-      if (hostname.includes('startpage.com')) {
-        const query = params.get('query');
-        if (query) {
-          const decoded = decodeURIComponent(query);
-          console.log('[触触搜] extractSearchKeyword - Startpage搜索关键词:', decoded);
-          return decoded;
-        }
-      }
-
-      // 知乎
-      if (hostname.includes('zhihu.com')) {
-        const q = params.get('q');
-        if (q) {
-          const decoded = decodeURIComponent(q);
-          console.log('[触触搜] extractSearchKeyword - 知乎搜索关键词:', decoded);
-          return decoded;
-        }
-      }
-
-      // 微博
-      if (hostname.includes('weibo.com') || hostname.includes('weibo.cn')) {
-        const q = params.get('q');
-        if (q) {
-          const decoded = decodeURIComponent(q);
-          console.log('[触触搜] extractSearchKeyword - 微博搜索关键词:', decoded);
-          return decoded;
-        }
-      }
-
-      // GitHub
-      if (hostname.includes('github.com')) {
-        const q = params.get('q');
-        if (q) {
-          const decoded = decodeURIComponent(q);
-          console.log('[触触搜] extractSearchKeyword - GitHub搜索关键词:', decoded);
-          return decoded;
-        }
-      }
-
-      // B站
-      if (hostname.includes('bilibili.com')) {
-        const keyword = params.get('keyword');
-        if (keyword) {
-          const decoded = decodeURIComponent(keyword);
-          console.log('[触触搜] extractSearchKeyword - B站搜索关键词:', decoded);
-          return decoded;
-        }
-      }
-
-      // 淘宝/天猫
-      if (hostname.includes('taobao.com') || hostname.includes('tmall.com')) {
-        const q = params.get('q') || params.get('keyword');
-        if (q) {
-          const decoded = decodeURIComponent(q);
-          console.log('[触触搜] extractSearchKeyword - 淘宝/天猫搜索关键词:', decoded);
-          return decoded;
-        }
-      }
-
-      // 京东
-      if (hostname.includes('jd.com')) {
-        const keyword = params.get('keyword');
-        if (keyword) {
-          const decoded = decodeURIComponent(keyword);
-          console.log('[触触搜] extractSearchKeyword - 京东搜索关键词:', decoded);
-          return decoded;
-        }
-      }
-      
-      console.log('[触触搜] extractSearchKeyword - 当前网站没有匹配的搜索引擎规则');
-    } catch (e) {
-      console.log('[触触搜] extractSearchKeyword - 提取关键词时出错:', e.message);
-    }
-    return null;
-  }
-
-  // 【统一的文本获取函数】- 所有地方都应该使用这个函数
-  // 统一优先级：1.选中文本 > 2.URL关键词 > 3.页面标题 > 4.缓存文本
-  function getUnifiedSearchText(options = {}) {
-    const { skipCache = false, forceRefresh = false } = options;
-    
-    console.log('[触触搜] getUnifiedSearchText 开始执行:', {
-      skipCache,
-      forceRefresh,
-      currentUrl: window.location.href,
-      currentTitle: document.title
-    });
-    
-    // 优先级1: 实时选中的文本（最高优先）
-    const selected = getActiveSelectionText();
-    if (selected) {
-      console.log('[触触搜] Fallback 优先级1 - 找到选中文本:', {
-        text: selected,
-        length: selected.length,
-        source: 'selection'
-      });
-      return selected;
-    }
-    console.log('[触触搜] Fallback 优先级1 - 没有选中文本');
-    
-    // 优先级2: URL中的搜索关键词（比如百度、Google的搜索词）
-    const searchKeyword = extractSearchKeyword();
-    if (searchKeyword) {
-      console.log('[触触搜] Fallback 优先级2 - 从URL提取到搜索关键词:', {
-        text: searchKeyword,
-        length: searchKeyword.length,
-        source: 'url_keyword',
-        hostname: window.location.hostname
-      });
-      return searchKeyword;
-    }
-    console.log('[触触搜] Fallback 优先级2 - URL中没有搜索关键词');
-    
-    // 优先级3: 页面标题
-    const title = document.title;
-    if (title) {
-      // 清理标题中的无关信息（如通知计数等）
-      let trimmedTitle = title.trim();
-      // 移除知乎等网站的通知计数前缀，如 "(74 封私信 / 80 条消息) "
-      trimmedTitle = trimmedTitle.replace(/^\([^)]+\)\s*/, '');
-      // 移除常见的网站后缀
-      trimmedTitle = trimmedTitle.replace(/\s*[-–—]\s*(知乎|百度|Google|微博|豆瓣|简书|CSDN|博客园|掘金|SegmentFault|Stack Overflow).*$/, '');
-      
-      if (trimmedTitle) {
-        console.log('[触触搜] Fallback 优先级3 - 使用页面标题:', {
-          text: trimmedTitle,
-          length: trimmedTitle.length,
-          source: 'page_title',
-          originalTitle: title
-        });
-        return trimmedTitle;
-      }
-    }
-    console.log('[触触搜] Fallback 优先级3 - 页面标题为空或无效');
-    
-    // 优先级4: 缓存的选中文本（如果不跳过缓存）
-    if (!skipCache && !forceRefresh) {
-      if (lastNonEmptySelection) {
-        console.log('[触触搜] Fallback 优先级4 - 使用缓存的最近选中文本:', {
-          text: lastNonEmptySelection,
-          length: lastNonEmptySelection.length,
-          source: 'lastNonEmptySelection'
-        });
-        return lastNonEmptySelection;
-      }
-      if (selectedText) {
-        console.log('[触触搜] Fallback 优先级4 - 使用缓存的全局选中文本:', {
-          text: selectedText,
-          length: selectedText.length,
-          source: 'selectedText'
-        });
-        return selectedText;
-      }
-      console.log('[触触搜] Fallback 优先级4 - 没有缓存的文本');
-    } else {
-      console.log('[触触搜] Fallback 优先级4 - 跳过缓存 (skipCache=' + skipCache + ', forceRefresh=' + forceRefresh + ')');
-    }
-    
-    console.log('[触触搜] Fallback 所有优先级均无结果，返回空字符串');
-    return '';
-  }
-
-  // 智能获取要搜索的内容（同步版本，尽量本地推断）
-  function getSmartSearchText(skipCache = false) {
-    // 直接调用统一函数
-    return getUnifiedSearchText({ skipCache });
-  }
-
-  // 统一的获取当前搜索文本函数，确保按钮提示和实际搜索内容一致
-  function getCurrentSearchText(forceRefresh = false) {
-    // 直接调用统一函数，传递forceRefresh参数
-    return getUnifiedSearchText({ forceRefresh, skipCache: forceRefresh });
-  }
-
-  // 向background请求关键词 - 使用 BackgroundComm 模块
-  function requestKeywordsFromBackground() {
-    if (window.CCSModules?.BackgroundComm) {
-      return window.CCSModules.BackgroundComm.requestKeywordsFromBackground();
-    }
-    // 后备方案
-    return window.requestKeywordsFromBackground ? window.requestKeywordsFromBackground() : Promise.resolve(null);
-  }
-
-  // 智能获取要搜索的内容（优先使用右键同源的background提取）
-  // 异步获取智能搜索文本 - 使用 KeywordExtractor 模块
-  async function getSmartSearchTextAsync() {
-    if (window.CCSModules?.KeywordExtractor) {
-      return window.CCSModules.KeywordExtractor.getSmartSearchTextAsync();
-    }
-    // 后备方案
-    return window.getSmartSearchTextAsync ? window.getSmartSearchTextAsync() : '';
-  }
-  // 实时页面文本（Hover/无选中时用）- 使用统一函数确保优先级一致
-  function getRealtimePageTextPreferTitle() {
-    // 使用统一函数，强制刷新以获取最新值
-    if (window.CCSModules?.KeywordExtractor) {
-      return window.CCSModules.KeywordExtractor.getUnifiedSearchText({ forceRefresh: true, skipCache: true });
-    }
-    return getUnifiedSearchText({ forceRefresh: true, skipCache: true });
-  }
 
   // 强制显示popover（快捷键/统一入口）
   // 可选传入 selectionRect 以便与右键触发保持一致的智能定位
@@ -3197,7 +2770,7 @@
       },
       onShowPopover: (text) => {
         // 若未传入文本，使用统一函数获取
-        selectedText = text || getCurrentSearchText();
+        selectedText = text || window.getCurrentSearchText();
         // 获取当前选中区域位置
         const selection = window.getSelection();
         if (selection.rangeCount > 0) {
@@ -3271,7 +2844,7 @@
         }
       }
       if (request.action === 'showPopover') {
-        selectedText = request.text || getCurrentSearchText();
+        selectedText = request.text || window.getCurrentSearchText();
         const selection = window.getSelection();
         if (selection.rangeCount > 0) {
           const range = selection.getRangeAt(0);
@@ -3298,10 +2871,4 @@
     }
   }
   
-  // 导出函数到全局，供模块使用
-  window.getUnifiedSearchText = getUnifiedSearchText;
-  window.getActiveSelectionText = getActiveSelectionText;
-  window.extractSearchKeyword = extractSearchKeyword;
-  window.getCurrentSearchText = getCurrentSearchText;
-  window.getSmartSearchText = getSmartSearchText;
 })();
