@@ -550,52 +550,8 @@
   }
 
   // 命令处理函数
-  const commands = {
-    base64: (args) => {
-      if (args[0] === '-d') {
-        try {
-          return atob(args.slice(1).join(' '));
-        } catch (e) {
-          return '解码失败: 无效的 base64 字符串';
-        }
-      } else {
-        return btoa(unescape(encodeURIComponent(args.join(' '))));
-      }
-    },
-    md5: (args) => {
-      const text = args.join(' ');
-      let hash = 0;
-      for (let i = 0; i < text.length; i++) {
-        const char = text.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash;
-      }
-      return Math.abs(hash).toString(16).padStart(32, '0').slice(0, 32);
-    },
-    url: (args) => {
-      if (args[0] === 'decode') {
-        return decodeURIComponent(args.slice(1).join(' '));
-      } else {
-        return encodeURIComponent(args.join(' '));
-      }
-    },
-    upper: (args) => args.join(' ').toUpperCase(),
-    lower: (args) => args.join(' ').toLowerCase(),
-    search: (args) => {
-      const query = args.join(' ');
-      window.open(`https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${encodeURIComponent(query)}`, '_blank');
-      return `正在搜索: ${query}`;
-    },
-    copy: (args) => {
-      const text = args.join(' ');
-      navigator.clipboard.writeText(text).then(() => {
-        showToast('已复制到剪贴板');
-      }).catch(() => {
-        showToast('复制失败');
-      });
-      return '已复制到剪贴板';
-    }
-  };
+  // 命令系统已移至 modules/commands.js
+  // 使用 window.commands 或 window.CCSModules.Commands
 
   // 功能按钮配置
   const defaultButtons = [
@@ -717,7 +673,7 @@
       icon: '#️⃣',
       title: 'MD5哈希',
       action: (text) => {
-        const hash = commands.md5([text]);
+        const hash = window.commands?.md5 ? window.commands.md5([text]) : '';
         navigator.clipboard.writeText(hash);
         showToast(`MD5: ${hash}`);
       }
@@ -2385,35 +2341,10 @@
     }
   }
 
-  // 执行命令
+  // 执行命令 - 使用 commands 模块
   function executeCommand() {
-    const input = shadowRoot.querySelector('.ccs-input');
-    const resultDiv = shadowRoot.querySelector('.ccs-result');
-    const inputValue = input.value.trim();
-
-    if (!inputValue) return;
-
-    // 解析命令
-    if (inputValue.startsWith('/')) {
-      const parts = inputValue.slice(1).split(' ');
-      const cmd = parts[0];
-      const args = parts.slice(1);
-
-      if (commands[cmd]) {
-        const result = commands[cmd](args.length ? args : [selectedText]);
-        resultDiv.textContent = result;
-        resultDiv.style.display = 'block';
-        
-        // 自动复制结果
-        navigator.clipboard.writeText(result);
-        showToast('结果已复制到剪贴板');
-      } else {
-        resultDiv.textContent = `未知命令: ${cmd}`;
-        resultDiv.style.display = 'block';
-      }
-    } else {
-      // 如果不是命令，默认进行百度搜索
-      window.open(`https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${encodeURIComponent(inputValue)}`, '_blank');
+    if (window.CCSModules?.Commands) {
+      window.CCSModules.Commands.executeCommand(shadowRoot, selectedText);
     }
   }
 
@@ -4057,7 +3988,7 @@
           break;
         case 'md5':
           // 与弹窗按钮一致，使用相同的md5逻辑
-          result = commands.md5([request.text]);
+          result = window.commands?.md5 ? window.commands.md5([request.text]) : '';
           break;
         case 'url-encode':
           result = encodeURIComponent(request.text);

@@ -28,6 +28,7 @@
         "modules/search.js",
         "modules/shortcuts.js",
         "modules/dragging.js",
+        "modules/commands.js",
         "dockbar.js",
         "content.js"
       ],
