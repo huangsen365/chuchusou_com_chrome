@@ -3898,7 +3898,7 @@
   }
 
   // 【统一的文本获取函数】- 所有地方都应该使用这个函数
-  // 统一优先级：1.选中文本 > 2.URL关键词 > 3.页面标题
+  // 统一优先级：1.选中文本 > 2.URL关键词 > 3.缓存文本 > 4.页面标题
   function getUnifiedSearchText(options = {}) {
     const { skipCache = false, forceRefresh = false } = options;
     
@@ -3921,33 +3921,10 @@
     }
     console.log('[触触搜] Fallback 优先级1 - 没有选中文本');
     
-    // 优先级2: 缓存的选中文本（如果不跳过缓存）
-    if (!skipCache && !forceRefresh) {
-      if (lastNonEmptySelection) {
-        console.log('[触触搜] Fallback 优先级2 - 使用缓存的最近选中文本:', {
-          text: lastNonEmptySelection,
-          length: lastNonEmptySelection.length,
-          source: 'lastNonEmptySelection'
-        });
-        return lastNonEmptySelection;
-      }
-      if (selectedText) {
-        console.log('[触触搜] Fallback 优先级2 - 使用缓存的全局选中文本:', {
-          text: selectedText,
-          length: selectedText.length,
-          source: 'selectedText'
-        });
-        return selectedText;
-      }
-      console.log('[触触搜] Fallback 优先级2 - 没有缓存的文本');
-    } else {
-      console.log('[触触搜] Fallback 优先级2 - 跳过缓存 (skipCache=' + skipCache + ', forceRefresh=' + forceRefresh + ')');
-    }
-    
-    // 优先级3: URL中的搜索关键词（比如百度、Google的搜索词）
+    // 优先级2: URL中的搜索关键词（比如百度、Google的搜索词）
     const searchKeyword = extractSearchKeyword();
     if (searchKeyword) {
-      console.log('[触触搜] Fallback 优先级3 - 从URL提取到搜索关键词:', {
+      console.log('[触触搜] Fallback 优先级2 - 从URL提取到搜索关键词:', {
         text: searchKeyword,
         length: searchKeyword.length,
         source: 'url_keyword',
@@ -3955,7 +3932,30 @@
       });
       return searchKeyword;
     }
-    console.log('[触触搜] Fallback 优先级3 - URL中没有搜索关键词');
+    console.log('[触触搜] Fallback 优先级2 - URL中没有搜索关键词');
+    
+    // 优先级3: 缓存的选中文本（如果不跳过缓存）
+    if (!skipCache && !forceRefresh) {
+      if (lastNonEmptySelection) {
+        console.log('[触触搜] Fallback 优先级3 - 使用缓存的最近选中文本:', {
+          text: lastNonEmptySelection,
+          length: lastNonEmptySelection.length,
+          source: 'lastNonEmptySelection'
+        });
+        return lastNonEmptySelection;
+      }
+      if (selectedText) {
+        console.log('[触触搜] Fallback 优先级3 - 使用缓存的全局选中文本:', {
+          text: selectedText,
+          length: selectedText.length,
+          source: 'selectedText'
+        });
+        return selectedText;
+      }
+      console.log('[触触搜] Fallback 优先级3 - 没有缓存的文本');
+    } else {
+      console.log('[触触搜] Fallback 优先级3 - 跳过缓存 (skipCache=' + skipCache + ', forceRefresh=' + forceRefresh + ')');
+    }
     
     // 优先级4: 页面标题（最低优先级）
     const title = document.title;
