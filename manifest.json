@@ -22,7 +22,9 @@
       "js": [
         "modules/utils.js",
         "modules/toast.js",
+        "modules/stateManager.js",
         "modules/settings.js",
+        "modules/settingsPanel.js",
         "modules/blacklist.js",
         "modules/keywordExtractor.js",
         "modules/realtimeUpdate.js",

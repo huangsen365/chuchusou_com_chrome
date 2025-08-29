@@ -9,15 +9,23 @@
   let domObserver = null;
   let lastNonEmptySelection = '';
   
-  // 设置全局变量的 setter，确保同步
+  // 设置全局变量的 setter - 使用 StateManager 模块
   function setSelectedText(value) {
-    selectedText = value;
-    window.selectedText = value;
+    if (window.CCSModules?.StateManager) {
+      window.CCSModules.StateManager.setSelectedText(value);
+    } else {
+      selectedText = value;
+      window.selectedText = value;
+    }
   }
   
   function setLastNonEmptySelection(value) {
-    lastNonEmptySelection = value;
-    window.lastNonEmptySelection = value;
+    if (window.CCSModules?.StateManager) {
+      window.CCSModules.StateManager.setLastNonEmptySelection(value);
+    } else {
+      lastNonEmptySelection = value;
+      window.lastNonEmptySelection = value;
+    }
   }
   
   // 初始化导出到 window
@@ -1825,8 +1833,12 @@
   // 拖拽功能已移至 modules/dragging.js
   // 使用全局函数: startDragging, handleDragging, stopDragging, cleanupDragState
 
-  // 切换设置面板
+  // 切换设置面板 - 使用 SettingsPanel 模块
   function toggleSettings() {
+    if (window.CCSModules?.SettingsPanel) {
+      return window.CCSModules.SettingsPanel.toggle(shadowRoot);
+    }
+    // 后备方案
     const panel = shadowRoot.querySelector('.ccs-settings-panel');
     if (panel) {
       panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
