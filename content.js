@@ -8,6 +8,22 @@
   // DOM变化监视器
   let domObserver = null;
   let lastNonEmptySelection = '';
+  
+  // 设置全局变量的 setter，确保同步
+  function setSelectedText(value) {
+    selectedText = value;
+    window.selectedText = value;
+  }
+  
+  function setLastNonEmptySelection(value) {
+    lastNonEmptySelection = value;
+    window.lastNonEmptySelection = value;
+  }
+  
+  // 初始化导出到 window
+  window.selectedText = selectedText;
+  window.lastNonEmptySelection = lastNonEmptySelection;
+  window.shadowRoot = shadowRoot;
   let settings = {
     mode: 'normal', // normal, mini, disabled
     theme: 'default',
@@ -956,11 +972,21 @@
 
       // 创建shadow DOM
       shadowRoot = popover.attachShadow({ mode: 'open' });
+      
+      // 初始化 TextSync 模块
+      if (window.CCSModules?.TextSync) {
+        window.CCSModules.TextSync.setShadowRoot(shadowRoot);
+      }
     } else {
       // 模式切换时，清空shadow DOM内容但保留容器
       // 同时清理拖拽状态
       cleanupDragState();
       shadowRoot.innerHTML = '';
+      
+      // 更新 TextSync 模块的 shadowRoot
+      if (window.CCSModules?.TextSync) {
+        window.CCSModules.TextSync.setShadowRoot(shadowRoot);
+      }
     }
     
     // 恢复选中的文本（如果需要保留）
@@ -2349,59 +2375,9 @@
   }
 
   // 更新所有按钮使用相同的文本值，确保alt text和action一致
-  // 统一同步所有文本相关变量
-  function syncAllTextVariables() {
-    console.log('[触触搜] syncAllTextVariables 开始执行 (强制刷新，跳过缓存)');
-    
-    // 使用统一函数获取最新的文本（强制刷新，跳过缓存）
-    const latestText = getUnifiedSearchText({ forceRefresh: true, skipCache: true });
-    
-    console.log('[触触搜] syncAllTextVariables 获取到的文本:', {
-      text: latestText,
-      length: latestText ? latestText.length : 0,
-      isEmpty: !latestText
-    });
-    
-    // 更新全局变量，确保后续使用时优先级一致
-    selectedText = latestText || '';
-    
-    // 更新最近的非空选择（如果有新的选中文本）
-    const currentSelection = getActiveSelectionText();
-    if (currentSelection) {
-      console.log('[触触搜] syncAllTextVariables 更新 lastNonEmptySelection:', currentSelection);
-      lastNonEmptySelection = currentSelection;
-    }
-    
-    // 更新输入框（如果存在）
-    if (shadowRoot) {
-      const input = shadowRoot.querySelector('.ccs-input');
-      if (input) {
-        input.value = selectedText;
-        console.log('[触触搜] syncAllTextVariables 更新输入框值:', selectedText);
-      }
-    }
-    
-    // 注意：不再自动更新所有按钮的 data-search-text
-    // 按钮的文本应该由悬停事件单独管理，避免覆盖用户选择的文本
-    // updateAllButtonsWithSameText(selectedText); // 已注释掉
-    
-    console.log('[触触搜] syncAllTextVariables 完成，返回文本:', selectedText);
-    // 返回同步后的文本
-    return selectedText;
-  }
-
-  function updateAllButtonsWithSameText(text) {
-    if (!shadowRoot) return;
-    const buttons = shadowRoot.querySelectorAll('.ccs-button');
-    buttons.forEach(button => {
-      const btnTitle = button.dataset.btnTitle;
-      if (btnTitle) {
-        // 更新存储的文本值和tooltip
-        button.dataset.searchText = text || '';
-        button.title = text ? `${btnTitle}: ${text}` : btnTitle;
-      }
-    });
-  }
+  // 文本同步功能已移至 modules/textSync.js
+  // 使用全局函数: syncAllTextVariables, updateAllButtonsWithSameText
+  // 或使用模块 API: window.CCSModules.TextSync
 
   // 显示popover
   function showPopover(x, y, selectionRect = null, options = {}) {
@@ -3369,6 +3345,11 @@
 
     // 创建shadow DOM
     shadowRoot = popover.attachShadow({ mode: 'open' });
+    
+    // 初始化 TextSync 模块
+    if (window.CCSModules?.TextSync) {
+      window.CCSModules.TextSync.setShadowRoot(shadowRoot);
+    }
 
     // 创建恢复界面HTML
     const wrapper = document.createElement('div');
@@ -4070,4 +4051,11 @@
       }, 300);
     }, 3000);
   }
+  
+  // 导出函数到全局，供模块使用
+  window.getUnifiedSearchText = getUnifiedSearchText;
+  window.getActiveSelectionText = getActiveSelectionText;
+  window.extractSearchKeyword = extractSearchKeyword;
+  window.getCurrentSearchText = getCurrentSearchText;
+  window.getSmartSearchText = getSmartSearchText;
 })();

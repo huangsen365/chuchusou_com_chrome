@@ -29,6 +29,7 @@
         "modules/shortcuts.js",
         "modules/dragging.js",
         "modules/commands.js",
+        "modules/textSync.js",
         "dockbar.js",
         "content.js"
       ],
