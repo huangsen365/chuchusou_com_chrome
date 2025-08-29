@@ -129,6 +129,11 @@
       window.CCS_DEBUG = false;
     }
     checkBlacklist();
+    
+    // 初始化实时更新模块
+    if (window.CCSModules?.RealtimeUpdate) {
+      window.CCSModules.RealtimeUpdate.init();
+    }
 
     // 如果开启了全局悬停模式，在普通模式且非禁用且非黑名单页面上自动显示底部栏（未全局关闭）
     console.log('[触触搜] 检查是否需要显示底部栏:', {
@@ -300,39 +305,35 @@
     }
   }
 
-  // 保存设置
+  // 保存设置 - 使用 RealtimeUpdate 模块中的全局函数
   function saveSettings() {
-    console.log('[触触搜] 保存设置:', { globalDock: settings.globalDock, layout: settings.layout, barClosed: settings.barClosed });
-    chrome.storage.local.set({ ccs_settings: settings });
+    if (window.saveSettings && window.saveSettings !== saveSettings) {
+      window.settings = settings; // 确保全局 settings 是最新的
+      window.saveSettings();
+    } else {
+      // 后备方案
+      console.log('[触触搜] 保存设置:', { globalDock: settings.globalDock, layout: settings.layout, barClosed: settings.barClosed });
+      chrome.storage.local.set({ ccs_settings: settings });
+    }
   }
 
-  // 智能文本类型检测
-  // 监测URL/标题变化，实时更新UI（当无选中文本时）
-  let lastObservedHref = window.location.href;
-  let lastObservedTitle = document.title || '';
-  let realtimeUpdateTimer = null;
+  // 实时更新功能已移至 modules/realtimeUpdate.js
+  // 使用全局函数: scheduleRealtimeUpdate, updateRealtimeFallbackUI
+  // 或使用模块 API: window.CCSModules.RealtimeUpdate
   function scheduleRealtimeUpdate() {
-    clearTimeout(realtimeUpdateTimer);
-    realtimeUpdateTimer = setTimeout(updateRealtimeFallbackUI, 120);
+    if (window.CCSModules?.RealtimeUpdate) {
+      window.CCSModules.RealtimeUpdate.scheduleUpdate();
+    } else if (window.scheduleRealtimeUpdate && window.scheduleRealtimeUpdate !== scheduleRealtimeUpdate) {
+      window.scheduleRealtimeUpdate();
+    }
   }
+  
   function updateRealtimeFallbackUI(forceRefresh = false) {
-    try {
-      if (!shadowRoot || !popover) return;
-      // 使用统一的函数获取当前文本，支持强制刷新
-      const t = getCurrentSearchText(forceRefresh);
-      if (!t) return;
-      
-      // 更新标题（若存在）
-      const titleEl = shadowRoot.querySelector('.ccs-title');
-      if (titleEl) {
-        titleEl.title = t;
-        // 文本显示由CSS省略控制，这里直接设全文
-        titleEl.textContent = `🔍 触触搜: "${t}"`;
-      }
-      // 注意：不再自动更新按钮的 data-search-text
-      // 让每个按钮独立管理自己的文本
-      // updateAllButtonsWithSameText(t);
-    } catch (_) {}
+    if (window.CCSModules?.RealtimeUpdate) {
+      window.CCSModules.RealtimeUpdate.updateUI(forceRefresh);
+    } else if (window.updateRealtimeFallbackUI && window.updateRealtimeFallbackUI !== updateRealtimeFallbackUI) {
+      window.updateRealtimeFallbackUI(forceRefresh);
+    }
   }
   function getActiveSelectionText() {
     try {

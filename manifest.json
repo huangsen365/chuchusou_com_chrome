@@ -25,6 +25,7 @@
         "modules/settings.js",
         "modules/blacklist.js",
         "modules/keywordExtractor.js",
+        "modules/realtimeUpdate.js",
         "modules/selection.js",
         "modules/buttons.js",
         "modules/search.js",
