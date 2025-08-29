@@ -3442,30 +3442,20 @@
   }
 
   // 智能获取要搜索的内容（优先使用右键同源的background提取）
+  // 异步获取智能搜索文本 - 使用 KeywordExtractor 模块
   async function getSmartSearchTextAsync() {
-    // 1) 优先选中文本
-    const selected = getActiveSelectionText();
-    if (selected) return selected;
-    if (lastNonEmptySelection) return lastNonEmptySelection;
-
-    // 2) 尝试与右键一致的 background 提取
-    const fromBg = await requestKeywordsFromBackground();
-    if (fromBg) return fromBg;
-
-    // 3) 回退到本地URL解析
-    const local = extractSearchKeyword();
-    if (local) return local;
-
-    // 4) 最后回退到页面标题（保留全文）
-    const title = document.title || '';
-    if (title) {
-      return title.trim();
+    if (window.CCSModules?.KeywordExtractor) {
+      return window.CCSModules.KeywordExtractor.getSmartSearchTextAsync();
     }
-    return '';
+    // 后备方案
+    return window.getSmartSearchTextAsync ? window.getSmartSearchTextAsync() : '';
   }
   // 实时页面文本（Hover/无选中时用）- 使用统一函数确保优先级一致
   function getRealtimePageTextPreferTitle() {
     // 使用统一函数，强制刷新以获取最新值
+    if (window.CCSModules?.KeywordExtractor) {
+      return window.CCSModules.KeywordExtractor.getUnifiedSearchText({ forceRefresh: true, skipCache: true });
+    }
     return getUnifiedSearchText({ forceRefresh: true, skipCache: true });
   }
 

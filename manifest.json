@@ -24,6 +24,7 @@
         "modules/toast.js",
         "modules/settings.js",
         "modules/blacklist.js",
+        "modules/keywordExtractor.js",
         "modules/selection.js",
         "modules/buttons.js",
         "modules/search.js",
