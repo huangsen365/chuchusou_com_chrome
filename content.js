@@ -1641,7 +1641,12 @@
       document.body.appendChild(popover);
       console.log('[触触搜] Popover 已添加到 DOM');
       // 启动DOM监控
-      startDOMMonitoring();
+      // 启动DOM监控
+      if (window.CCSModules?.DOMMonitor) {
+        window.CCSModules.DOMMonitor.startDOMMonitoring();
+      } else if (window.startDOMMonitoring) {
+        window.startDOMMonitoring();
+      }
     } else {
       console.log('[触触搜] 模式切换，Popover 保持在 DOM 中');
     }
@@ -2371,38 +2376,8 @@
     // 保持用户选中的文本状态
   }
 
-  // 监控popover的DOM状态
-  function startDOMMonitoring() {
-    if (domObserver) {
-      domObserver.disconnect();
-    }
-    
-    domObserver = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'childList') {
-          mutation.removedNodes.forEach((node) => {
-            if (node === popover || (node.nodeType === 1 && node.contains && popover && node.contains(popover))) {
-              console.error('[触触搜] ⚠️ Popover被从DOM中移除！', {
-                removedNode: node,
-                isPopover: node === popover,
-                containsPopover: node.contains && popover && node.contains(popover),
-                parentNode: mutation.target,
-                stackTrace: new Error().stack
-              });
-            }
-          });
-        }
-      });
-    });
-    
-    // 监控document.body的所有子节点变化
-    domObserver.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-    
-    console.log('[触触搜] DOM监控已启动');
-  }
+  // DOM监控功能已移至 modules/domMonitor.js
+  // 使用 window.startDOMMonitoring() 或 window.CCSModules.DOMMonitor.startDOMMonitoring()
 
   // 隐藏popover
   function hidePopover() {
@@ -2512,7 +2487,7 @@
   // 监听文本选择
   document.addEventListener('mouseup', (e) => {
     // 如果在拖拽中，不处理
-    if (isDragging) return;
+    if (window.CCSModules?.Dragging?.isDraggingNow?.()) return;
     
     // 如果点击在popover内部，不处理
     if (popover && popover.contains(e.target)) {
