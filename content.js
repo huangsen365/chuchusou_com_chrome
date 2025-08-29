@@ -322,13 +322,31 @@
         const start = ae.selectionStart;
         const end = ae.selectionEnd;
         if (typeof start === 'number' && typeof end === 'number' && end > start) {
-          return String(ae.value).substring(start, end).trim();
+          const text = String(ae.value).substring(start, end).trim();
+          if (text) {
+            console.log('[触触搜] getActiveSelectionText - 从输入框获取选中文本:', {
+              element: ae.tagName,
+              text: text,
+              length: text.length
+            });
+            return text;
+          }
         }
       }
     } catch (_) {}
     try {
-      return window.getSelection().toString().trim();
+      const selection = window.getSelection().toString().trim();
+      if (selection) {
+        console.log('[触触搜] getActiveSelectionText - 从window.getSelection获取选中文本:', {
+          text: selection,
+          length: selection.length
+        });
+      } else {
+        console.log('[触触搜] getActiveSelectionText - 没有选中文本');
+      }
+      return selection;
     } catch (_) {
+      console.log('[触触搜] getActiveSelectionText - 获取选中文本失败');
       return '';
     }
   }
@@ -1765,11 +1783,17 @@
             
             // 如果没有存储的文本，则重新获取
             if (!text) {
+              console.log('[触触搜] Button Click - 没有存储的文本，开始fallback流程');
               text = syncAllTextVariables();
-              console.log('[触触搜] Fallback to syncAllTextVariables:', text);
+              console.log('[触触搜] Button Click - syncAllTextVariables 返回:', {
+                text: text,
+                length: text ? text.length : 0,
+                isEmpty: !text
+              });
             }
             
             if (!text) {
+              console.log('[触触搜] Button Click - 所有fallback均失败，没有可用的文本');
               try { showToast('没有可用的文本'); } catch (_) {}
               return;
             }
@@ -2467,8 +2491,16 @@
   // 更新所有按钮使用相同的文本值，确保alt text和action一致
   // 统一同步所有文本相关变量
   function syncAllTextVariables() {
+    console.log('[触触搜] syncAllTextVariables 开始执行 (强制刷新，跳过缓存)');
+    
     // 使用统一函数获取最新的文本（强制刷新，跳过缓存）
     const latestText = getUnifiedSearchText({ forceRefresh: true, skipCache: true });
+    
+    console.log('[触触搜] syncAllTextVariables 获取到的文本:', {
+      text: latestText,
+      length: latestText ? latestText.length : 0,
+      isEmpty: !latestText
+    });
     
     // 更新全局变量，确保后续使用时优先级一致
     selectedText = latestText || '';
@@ -2476,6 +2508,7 @@
     // 更新最近的非空选择（如果有新的选中文本）
     const currentSelection = getActiveSelectionText();
     if (currentSelection) {
+      console.log('[触触搜] syncAllTextVariables 更新 lastNonEmptySelection:', currentSelection);
       lastNonEmptySelection = currentSelection;
     }
     
@@ -2484,6 +2517,7 @@
       const input = shadowRoot.querySelector('.ccs-input');
       if (input) {
         input.value = selectedText;
+        console.log('[触触搜] syncAllTextVariables 更新输入框值:', selectedText);
       }
     }
     
@@ -2491,6 +2525,7 @@
     // 按钮的文本应该由悬停事件单独管理，避免覆盖用户选择的文本
     // updateAllButtonsWithSameText(selectedText); // 已注释掉
     
+    console.log('[触触搜] syncAllTextVariables 完成，返回文本:', selectedText);
     // 返回同步后的文本
     return selectedText;
   }
@@ -3678,110 +3713,186 @@
     try {
       const hostname = window.location.hostname;
       const params = new URLSearchParams(window.location.search);
+      
+      console.log('[触触搜] extractSearchKeyword - 开始检查URL关键词:', {
+        hostname: hostname,
+        search: window.location.search,
+        paramsCount: Array.from(params.keys()).length
+      });
 
       // 百度
       if (hostname.includes('baidu.com')) {
         const wd = params.get('wd') || params.get('word') || params.get('kw');
-        if (wd) return decodeURIComponent(wd);
+        if (wd) {
+          const decoded = decodeURIComponent(wd);
+          console.log('[触触搜] extractSearchKeyword - 百度搜索关键词:', decoded);
+          return decoded;
+        }
       }
 
       // Google（各国域名）
       if (hostname.includes('google.')) {
         const q = params.get('q');
-        if (q) return decodeURIComponent(q);
+        if (q) {
+          const decoded = decodeURIComponent(q);
+          console.log('[触触搜] extractSearchKeyword - Google搜索关键词:', decoded);
+          return decoded;
+        }
       }
 
       // Bing
       if (hostname.includes('bing.com') || hostname.includes('cn.bing.com')) {
         const q = params.get('q');
-        if (q) return decodeURIComponent(q);
+        if (q) {
+          const decoded = decodeURIComponent(q);
+          console.log('[触触搜] extractSearchKeyword - Bing搜索关键词:', decoded);
+          return decoded;
+        }
       }
 
       // 搜狗
       if (hostname.includes('sogou.com')) {
         const query = params.get('query') || params.get('keyword');
-        if (query) return decodeURIComponent(query);
+        if (query) {
+          const decoded = decodeURIComponent(query);
+          console.log('[触触搜] extractSearchKeyword - 搜狗搜索关键词:', decoded);
+          return decoded;
+        }
       }
 
       // 360搜索
       if (hostname.includes('so.com') || hostname.includes('360.cn')) {
         const q = params.get('q');
-        if (q) return decodeURIComponent(q);
+        if (q) {
+          const decoded = decodeURIComponent(q);
+          console.log('[触触搜] extractSearchKeyword - 360搜索关键词:', decoded);
+          return decoded;
+        }
       }
 
       // 神马
       if (hostname.includes('m.sm.cn') || hostname.includes('sm.cn')) {
         const q = params.get('q');
-        if (q) return decodeURIComponent(q);
+        if (q) {
+          const decoded = decodeURIComponent(q);
+          console.log('[触触搜] extractSearchKeyword - 神马搜索关键词:', decoded);
+          return decoded;
+        }
       }
 
       // 头条
       if (hostname.includes('toutiao.com')) {
         const keyword = params.get('keyword');
-        if (keyword) return decodeURIComponent(keyword);
+        if (keyword) {
+          const decoded = decodeURIComponent(keyword);
+          console.log('[触触搜] extractSearchKeyword - 头条搜索关键词:', decoded);
+          return decoded;
+        }
       }
 
       // DuckDuckGo
       if (hostname.includes('duckduckgo.com')) {
         const q = params.get('q');
-        if (q) return decodeURIComponent(q);
+        if (q) {
+          const decoded = decodeURIComponent(q);
+          console.log('[触触搜] extractSearchKeyword - DuckDuckGo搜索关键词:', decoded);
+          return decoded;
+        }
       }
 
       // Yahoo
       if (hostname.includes('yahoo.com') || hostname.includes('yahoo.co.jp')) {
         const p = params.get('p');
-        if (p) return decodeURIComponent(p);
+        if (p) {
+          const decoded = decodeURIComponent(p);
+          console.log('[触触搜] extractSearchKeyword - Yahoo搜索关键词:', decoded);
+          return decoded;
+        }
       }
 
       // Yandex
       if (hostname.includes('yandex.')) {
         const text = params.get('text');
-        if (text) return decodeURIComponent(text);
+        if (text) {
+          const decoded = decodeURIComponent(text);
+          console.log('[触触搜] extractSearchKeyword - Yandex搜索关键词:', decoded);
+          return decoded;
+        }
       }
 
       // Startpage
       if (hostname.includes('startpage.com')) {
         const query = params.get('query');
-        if (query) return decodeURIComponent(query);
+        if (query) {
+          const decoded = decodeURIComponent(query);
+          console.log('[触触搜] extractSearchKeyword - Startpage搜索关键词:', decoded);
+          return decoded;
+        }
       }
 
       // 知乎
       if (hostname.includes('zhihu.com')) {
         const q = params.get('q');
-        if (q) return decodeURIComponent(q);
+        if (q) {
+          const decoded = decodeURIComponent(q);
+          console.log('[触触搜] extractSearchKeyword - 知乎搜索关键词:', decoded);
+          return decoded;
+        }
       }
 
       // 微博
       if (hostname.includes('weibo.com') || hostname.includes('weibo.cn')) {
         const q = params.get('q');
-        if (q) return decodeURIComponent(q);
+        if (q) {
+          const decoded = decodeURIComponent(q);
+          console.log('[触触搜] extractSearchKeyword - 微博搜索关键词:', decoded);
+          return decoded;
+        }
       }
 
       // GitHub
       if (hostname.includes('github.com')) {
         const q = params.get('q');
-        if (q) return decodeURIComponent(q);
+        if (q) {
+          const decoded = decodeURIComponent(q);
+          console.log('[触触搜] extractSearchKeyword - GitHub搜索关键词:', decoded);
+          return decoded;
+        }
       }
 
       // B站
       if (hostname.includes('bilibili.com')) {
         const keyword = params.get('keyword');
-        if (keyword) return decodeURIComponent(keyword);
+        if (keyword) {
+          const decoded = decodeURIComponent(keyword);
+          console.log('[触触搜] extractSearchKeyword - B站搜索关键词:', decoded);
+          return decoded;
+        }
       }
 
       // 淘宝/天猫
       if (hostname.includes('taobao.com') || hostname.includes('tmall.com')) {
         const q = params.get('q') || params.get('keyword');
-        if (q) return decodeURIComponent(q);
+        if (q) {
+          const decoded = decodeURIComponent(q);
+          console.log('[触触搜] extractSearchKeyword - 淘宝/天猫搜索关键词:', decoded);
+          return decoded;
+        }
       }
 
       // 京东
       if (hostname.includes('jd.com')) {
         const keyword = params.get('keyword');
-        if (keyword) return decodeURIComponent(keyword);
+        if (keyword) {
+          const decoded = decodeURIComponent(keyword);
+          console.log('[触触搜] extractSearchKeyword - 京东搜索关键词:', decoded);
+          return decoded;
+        }
       }
+      
+      console.log('[触触搜] extractSearchKeyword - 当前网站没有匹配的搜索引擎规则');
     } catch (e) {
-      // 忽略错误，返回空
+      console.log('[触触搜] extractSearchKeyword - 提取关键词时出错:', e.message);
     }
     return null;
   }
@@ -3791,30 +3902,75 @@
   function getUnifiedSearchText(options = {}) {
     const { skipCache = false, forceRefresh = false } = options;
     
+    console.log('[触触搜] getUnifiedSearchText 开始执行:', {
+      skipCache,
+      forceRefresh,
+      currentUrl: window.location.href,
+      currentTitle: document.title
+    });
+    
     // 优先级1: 实时选中的文本（最高优先）
     const selected = getActiveSelectionText();
     if (selected) {
+      console.log('[触触搜] Fallback 优先级1 - 找到选中文本:', {
+        text: selected,
+        length: selected.length,
+        source: 'selection'
+      });
       return selected;
     }
+    console.log('[触触搜] Fallback 优先级1 - 没有选中文本');
     
     // 优先级2: 缓存的选中文本（如果不跳过缓存）
     if (!skipCache && !forceRefresh) {
-      if (lastNonEmptySelection) return lastNonEmptySelection;
-      if (selectedText) return selectedText;
+      if (lastNonEmptySelection) {
+        console.log('[触触搜] Fallback 优先级2 - 使用缓存的最近选中文本:', {
+          text: lastNonEmptySelection,
+          length: lastNonEmptySelection.length,
+          source: 'lastNonEmptySelection'
+        });
+        return lastNonEmptySelection;
+      }
+      if (selectedText) {
+        console.log('[触触搜] Fallback 优先级2 - 使用缓存的全局选中文本:', {
+          text: selectedText,
+          length: selectedText.length,
+          source: 'selectedText'
+        });
+        return selectedText;
+      }
+      console.log('[触触搜] Fallback 优先级2 - 没有缓存的文本');
+    } else {
+      console.log('[触触搜] Fallback 优先级2 - 跳过缓存 (skipCache=' + skipCache + ', forceRefresh=' + forceRefresh + ')');
     }
     
     // 优先级3: URL中的搜索关键词（比如百度、Google的搜索词）
     const searchKeyword = extractSearchKeyword();
     if (searchKeyword) {
+      console.log('[触触搜] Fallback 优先级3 - 从URL提取到搜索关键词:', {
+        text: searchKeyword,
+        length: searchKeyword.length,
+        source: 'url_keyword',
+        hostname: window.location.hostname
+      });
       return searchKeyword;
     }
+    console.log('[触触搜] Fallback 优先级3 - URL中没有搜索关键词');
     
     // 优先级4: 页面标题（最低优先级）
     const title = document.title;
     if (title) {
-      return title.trim();
+      const trimmedTitle = title.trim();
+      console.log('[触触搜] Fallback 优先级4 - 使用页面标题:', {
+        text: trimmedTitle,
+        length: trimmedTitle.length,
+        source: 'page_title'
+      });
+      return trimmedTitle;
     }
+    console.log('[触触搜] Fallback 优先级4 - 页面标题为空');
     
+    console.log('[触触搜] Fallback 所有优先级均无结果，返回空字符串');
     return '';
   }
 
