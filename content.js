@@ -21,8 +21,7 @@
     miniButtons: ['baidu', 'google', 'chuchusou', 'copy', 'lowercase'], // Mini模式默认按钮，包含大小写与搜索
     shortcutKey: 'Alt+S' // 可自定义快捷键，默认为Alt+S
   };
-  let isDragging = false;
-  let dragOffset = { x: 0, y: 0 };
+  // 拖拽状态已移至 modules/dragging.js
   let isProcessingSelection = false; // 防止选择处理重入
 
   // 初始化 DockBar 模块
@@ -2362,91 +2361,21 @@
       }
     }
 
-    // 拖拽功能
-    const header = shadowRoot.querySelector('.ccs-header');
-    if (header) {
-      if (settings.layout !== 'bottom') {
-        header.addEventListener('mousedown', startDragging);
-      }
+    // 拖拽功能 - 使用 dragging 模块
+    if (settings.layout !== 'bottom' && window.CCSModules?.Dragging) {
+      window.CCSModules.Dragging.makeDraggable(popover, {
+        dragHandle: '.ccs-header',
+        savePosition: true
+      });
+      // 设置回调以保存设置
+      window.CCSModules.Dragging.setCallbacks({
+        onDragEnd: () => saveSettings()
+      });
     }
   }
 
-  // 开始拖拽
-  function startDragging(e) {
-    if (e.target.tagName === 'BUTTON') return; // 点击按钮时不拖拽
-    
-    isDragging = true;
-    const rect = popover.getBoundingClientRect();
-    dragOffset.x = e.clientX - rect.left;
-    dragOffset.y = e.clientY - rect.top;
-    
-    // 添加拖拽样式
-    const header = shadowRoot.querySelector('.ccs-header');
-    header.classList.add('dragging');
-    
-    // 防止拖拽时选中页面文本
-    document.body.classList.add('ccs-dragging');
-    document.body.style.userSelect = 'none';
-    
-    // 添加全局事件监听
-    document.addEventListener('mousemove', handleDragging);
-    document.addEventListener('mouseup', stopDragging);
-    
-    e.preventDefault();
-    e.stopPropagation();
-  }
-
-  // 处理拖拽
-  function handleDragging(e) {
-    if (!isDragging) return;
-    
-    const x = e.clientX - dragOffset.x + window.scrollX;
-    const y = e.clientY - dragOffset.y + window.scrollY;
-    
-    // 验证位置是否合理（避免拖到屏幕外）
-    const validX = Math.max(0, Math.min(x, window.innerWidth - 100));
-    const validY = Math.max(0, Math.min(y, window.innerHeight - 50));
-    
-    popover.style.left = `${validX}px`;
-    popover.style.top = `${validY}px`;
-    
-    // 保存位置
-    settings.position = { x: validX, y: validY };
-  }
-
-  // 停止拖拽
-  function stopDragging() {
-    if (!isDragging) return;
-    
-    isDragging = false;
-    const header = shadowRoot.querySelector('.ccs-header');
-    if (header) {
-      header.classList.remove('dragging');
-    }
-    
-    // 恢复页面文本选择
-    document.body.classList.remove('ccs-dragging');
-    document.body.style.userSelect = '';
-    
-    // 移除全局事件监听
-    document.removeEventListener('mousemove', handleDragging);
-    document.removeEventListener('mouseup', stopDragging);
-    
-    // 保存设置
-    saveSettings();
-  }
-
-  // 清理拖拽状态（用于模式切换时）
-  function cleanupDragState() {
-    isDragging = false;
-    dragOffset = { x: 0, y: 0 };
-    // 移除可能残留的全局事件监听
-    document.removeEventListener('mousemove', handleDragging);
-    document.removeEventListener('mouseup', stopDragging);
-    // 恢复页面文本选择
-    document.body.classList.remove('ccs-dragging');
-    document.body.style.userSelect = '';
-  }
+  // 拖拽功能已移至 modules/dragging.js
+  // 使用全局函数: startDragging, handleDragging, stopDragging, cleanupDragState
 
   // 切换设置面板
   function toggleSettings() {
