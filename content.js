@@ -265,6 +265,7 @@
   } catch (_) {}
 
   // 兜底轮询 URL 变化（少数站点不触发事件）
+  let lastObservedHref = window.location.href;
   setInterval(() => {
     if (window.location.href !== lastObservedHref) {
       lastObservedHref = window.location.href;
