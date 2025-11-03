@@ -68,7 +68,7 @@ const MENU_ITEM_TITLES = {
   'ccs-baidu-translate': '✍️ 百度翻译',
   'ccs-google-translate': '🔁 Google 翻译',
   'ccs-chuchusou': '🌐 更多搜索引擎...',
-  'ccs-top100-root': '🧠 联想一百问',
+  'ccs-top100-root': '🧠 触触搜百问',
   'ccs-copy': '📋 复制文本',
   'ccs-base64': '🔤 Base64 编码',
   'ccs-md5': '🔐 MD5 哈希',
@@ -93,7 +93,7 @@ const MENU_FALLBACK_TITLES = {
   'ccs-baidu-translate': '百度翻译',
   'ccs-google-translate': 'Google 翻译',
   'ccs-chuchusou': '更多搜索引擎...',
-  'ccs-top100-root': '联想一百问',
+  'ccs-top100-root': '触触搜百问',
   'ccs-copy': '复制文本',
   'ccs-base64': 'Base64编码',
   'ccs-md5': 'MD5哈希',
@@ -734,7 +734,7 @@ function createContextMenus() {
     chrome.contextMenus.create({
       id: 'ccs-top100-root',
       parentId: 'ccs-main',
-      title: getMenuTitle('ccs-top100-root', '联想一百问'),
+      title: getMenuTitle('ccs-top100-root', '触触搜百问'),
       contexts: ['selection', 'page']
     });
 
@@ -759,7 +759,7 @@ function createContextMenus() {
         });
       })
       .catch((error) => {
-        console.warn('[触触搜][BG] 无法构建联想一百问菜单:', error);
+        console.warn('[触触搜][BG] 无法构建触触搜百问菜单:', error);
       });
     asyncTasks.push(topQuestionsTask);
 
@@ -1030,7 +1030,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       if (!config) {
         chrome.tabs.sendMessage(tab.id, {
           action: 'showToast',
-          message: '联想一百问模板加载失败'
+          message: '触触搜百问模板加载失败'
         }).catch(() => {});
         return;
       }
@@ -1059,7 +1059,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       if (!prompt) {
         chrome.tabs.sendMessage(tab.id, {
           action: 'showToast',
-          message: '联想一百问模板无效'
+          message: '触触搜百问模板无效'
         }).catch(() => {});
         return;
       }
@@ -1069,7 +1069,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     }).catch(() => {
       chrome.tabs.sendMessage(tab.id, {
         action: 'showToast',
-        message: '联想一百问模板加载失败'
+        message: '触触搜百问模板加载失败'
       }).catch(() => {});
     });
     return;
