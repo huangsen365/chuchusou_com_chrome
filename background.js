@@ -1014,38 +1014,20 @@ async function updateContextMenuForTab(tab) {
 
 // 处理右键菜单点击
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  // 文本优先级：
-  // 1. 优先使用选中的文本
-  // 2. 没有选中文本时，才尝试从URL提取搜索关键词
-  // 3. 最后使用页面标题作为后备
-  let rawText = '';
-  const useCandidate = (candidate, source) => {
-    if (typeof candidate === 'string' && candidate.trim().length > 0) {
-      rawText = candidate;
-      BG_DBG('[触触搜][BG][DEBUG] 选中文本来源:', { source, tabId: tab?.id, length: candidate.length });
-      return true;
-    }
-    return false;
-  };
+  const { raw: rawText, normalized: normalizedText } = await computeSearchTextForTab({
+    tabId: tab?.id,
+    tabUrl: tab?.url,
+    tabTitle: tab?.title || '',
+    selectionText: info.selectionText || ''
+  });
 
-  const cached = tab?.id != null ? selectedTextByTab[tab.id] : '';
-  if (!useCandidate(cached, 'cached') && typeof info.selectionText === 'string') {
-    useCandidate(info.selectionText, 'chrome.selectionText');
+  if (!normalizedText && info.menuItemId !== 'ccs-show-popover' && !topQuestionsMenuMap.has(info.menuItemId) && !optimizedPromptMenuMap.has(info.menuItemId) && !(info.menuItemId && info.menuItemId.startsWith('ccs-optimize-'))) {
+    chrome.tabs.sendMessage(tab.id, {
+      action: 'showToast',
+      message: '没有选中文本或无法提取关键词'
+    }).catch(() => {});
+    return;
   }
-  
-  // 只有在没有选中文本时，才尝试其他来源
-  if (!rawText && tab?.url) {
-    const extracted = await extractSearchKeywords(tab.url, tab);
-    if (!useCandidate(extracted, 'url-extracted') && info.menuItemId !== 'ccs-show-popover') {
-      chrome.tabs.sendMessage(tab.id, {
-        action: 'showToast',
-        message: '没有选中文本或无法提取关键词'
-      }).catch(() => {});
-      return;
-    }
-  }
-
-  const normalizedText = normalizeSearchText(rawText);
 
   if (topQuestionsMenuMap.has(info.menuItemId)) {
     if (!normalizedText) {
