@@ -118,7 +118,11 @@ async function resolveMenuIconTargets(iconConfig) {
   const size = Number.isFinite(iconConfig.size) ? iconConfig.size : (menuIconConfig?.defaultSize || 16);
   if (iconConfig.localPath) {
     const localUrl = chrome.runtime.getURL(iconConfig.localPath);
-    return { [size]: localUrl };
+    const localImageData = await createImageDataFromUrl(localUrl, size);
+    if (localImageData) {
+      return { [size]: localImageData };
+    }
+    console.warn('[触触搜][BG] 本地图标加载失败，尝试远程图标:', iconConfig.localPath);
   }
   if (iconConfig.remoteUrl) {
     const imageData = await createImageDataFromUrl(iconConfig.remoteUrl, size);
