@@ -680,14 +680,21 @@ function createContextMenus() {
     });
     BG_DBG('[触触搜][BG][MENU] base search items created');
 
+    const asyncTasks = [];
+
+    chrome.contextMenus.create({
+      id: 'ccs-separator-optimized',
+      parentId: 'ccs-main',
+      type: 'separator',
+      contexts: ['selection', 'page']
+    });
+
     chrome.contextMenus.create({
       id: 'ccs-top100-root',
       parentId: 'ccs-main',
       title: getMenuTitle('ccs-top100-root', '联想一百问'),
       contexts: ['selection', 'page']
     });
-
-    const asyncTasks = [];
 
     const topQuestionsTask = loadTopQuestionsConfig()
       .then((config) => {
@@ -713,13 +720,6 @@ function createContextMenus() {
         console.warn('[触触搜][BG] 无法构建联想一百问菜单:', error);
       });
     asyncTasks.push(topQuestionsTask);
-
-    chrome.contextMenus.create({
-      id: 'ccs-separator-optimized',
-      parentId: 'ccs-main',
-      type: 'separator',
-      contexts: ['selection', 'page']
-    });
 
     chrome.contextMenus.create({
       id: 'ccs-optimize-root',
