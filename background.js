@@ -9,6 +9,26 @@ function formatMenuTitle(text) {
   return compact.substring(0, 20) + (compact.length > 20 ? '...' : '');
 }
 
+function cleanupTitleKeyword(rawTitle) {
+  if (!rawTitle) return '';
+  let cleaned = rawTitle.trim();
+  const suffixes = [
+    ' - 搜索结果',
+    ' - 知乎',
+    ' - Zhihu'
+  ];
+  suffixes.forEach((suffix) => {
+    if (cleaned.endsWith(suffix)) {
+      cleaned = cleaned.slice(0, -suffix.length);
+    }
+  });
+  const prefixPattern = /^[\s]*[\(（][^\)）]*[\)）]\s*/;
+  while (prefixPattern.test(cleaned)) {
+    cleaned = cleaned.replace(prefixPattern, '').trim();
+  }
+  return cleaned.trim();
+}
+
 const optimizedPromptMenuMap = new Map();
 let optimizedPromptConfig = null;
 let optimizedPromptTemplate = '';
@@ -375,12 +395,14 @@ async function extractSearchKeywords(url, tab) {
           break;
         }
       }
-      
+
+      title = cleanupTitleKeyword(title);
+
       // 限制长度
       if (title.length > 50) {
         title = title.substring(0, 50) + '...';
       }
-      
+
       const cleaned = title.trim();
       BG_DBG('[触触搜][BG][DEBUG] final title keyword:', cleaned);
       return cleaned;
