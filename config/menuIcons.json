@@ -2,9 +2,10 @@
   "defaultSize": 16,
   "items": {
     "ccs-google": {
+      "localPath": "assets/menu-icons/favicon_ccs-google.ico",
       "remoteUrl": "https://www.gstatic.com/images/branding/searchlogo/ico/favicon.ico",
       "size": 16,
-      "notes": "Official Google Search favicon"
+      "notes": "Google Search favicon"
     },
     "ccs-baidu": {
       "remoteUrl": "https://www.baidu.com/favicon.ico",
