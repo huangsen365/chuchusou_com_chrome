@@ -1,5 +1,5 @@
 // 提取URL中的搜索关键词或页面标题
-let BG_DEBUG = true;
+let BG_DEBUG = false;
 const BG_DBG = (...args) => { if (BG_DEBUG) console.log(...args); };
 
 function formatMenuTitle(text) {
@@ -27,6 +27,19 @@ function cleanupTitleKeyword(rawTitle) {
     cleaned = cleaned.replace(prefixPattern, '').trim();
   }
   return cleaned.trim();
+}
+
+function normalizeSearchText(raw) {
+  if (!raw) return '';
+  let text = raw;
+  // Decode once more if it still contains percent-encoding sequences
+  try {
+    if (/%[0-9A-Fa-f]{2}/.test(text) && decodeURIComponent(text) !== text) {
+      text = decodeURIComponent(text);
+    }
+  } catch (_) {}
+  text = text.replace(/\s+/g, ' ').trim();
+  return text;
 }
 
 const optimizedPromptMenuMap = new Map();
@@ -844,6 +857,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       return;
     }
   }
+
+  text = normalizeSearchText(text);
 
   if (optimizedPromptMenuMap.has(info.menuItemId) || (info.menuItemId && info.menuItemId.startsWith('ccs-optimize-'))) {
     if (!text) {
