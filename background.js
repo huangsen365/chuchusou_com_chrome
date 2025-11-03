@@ -117,14 +117,8 @@ async function resolveMenuIconTargets(iconConfig) {
   if (!iconConfig) return null;
   const size = Number.isFinite(iconConfig.size) ? iconConfig.size : (menuIconConfig?.defaultSize || 16);
   if (iconConfig.localPath) {
-    try {
-      const localUrl = chrome.runtime.getURL(iconConfig.localPath);
-      const response = await fetch(localUrl);
-      if (!response.ok) throw new Error('missing local icon');
-      return { [size]: iconConfig.localPath };
-    } catch (error) {
-      console.warn('[触触搜][BG] 本地图标不存在或无法访问:', iconConfig.localPath, error);
-    }
+    const localUrl = chrome.runtime.getURL(iconConfig.localPath);
+    return { [size]: localUrl };
   }
   if (iconConfig.remoteUrl) {
     const imageData = await createImageDataFromUrl(iconConfig.remoteUrl, size);
