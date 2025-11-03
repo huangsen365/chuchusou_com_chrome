@@ -371,6 +371,20 @@ function createContextMenus() {
     });
 
     chrome.contextMenus.create({
+      id: 'ccs-baidu-translate',
+      parentId: 'ccs-main',
+      title: '百度翻译',
+      contexts: ['selection', 'page']
+    });
+
+    chrome.contextMenus.create({
+      id: 'ccs-google-translate',
+      parentId: 'ccs-main',
+      title: 'Google 翻译',
+      contexts: ['selection', 'page']
+    });
+
+    chrome.contextMenus.create({
       id: 'ccs-separator-2',
       parentId: 'ccs-main',
       type: 'separator',
@@ -694,6 +708,22 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           command: 'url-encode',
           text: text
         }).catch(() => {});
+      }
+      break;
+      
+    case 'ccs-baidu-translate':
+      if (text) {
+        chrome.tabs.create({
+          url: `https://fanyi.baidu.com/?query=${encodeURIComponent(text)}`
+        });
+      }
+      break;
+      
+    case 'ccs-google-translate':
+      if (text) {
+        chrome.tabs.create({
+          url: `https://translate.google.com/?text=${encodeURIComponent(text)}`
+        });
       }
       break;
       
