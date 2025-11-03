@@ -74,7 +74,7 @@ const MENU_ITEM_TITLES = {
   'ccs-baidu-translate': '✍️ 百度翻译',
   'ccs-google-translate': '🔁 Google 翻译',
   'ccs-chuchusou': '🌐 更多搜索引擎...',
-  'ccs-top100-root': '🧠 触触搜百问',
+  'ccs-top100-root': '💯 触触搜百问',
   'ccs-top100-open-all': '🚀 打开以下全部',
   'ccs-fastqa-root': '⚡ 速答壹拾佰',
   'ccs-fastqa-open-all': '🚀 打开以下全部',
