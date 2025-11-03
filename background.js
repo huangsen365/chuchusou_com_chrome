@@ -609,7 +609,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     case 'ccs-zhihu':
       if (text) {
         chrome.tabs.create({
-          url: `https://www.zhihu.com/search?type=content&q=${encodeURIComponent(text)}`
+          url: `https://www.zhihu.com/search?q=${encodeURIComponent(text)}`
         });
       }
       break;
