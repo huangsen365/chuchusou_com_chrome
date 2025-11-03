@@ -12,6 +12,10 @@ function formatMenuTitle(text) {
 const optimizedPromptMenuMap = new Map();
 let optimizedPromptConfig = null;
 let optimizedPromptTemplate = '';
+
+let menuIconConfig = null;
+const menuIconImageCache = new Map();
+
 let menuBuildCounter = 0;
 
 async function loadOptimizedPromptConfig() {
@@ -45,6 +49,23 @@ function buildOptimizedPrompt(purpose, inputText) {
     .split('${input}').join(safeInput);
 }
 
+async function loadMenuIconConfig() {
+  if (menuIconConfig) return menuIconConfig;
+  try {
+    const url = chrome.runtime.getURL('config/menuIcons.json');
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to load menu icon config: ${response.status}`);
+    }
+    menuIconConfig = await response.json();
+    return menuIconConfig;
+  } catch (error) {
+    console.warn('[触触搜][BG] Failed to load menu icon config:', error);
+    menuIconConfig = null;
+    return null;
+  }
+}
+
 function populateOptimizedMenuMap(config) {
   optimizedPromptMenuMap.clear();
   if (!config || !Array.isArray(config.categories)) return;
@@ -60,6 +81,78 @@ function populateOptimizedMenuMap(config) {
       });
     });
   });
+}
+
+async function createImageDataFromUrl(url, size) {
+  try {
+    const cacheKey = `${url}@${size}`;
+    if (menuIconImageCache.has(cacheKey)) {
+      return menuIconImageCache.get(cacheKey);
+    }
+    const response = await fetch(url, { mode: 'cors' });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const blob = await response.blob();
+    const imageBitmap = await createImageBitmap(blob);
+    const canvas = new OffscreenCanvas(size, size);
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, size, size);
+    const scale = Math.min(size / imageBitmap.width, size / imageBitmap.height, 1);
+    const targetWidth = imageBitmap.width * scale;
+    const targetHeight = imageBitmap.height * scale;
+    const dx = (size - targetWidth) / 2;
+    const dy = (size - targetHeight) / 2;
+    ctx.drawImage(imageBitmap, dx, dy, targetWidth, targetHeight);
+    const imageData = ctx.getImageData(0, 0, size, size);
+    menuIconImageCache.set(cacheKey, imageData);
+    return imageData;
+  } catch (error) {
+    console.warn('[触触搜][BG] 无法加载远程图标:', url, error);
+    return null;
+  }
+}
+
+async function resolveMenuIconTargets(iconConfig) {
+  if (!iconConfig) return null;
+  const size = Number.isFinite(iconConfig.size) ? iconConfig.size : (menuIconConfig?.defaultSize || 16);
+  if (iconConfig.localPath) {
+    try {
+      const localUrl = chrome.runtime.getURL(iconConfig.localPath);
+      const response = await fetch(localUrl);
+      if (!response.ok) throw new Error('missing local icon');
+      return { [size]: iconConfig.localPath };
+    } catch (error) {
+      console.warn('[触触搜][BG] 本地图标不存在或无法访问:', iconConfig.localPath, error);
+    }
+  }
+  if (iconConfig.remoteUrl) {
+    const imageData = await createImageDataFromUrl(iconConfig.remoteUrl, size);
+    if (imageData) {
+      return { [size]: imageData };
+    }
+  }
+  return null;
+}
+
+async function applyMenuIcons(buildId) {
+  const config = await loadMenuIconConfig();
+  if (buildId !== menuBuildCounter) return;
+  if (!config?.items) return;
+  const entries = Object.entries(config.items);
+  await Promise.all(entries.map(async ([menuId, iconCfg]) => {
+    try {
+      const icons = await resolveMenuIconTargets(iconCfg);
+      if (!icons || buildId !== menuBuildCounter) return;
+      chrome.contextMenus.update(menuId, { icons }, () => {
+        if (chrome.runtime.lastError) {
+          console.warn('[触触搜][BG] 更新菜单图标失败:', menuId, chrome.runtime.lastError.message);
+        }
+      });
+    } catch (error) {
+      console.warn('[触触搜][BG] 处理菜单图标失败:', menuId, error);
+    }
+  }));
 }
 
 async function extractSearchKeywords(url, tab) {
@@ -423,34 +516,41 @@ function createContextMenus() {
     });
 
     // 动态加载优化提示词菜单
-    loadOptimizedPromptConfig().then((config) => {
-      if (buildId !== menuBuildCounter) {
-        return;
-      }
-      if (!config) return;
-      populateOptimizedMenuMap(config);
-      (config.categories || []).forEach((category) => {
-        const categoryId = `ccs-optimize-${category.id}`;
-        chrome.contextMenus.create({
-          id: categoryId,
-          parentId: 'ccs-optimize-root',
-          title: category.label,
-          contexts: ['selection', 'page']
-        });
-
-        (category.engines || []).forEach((engine) => {
-          const menuId = `ccs-optimize-${category.id}-${engine.id}`;
+    loadOptimizedPromptConfig()
+      .then((config) => {
+        if (buildId !== menuBuildCounter) {
+          return;
+        }
+        if (!config) return;
+        populateOptimizedMenuMap(config);
+        (config.categories || []).forEach((category) => {
+          const categoryId = `ccs-optimize-${category.id}`;
           chrome.contextMenus.create({
-            id: menuId,
-            parentId: categoryId,
-            title: engine.label,
+            id: categoryId,
+            parentId: 'ccs-optimize-root',
+            title: category.label,
             contexts: ['selection', 'page']
           });
+
+          (category.engines || []).forEach((engine) => {
+            const menuId = `ccs-optimize-${category.id}-${engine.id}`;
+            chrome.contextMenus.create({
+              id: menuId,
+              parentId: categoryId,
+              title: engine.label,
+              contexts: ['selection', 'page']
+            });
+          });
+        });
+      })
+      .catch((error) => {
+        console.warn('[触触搜][BG] 无法构建优化提示词菜单:', error);
+      })
+      .finally(() => {
+        applyMenuIcons(buildId).catch((err) => {
+          console.warn('[触触搜][BG] 无法应用菜单图标:', err);
         });
       });
-    }).catch((error) => {
-      console.warn('[触触搜][BG] 无法构建优化提示词菜单:', error);
-    });
 
     chrome.contextMenus.create({
       id: 'ccs-separator-1',
