@@ -9,6 +9,41 @@ function formatMenuTitle(text) {
   return compact.substring(0, 20) + (compact.length > 20 ? '...' : '');
 }
 
+const optimizedPromptMenuMap = new Map();
+let optimizedPromptConfig = null;
+let optimizedPromptTemplate = '';
+
+async function loadOptimizedPromptConfig() {
+  if (optimizedPromptConfig) return optimizedPromptConfig;
+  try {
+    const url = chrome.runtime.getURL('prompts/optimizedPrompts.json');
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to load optimized prompt config: ${response.status}`);
+    }
+    const config = await response.json();
+    optimizedPromptConfig = config;
+    optimizedPromptTemplate = Array.isArray(config.templateLines)
+      ? config.templateLines.join('\n')
+      : (config.template || '');
+    return optimizedPromptConfig;
+  } catch (error) {
+    console.error('[触触搜][BG] Failed to load optimized prompt config:', error);
+    optimizedPromptConfig = null;
+    optimizedPromptTemplate = '';
+    return null;
+  }
+}
+
+function buildOptimizedPrompt(purpose, inputText) {
+  if (!optimizedPromptTemplate) return null;
+  const safePurpose = purpose || '';
+  const safeInput = inputText || '';
+  return optimizedPromptTemplate
+    .split('${purpose}').join(safePurpose)
+    .split('${input}').join(safeInput);
+}
+
 async function extractSearchKeywords(url, tab) {
   try {
     const urlObj = new URL(url);
@@ -329,24 +364,56 @@ function createContextMenus() {
     });
 
     chrome.contextMenus.create({
-      id: 'ccs-baidu-translate',
-      parentId: 'ccs-main',
-      title: '百度翻译',
-      contexts: ['selection', 'page']
-    });
-
-    chrome.contextMenus.create({
-      id: 'ccs-google-translate',
-      parentId: 'ccs-main',
-      title: 'Google 翻译',
-      contexts: ['selection', 'page']
-    });
-
-    chrome.contextMenus.create({
       id: 'ccs-chuchusou',
       parentId: 'ccs-main',
       title: '🌐 更多搜索引擎...',
       contexts: ['selection', 'page']
+    });
+
+    chrome.contextMenus.create({
+      id: 'ccs-separator-optimized',
+      parentId: 'ccs-main',
+      type: 'separator',
+      contexts: ['selection', 'page']
+    });
+
+    // 动态加载优化提示词菜单
+    loadOptimizedPromptConfig().then((config) => {
+      if (!config) return;
+      chrome.contextMenus.create({
+        id: 'ccs-optimize-root',
+        parentId: 'ccs-main',
+        title: '🧠 优化提示词',
+        contexts: ['selection', 'page']
+      });
+
+      optimizedPromptMenuMap.clear();
+
+      (config.categories || []).forEach((category) => {
+        const categoryId = `ccs-optimize-${category.id}`;
+        chrome.contextMenus.create({
+          id: categoryId,
+          parentId: 'ccs-optimize-root',
+          title: category.label,
+          contexts: ['selection', 'page']
+        });
+
+        (category.engines || []).forEach((engine) => {
+          const menuId = `ccs-optimize-${category.id}-${engine.id}`;
+          chrome.contextMenus.create({
+            id: menuId,
+            parentId: categoryId,
+            title: engine.label,
+            contexts: ['selection', 'page']
+          });
+          optimizedPromptMenuMap.set(menuId, {
+            purpose: category.purpose || category.label,
+            urlPattern: engine.urlPattern
+          });
+        });
+      });
+    }).catch((error) => {
+      console.warn('[触触搜][BG] 无法构建优化提示词菜单:', error);
     });
 
     chrome.contextMenus.create({
@@ -586,6 +653,44 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       return;
     }
   }
+
+  if (optimizedPromptMenuMap.has(info.menuItemId)) {
+    if (!text) {
+      chrome.tabs.sendMessage(tab.id, {
+        action: 'showToast',
+        message: '没有选中文本，无法生成优化后的提示词'
+      }).catch(() => {});
+      return;
+    }
+
+    loadOptimizedPromptConfig().then(() => {
+      const config = optimizedPromptMenuMap.get(info.menuItemId);
+      if (!config) {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'showToast',
+          message: '未找到对应的提示词配置'
+        }).catch(() => {});
+        return;
+      }
+      const prompt = buildOptimizedPrompt(config.purpose, text);
+      if (!prompt) {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'showToast',
+          message: '提示词模板加载失败'
+        }).catch(() => {});
+        return;
+      }
+      const encodedPrompt = encodeURIComponent(prompt);
+      const url = config.urlPattern.split('${PROMPT}').join(encodedPrompt);
+      chrome.tabs.create({ url });
+    }).catch(() => {
+      chrome.tabs.sendMessage(tab.id, {
+        action: 'showToast',
+        message: '提示词模板加载失败'
+      }).catch(() => {});
+    });
+    return;
+  }
   
   switch (info.menuItemId) {
     case 'ccs-baidu':
@@ -660,22 +765,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       }
       break;
 
-    case 'ccs-baidu-translate':
-      if (text) {
-        chrome.tabs.create({
-          url: `https://fanyi.baidu.com/?query=${encodeURIComponent(text)}`
-        });
-      }
-      break;
-      
-    case 'ccs-google-translate':
-      if (text) {
-        chrome.tabs.create({
-          url: `https://translate.google.com/?text=${encodeURIComponent(text)}`
-        });
-      }
-      break;
-      
     case 'ccs-chuchusou':
       if (text) {
         chrome.tabs.create({
