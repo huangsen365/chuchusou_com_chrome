@@ -1,5 +1,5 @@
 // 提取URL中的搜索关键词或页面标题
-let BG_DEBUG = false;
+let BG_DEBUG = true;
 const BG_DBG = (...args) => { if (BG_DEBUG) console.log(...args); };
 
 function formatMenuTitle(text) {
@@ -87,10 +87,12 @@ async function createImageDataFromUrl(url, size) {
   try {
     const cacheKey = `${url}@${size}`;
     if (menuIconImageCache.has(cacheKey)) {
+      BG_DBG('[触触搜][BG][ICON] cache hit', cacheKey);
       return menuIconImageCache.get(cacheKey);
     }
     const isExtensionResource = url.startsWith('chrome-extension://');
     const fetchOptions = isExtensionResource ? {} : { mode: 'cors' };
+    BG_DBG('[触触搜][BG][ICON] fetching image', { url, size, fetchOptions });
     const response = await fetch(url, fetchOptions);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -107,6 +109,7 @@ async function createImageDataFromUrl(url, size) {
     const dy = (size - targetHeight) / 2;
     ctx.drawImage(imageBitmap, dx, dy, targetWidth, targetHeight);
     const imageData = ctx.getImageData(0, 0, size, size);
+    BG_DBG('[触触搜][BG][ICON] image processed', { url, size, scale });
     menuIconImageCache.set(cacheKey, imageData);
     return imageData;
   } catch (error) {
@@ -118,10 +121,12 @@ async function createImageDataFromUrl(url, size) {
 async function resolveMenuIconTargets(iconConfig) {
   if (!iconConfig) return null;
   const size = Number.isFinite(iconConfig.size) ? iconConfig.size : (menuIconConfig?.defaultSize || 16);
+  BG_DBG('[触触搜][BG][ICON] resolveMenuIconTargets', { iconConfig, size });
   if (iconConfig.localPath) {
     const localUrl = chrome.runtime.getURL(iconConfig.localPath);
     const localImageData = await createImageDataFromUrl(localUrl, size);
     if (localImageData) {
+      BG_DBG('[触触搜][BG][ICON] using local image data', { localUrl, size });
       return { [size]: localImageData };
     }
     console.warn('[触触搜][BG] 本地图标加载失败，尝试远程图标:', iconConfig.localPath);
@@ -129,6 +134,7 @@ async function resolveMenuIconTargets(iconConfig) {
   if (iconConfig.remoteUrl) {
     const imageData = await createImageDataFromUrl(iconConfig.remoteUrl, size);
     if (imageData) {
+      BG_DBG('[触触搜][BG][ICON] using remote image data', { url: iconConfig.remoteUrl, size });
       return { [size]: imageData };
     }
   }
@@ -139,14 +145,18 @@ async function applyMenuIcons(buildId) {
   const config = await loadMenuIconConfig();
   if (buildId !== menuBuildCounter) return;
   if (!config?.items) return;
+  BG_DBG('[触触搜][BG][ICON] applying menu icons', { buildId, items: Object.keys(config.items || {}) });
   const entries = Object.entries(config.items);
   await Promise.all(entries.map(async ([menuId, iconCfg]) => {
     try {
       const icons = await resolveMenuIconTargets(iconCfg);
       if (!icons || buildId !== menuBuildCounter) return;
+      BG_DBG('[触触搜][BG][ICON] updating menu icon', { menuId, icons: Object.keys(icons) });
       chrome.contextMenus.update(menuId, { icons }, () => {
         if (chrome.runtime.lastError) {
           console.warn('[触触搜][BG] 更新菜单图标失败:', menuId, chrome.runtime.lastError.message);
+        } else {
+          BG_DBG('[触触搜][BG][ICON] menu icon applied', menuId);
         }
       });
     } catch (error) {
@@ -391,6 +401,7 @@ function createContextMenus() {
     if (buildId !== menuBuildCounter) {
       return;
     }
+    BG_DBG('[触触搜][BG][MENU] rebuilding context menus', { buildId });
     optimizedPromptMenuMap.clear();
     
     // 创建主菜单 - 对选中文本和页面都生效
@@ -423,6 +434,7 @@ function createContextMenus() {
       title: '百度搜索',
       contexts: ['selection', 'page']
     });
+    BG_DBG('[触触搜][BG][MENU] base search items created');
 
     chrome.contextMenus.create({
       id: 'ccs-google',
@@ -540,6 +552,7 @@ function createContextMenus() {
               title: engine.label,
               contexts: ['selection', 'page']
             });
+            BG_DBG('[触触搜][BG][MENU] optimize submenu created', { menuId });
           });
         });
       })
@@ -547,6 +560,7 @@ function createContextMenus() {
         console.warn('[触触搜][BG] 无法构建优化提示词菜单:', error);
       })
       .finally(() => {
+        BG_DBG('[触触搜][BG][MENU] applying icons', { buildId });
         applyMenuIcons(buildId).catch((err) => {
           console.warn('[触触搜][BG] 无法应用菜单图标:', err);
         });
@@ -642,6 +656,24 @@ const selectedTextByTab = {};
 
 // 监听来自content script和popup的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'ccs-log-menu-icons') {
+    loadMenuIconConfig().then((config) => {
+      const info = {
+        BG_DEBUG,
+        iconConfig: config,
+        iconMapKeys: Array.from(optimizedPromptMenuMap.keys()),
+        cacheSize: menuIconImageCache.size,
+        buildCounter: menuBuildCounter,
+        timestamp: Date.now()
+      };
+      console.log('[触触搜][BG][ICON] 状态报告', info);
+      sendResponse?.({ ok: true, info });
+    }).catch((err) => {
+      console.warn('[触触搜][BG][ICON] 状态报告失败', err);
+      sendResponse?.({ ok: false, error: err?.message || String(err) });
+    });
+    return true;
+  }
   if (request.action === 'updateDebug') {
     BG_DEBUG = !!request.enabled;
     chrome.storage.local.set({ ccs_debug: BG_DEBUG });
