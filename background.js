@@ -128,6 +128,44 @@ const TOP_QUESTION_ENGINE_TITLES = {
   'claude': '🧠 Claude (推荐 Opus)'
 };
 
+function applyMenuTitle(normalizedText) {
+  if (normalizedText) {
+    const displayText = formatMenuTitle(normalizedText);
+    if (displayText) {
+      chrome.contextMenus.update('ccs-main', {
+        title: `🔍 触触搜: "${displayText}"`
+      });
+      chrome.contextMenus.update('ccs-label', {
+        title: `🔍 触触搜: "${displayText}"`
+      });
+      if (chrome.contextMenus.refresh) {
+        chrome.contextMenus.refresh();
+      }
+      return;
+    }
+  }
+
+  chrome.contextMenus.update('ccs-main', { title: '🔍 触触搜' });
+  chrome.contextMenus.update('ccs-label', { title: '🔍 触触搜' });
+  if (chrome.contextMenus.refresh) {
+    chrome.contextMenus.refresh();
+  }
+}
+
+async function refreshMenuTitle(tab, selectionText = '') {
+  try {
+    const result = await computeSearchTextForTab({
+      tabId: tab?.id,
+      tabUrl: tab?.url,
+      tabTitle: tab?.title || '',
+      selectionText
+    });
+    applyMenuTitle(result.normalized);
+  } catch (error) {
+    console.warn('[触触搜][BG] refreshMenuTitle失败:', error);
+  }
+}
+
 async function computeSearchTextForTab({ tabId, tabUrl, tabTitle = '', selectionText = '' }) {
   let text = '';
   if (typeof selectionText === 'string' && selectionText.trim().length > 0) {
@@ -924,29 +962,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     } else {
       delete selectedTextByTab[tabId];
     }
-    const normalizedForDisplay = hasContent ? normalizeSearchText(rawText) : '';
-    
-    // 获取当前活动标签
     chrome.tabs.query({active: true, currentWindow: true}, async (tabs) => {
       if (tabs[0] && tabs[0].id === tabId) {
-        // 只更新当前活动标签的菜单
-        if (normalizedForDisplay) {
-          const displayText = formatMenuTitle(normalizedForDisplay);
-          if (displayText) {
-            chrome.contextMenus.update('ccs-main', {
-              title: `🔍 触触搜: "${displayText}"`
-            });
-            chrome.contextMenus.update('ccs-label', {
-              title: `🔍 触触搜: "${displayText}"`
-            });
-            if (chrome.contextMenus.refresh) {
-              chrome.contextMenus.refresh();
-            }
-          }
-        } else {
-          // 没有选中文本，回退到URL关键词或默认
-          updateContextMenuForTab(sender.tab);
-        }
+        await refreshMenuTitle(sender.tab, rawText);
       }
     });
   }
@@ -962,54 +980,14 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 // 监听标签页激活，动态更新菜单标题
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   const tab = await chrome.tabs.get(activeInfo.tabId);
-  
-  // 先检查是否有存储的选中文本
-  if (selectedTextByTab[activeInfo.tabId]) {
-    const text = selectedTextByTab[activeInfo.tabId];
-    const displayText = formatMenuTitle(text);
-    if (displayText) {
-      chrome.contextMenus.update('ccs-main', {
-        title: `🔍 触触搜: "${displayText}"`
-      });
-      chrome.contextMenus.update('ccs-label', {
-        title: `🔍 触触搜: "${displayText}"`
-      });
-      return;
-    }
-  }
-  
-  if (tab.url) {
-    // 没有选中文本或显示文本为空时，使用URL关键词
-    updateContextMenuForTab(tab);
-  }
+  await refreshMenuTitle(tab);
 });
 
 // 根据URL更新菜单标题
 async function updateContextMenuForTab(tab) {
   // 注意：这里只是预显示，实际使用时选中文本优先级更高
   const keywords = await extractSearchKeywords(tab.url, tab);
-  
-  if (keywords) {
-    const displayText = formatMenuTitle(keywords);
-    if (displayText) {
-      chrome.contextMenus.update('ccs-main', {
-        title: `🔍 触触搜: "${displayText}"`
-      });
-      chrome.contextMenus.update('ccs-label', {
-        title: `🔍 触触搜: "${displayText}"`
-      });
-      return;
-    }
-  }
-  
-  // 恢复默认标题
-  chrome.contextMenus.update('ccs-main', {
-    title: '🔍 触触搜'
-  });
-  
-  chrome.contextMenus.update('ccs-label', {
-    title: '🔍 触触搜'
-  });
+  applyMenuTitle(keywords ? normalizeSearchText(keywords) : '');
 }
 
 // 处理右键菜单点击
@@ -1305,24 +1283,7 @@ if (chrome.contextMenus.onShown && typeof chrome.contextMenus.onShown.addListene
         tabTitle: tab?.title || '',
         selectionText: info.selectionText || ''
       });
-      const normalized = result.normalized;
-      if (normalized) {
-        const displayText = formatMenuTitle(normalized);
-        if (displayText) {
-          chrome.contextMenus.update('ccs-main', {
-            title: `🔍 触触搜: "${displayText}"`
-          });
-          chrome.contextMenus.update('ccs-label', {
-            title: `🔍 触触搜: "${displayText}"`
-          });
-        }
-      } else {
-        chrome.contextMenus.update('ccs-main', { title: '🔍 触触搜' });
-        chrome.contextMenus.update('ccs-label', { title: '🔍 触触搜' });
-      }
-      if (chrome.contextMenus.refresh) {
-        chrome.contextMenus.refresh();
-      }
+      applyMenuTitle(result.normalized);
     } catch (error) {
       console.warn('[触触搜][BG] onShown更新菜单失败:', error);
     }
