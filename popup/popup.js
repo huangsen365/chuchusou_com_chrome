@@ -288,14 +288,14 @@ async function initQuickSearch() {
     
     if (!tab || !tab.url) return;
     
-    // 发送消息到background获取关键词
     chrome.runtime.sendMessage({
-      action: 'extractKeywords',
+      action: 'getSearchText',
+      tabId: tab.id,
       url: tab.url,
       title: tab.title
     }, (response) => {
-      if (response && response.keywords) {
-        showQuickSearch(response.keywords);
+      if (response && response.text) {
+        showQuickSearch(response.text);
       }
     });
   } catch (error) {

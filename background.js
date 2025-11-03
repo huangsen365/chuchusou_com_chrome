@@ -115,6 +115,23 @@ const OPTIMIZE_ENGINE_TITLES = {
   'claude': '🧠 Claude (推荐 Opus)'
 };
 
+async function computeSearchTextForTab({ tabId, tabUrl, tabTitle = '', selectionText = '' }) {
+  let text = '';
+  if (typeof selectionText === 'string' && selectionText.trim().length > 0) {
+    text = selectionText;
+  }
+  if (!text && tabId != null && selectedTextByTab[tabId] && selectedTextByTab[tabId].trim().length > 0) {
+    text = selectedTextByTab[tabId];
+  }
+  if (!text && tabUrl) {
+    const extracted = await extractSearchKeywords(tabUrl, { url: tabUrl, title: tabTitle });
+    if (extracted && extracted.trim().length > 0) {
+      text = extracted;
+    }
+  }
+  return normalizeSearchText(text);
+}
+
 let menuBuildCounter = 0;
 
 async function loadOptimizedPromptConfig() {
@@ -714,6 +731,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }).catch((err) => {
       console.warn('[触触搜][BG][ICON] 状态报告失败', err);
       sendResponse?.({ ok: false, error: err?.message || String(err) });
+    });
+    return true;
+  }
+  if (request.action === 'getSearchText') {
+    const { tabId, url, title, selectionText } = request;
+    computeSearchTextForTab({
+      tabId,
+      tabUrl: url,
+      tabTitle: title,
+      selectionText
+    }).then((text) => {
+      sendResponse?.({ text });
+    }).catch((error) => {
+      console.error('[触触搜][BG] 获取搜索文本失败:', error);
+      sendResponse?.({ text: '' });
     });
     return true;
   }
