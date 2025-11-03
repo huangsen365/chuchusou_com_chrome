@@ -129,7 +129,10 @@ async function computeSearchTextForTab({ tabId, tabUrl, tabTitle = '', selection
       text = extracted;
     }
   }
-  return normalizeSearchText(text);
+  return {
+    raw: text || '',
+    normalized: normalizeSearchText(text)
+  };
 }
 
 let menuBuildCounter = 0;
@@ -742,10 +745,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       tabTitle: title,
       selectionText
     }).then((text) => {
-      sendResponse?.({ text });
+      sendResponse?.({ text: text.normalized, raw: text.raw });
     }).catch((error) => {
       console.error('[触触搜][BG] 获取搜索文本失败:', error);
-      sendResponse?.({ text: '' });
+      sendResponse?.({ text: '', raw: '' });
     });
     return true;
   }

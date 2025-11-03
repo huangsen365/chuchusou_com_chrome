@@ -1,3 +1,5 @@
+let quickSearchState = { normalized: '', raw: '' };
+
 document.addEventListener('DOMContentLoaded', () => {
   // 获取当前插件状态
   chrome.storage.local.get(['enabled'], (result) => {
@@ -295,7 +297,7 @@ async function initQuickSearch() {
       title: tab.title
     }, (response) => {
       if (response && response.text) {
-        showQuickSearch(response.text);
+        showQuickSearch(response.text, response.raw || response.text);
       }
     });
   } catch (error) {
@@ -304,9 +306,13 @@ async function initQuickSearch() {
 }
 
 // 显示快速搜索区域
-function showQuickSearch(keywords) {
+function showQuickSearch(keywords, rawKeywords = keywords) {
   const section = document.querySelector('.quick-search-section');
   const keywordText = document.querySelector('.keyword-text');
+  quickSearchState = {
+    normalized: keywords,
+    raw: rawKeywords
+  };
   
   if (section && keywordText && keywords) {
     keywordText.textContent = keywords;
@@ -342,7 +348,7 @@ function handleSearchAction(action, keywords) {
       });
       break;
     case 'copy':
-      navigator.clipboard.writeText(keywords).then(() => {
+      navigator.clipboard.writeText(quickSearchState.raw || keywords).then(() => {
         showToast('关键词已复制');
         // 更新按钮状态
         const btn = document.querySelector('[data-action="copy"]');
