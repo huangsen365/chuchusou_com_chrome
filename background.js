@@ -1151,7 +1151,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     case 'ccs-chatgpt':
       if (normalizedText) {
         chrome.tabs.create({
-          url: `https://chatgpt.com/?model=gpt-5&prompt=${encodeURIComponent(normalizedText)}`
+          url: `https://chatgpt.com/?model=gpt-5&q=${encodeURIComponent(normalizedText)}`
         });
       }
       break;

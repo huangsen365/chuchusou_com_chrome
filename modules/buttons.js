@@ -41,7 +41,7 @@
         icon: '🌐',
         title: 'ChatGPT',
         action: (text) => {
-          window.open(`https://chatgpt.com/?prompt=${encodeURIComponent(text)}`, '_blank');
+          window.open(`https://chatgpt.com/?q=${encodeURIComponent(text)}`, '_blank');
         }
       },
       {

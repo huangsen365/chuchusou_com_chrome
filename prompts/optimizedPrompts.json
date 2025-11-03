@@ -40,7 +40,7 @@
         {
           "id": "chatgpt",
           "label": "ChatGPT (默认 GPT-5)",
-          "urlPattern": "https://chatgpt.com/?model=gpt-5&prompt=${PROMPT}"
+          "urlPattern": "https://chatgpt.com/?model=gpt-5&q=${PROMPT}"
         },
         {
           "id": "claude",
@@ -57,7 +57,7 @@
         {
           "id": "chatgpt",
           "label": "ChatGPT (默认 GPT-5)",
-          "urlPattern": "https://chatgpt.com/?model=gpt-5&prompt=${PROMPT}"
+          "urlPattern": "https://chatgpt.com/?model=gpt-5&q=${PROMPT}"
         },
         {
           "id": "claude",
@@ -74,7 +74,7 @@
         {
           "id": "chatgpt",
           "label": "ChatGPT (默认 GPT-5)",
-          "urlPattern": "https://chatgpt.com/?model=gpt-5&prompt=${PROMPT}"
+          "urlPattern": "https://chatgpt.com/?model=gpt-5&q=${PROMPT}"
         },
         {
           "id": "claude",
@@ -91,7 +91,7 @@
         {
           "id": "chatgpt",
           "label": "ChatGPT (默认 GPT-5)",
-          "urlPattern": "https://chatgpt.com/?model=gpt-5&prompt=${PROMPT}"
+          "urlPattern": "https://chatgpt.com/?model=gpt-5&q=${PROMPT}"
         },
         {
           "id": "claude",
@@ -108,7 +108,7 @@
         {
           "id": "chatgpt",
           "label": "ChatGPT (默认 GPT-5)",
-          "urlPattern": "https://chatgpt.com/?model=gpt-5&prompt=${PROMPT}"
+          "urlPattern": "https://chatgpt.com/?model=gpt-5&q=${PROMPT}"
         },
         {
           "id": "claude",
@@ -125,7 +125,7 @@
         {
           "id": "chatgpt",
           "label": "ChatGPT (默认 GPT-5)",
-          "urlPattern": "https://chatgpt.com/?model=gpt-5&prompt=${PROMPT}"
+          "urlPattern": "https://chatgpt.com/?model=gpt-5&q=${PROMPT}"
         },
         {
           "id": "claude",
@@ -142,7 +142,7 @@
         {
           "id": "chatgpt",
           "label": "ChatGPT (默认 GPT-5)",
-          "urlPattern": "https://chatgpt.com/?model=gpt-5&prompt=${PROMPT}"
+          "urlPattern": "https://chatgpt.com/?model=gpt-5&q=${PROMPT}"
         },
         {
           "id": "claude",
@@ -159,7 +159,7 @@
         {
           "id": "chatgpt",
           "label": "ChatGPT (默认 GPT-5)",
-          "urlPattern": "https://chatgpt.com/?model=gpt-5&prompt=${PROMPT}"
+          "urlPattern": "https://chatgpt.com/?model=gpt-5&q=${PROMPT}"
         },
         {
           "id": "claude",
