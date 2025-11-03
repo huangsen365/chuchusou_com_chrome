@@ -40,7 +40,6 @@
         "modules/textSync.js",
         "modules/positioning.js",
         "modules/domMonitor.js",
-        "modules/suggestions.js",
         "dockbar.js",
         "content.js"
       ],

@@ -273,6 +273,55 @@ function createContextMenus() {
     });
 
     chrome.contextMenus.create({
+      id: 'ccs-chatgpt',
+      parentId: 'ccs-main',
+      title: 'ChatGPT (GPT-5)',
+      contexts: ['selection', 'page']
+    });
+
+    chrome.contextMenus.create({
+      id: 'ccs-claude',
+      parentId: 'ccs-main',
+      title: 'Claude',
+      contexts: ['selection', 'page']
+    });
+
+    chrome.contextMenus.create({
+      id: 'ccs-zhihu',
+      parentId: 'ccs-main',
+      title: '知乎搜索',
+      contexts: ['selection', 'page']
+    });
+
+    chrome.contextMenus.create({
+      id: 'ccs-weixin',
+      parentId: 'ccs-main',
+      title: '微信搜一搜',
+      contexts: ['selection', 'page']
+    });
+
+    chrome.contextMenus.create({
+      id: 'ccs-taobao',
+      parentId: 'ccs-main',
+      title: '淘宝搜索',
+      contexts: ['selection', 'page']
+    });
+
+    chrome.contextMenus.create({
+      id: 'ccs-jd',
+      parentId: 'ccs-main',
+      title: '京东搜索',
+      contexts: ['selection', 'page']
+    });
+
+    chrome.contextMenus.create({
+      id: 'ccs-sov2ex',
+      parentId: 'ccs-main',
+      title: 'V2EX (sov2ex)',
+      contexts: ['selection', 'page']
+    });
+
+    chrome.contextMenus.create({
       id: 'ccs-chuchusou',
       parentId: 'ccs-main',
       title: '🌐 更多搜索引擎...',
@@ -390,7 +439,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // 处理content script的选择变化
   if (request.action === 'selectionChanged' && sender.tab) {
     const tabId = sender.tab.id;
-    const text = request.text;
+    const text = typeof request.text === 'string' ? request.text.trim() : '';
     
     // 存储选中文本
     if (text) {
@@ -483,7 +532,12 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   // 1. 优先使用选中的文本
   // 2. 没有选中文本时，才尝试从URL提取搜索关键词
   // 3. 最后使用页面标题作为后备
-  let text = info.selectionText;
+  let text = typeof info.selectionText === 'string' ? info.selectionText.trim() : '';
+  
+  if (!text && tab?.id != null && selectedTextByTab[tab.id]) {
+    text = selectedTextByTab[tab.id];
+    BG_DBG('[触触搜][BG][DEBUG] 使用缓存的选中文本:', { tabId: tab.id, text });
+  }
   
   // 只有在没有选中文本时，才尝试其他来源
   if (!text && tab.url) {
@@ -517,6 +571,62 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       if (text) {
         chrome.tabs.create({
           url: `https://www.google.com/search?q=${encodeURIComponent(text)}`
+        });
+      }
+      break;
+
+    case 'ccs-chatgpt':
+      if (text) {
+        chrome.tabs.create({
+          url: `https://chatgpt.com/?model=gpt-5&prompt=${encodeURIComponent(text)}`
+        });
+      }
+      break;
+
+    case 'ccs-claude':
+      if (text) {
+        chrome.tabs.create({
+          url: `https://claude.ai/new?q=${encodeURIComponent(text)}`
+        });
+      }
+      break;
+      
+    case 'ccs-zhihu':
+      if (text) {
+        chrome.tabs.create({
+          url: `https://www.zhihu.com/search?type=content&q=${encodeURIComponent(text)}`
+        });
+      }
+      break;
+      
+    case 'ccs-weixin':
+      if (text) {
+        chrome.tabs.create({
+          url: `https://search.weixin.qq.com/cgi-bin/newsearchweb/userclientjump?path=page/search/christmas_jump&query=${encodeURIComponent(text)}`
+        });
+      }
+      break;
+      
+    case 'ccs-taobao':
+      if (text) {
+        chrome.tabs.create({
+          url: `https://s.taobao.com/search?q=${encodeURIComponent(text)}`
+        });
+      }
+      break;
+      
+    case 'ccs-jd':
+      if (text) {
+        chrome.tabs.create({
+          url: `https://search.jd.com/Search?keyword=${encodeURIComponent(text)}`
+        });
+      }
+      break;
+      
+    case 'ccs-sov2ex':
+      if (text) {
+        chrome.tabs.create({
+          url: `https://www.sov2ex.com/?q=${encodeURIComponent(text)}`
         });
       }
       break;
