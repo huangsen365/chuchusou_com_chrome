@@ -1030,7 +1030,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 
   if (topQuestionsMenuMap.has(info.menuItemId)) {
-    if (!normalizedText) {
+    const effectiveInput = rawText || normalizedText;
+    if (!effectiveInput) {
       chrome.tabs.sendMessage(tab.id, {
         action: 'showToast',
         message: '没有选中文本，无法生成问题列表'
@@ -1058,7 +1059,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         }).catch(() => {});
         return;
       }
-      const prompt = buildTopQuestionsPrompt(rawText);
+      const prompt = buildTopQuestionsPrompt(effectiveInput);
       if (!prompt) {
         chrome.tabs.sendMessage(tab.id, {
           action: 'showToast',
