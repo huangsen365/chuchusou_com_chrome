@@ -821,21 +821,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'selectionChanged' && sender.tab) {
     const tabId = sender.tab.id;
     const rawText = typeof request.text === 'string' ? request.text : '';
-    const normalized = rawText && rawText.trim().length > 0 ? rawText : '';
-    
-    // 存储选中文本
-    if (normalized) {
-      selectedTextByTab[tabId] = normalized;
+    const hasContent = rawText.trim().length > 0;
+    if (hasContent) {
+      selectedTextByTab[tabId] = rawText;
     } else {
       delete selectedTextByTab[tabId];
     }
+    const normalizedForDisplay = hasContent ? normalizeSearchText(rawText) : '';
     
     // 获取当前活动标签
     chrome.tabs.query({active: true, currentWindow: true}, async (tabs) => {
       if (tabs[0] && tabs[0].id === tabId) {
         // 只更新当前活动标签的菜单
-        if (normalized) {
-          const displayText = formatMenuTitle(normalized);
+        if (normalizedForDisplay) {
+          const displayText = formatMenuTitle(normalizedForDisplay);
           if (displayText) {
             chrome.contextMenus.update('ccs-main', {
               title: `🔍 触触搜: "${displayText}"`
@@ -843,6 +842,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             chrome.contextMenus.update('ccs-label', {
               title: `🔍 触触搜: "${displayText}"`
             });
+            if (chrome.contextMenus.refresh) {
+              chrome.contextMenus.refresh();
+            }
           }
         } else {
           // 没有选中文本，回退到URL关键词或默认
@@ -1170,5 +1172,36 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         text: rawText || ''
       }).catch(() => {});
       break;
+  }
+});
+
+chrome.contextMenus.onShown.addListener(async (info, tab) => {
+  try {
+    const result = await computeSearchTextForTab({
+      tabId: tab?.id,
+      tabUrl: tab?.url,
+      tabTitle: tab?.title || '',
+      selectionText: info.selectionText || ''
+    });
+    const normalized = result.normalized;
+    if (normalized) {
+      const displayText = formatMenuTitle(normalized);
+      if (displayText) {
+        chrome.contextMenus.update('ccs-main', {
+          title: `🔍 触触搜: "${displayText}"`
+        });
+        chrome.contextMenus.update('ccs-label', {
+          title: `🔍 触触搜: "${displayText}"`
+        });
+      }
+    } else {
+      chrome.contextMenus.update('ccs-main', { title: '🔍 触触搜' });
+      chrome.contextMenus.update('ccs-label', { title: '🔍 触触搜' });
+    }
+    if (chrome.contextMenus.refresh) {
+      chrome.contextMenus.refresh();
+    }
+  } catch (error) {
+    console.warn('[触触搜][BG] onShown更新菜单失败:', error);
   }
 });
