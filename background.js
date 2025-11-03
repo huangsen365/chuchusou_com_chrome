@@ -873,26 +873,25 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   // 1. 优先使用选中的文本
   // 2. 没有选中文本时，才尝试从URL提取搜索关键词
   // 3. 最后使用页面标题作为后备
-  let text = '';
-  const cached = tab?.id != null ? selectedTextByTab[tab.id] : '';
-  if (cached && cached.trim().length > 0) {
-    text = cached;
-    BG_DBG('[触触搜][BG][DEBUG] 使用缓存的选中文本:', { tabId: tab.id, text });
-  } else if (typeof info.selectionText === 'string' && info.selectionText.length > 0) {
-    const fallback = info.selectionText;
-    if (fallback.trim().length > 0) {
-      text = fallback;
-      BG_DBG('[触触搜][BG][DEBUG] 使用Chrome提供的选中文本:', { tabId: tab?.id, text });
+  let rawText = '';
+  const useCandidate = (candidate, source) => {
+    if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      rawText = candidate;
+      BG_DBG('[触触搜][BG][DEBUG] 选中文本来源:', { source, tabId: tab?.id, length: candidate.length });
+      return true;
     }
+    return false;
+  };
+
+  const cached = tab?.id != null ? selectedTextByTab[tab.id] : '';
+  if (!useCandidate(cached, 'cached') && typeof info.selectionText === 'string') {
+    useCandidate(info.selectionText, 'chrome.selectionText');
   }
   
   // 只有在没有选中文本时，才尝试其他来源
-  if (!text && tab?.url) {
+  if (!rawText && tab?.url) {
     const extracted = await extractSearchKeywords(tab.url, tab);
-    if (extracted && extracted.trim().length > 0) {
-      text = extracted;
-      BG_DBG('[触触搜][BG][DEBUG] 使用URL关键词:', { tabId: tab.id, text });
-    } else if (info.menuItemId !== 'ccs-show-popover') {
+    if (!useCandidate(extracted, 'url-extracted') && info.menuItemId !== 'ccs-show-popover') {
       chrome.tabs.sendMessage(tab.id, {
         action: 'showToast',
         message: '没有选中文本或无法提取关键词'
@@ -901,10 +900,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     }
   }
 
-  text = normalizeSearchText(text);
+  const normalizedText = normalizeSearchText(rawText);
 
   if (optimizedPromptMenuMap.has(info.menuItemId) || (info.menuItemId && info.menuItemId.startsWith('ccs-optimize-'))) {
-    if (!text) {
+    if (!normalizedText) {
       chrome.tabs.sendMessage(tab.id, {
         action: 'showToast',
         message: '没有选中文本，无法生成优化后的提示词'
@@ -931,7 +930,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         }).catch(() => {});
         return;
       }
-      const prompt = buildOptimizedPrompt(menuTarget.purpose, text);
+      const prompt = buildOptimizedPrompt(menuTarget.purpose, rawText);
       if (!prompt) {
         chrome.tabs.sendMessage(tab.id, {
           action: 'showToast',
@@ -953,107 +952,107 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   
   switch (info.menuItemId) {
     case 'ccs-baidu':
-      if (text) {
+      if (normalizedText) {
         chrome.tabs.create({
-          url: `https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${encodeURIComponent(text)}`
+          url: `https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${encodeURIComponent(normalizedText)}`
         });
       }
       break;
       
     case 'ccs-google':
-      if (text) {
+      if (normalizedText) {
         chrome.tabs.create({
-          url: `https://www.google.com/search?q=${encodeURIComponent(text)}`
+          url: `https://www.google.com/search?q=${encodeURIComponent(normalizedText)}`
         });
       }
       break;
 
     case 'ccs-chatgpt':
-      if (text) {
+      if (normalizedText) {
         chrome.tabs.create({
-          url: `https://chatgpt.com/?model=gpt-5&prompt=${encodeURIComponent(text)}`
+          url: `https://chatgpt.com/?model=gpt-5&prompt=${encodeURIComponent(normalizedText)}`
         });
       }
       break;
 
     case 'ccs-claude':
-      if (text) {
+      if (normalizedText) {
         chrome.tabs.create({
-          url: `https://claude.ai/new?q=${encodeURIComponent(text)}`
+          url: `https://claude.ai/new?q=${encodeURIComponent(normalizedText)}`
         });
       }
       break;
       
     case 'ccs-zhihu':
-      if (text) {
+      if (normalizedText) {
         chrome.tabs.create({
-          url: `https://www.zhihu.com/search?q=${encodeURIComponent(text)}`
+          url: `https://www.zhihu.com/search?q=${encodeURIComponent(normalizedText)}`
         });
       }
       break;
       
     case 'ccs-weixin':
-      if (text) {
+      if (normalizedText) {
         chrome.tabs.create({
-          url: `https://search.weixin.qq.com/cgi-bin/newsearchweb/userclientjump?path=page/search/christmas_jump&query=${encodeURIComponent(text)}`
+          url: `https://search.weixin.qq.com/cgi-bin/newsearchweb/userclientjump?path=page/search/christmas_jump&query=${encodeURIComponent(normalizedText)}`
         });
       }
       break;
       
     case 'ccs-taobao':
-      if (text) {
+      if (normalizedText) {
         chrome.tabs.create({
-          url: `https://s.taobao.com/search?q=${encodeURIComponent(text)}`
+          url: `https://s.taobao.com/search?q=${encodeURIComponent(normalizedText)}`
         });
       }
       break;
       
     case 'ccs-jd':
-      if (text) {
+      if (normalizedText) {
         chrome.tabs.create({
-          url: `https://search.jd.com/Search?keyword=${encodeURIComponent(text)}`
+          url: `https://search.jd.com/Search?keyword=${encodeURIComponent(normalizedText)}`
         });
       }
       break;
       
     case 'ccs-sov2ex':
-      if (text) {
+      if (normalizedText) {
         chrome.tabs.create({
-          url: `https://www.sov2ex.com/?q=${encodeURIComponent(text)}`
+          url: `https://www.sov2ex.com/?q=${encodeURIComponent(normalizedText)}`
         });
       }
       break;
 
     case 'ccs-baidu-translate':
-      if (text) {
+      if (normalizedText) {
         chrome.tabs.create({
-          url: `https://fanyi.baidu.com/?query=${encodeURIComponent(text)}`
+          url: `https://fanyi.baidu.com/?query=${encodeURIComponent(normalizedText)}`
         });
       }
       break;
       
     case 'ccs-google-translate':
-      if (text) {
+      if (normalizedText) {
         chrome.tabs.create({
-          url: `https://translate.google.com/?text=${encodeURIComponent(text)}`
+          url: `https://translate.google.com/?text=${encodeURIComponent(normalizedText)}`
         });
       }
       break;
       
     case 'ccs-chuchusou':
-      if (text) {
+      if (normalizedText) {
         chrome.tabs.create({
-          url: `https://chuchusou.com/?q=${encodeURIComponent(text)}`
+          url: `https://chuchusou.com/?q=${encodeURIComponent(normalizedText)}`
         });
       }
       break;
       
     case 'ccs-copy':
-      if (text) {
+      if (rawText) {
         // 发送消息给content script处理复制
         chrome.tabs.sendMessage(tab.id, {
           action: 'copyText',
-          text: text
+          text: rawText
         }).catch(() => {
           // 如果content script未加载，使用chrome.clipboard API
           // 注意：这需要在manifest中添加clipboardWrite权限
@@ -1062,51 +1061,51 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       break;
       
     case 'ccs-base64':
-      if (text) {
+      if (rawText) {
         chrome.tabs.sendMessage(tab.id, {
           action: 'processCommand',
           command: 'base64',
-          text: text
+          text: rawText
         }).catch(() => {});
       }
       break;
       
     case 'ccs-md5':
-      if (text) {
+      if (rawText) {
         chrome.tabs.sendMessage(tab.id, {
           action: 'processCommand',
           command: 'md5',
-          text: text
+          text: rawText
         }).catch(() => {});
       }
       break;
       
     case 'ccs-url-encode':
-      if (text) {
+      if (rawText) {
         chrome.tabs.sendMessage(tab.id, {
           action: 'processCommand',
           command: 'url-encode',
-          text: text
+          text: rawText
         }).catch(() => {});
       }
       break;
       
     case 'ccs-upper':
-      if (text) {
+      if (rawText) {
         chrome.tabs.sendMessage(tab.id, {
           action: 'processCommand',
           command: 'upper',
-          text: text
+          text: rawText
         }).catch(() => {});
       }
       break;
       
     case 'ccs-lower':
-      if (text) {
+      if (rawText) {
         chrome.tabs.sendMessage(tab.id, {
           action: 'processCommand',
           command: 'lower',
-          text: text
+          text: rawText
         }).catch(() => {});
       }
       break;
@@ -1115,7 +1114,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       // 发送消息给content script显示popover
       chrome.tabs.sendMessage(tab.id, {
         action: 'showPopover',
-        text: text || ''
+        text: rawText || ''
       }).catch(() => {});
       break;
   }
