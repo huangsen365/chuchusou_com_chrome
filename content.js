@@ -42,7 +42,9 @@
     try {
       const selection = window.getSelection();
       if (!selection || selection.rangeCount === 0) return '';
-      return selection.toString().trim();
+      const raw = selection.toString();
+      if (!raw) return '';
+      return raw.trim().length > 0 ? raw : '';
     } catch (err) {
       log('读取选中文本失败:', err);
       return '';
@@ -50,19 +52,21 @@
   }
 
   function applySelection(text, trigger = 'unknown') {
-    const normalized = typeof text === 'string' ? text : '';
-    window.selectedText = normalized;
-    if (normalized) {
-      window.lastNonEmptySelection = normalized;
+    const raw = typeof text === 'string' ? text : '';
+    const hasContent = raw.trim().length > 0;
+    const value = hasContent ? raw : '';
+    window.selectedText = value;
+    if (hasContent) {
+      window.lastNonEmptySelection = raw;
     }
 
-    if (state.selection === normalized) {
+    if (state.selection === value) {
       return;
     }
 
-    state.selection = normalized;
-    log('同步选中文本', { trigger, text: normalized });
-    safeChromeSendMessage({ action: 'selectionChanged', text: normalized });
+    state.selection = value;
+    log('同步选中文本', { trigger, text: value });
+    safeChromeSendMessage({ action: 'selectionChanged', text: value });
   }
 
   function updateSelection(trigger, { immediate = false } = {}) {
@@ -107,13 +111,23 @@
         chrome.storage?.local?.set({ ccs_debug: state.debug });
         sendResponse?.({ ok: true });
         return true;
-      case 'copyText':
-        copyToClipboard(request.text || '')
+      case 'copyText': {
+        const candidate = pickPreferredText(request.text);
+        if (!candidate) {
+          showErrorToast('没有可复制的内容');
+          return;
+        }
+        copyToClipboard(candidate)
           .then(() => showInfoToast('已复制到剪贴板'))
           .catch(() => showErrorToast('复制失败，请稍后重试'));
         return;
+      }
       case 'processCommand': {
-        const text = request.text || '';
+        const text = pickPreferredText(request.text);
+        if (!text) {
+          showErrorToast('没有可处理的内容');
+          return;
+        }
         const result = runCommand(request.command, text);
         if (result == null) {
           showErrorToast('暂不支持此操作');
@@ -262,4 +276,15 @@
   }
 
   window.safeChromeSendMessage = safeChromeSendMessage;
+
+  function pickPreferredText(value) {
+    if (typeof value === 'string' && value.length > 0) {
+      return value;
+    }
+    if (state.selection && state.selection.length > 0) {
+      return state.selection;
+    }
+    const live = readCurrentSelection();
+    return live && live.length > 0 ? live : '';
+  }
 })();

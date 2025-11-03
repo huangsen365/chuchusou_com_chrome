@@ -2,6 +2,13 @@
 let BG_DEBUG = false;
 const BG_DBG = (...args) => { if (BG_DEBUG) console.log(...args); };
 
+function formatMenuTitle(text) {
+  if (!text) return null;
+  const compact = text.replace(/\s+/g, ' ').trim();
+  if (!compact) return null;
+  return compact.substring(0, 20) + (compact.length > 20 ? '...' : '');
+}
+
 async function extractSearchKeywords(url, tab) {
   try {
     const urlObj = new URL(url);
@@ -439,11 +446,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // 处理content script的选择变化
   if (request.action === 'selectionChanged' && sender.tab) {
     const tabId = sender.tab.id;
-    const text = typeof request.text === 'string' ? request.text.trim() : '';
+    const rawText = typeof request.text === 'string' ? request.text : '';
+    const normalized = rawText && rawText.trim().length > 0 ? rawText : '';
     
     // 存储选中文本
-    if (text) {
-      selectedTextByTab[tabId] = text;
+    if (normalized) {
+      selectedTextByTab[tabId] = normalized;
     } else {
       delete selectedTextByTab[tabId];
     }
@@ -452,15 +460,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     chrome.tabs.query({active: true, currentWindow: true}, async (tabs) => {
       if (tabs[0] && tabs[0].id === tabId) {
         // 只更新当前活动标签的菜单
-        if (text) {
-          // 有选中文本，显示选中文本
-          const displayText = text.substring(0, 20) + (text.length > 20 ? '...' : '');
-          chrome.contextMenus.update('ccs-main', {
-            title: `🔍 触触搜: "${displayText}"`
-          });
-          chrome.contextMenus.update('ccs-label', {
-            title: `🔍 触触搜: "${displayText}"`
-          });
+        if (normalized) {
+          const displayText = formatMenuTitle(normalized);
+          if (displayText) {
+            chrome.contextMenus.update('ccs-main', {
+              title: `🔍 触触搜: "${displayText}"`
+            });
+            chrome.contextMenus.update('ccs-label', {
+              title: `🔍 触触搜: "${displayText}"`
+            });
+          }
         } else {
           // 没有选中文本，回退到URL关键词或默认
           updateContextMenuForTab(sender.tab);
@@ -484,15 +493,20 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
   // 先检查是否有存储的选中文本
   if (selectedTextByTab[activeInfo.tabId]) {
     const text = selectedTextByTab[activeInfo.tabId];
-    const displayText = text.substring(0, 20) + (text.length > 20 ? '...' : '');
-    chrome.contextMenus.update('ccs-main', {
-      title: `🔍 触触搜: "${displayText}"`
-    });
-    chrome.contextMenus.update('ccs-label', {
-      title: `🔍 触触搜: "${displayText}"`
-    });
-  } else if (tab.url) {
-    // 没有选中文本时，使用URL关键词
+    const displayText = formatMenuTitle(text);
+    if (displayText) {
+      chrome.contextMenus.update('ccs-main', {
+        title: `🔍 触触搜: "${displayText}"`
+      });
+      chrome.contextMenus.update('ccs-label', {
+        title: `🔍 触触搜: "${displayText}"`
+      });
+      return;
+    }
+  }
+  
+  if (tab.url) {
+    // 没有选中文本或显示文本为空时，使用URL关键词
     updateContextMenuForTab(tab);
   }
 });
@@ -503,27 +517,26 @@ async function updateContextMenuForTab(tab) {
   const keywords = await extractSearchKeywords(tab.url, tab);
   
   if (keywords) {
-    // 如果提取到关键词，更新主菜单和标签
-    const displayText = keywords.substring(0, 20) + (keywords.length > 20 ? '...' : '');
-    
-    chrome.contextMenus.update('ccs-main', {
-      title: `🔍 触触搜: "${displayText}"`
-    });
-    
-    // 更新顶部标签
-    chrome.contextMenus.update('ccs-label', {
-      title: `🔍 触触搜: "${displayText}"`
-    });
-  } else {
-    // 恢复默认标题
-    chrome.contextMenus.update('ccs-main', {
-      title: '🔍 触触搜'
-    });
-    
-    chrome.contextMenus.update('ccs-label', {
-      title: '🔍 触触搜'
-    });
+    const displayText = formatMenuTitle(keywords);
+    if (displayText) {
+      chrome.contextMenus.update('ccs-main', {
+        title: `🔍 触触搜: "${displayText}"`
+      });
+      chrome.contextMenus.update('ccs-label', {
+        title: `🔍 触触搜: "${displayText}"`
+      });
+      return;
+    }
   }
+  
+  // 恢复默认标题
+  chrome.contextMenus.update('ccs-main', {
+    title: '🔍 触触搜'
+  });
+  
+  chrome.contextMenus.update('ccs-label', {
+    title: '🔍 触触搜'
+  });
 }
 
 // 处理右键菜单点击
@@ -532,29 +545,31 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   // 1. 优先使用选中的文本
   // 2. 没有选中文本时，才尝试从URL提取搜索关键词
   // 3. 最后使用页面标题作为后备
-  let text = typeof info.selectionText === 'string' ? info.selectionText.trim() : '';
-  
-  if (!text && tab?.id != null && selectedTextByTab[tab.id]) {
-    text = selectedTextByTab[tab.id];
+  let text = '';
+  const cached = tab?.id != null ? selectedTextByTab[tab.id] : '';
+  if (cached && cached.trim().length > 0) {
+    text = cached;
     BG_DBG('[触触搜][BG][DEBUG] 使用缓存的选中文本:', { tabId: tab.id, text });
+  } else if (typeof info.selectionText === 'string' && info.selectionText.length > 0) {
+    const fallback = info.selectionText;
+    if (fallback.trim().length > 0) {
+      text = fallback;
+      BG_DBG('[触触搜][BG][DEBUG] 使用Chrome提供的选中文本:', { tabId: tab?.id, text });
+    }
   }
   
   // 只有在没有选中文本时，才尝试其他来源
-  if (!text && tab.url) {
-    text = await extractSearchKeywords(tab.url, tab);
-    
-    // 如果没有提取到关键词，某些功能可能不可用
-    if (!text) {
-      // 对于某些操作，没有文本就提示用户
-      if (info.menuItemId !== 'ccs-show-popover') {
-        chrome.tabs.sendMessage(tab.id, {
-          action: 'showToast',
-          message: '没有选中文本或无法提取关键词'
-        }).catch(() => {
-          // 忽略错误
-        });
-        return;
-      }
+  if (!text && tab?.url) {
+    const extracted = await extractSearchKeywords(tab.url, tab);
+    if (extracted && extracted.trim().length > 0) {
+      text = extracted;
+      BG_DBG('[触触搜][BG][DEBUG] 使用URL关键词:', { tabId: tab.id, text });
+    } else if (info.menuItemId !== 'ccs-show-popover') {
+      chrome.tabs.sendMessage(tab.id, {
+        action: 'showToast',
+        message: '没有选中文本或无法提取关键词'
+      }).catch(() => {});
+      return;
     }
   }
   
