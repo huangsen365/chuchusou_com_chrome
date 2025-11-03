@@ -364,6 +364,20 @@ function createContextMenus() {
     });
 
     chrome.contextMenus.create({
+      id: 'ccs-baidu-translate',
+      parentId: 'ccs-main',
+      title: '百度翻译',
+      contexts: ['selection', 'page']
+    });
+
+    chrome.contextMenus.create({
+      id: 'ccs-google-translate',
+      parentId: 'ccs-main',
+      title: 'Google 翻译',
+      contexts: ['selection', 'page']
+    });
+
+    chrome.contextMenus.create({
       id: 'ccs-chuchusou',
       parentId: 'ccs-main',
       title: '🌐 更多搜索引擎...',
@@ -377,18 +391,18 @@ function createContextMenus() {
       contexts: ['selection', 'page']
     });
 
+    chrome.contextMenus.create({
+      id: 'ccs-optimize-root',
+      parentId: 'ccs-main',
+      title: '🧠 优化提示词',
+      contexts: ['selection', 'page']
+    });
+
+    optimizedPromptMenuMap.clear();
+
     // 动态加载优化提示词菜单
     loadOptimizedPromptConfig().then((config) => {
       if (!config) return;
-      chrome.contextMenus.create({
-        id: 'ccs-optimize-root',
-        parentId: 'ccs-main',
-        title: '🧠 优化提示词',
-        contexts: ['selection', 'page']
-      });
-
-      optimizedPromptMenuMap.clear();
-
       (config.categories || []).forEach((category) => {
         const categoryId = `ccs-optimize-${category.id}`;
         chrome.contextMenus.create({
@@ -765,6 +779,22 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       }
       break;
 
+    case 'ccs-baidu-translate':
+      if (text) {
+        chrome.tabs.create({
+          url: `https://fanyi.baidu.com/?query=${encodeURIComponent(text)}`
+        });
+      }
+      break;
+      
+    case 'ccs-google-translate':
+      if (text) {
+        chrome.tabs.create({
+          url: `https://translate.google.com/?text=${encodeURIComponent(text)}`
+        });
+      }
+      break;
+      
     case 'ccs-chuchusou':
       if (text) {
         chrome.tabs.create({
