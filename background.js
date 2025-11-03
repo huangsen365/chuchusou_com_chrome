@@ -74,6 +74,7 @@ const MENU_ITEM_TITLES = {
   'ccs-chuchusou': '🌐 更多搜索引擎...',
   'ccs-top100-root': '🧠 触触搜百问',
   'ccs-fastqa-root': '⚡ 速答壹拾佰',
+  'ccs-fastqa-open-all': '🚀 打开以下全部',
   'ccs-copy': '📋 复制文本',
   'ccs-base64': '🔤 Base64 编码',
   'ccs-md5': '🔐 MD5 哈希',
@@ -100,6 +101,7 @@ const MENU_FALLBACK_TITLES = {
   'ccs-chuchusou': '更多搜索引擎...',
   'ccs-top100-root': '触触搜百问',
   'ccs-fastqa-root': '速答壹拾佰',
+  'ccs-fastqa-open-all': '打开以下全部',
   'ccs-copy': '复制文本',
   'ccs-base64': 'Base64编码',
   'ccs-md5': 'MD5哈希',
@@ -811,6 +813,20 @@ function createContextMenus() {
       contexts: ['selection', 'page']
     });
 
+    chrome.contextMenus.create({
+      id: 'ccs-fastqa-open-all',
+      parentId: 'ccs-fastqa-root',
+      title: getMenuTitle('ccs-fastqa-open-all', '打开以下全部'),
+      contexts: ['selection', 'page']
+    });
+
+    chrome.contextMenus.create({
+      id: 'ccs-fastqa-separator',
+      parentId: 'ccs-fastqa-root',
+      type: 'separator',
+      contexts: ['selection', 'page']
+    });
+
     const fastAnswersTask = loadFastAnswersConfig()
       .then((config) => {
         if (buildId !== menuBuildCounter) {
@@ -1082,11 +1098,15 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     selectionText: info.selectionText || ''
   });
 
+  const isFastAnswersMenu = info.menuItemId && info.menuItemId.startsWith('ccs-fastqa-');
+  const isFastAnswersOpenAll = info.menuItemId === 'ccs-fastqa-open-all';
+
   if (
     !normalizedText &&
     info.menuItemId !== 'ccs-show-popover' &&
     !topQuestionsMenuMap.has(info.menuItemId) &&
     !fastAnswersMenuMap.has(info.menuItemId) &&
+    !isFastAnswersOpenAll &&
     !optimizedPromptMenuMap.has(info.menuItemId) &&
     !(info.menuItemId && info.menuItemId.startsWith('ccs-optimize-'))
   ) {
@@ -1155,7 +1175,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     return;
   }
 
-  if (info.menuItemId && info.menuItemId.startsWith('ccs-fastqa-')) {
+  if (isFastAnswersOpenAll || isFastAnswersMenu) {
     const effectiveInput = rawText || normalizedText;
     if (!effectiveInput) {
       chrome.tabs.sendMessage(tab.id, {
@@ -1177,22 +1197,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           ? config.templateLines.join('\\n')
           : (config.template || '');
       }
-      const engineId = info.menuItemId.replace('ccs-fastqa-', '');
-      let menuTarget = fastAnswersMenuMap.get(info.menuItemId);
-      if (!menuTarget) {
-        const engine = (config.engines || []).find((item) => item.id === engineId);
-        if (engine) {
-          menuTarget = { urlPattern: engine.urlPattern || '' };
-          fastAnswersMenuMap.set(info.menuItemId, menuTarget);
-        }
-      }
-      if (!menuTarget || !menuTarget.urlPattern) {
-        chrome.tabs.sendMessage(tab.id, {
-          action: 'showToast',
-          message: '未找到对应的速答配置'
-        }).catch(() => {});
-        return;
-      }
       const prompt = buildFastAnswersPrompt(effectiveInput);
       if (!prompt) {
         chrome.tabs.sendMessage(tab.id, {
@@ -1202,8 +1206,37 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         return;
       }
       const encodedPrompt = encodeURIComponent(prompt);
-      const url = menuTarget.urlPattern.split('${PROMPT}').join(encodedPrompt);
-      chrome.tabs.create({ url });
+      if (isFastAnswersOpenAll) {
+        const engines = Array.isArray(config.engines) ? config.engines : [];
+        engines.forEach((engine, index) => {
+          if (!engine || typeof engine.urlPattern !== 'string' || !engine.urlPattern) {
+            return;
+          }
+          const targetUrl = engine.urlPattern.split('${PROMPT}').join(encodedPrompt);
+          if (targetUrl) {
+            chrome.tabs.create({ url: targetUrl, active: index === 0 });
+          }
+        });
+      } else {
+        const engineId = info.menuItemId.replace('ccs-fastqa-', '');
+        let menuTarget = fastAnswersMenuMap.get(info.menuItemId);
+        if (!menuTarget) {
+          const engine = (config.engines || []).find((item) => item.id === engineId);
+          if (engine) {
+            menuTarget = { urlPattern: engine.urlPattern || '' };
+            fastAnswersMenuMap.set(info.menuItemId, menuTarget);
+          }
+        }
+        if (!menuTarget || !menuTarget.urlPattern) {
+          chrome.tabs.sendMessage(tab.id, {
+            action: 'showToast',
+            message: '未找到对应的速答配置'
+          }).catch(() => {});
+          return;
+        }
+        const url = menuTarget.urlPattern.split('${PROMPT}').join(encodedPrompt);
+        chrome.tabs.create({ url });
+      }
     }).catch(() => {
       chrome.tabs.sendMessage(tab.id, {
         action: 'showToast',
