@@ -58,8 +58,8 @@ const MENU_ITEM_TITLES = {
   'ccs-baidu': '🐼 百度搜索',
   'ccs-google': '🔎 Google 搜索',
   'ccs-yiyan': '🧠 文心一言',
-  'ccs-chatgpt': '🤖 ChatGPT (GPT-5)',
-  'ccs-claude': '🧠 Claude',
+  'ccs-chatgpt': '1️⃣ ChatGPT (GPT-5)',
+  'ccs-claude': '2️⃣ Claude',
   'ccs-zhihu': '💡 知乎搜索',
   'ccs-weixin': '💬 微信搜一搜',
   'ccs-taobao': '🛒 淘宝搜索',
@@ -634,14 +634,33 @@ function createContextMenus() {
 
     topQuestionsMenuMap.clear();
 
-	// 创建子菜单项
+    // 创建子菜单项
+    const aiMenuItems = [
+      'ccs-chatgpt',
+      'ccs-claude'
+    ];
+
+    aiMenuItems.forEach((menuId) => {
+      chrome.contextMenus.create({
+        id: menuId,
+        parentId: 'ccs-main',
+        title: getMenuTitle(menuId, MENU_FALLBACK_TITLES[menuId]),
+        contexts: ['selection', 'page']
+      });
+    });
+
+    chrome.contextMenus.create({
+      id: 'ccs-separator-ai',
+      parentId: 'ccs-main',
+      type: 'separator',
+      contexts: ['selection', 'page']
+    });
+
     const baseMenuItems = [
       'ccs-baidu',
       'ccs-google',
       // 'ccs-baidu-translate',
       'ccs-yiyan',
-      'ccs-chatgpt',
-      'ccs-claude',
       'ccs-zhihu',
       'ccs-weixin',
       'ccs-taobao',
