@@ -12,6 +12,7 @@ function formatMenuTitle(text) {
 const optimizedPromptMenuMap = new Map();
 let optimizedPromptConfig = null;
 let optimizedPromptTemplate = '';
+let menuBuildCounter = 0;
 
 async function loadOptimizedPromptConfig() {
   if (optimizedPromptConfig) return optimizedPromptConfig;
@@ -291,8 +292,14 @@ async function extractSearchKeywords(url, tab) {
 
 // 创建右键菜单
 function createContextMenus() {
+  const buildId = ++menuBuildCounter;
   // 清除所有现有菜单
   chrome.contextMenus.removeAll(() => {
+    if (buildId !== menuBuildCounter) {
+      return;
+    }
+    optimizedPromptMenuMap.clear();
+    
     // 创建主菜单 - 对选中文本和页面都生效
     chrome.contextMenus.create({
       id: 'ccs-main',
@@ -417,6 +424,9 @@ function createContextMenus() {
 
     // 动态加载优化提示词菜单
     loadOptimizedPromptConfig().then((config) => {
+      if (buildId !== menuBuildCounter) {
+        return;
+      }
       if (!config) return;
       populateOptimizedMenuMap(config);
       (config.categories || []).forEach((category) => {
@@ -519,8 +529,6 @@ chrome.runtime.onInstalled.addListener(createContextMenus);
 if (chrome.runtime.onStartup) {
   chrome.runtime.onStartup.addListener(createContextMenus);
 }
-
-createContextMenus();
 
 // 读取调试开关
 chrome.storage.local.get(['ccs_debug'], (res) => {
