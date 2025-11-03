@@ -36,6 +36,11 @@
       "urlPattern": "https://claude.ai/new?q=${PROMPT}"
     },
     {
+      "id": "grok",
+      "label": "Grok",
+      "urlPattern": "https://grok.com/?q=${PROMPT}"
+    },
+    {
       "id": "yiyan",
       "label": "文心一言",
       "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}"

@@ -138,12 +138,14 @@ const OPTIMIZE_ENGINE_TITLES = {
 const TOP_QUESTION_ENGINE_TITLES = {
   'chatgpt': '🤖 ChatGPT',
   'claude': '🧠 Claude',
+  'grok': '🦊 Grok',
   'yiyan': '🧠 文心一言'
 };
 
 const FAST_ANSWER_ENGINE_TITLES = {
   'chatgpt': '🤖 ChatGPT',
   'claude': '🧠 Claude',
+  'grok': '🦊 Grok',
   'yiyan': '🧠 文心一言'
 };
 
