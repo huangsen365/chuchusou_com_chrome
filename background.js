@@ -670,31 +670,30 @@ function createContextMenus() {
 
     const asyncTasks = [];
 
-    asyncTasks.push(
-      loadTopQuestionsConfig()
-        .then((config) => {
-          if (buildId !== menuBuildCounter) {
-            return;
-          }
-          if (!config) return;
-          (config.engines || []).forEach((engine) => {
-            const menuId = `ccs-top100-${engine.id}`;
-            const engineTitle = TOP_QUESTION_ENGINE_TITLES[engine.id] || engine.label;
-            chrome.contextMenus.create({
-              id: menuId,
-              parentId: 'ccs-top100-root',
-              title: engineTitle,
-              contexts: ['selection', 'page']
-            });
-            topQuestionsMenuMap.set(menuId, {
-              urlPattern: engine.urlPattern || ''
-            });
+    const topQuestionsTask = loadTopQuestionsConfig()
+      .then((config) => {
+        if (buildId !== menuBuildCounter) {
+          return;
+        }
+        if (!config) return;
+        (config.engines || []).forEach((engine) => {
+          const menuId = `ccs-top100-${engine.id}`;
+          const engineTitle = TOP_QUESTION_ENGINE_TITLES[engine.id] || engine.label;
+          chrome.contextMenus.create({
+            id: menuId,
+            parentId: 'ccs-top100-root',
+            title: engineTitle,
+            contexts: ['selection', 'page']
           });
-        })
-        .catch((error) => {
-          console.warn('[触触搜][BG] 无法构建联想一百问菜单:', error);
-        })
-    );
+          topQuestionsMenuMap.set(menuId, {
+            urlPattern: engine.urlPattern || ''
+          });
+        });
+      })
+      .catch((error) => {
+        console.warn('[触触搜][BG] 无法构建联想一百问菜单:', error);
+      });
+    asyncTasks.push(topQuestionsTask);
 
     chrome.contextMenus.create({
       id: 'ccs-separator-optimized',
@@ -711,41 +710,40 @@ function createContextMenus() {
     });
 
     // 动态加载优化提示词菜单
-    asyncTasks.push(
-      loadOptimizedPromptConfig()
-        .then((config) => {
-          if (buildId !== menuBuildCounter) {
-            return;
-          }
-          if (!config) return;
-          populateOptimizedMenuMap(config);
-          (config.categories || []).forEach((category) => {
-            const categoryId = `ccs-optimize-${category.id}`;
-            const categoryTitle = OPTIMIZE_CATEGORY_TITLES[category.id] || category.label;
+    const optimizeTask = loadOptimizedPromptConfig()
+      .then((config) => {
+        if (buildId !== menuBuildCounter) {
+          return;
+        }
+        if (!config) return;
+        populateOptimizedMenuMap(config);
+        (config.categories || []).forEach((category) => {
+          const categoryId = `ccs-optimize-${category.id}`;
+          const categoryTitle = OPTIMIZE_CATEGORY_TITLES[category.id] || category.label;
+          chrome.contextMenus.create({
+            id: categoryId,
+            parentId: 'ccs-optimize-root',
+            title: categoryTitle,
+            contexts: ['selection', 'page']
+          });
+
+          (category.engines || []).forEach((engine) => {
+            const menuId = `ccs-optimize-${category.id}-${engine.id}`;
+            const engineTitle = OPTIMIZE_ENGINE_TITLES[engine.id] || engine.label;
             chrome.contextMenus.create({
-              id: categoryId,
-              parentId: 'ccs-optimize-root',
-              title: categoryTitle,
+              id: menuId,
+              parentId: categoryId,
+              title: engineTitle,
               contexts: ['selection', 'page']
             });
-
-            (category.engines || []).forEach((engine) => {
-              const menuId = `ccs-optimize-${category.id}-${engine.id}`;
-              const engineTitle = OPTIMIZE_ENGINE_TITLES[engine.id] || engine.label;
-              chrome.contextMenus.create({
-                id: menuId,
-                parentId: categoryId,
-                title: engineTitle,
-                contexts: ['selection', 'page']
-              });
-              BG_DBG('[触触搜][BG][MENU] optimize submenu created', { menuId });
-            });
+            BG_DBG('[触触搜][BG][MENU] optimize submenu created', { menuId });
           });
-        })
-        .catch((error) => {
-          console.warn('[触触搜][BG] 无法构建优化提示词菜单:', error);
         });
-    );
+      })
+      .catch((error) => {
+        console.warn('[触触搜][BG] 无法构建优化提示词菜单:', error);
+      });
+    asyncTasks.push(optimizeTask);
 
     Promise.all(asyncTasks)
       .finally(() => {
