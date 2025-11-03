@@ -44,6 +44,23 @@ function buildOptimizedPrompt(purpose, inputText) {
     .split('${input}').join(safeInput);
 }
 
+function populateOptimizedMenuMap(config) {
+  optimizedPromptMenuMap.clear();
+  if (!config || !Array.isArray(config.categories)) return;
+  config.categories.forEach((category) => {
+    const categoryId = category.id;
+    if (!categoryId) return;
+    (category.engines || []).forEach((engine) => {
+      if (!engine || !engine.id) return;
+      const menuId = `ccs-optimize-${categoryId}-${engine.id}`;
+      optimizedPromptMenuMap.set(menuId, {
+        purpose: category.purpose || category.label || '',
+        urlPattern: engine.urlPattern || ''
+      });
+    });
+  });
+}
+
 async function extractSearchKeywords(url, tab) {
   try {
     const urlObj = new URL(url);
@@ -398,11 +415,10 @@ function createContextMenus() {
       contexts: ['selection', 'page']
     });
 
-    optimizedPromptMenuMap.clear();
-
     // 动态加载优化提示词菜单
     loadOptimizedPromptConfig().then((config) => {
       if (!config) return;
+      populateOptimizedMenuMap(config);
       (config.categories || []).forEach((category) => {
         const categoryId = `ccs-optimize-${category.id}`;
         chrome.contextMenus.create({
@@ -419,10 +435,6 @@ function createContextMenus() {
             parentId: categoryId,
             title: engine.label,
             contexts: ['selection', 'page']
-          });
-          optimizedPromptMenuMap.set(menuId, {
-            purpose: category.purpose || category.label,
-            urlPattern: engine.urlPattern
           });
         });
       });
@@ -503,9 +515,12 @@ function createContextMenus() {
 }
 
 // 初始化菜单
-chrome.runtime.onInstalled.addListener(() => {
-  createContextMenus();
-});
+chrome.runtime.onInstalled.addListener(createContextMenus);
+if (chrome.runtime.onStartup) {
+  chrome.runtime.onStartup.addListener(createContextMenus);
+}
+
+createContextMenus();
 
 // 读取调试开关
 chrome.storage.local.get(['ccs_debug'], (res) => {
@@ -668,7 +683,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     }
   }
 
-  if (optimizedPromptMenuMap.has(info.menuItemId)) {
+  if (optimizedPromptMenuMap.has(info.menuItemId) || (info.menuItemId && info.menuItemId.startsWith('ccs-optimize-'))) {
     if (!text) {
       chrome.tabs.sendMessage(tab.id, {
         action: 'showToast',
@@ -677,16 +692,26 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       return;
     }
 
-    loadOptimizedPromptConfig().then(() => {
-      const config = optimizedPromptMenuMap.get(info.menuItemId);
-      if (!config) {
+    loadOptimizedPromptConfig().then((fullConfig) => {
+      if (!fullConfig) {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'showToast',
+          message: '提示词模板加载失败'
+        }).catch(() => {});
+        return;
+      }
+      if (!optimizedPromptMenuMap.has(info.menuItemId)) {
+        populateOptimizedMenuMap(fullConfig);
+      }
+      const menuTarget = optimizedPromptMenuMap.get(info.menuItemId);
+      if (!menuTarget || !menuTarget.urlPattern) {
         chrome.tabs.sendMessage(tab.id, {
           action: 'showToast',
           message: '未找到对应的提示词配置'
         }).catch(() => {});
         return;
       }
-      const prompt = buildOptimizedPrompt(config.purpose, text);
+      const prompt = buildOptimizedPrompt(menuTarget.purpose, text);
       if (!prompt) {
         chrome.tabs.sendMessage(tab.id, {
           action: 'showToast',
@@ -695,7 +720,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         return;
       }
       const encodedPrompt = encodeURIComponent(prompt);
-      const url = config.urlPattern.split('${PROMPT}').join(encodedPrompt);
+      const url = menuTarget.urlPattern.split('${PROMPT}').join(encodedPrompt);
       chrome.tabs.create({ url });
     }).catch(() => {
       chrome.tabs.sendMessage(tab.id, {
