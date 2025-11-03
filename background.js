@@ -89,7 +89,9 @@ async function createImageDataFromUrl(url, size) {
     if (menuIconImageCache.has(cacheKey)) {
       return menuIconImageCache.get(cacheKey);
     }
-    const response = await fetch(url, { mode: 'cors' });
+    const isExtensionResource = url.startsWith('chrome-extension://');
+    const fetchOptions = isExtensionResource ? {} : { mode: 'cors' };
+    const response = await fetch(url, fetchOptions);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
