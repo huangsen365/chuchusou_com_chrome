@@ -50,6 +50,10 @@ const topQuestionsMenuMap = new Map();
 let topQuestionsConfig = null;
 let topQuestionsTemplate = '';
 
+const fastAnswersMenuMap = new Map();
+let fastAnswersConfig = null;
+let fastAnswersTemplate = '';
+
 let menuIconConfig = null;
 const menuIconImageCache = new Map();
 
@@ -69,6 +73,7 @@ const MENU_ITEM_TITLES = {
   'ccs-google-translate': '🔁 Google 翻译',
   'ccs-chuchusou': '🌐 更多搜索引擎...',
   'ccs-top100-root': '🧠 触触搜百问',
+  'ccs-fastqa-root': '⚡ 速答壹拾佰',
   'ccs-copy': '📋 复制文本',
   'ccs-base64': '🔤 Base64 编码',
   'ccs-md5': '🔐 MD5 哈希',
@@ -94,6 +99,7 @@ const MENU_FALLBACK_TITLES = {
   'ccs-google-translate': 'Google 翻译',
   'ccs-chuchusou': '更多搜索引擎...',
   'ccs-top100-root': '触触搜百问',
+  'ccs-fastqa-root': '速答壹拾佰',
   'ccs-copy': '复制文本',
   'ccs-base64': 'Base64编码',
   'ccs-md5': 'MD5哈希',
@@ -124,6 +130,12 @@ const OPTIMIZE_ENGINE_TITLES = {
 };
 
 const TOP_QUESTION_ENGINE_TITLES = {
+  'chatgpt': '🤖 ChatGPT',
+  'claude': '🧠 Claude',
+  'yiyan': '🧠 文心一言'
+};
+
+const FAST_ANSWER_ENGINE_TITLES = {
   'chatgpt': '🤖 ChatGPT',
   'claude': '🧠 Claude',
   'yiyan': '🧠 文心一言'
@@ -279,6 +291,28 @@ async function loadTopQuestionsConfig() {
   }
 }
 
+async function loadFastAnswersConfig() {
+  if (fastAnswersConfig) return fastAnswersConfig;
+  try {
+    const url = chrome.runtime.getURL('prompts/fastAnswersPrompts.json');
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to load fast answers config: ${response.status}`);
+    }
+    const config = await response.json();
+    fastAnswersConfig = config;
+    fastAnswersTemplate = Array.isArray(config.templateLines)
+      ? config.templateLines.join('\n')
+      : (config.template || '');
+    return fastAnswersConfig;
+  } catch (error) {
+    console.error('[触触搜][BG] Failed to load fast answers config:', error);
+    fastAnswersConfig = null;
+    fastAnswersTemplate = '';
+    return null;
+  }
+}
+
 function buildOptimizedPrompt(purpose, inputText) {
   if (!optimizedPromptTemplate) return null;
   const safePurpose = purpose || '';
@@ -292,6 +326,12 @@ function buildTopQuestionsPrompt(inputText) {
   if (!topQuestionsTemplate) return null;
   const safeInput = inputText || '';
   return topQuestionsTemplate.split('${input}').join(safeInput);
+}
+
+function buildFastAnswersPrompt(inputText) {
+  if (!fastAnswersTemplate) return null;
+  const safeInput = inputText || '';
+  return fastAnswersTemplate.split('${input}').join(safeInput);
 }
 
 async function loadMenuIconConfig() {
@@ -675,6 +715,7 @@ function createContextMenus() {
     });
 
     topQuestionsMenuMap.clear();
+    fastAnswersMenuMap.clear();
 
     // 创建子菜单项
     const aiMenuItems = [
@@ -762,6 +803,38 @@ function createContextMenus() {
         console.warn('[触触搜][BG] 无法构建触触搜百问菜单:', error);
       });
     asyncTasks.push(topQuestionsTask);
+
+    chrome.contextMenus.create({
+      id: 'ccs-fastqa-root',
+      parentId: 'ccs-main',
+      title: getMenuTitle('ccs-fastqa-root', '速答壹拾佰'),
+      contexts: ['selection', 'page']
+    });
+
+    const fastAnswersTask = loadFastAnswersConfig()
+      .then((config) => {
+        if (buildId !== menuBuildCounter) {
+          return;
+        }
+        if (!config) return;
+        (config.engines || []).forEach((engine) => {
+          const menuId = `ccs-fastqa-${engine.id}`;
+          const engineTitle = FAST_ANSWER_ENGINE_TITLES[engine.id] || engine.label;
+          chrome.contextMenus.create({
+            id: menuId,
+            parentId: 'ccs-fastqa-root',
+            title: engineTitle,
+            contexts: ['selection', 'page']
+          });
+          fastAnswersMenuMap.set(menuId, {
+            urlPattern: engine.urlPattern || ''
+          });
+        });
+      })
+      .catch((error) => {
+        console.warn('[触触搜][BG] 无法构建速答壹拾佰菜单:', error);
+      });
+    asyncTasks.push(fastAnswersTask);
 
     chrome.contextMenus.create({
       id: 'ccs-optimize-root',
@@ -1009,7 +1082,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     selectionText: info.selectionText || ''
   });
 
-  if (!normalizedText && info.menuItemId !== 'ccs-show-popover' && !topQuestionsMenuMap.has(info.menuItemId) && !optimizedPromptMenuMap.has(info.menuItemId) && !(info.menuItemId && info.menuItemId.startsWith('ccs-optimize-'))) {
+  if (
+    !normalizedText &&
+    info.menuItemId !== 'ccs-show-popover' &&
+    !topQuestionsMenuMap.has(info.menuItemId) &&
+    !fastAnswersMenuMap.has(info.menuItemId) &&
+    !optimizedPromptMenuMap.has(info.menuItemId) &&
+    !(info.menuItemId && info.menuItemId.startsWith('ccs-optimize-'))
+  ) {
     chrome.tabs.sendMessage(tab.id, {
       action: 'showToast',
       message: '没有选中文本或无法提取关键词'
@@ -1070,6 +1150,64 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       chrome.tabs.sendMessage(tab.id, {
         action: 'showToast',
         message: '触触搜百问模板加载失败'
+      }).catch(() => {});
+    });
+    return;
+  }
+
+  if (info.menuItemId && info.menuItemId.startsWith('ccs-fastqa-')) {
+    const effectiveInput = rawText || normalizedText;
+    if (!effectiveInput) {
+      chrome.tabs.sendMessage(tab.id, {
+        action: 'showToast',
+        message: '没有选中文本，无法生成速答内容'
+      }).catch(() => {});
+      return;
+    }
+    loadFastAnswersConfig().then((config) => {
+      if (!config) {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'showToast',
+          message: '速答壹拾佰模板加载失败'
+        }).catch(() => {});
+        return;
+      }
+      if (!fastAnswersTemplate) {
+        fastAnswersTemplate = Array.isArray(config.templateLines)
+          ? config.templateLines.join('\\n')
+          : (config.template || '');
+      }
+      const engineId = info.menuItemId.replace('ccs-fastqa-', '');
+      let menuTarget = fastAnswersMenuMap.get(info.menuItemId);
+      if (!menuTarget) {
+        const engine = (config.engines || []).find((item) => item.id === engineId);
+        if (engine) {
+          menuTarget = { urlPattern: engine.urlPattern || '' };
+          fastAnswersMenuMap.set(info.menuItemId, menuTarget);
+        }
+      }
+      if (!menuTarget || !menuTarget.urlPattern) {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'showToast',
+          message: '未找到对应的速答配置'
+        }).catch(() => {});
+        return;
+      }
+      const prompt = buildFastAnswersPrompt(effectiveInput);
+      if (!prompt) {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'showToast',
+          message: '速答壹拾佰模板无效'
+        }).catch(() => {});
+        return;
+      }
+      const encodedPrompt = encodeURIComponent(prompt);
+      const url = menuTarget.urlPattern.split('${PROMPT}').join(encodedPrompt);
+      chrome.tabs.create({ url });
+    }).catch(() => {
+      chrome.tabs.sendMessage(tab.id, {
+        action: 'showToast',
+        message: '速答壹拾佰模板加载失败'
       }).catch(() => {});
     });
     return;

@@ -1,0 +1,30 @@
+{
+  "templateLines": [
+    "关于以下：",
+    "",
+    "##########",
+    "",
+    "${input}",
+    "",
+    "##########",
+    "",
+    "请分别提供三个不同长度的答案以段落形式提供（一句话，十句话，一百句），方便我们看答案按需所取。"
+  ],
+  "engines": [
+    {
+      "id": "chatgpt",
+      "label": "ChatGPT",
+      "urlPattern": "https://chatgpt.com/?model=gpt-5&q=${PROMPT}"
+    },
+    {
+      "id": "claude",
+      "label": "Claude",
+      "urlPattern": "https://claude.ai/new?q=${PROMPT}"
+    },
+    {
+      "id": "yiyan",
+      "label": "文心一言",
+      "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}"
+    }
+  ]
+}
