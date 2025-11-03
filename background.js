@@ -99,6 +99,22 @@ function getMenuTitle(menuId, fallback) {
   return MENU_ITEM_TITLES[menuId] || fallback || MENU_FALLBACK_TITLES[menuId] || menuId;
 }
 
+const OPTIMIZE_CATEGORY_TITLES = {
+  'deep-research': '📚 深度研究',
+  'general-conversation': '💬 普通对话',
+  'code-writing': '💻 代码编写',
+  'content-creation': '📝 内容创作',
+  'data-analysis': '📊 数据分析',
+  'problem-solving': '🧩 问题解答',
+  'brainstorm': '💡 头脑风暴',
+  'description-polish': '✨ 优化描述'
+};
+
+const OPTIMIZE_ENGINE_TITLES = {
+  'chatgpt': '🤖 ChatGPT (默认 GPT-5)',
+  'claude': '🧠 Claude (推荐 Opus)'
+};
+
 let menuBuildCounter = 0;
 
 async function loadOptimizedPromptConfig() {
@@ -562,19 +578,21 @@ function createContextMenus() {
         populateOptimizedMenuMap(config);
         (config.categories || []).forEach((category) => {
           const categoryId = `ccs-optimize-${category.id}`;
+          const categoryTitle = OPTIMIZE_CATEGORY_TITLES[category.id] || category.label;
           chrome.contextMenus.create({
             id: categoryId,
             parentId: 'ccs-optimize-root',
-            title: category.label,
+            title: categoryTitle,
             contexts: ['selection', 'page']
           });
 
           (category.engines || []).forEach((engine) => {
             const menuId = `ccs-optimize-${category.id}-${engine.id}`;
+            const engineTitle = OPTIMIZE_ENGINE_TITLES[engine.id] || engine.label;
             chrome.contextMenus.create({
               id: menuId,
               parentId: categoryId,
-              title: engine.label,
+              title: engineTitle,
               contexts: ['selection', 'page']
             });
             BG_DBG('[触触搜][BG][MENU] optimize submenu created', { menuId });
