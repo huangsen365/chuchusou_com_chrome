@@ -46,6 +46,10 @@ const optimizedPromptMenuMap = new Map();
 let optimizedPromptConfig = null;
 let optimizedPromptTemplate = '';
 
+const topQuestionsMenuMap = new Map();
+let topQuestionsConfig = null;
+let topQuestionsTemplate = '';
+
 let menuIconConfig = null;
 const menuIconImageCache = new Map();
 
@@ -64,6 +68,7 @@ const MENU_ITEM_TITLES = {
   'ccs-baidu-translate': '✍️ 百度翻译',
   'ccs-google-translate': '🔁 Google 翻译',
   'ccs-chuchusou': '🌐 更多搜索引擎...',
+  'ccs-top100-root': '🧠 联想一百问',
   'ccs-copy': '📋 复制文本',
   'ccs-base64': '🔤 Base64 编码',
   'ccs-md5': '🔐 MD5 哈希',
@@ -88,6 +93,7 @@ const MENU_FALLBACK_TITLES = {
   'ccs-baidu-translate': '百度翻译',
   'ccs-google-translate': 'Google 翻译',
   'ccs-chuchusou': '更多搜索引擎...',
+  'ccs-top100-root': '联想一百问',
   'ccs-copy': '复制文本',
   'ccs-base64': 'Base64编码',
   'ccs-md5': 'MD5哈希',
@@ -113,6 +119,11 @@ const OPTIMIZE_CATEGORY_TITLES = {
 };
 
 const OPTIMIZE_ENGINE_TITLES = {
+  'chatgpt': '🤖 ChatGPT (默认 GPT-5)',
+  'claude': '🧠 Claude (推荐 Opus)'
+};
+
+const TOP_QUESTION_ENGINE_TITLES = {
   'chatgpt': '🤖 ChatGPT (默认 GPT-5)',
   'claude': '🧠 Claude (推荐 Opus)'
 };
@@ -204,6 +215,28 @@ async function loadOptimizedPromptConfig() {
   }
 }
 
+async function loadTopQuestionsConfig() {
+  if (topQuestionsConfig) return topQuestionsConfig;
+  try {
+    const url = chrome.runtime.getURL('prompts/topQuestionsPrompts.json');
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to load top questions config: ${response.status}`);
+    }
+    const config = await response.json();
+    topQuestionsConfig = config;
+    topQuestionsTemplate = Array.isArray(config.templateLines)
+      ? config.templateLines.join('\n')
+      : (config.template || '');
+    return topQuestionsConfig;
+  } catch (error) {
+    console.error('[触触搜][BG] Failed to load top questions config:', error);
+    topQuestionsConfig = null;
+    topQuestionsTemplate = '';
+    return null;
+  }
+}
+
 function buildOptimizedPrompt(purpose, inputText) {
   if (!optimizedPromptTemplate) return null;
   const safePurpose = purpose || '';
@@ -211,6 +244,12 @@ function buildOptimizedPrompt(purpose, inputText) {
   return optimizedPromptTemplate
     .split('${purpose}').join(safePurpose)
     .split('${input}').join(safeInput);
+}
+
+function buildTopQuestionsPrompt(inputText) {
+  if (!topQuestionsTemplate) return null;
+  const safeInput = inputText || '';
+  return topQuestionsTemplate.split('${input}').join(safeInput);
 }
 
 async function loadMenuIconConfig() {
@@ -593,6 +632,8 @@ function createContextMenus() {
       contexts: ['selection', 'page']
     });
 
+    topQuestionsMenuMap.clear();
+
     // 创建子菜单项
     const baseMenuItems = [
       'ccs-baidu',
@@ -621,6 +662,41 @@ function createContextMenus() {
     BG_DBG('[触触搜][BG][MENU] base search items created');
 
     chrome.contextMenus.create({
+      id: 'ccs-top100-root',
+      parentId: 'ccs-main',
+      title: getMenuTitle('ccs-top100-root', '联想一百问'),
+      contexts: ['selection', 'page']
+    });
+
+    const asyncTasks = [];
+
+    asyncTasks.push(
+      loadTopQuestionsConfig()
+        .then((config) => {
+          if (buildId !== menuBuildCounter) {
+            return;
+          }
+          if (!config) return;
+          (config.engines || []).forEach((engine) => {
+            const menuId = `ccs-top100-${engine.id}`;
+            const engineTitle = TOP_QUESTION_ENGINE_TITLES[engine.id] || engine.label;
+            chrome.contextMenus.create({
+              id: menuId,
+              parentId: 'ccs-top100-root',
+              title: engineTitle,
+              contexts: ['selection', 'page']
+            });
+            topQuestionsMenuMap.set(menuId, {
+              urlPattern: engine.urlPattern || ''
+            });
+          });
+        })
+        .catch((error) => {
+          console.warn('[触触搜][BG] 无法构建联想一百问菜单:', error);
+        })
+    );
+
+    chrome.contextMenus.create({
       id: 'ccs-separator-optimized',
       parentId: 'ccs-main',
       type: 'separator',
@@ -635,39 +711,43 @@ function createContextMenus() {
     });
 
     // 动态加载优化提示词菜单
-    loadOptimizedPromptConfig()
-      .then((config) => {
-        if (buildId !== menuBuildCounter) {
-          return;
-        }
-        if (!config) return;
-        populateOptimizedMenuMap(config);
-        (config.categories || []).forEach((category) => {
-          const categoryId = `ccs-optimize-${category.id}`;
-          const categoryTitle = OPTIMIZE_CATEGORY_TITLES[category.id] || category.label;
-          chrome.contextMenus.create({
-            id: categoryId,
-            parentId: 'ccs-optimize-root',
-            title: categoryTitle,
-            contexts: ['selection', 'page']
-          });
-
-          (category.engines || []).forEach((engine) => {
-            const menuId = `ccs-optimize-${category.id}-${engine.id}`;
-            const engineTitle = OPTIMIZE_ENGINE_TITLES[engine.id] || engine.label;
+    asyncTasks.push(
+      loadOptimizedPromptConfig()
+        .then((config) => {
+          if (buildId !== menuBuildCounter) {
+            return;
+          }
+          if (!config) return;
+          populateOptimizedMenuMap(config);
+          (config.categories || []).forEach((category) => {
+            const categoryId = `ccs-optimize-${category.id}`;
+            const categoryTitle = OPTIMIZE_CATEGORY_TITLES[category.id] || category.label;
             chrome.contextMenus.create({
-              id: menuId,
-              parentId: categoryId,
-              title: engineTitle,
+              id: categoryId,
+              parentId: 'ccs-optimize-root',
+              title: categoryTitle,
               contexts: ['selection', 'page']
             });
-            BG_DBG('[触触搜][BG][MENU] optimize submenu created', { menuId });
+
+            (category.engines || []).forEach((engine) => {
+              const menuId = `ccs-optimize-${category.id}-${engine.id}`;
+              const engineTitle = OPTIMIZE_ENGINE_TITLES[engine.id] || engine.label;
+              chrome.contextMenus.create({
+                id: menuId,
+                parentId: categoryId,
+                title: engineTitle,
+                contexts: ['selection', 'page']
+              });
+              BG_DBG('[触触搜][BG][MENU] optimize submenu created', { menuId });
+            });
           });
+        })
+        .catch((error) => {
+          console.warn('[触触搜][BG] 无法构建优化提示词菜单:', error);
         });
-      })
-      .catch((error) => {
-        console.warn('[触触搜][BG] 无法构建优化提示词菜单:', error);
-      })
+    );
+
+    Promise.all(asyncTasks)
       .finally(() => {
         BG_DBG('[触触搜][BG][MENU] applying icons', { buildId });
         applyMenuIcons(buildId).catch((err) => {
@@ -949,6 +1029,55 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 
   const normalizedText = normalizeSearchText(rawText);
+
+  if (topQuestionsMenuMap.has(info.menuItemId)) {
+    if (!normalizedText) {
+      chrome.tabs.sendMessage(tab.id, {
+        action: 'showToast',
+        message: '没有选中文本，无法生成问题列表'
+      }).catch(() => {});
+      return;
+    }
+    loadTopQuestionsConfig().then((config) => {
+      if (!config) {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'showToast',
+          message: '联想一百问模板加载失败'
+        }).catch(() => {});
+        return;
+      }
+      if (!topQuestionsTemplate) {
+        topQuestionsTemplate = Array.isArray(config.templateLines)
+          ? config.templateLines.join('\\n')
+          : (config.template || '');
+      }
+      const menuTarget = topQuestionsMenuMap.get(info.menuItemId);
+      if (!menuTarget || !menuTarget.urlPattern) {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'showToast',
+          message: '未找到对应的引擎配置'
+        }).catch(() => {});
+        return;
+      }
+      const prompt = buildTopQuestionsPrompt(rawText);
+      if (!prompt) {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'showToast',
+          message: '联想一百问模板无效'
+        }).catch(() => {});
+        return;
+      }
+      const encodedPrompt = encodeURIComponent(prompt);
+      const url = menuTarget.urlPattern.split('${PROMPT}').join(encodedPrompt);
+      chrome.tabs.create({ url });
+    }).catch(() => {
+      chrome.tabs.sendMessage(tab.id, {
+        action: 'showToast',
+        message: '联想一百问模板加载失败'
+      }).catch(() => {});
+    });
+    return;
+  }
 
   if (optimizedPromptMenuMap.has(info.menuItemId) || (info.menuItemId && info.menuItemId.startsWith('ccs-optimize-'))) {
     if (!normalizedText) {

@@ -1,0 +1,27 @@
+{
+  "templateLines": [
+    "关于以下：",
+    "",
+    "###",
+    "",
+    "${input}",
+    "",
+    "###",
+    "",
+    "帮忙列举100个常见热门问题（问题描述本身是一句完整的表达），供我参考",
+    "",
+    "用纯列表显示即可，不需要其它多余的字眼"
+  ],
+  "engines": [
+    {
+      "id": "chatgpt",
+      "label": "ChatGPT (默认 GPT-5)",
+      "urlPattern": "https://chatgpt.com/?model=gpt-5&prompt=${PROMPT}"
+    },
+    {
+      "id": "claude",
+      "label": "Claude (推荐 Opus)",
+      "urlPattern": "https://claude.ai/new?q=${PROMPT}"
+    }
+  ]
+}
