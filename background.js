@@ -1007,7 +1007,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     return;
   }
 
-  if (topQuestionsMenuMap.has(info.menuItemId)) {
+  if (info.menuItemId && info.menuItemId.startsWith('ccs-top100-')) {
     const effectiveInput = rawText || normalizedText;
     if (!effectiveInput) {
       chrome.tabs.sendMessage(tab.id, {
@@ -1029,7 +1029,15 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           ? config.templateLines.join('\\n')
           : (config.template || '');
       }
-      const menuTarget = topQuestionsMenuMap.get(info.menuItemId);
+      const engineId = info.menuItemId.replace('ccs-top100-', '');
+      let menuTarget = topQuestionsMenuMap.get(info.menuItemId);
+      if (!menuTarget) {
+        const engine = (config.engines || []).find((item) => item.id === engineId);
+        if (engine) {
+          menuTarget = { urlPattern: engine.urlPattern || '' };
+          topQuestionsMenuMap.set(info.menuItemId, menuTarget);
+        }
+      }
       if (!menuTarget || !menuTarget.urlPattern) {
         chrome.tabs.sendMessage(tab.id, {
           action: 'showToast',
