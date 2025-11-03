@@ -54,6 +54,8 @@ const fastAnswersMenuMap = new Map();
 let fastAnswersConfig = null;
 let fastAnswersTemplate = '';
 
+let menuToggleConfig = null;
+
 let menuIconConfig = null;
 const menuIconImageCache = new Map();
 
@@ -338,7 +340,34 @@ function buildFastAnswersPrompt(inputText) {
   return fastAnswersTemplate.split('${input}').join(safeInput);
 }
 
+async function loadMenuToggleConfig() {
+  if (menuToggleConfig) return menuToggleConfig;
+  try {
+    const url = chrome.runtime.getURL('config/menuToggles.json');
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to load menu toggle config: ${response.status}`);
+    }
+    menuToggleConfig = await response.json();
+    return menuToggleConfig;
+  } catch (error) {
+    console.warn('[触触搜][BG] Failed to load menu toggle config:', error);
+    menuToggleConfig = {};
+    return menuToggleConfig;
+  }
+}
+
+function isMenuEnabled(menuId) {
+  if (!menuToggleConfig) return true;
+  const flag = menuToggleConfig[menuId];
+  if (typeof flag === 'boolean') {
+    return flag;
+  }
+  return true;
+}
+
 async function loadMenuIconConfig() {
+  await loadMenuToggleConfig();
   if (menuIconConfig) return menuIconConfig;
   try {
     const url = chrome.runtime.getURL('config/menuIcons.json');
@@ -361,9 +390,12 @@ function populateOptimizedMenuMap(config) {
   config.categories.forEach((category) => {
     const categoryId = category.id;
     if (!categoryId) return;
+    const categoryMenuId = `ccs-optimize-${categoryId}`;
+    if (!isMenuEnabled(categoryMenuId)) return;
     (category.engines || []).forEach((engine) => {
       if (!engine || !engine.id) return;
       const menuId = `ccs-optimize-${categoryId}-${engine.id}`;
+      if (!isMenuEnabled(menuId)) return;
       optimizedPromptMenuMap.set(menuId, {
         purpose: category.purpose || category.label || '',
         urlPattern: engine.urlPattern || ''
@@ -438,6 +470,7 @@ async function applyMenuIcons(buildId) {
   const entries = Object.entries(config.items);
   await Promise.all(entries.map(async ([menuId, iconCfg]) => {
     try {
+      if (!isMenuEnabled(menuId)) return;
       const icons = await resolveMenuIconTargets(iconCfg);
       if (!icons || buildId !== menuBuildCounter) return;
       BG_DBG('[触触搜][BG][ICON] updating menu icon', { menuId, icons: Object.keys(icons) });
@@ -688,10 +721,11 @@ async function extractSearchKeywords(url, tab) {
 function createContextMenus() {
   const buildId = ++menuBuildCounter;
   // 清除所有现有菜单
-  chrome.contextMenus.removeAll(() => {
+  chrome.contextMenus.removeAll(async () => {
     if (buildId !== menuBuildCounter) {
       return;
     }
+    await loadMenuToggleConfig();
     BG_DBG('[触触搜][BG][MENU] rebuilding context menus', { buildId });
     optimizedPromptMenuMap.clear();
     
@@ -728,6 +762,7 @@ function createContextMenus() {
     ];
 
     aiMenuItems.forEach((menuId) => {
+      if (!isMenuEnabled(menuId)) return;
       chrome.contextMenus.create({
         id: menuId,
         parentId: 'ccs-main',
@@ -758,6 +793,7 @@ function createContextMenus() {
     ];
 
     baseMenuItems.forEach((menuId) => {
+      if (!isMenuEnabled(menuId)) return;
       chrome.contextMenus.create({
         id: menuId,
         parentId: 'ccs-main',
@@ -769,147 +805,165 @@ function createContextMenus() {
 
     const asyncTasks = [];
 
-    chrome.contextMenus.create({
-      id: 'ccs-separator-optimized',
-      parentId: 'ccs-main',
-      type: 'separator',
-      contexts: ['selection', 'page']
-    });
+    const hasAdvancedSections = isMenuEnabled('ccs-top100-root') || isMenuEnabled('ccs-fastqa-root') || isMenuEnabled('ccs-optimize-root');
 
-    chrome.contextMenus.create({
-      id: 'ccs-top100-root',
-      parentId: 'ccs-main',
-      title: getMenuTitle('ccs-top100-root', '触触搜百问'),
-      contexts: ['selection', 'page']
-    });
-
-    chrome.contextMenus.create({
-      id: 'ccs-top100-open-all',
-      parentId: 'ccs-top100-root',
-      title: getMenuTitle('ccs-top100-open-all', '打开以下全部'),
-      contexts: ['selection', 'page']
-    });
-
-    chrome.contextMenus.create({
-      id: 'ccs-top100-separator',
-      parentId: 'ccs-top100-root',
-      type: 'separator',
-      contexts: ['selection', 'page']
-    });
-
-    const topQuestionsTask = loadTopQuestionsConfig()
-      .then((config) => {
-        if (buildId !== menuBuildCounter) {
-          return;
-        }
-        if (!config) return;
-        (config.engines || []).forEach((engine) => {
-          const menuId = `ccs-top100-${engine.id}`;
-          const engineTitle = TOP_QUESTION_ENGINE_TITLES[engine.id] || engine.label;
-          chrome.contextMenus.create({
-            id: menuId,
-            parentId: 'ccs-top100-root',
-            title: engineTitle,
-            contexts: ['selection', 'page']
-          });
-          topQuestionsMenuMap.set(menuId, {
-            urlPattern: engine.urlPattern || ''
-          });
-        });
-      })
-      .catch((error) => {
-        console.warn('[触触搜][BG] 无法构建触触搜百问菜单:', error);
+    if (hasAdvancedSections) {
+      chrome.contextMenus.create({
+        id: 'ccs-separator-optimized',
+        parentId: 'ccs-main',
+        type: 'separator',
+        contexts: ['selection', 'page']
       });
-    asyncTasks.push(topQuestionsTask);
+    }
 
-    chrome.contextMenus.create({
-      id: 'ccs-fastqa-root',
-      parentId: 'ccs-main',
-      title: getMenuTitle('ccs-fastqa-root', '速答壹拾佰'),
-      contexts: ['selection', 'page']
-    });
-
-    chrome.contextMenus.create({
-      id: 'ccs-fastqa-open-all',
-      parentId: 'ccs-fastqa-root',
-      title: getMenuTitle('ccs-fastqa-open-all', '打开以下全部'),
-      contexts: ['selection', 'page']
-    });
-
-    chrome.contextMenus.create({
-      id: 'ccs-fastqa-separator',
-      parentId: 'ccs-fastqa-root',
-      type: 'separator',
-      contexts: ['selection', 'page']
-    });
-
-    const fastAnswersTask = loadFastAnswersConfig()
-      .then((config) => {
-        if (buildId !== menuBuildCounter) {
-          return;
-        }
-        if (!config) return;
-        (config.engines || []).forEach((engine) => {
-          const menuId = `ccs-fastqa-${engine.id}`;
-          const engineTitle = FAST_ANSWER_ENGINE_TITLES[engine.id] || engine.label;
-          chrome.contextMenus.create({
-            id: menuId,
-            parentId: 'ccs-fastqa-root',
-            title: engineTitle,
-            contexts: ['selection', 'page']
-          });
-          fastAnswersMenuMap.set(menuId, {
-            urlPattern: engine.urlPattern || ''
-          });
-        });
-      })
-      .catch((error) => {
-        console.warn('[触触搜][BG] 无法构建速答壹拾佰菜单:', error);
+    if (isMenuEnabled('ccs-top100-root')) {
+      chrome.contextMenus.create({
+        id: 'ccs-top100-root',
+        parentId: 'ccs-main',
+        title: getMenuTitle('ccs-top100-root', '触触搜百问'),
+        contexts: ['selection', 'page']
       });
-    asyncTasks.push(fastAnswersTask);
 
-    chrome.contextMenus.create({
-      id: 'ccs-optimize-root',
-      parentId: 'ccs-main',
-      title: '🧠 优化提示词',
-      contexts: ['selection', 'page']
-    });
+      if (isMenuEnabled('ccs-top100-open-all')) {
+        chrome.contextMenus.create({
+          id: 'ccs-top100-open-all',
+          parentId: 'ccs-top100-root',
+          title: getMenuTitle('ccs-top100-open-all', '打开以下全部'),
+          contexts: ['selection', 'page']
+        });
+      }
 
-    // 动态加载优化提示词菜单
-    const optimizeTask = loadOptimizedPromptConfig()
-      .then((config) => {
-        if (buildId !== menuBuildCounter) {
-          return;
-        }
-        if (!config) return;
-        populateOptimizedMenuMap(config);
-        (config.categories || []).forEach((category) => {
-          const categoryId = `ccs-optimize-${category.id}`;
-          const categoryTitle = OPTIMIZE_CATEGORY_TITLES[category.id] || category.label;
-          chrome.contextMenus.create({
-            id: categoryId,
-            parentId: 'ccs-optimize-root',
-            title: categoryTitle,
-            contexts: ['selection', 'page']
-          });
+      chrome.contextMenus.create({
+        id: 'ccs-top100-separator',
+        parentId: 'ccs-top100-root',
+        type: 'separator',
+        contexts: ['selection', 'page']
+      });
 
-          (category.engines || []).forEach((engine) => {
-            const menuId = `ccs-optimize-${category.id}-${engine.id}`;
-            const engineTitle = OPTIMIZE_ENGINE_TITLES[engine.id] || engine.label;
+      const topQuestionsTask = loadTopQuestionsConfig()
+        .then((config) => {
+          if (buildId !== menuBuildCounter) {
+            return;
+          }
+          if (!config) return;
+          (config.engines || []).forEach((engine) => {
+            const menuId = `ccs-top100-${engine.id}`;
+            if (!isMenuEnabled(menuId)) return;
+            const engineTitle = TOP_QUESTION_ENGINE_TITLES[engine.id] || engine.label;
             chrome.contextMenus.create({
               id: menuId,
-              parentId: categoryId,
+              parentId: 'ccs-top100-root',
               title: engineTitle,
               contexts: ['selection', 'page']
             });
-            BG_DBG('[触触搜][BG][MENU] optimize submenu created', { menuId });
+            topQuestionsMenuMap.set(menuId, {
+              urlPattern: engine.urlPattern || ''
+            });
           });
+        })
+        .catch((error) => {
+          console.warn('[触触搜][BG] 无法构建触触搜百问菜单:', error);
         });
-      })
-      .catch((error) => {
-        console.warn('[触触搜][BG] 无法构建优化提示词菜单:', error);
+      asyncTasks.push(topQuestionsTask);
+    }
+
+    if (isMenuEnabled('ccs-fastqa-root')) {
+      chrome.contextMenus.create({
+        id: 'ccs-fastqa-root',
+        parentId: 'ccs-main',
+        title: getMenuTitle('ccs-fastqa-root', '速答壹拾佰'),
+        contexts: ['selection', 'page']
       });
-    asyncTasks.push(optimizeTask);
+
+      if (isMenuEnabled('ccs-fastqa-open-all')) {
+        chrome.contextMenus.create({
+          id: 'ccs-fastqa-open-all',
+          parentId: 'ccs-fastqa-root',
+          title: getMenuTitle('ccs-fastqa-open-all', '打开以下全部'),
+          contexts: ['selection', 'page']
+        });
+      }
+
+      chrome.contextMenus.create({
+        id: 'ccs-fastqa-separator',
+        parentId: 'ccs-fastqa-root',
+        type: 'separator',
+        contexts: ['selection', 'page']
+      });
+
+      const fastAnswersTask = loadFastAnswersConfig()
+        .then((config) => {
+          if (buildId !== menuBuildCounter) {
+            return;
+          }
+          if (!config) return;
+          (config.engines || []).forEach((engine) => {
+            const menuId = `ccs-fastqa-${engine.id}`;
+            if (!isMenuEnabled(menuId)) return;
+            const engineTitle = FAST_ANSWER_ENGINE_TITLES[engine.id] || engine.label;
+            chrome.contextMenus.create({
+              id: menuId,
+              parentId: 'ccs-fastqa-root',
+              title: engineTitle,
+              contexts: ['selection', 'page']
+            });
+            fastAnswersMenuMap.set(menuId, {
+              urlPattern: engine.urlPattern || ''
+            });
+          });
+        })
+        .catch((error) => {
+          console.warn('[触触搜][BG] 无法构建速答壹拾佰菜单:', error);
+        });
+      asyncTasks.push(fastAnswersTask);
+    }
+
+    if (isMenuEnabled('ccs-optimize-root')) {
+      chrome.contextMenus.create({
+        id: 'ccs-optimize-root',
+        parentId: 'ccs-main',
+        title: '🧠 优化提示词',
+        contexts: ['selection', 'page']
+      });
+
+      // 动态加载优化提示词菜单
+      const optimizeTask = loadOptimizedPromptConfig()
+        .then((config) => {
+          if (buildId !== menuBuildCounter) {
+            return;
+          }
+          if (!config) return;
+          populateOptimizedMenuMap(config);
+          (config.categories || []).forEach((category) => {
+            const categoryId = `ccs-optimize-${category.id}`;
+            if (!isMenuEnabled(categoryId)) return;
+            const categoryTitle = OPTIMIZE_CATEGORY_TITLES[category.id] || category.label;
+            chrome.contextMenus.create({
+              id: categoryId,
+              parentId: 'ccs-optimize-root',
+              title: categoryTitle,
+              contexts: ['selection', 'page']
+            });
+
+            (category.engines || []).forEach((engine) => {
+              const menuId = `ccs-optimize-${category.id}-${engine.id}`;
+              if (!isMenuEnabled(menuId)) return;
+              const engineTitle = OPTIMIZE_ENGINE_TITLES[engine.id] || engine.label;
+              chrome.contextMenus.create({
+                id: menuId,
+                parentId: categoryId,
+                title: engineTitle,
+                contexts: ['selection', 'page']
+              });
+              BG_DBG('[触触搜][BG][MENU] optimize submenu created', { menuId });
+            });
+          });
+        })
+        .catch((error) => {
+          console.warn('[触触搜][BG] 无法构建优化提示词菜单:', error);
+        });
+      asyncTasks.push(optimizeTask);
+    }
 
     Promise.all(asyncTasks)
       .finally(() => {
@@ -1107,6 +1161,7 @@ async function updateContextMenuForTab(tab) {
 
 // 处理右键菜单点击
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  await loadMenuToggleConfig();
   const { raw: rawText, normalized: normalizedText } = await computeSearchTextForTab({
     tabId: tab?.id,
     tabUrl: tab?.url,
@@ -1170,13 +1225,17 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       const encodedPrompt = encodeURIComponent(prompt);
       if (isTopQuestionsOpenAll) {
         const engines = Array.isArray(config.engines) ? config.engines : [];
-        engines.forEach((engine, index) => {
+        let openedCount = 0;
+        engines.forEach((engine) => {
           if (!engine || typeof engine.urlPattern !== 'string' || !engine.urlPattern) {
             return;
           }
+          const menuId = `ccs-top100-${engine.id}`;
+          if (!isMenuEnabled(menuId)) return;
           const targetUrl = engine.urlPattern.split('${PROMPT}').join(encodedPrompt);
           if (targetUrl) {
-            chrome.tabs.create({ url: targetUrl, active: index === 0 });
+            chrome.tabs.create({ url: targetUrl, active: openedCount === 0 });
+            openedCount += 1;
           }
         });
       } else {
@@ -1241,13 +1300,17 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       const encodedPrompt = encodeURIComponent(prompt);
       if (isFastAnswersOpenAll) {
         const engines = Array.isArray(config.engines) ? config.engines : [];
-        engines.forEach((engine, index) => {
+        let openedCount = 0;
+        engines.forEach((engine) => {
           if (!engine || typeof engine.urlPattern !== 'string' || !engine.urlPattern) {
             return;
           }
+          const menuId = `ccs-fastqa-${engine.id}`;
+          if (!isMenuEnabled(menuId)) return;
           const targetUrl = engine.urlPattern.split('${PROMPT}').join(encodedPrompt);
           if (targetUrl) {
-            chrome.tabs.create({ url: targetUrl, active: index === 0 });
+            chrome.tabs.create({ url: targetUrl, active: openedCount === 0 });
+            openedCount += 1;
           }
         });
       } else {
