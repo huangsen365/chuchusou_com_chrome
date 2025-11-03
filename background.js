@@ -135,6 +135,49 @@ async function computeSearchTextForTab({ tabId, tabUrl, tabTitle = '', selection
   };
 }
 
+async function copyTextInTab(tab, text) {
+  if (!tab || !text) return false;
+  const tabId = tab.id;
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      action: 'copyText',
+      text
+    });
+    return true;
+  } catch (err) {
+    BG_DBG('[触触搜][BG][COPY] sendMessage 失败，尝试注入脚本', err);
+  }
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (value) => {
+        const fallbackCopy = () => {
+          const textarea = document.createElement('textarea');
+          textarea.value = value;
+          textarea.setAttribute('readonly', '');
+          textarea.style.position = 'fixed';
+          textarea.style.top = '-10000px';
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          textarea.remove();
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(value).catch(fallbackCopy);
+        } else {
+          fallbackCopy();
+        }
+      },
+      args: [text]
+    });
+    return true;
+  } catch (err) {
+    console.warn('[触触搜][BG][COPY] 注入复制脚本失败', err);
+  }
+  return false;
+}
+
 let menuBuildCounter = 0;
 
 async function loadOptimizedPromptConfig() {
@@ -1049,14 +1092,13 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       
     case 'ccs-copy':
       if (rawText) {
-        // 发送消息给content script处理复制
-        chrome.tabs.sendMessage(tab.id, {
-          action: 'copyText',
-          text: rawText
-        }).catch(() => {
-          // 如果content script未加载，使用chrome.clipboard API
-          // 注意：这需要在manifest中添加clipboardWrite权限
-        });
+        const ok = await copyTextInTab(tab, rawText);
+        if (!ok) {
+          chrome.tabs.sendMessage(tab.id, {
+            action: 'showToast',
+            message: '复制失败，请检查页面权限'
+          }).catch(() => {});
+        }
       }
       break;
       
