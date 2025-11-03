@@ -53,6 +53,8 @@ const MENU_ITEM_TITLES = {
   'ccs-label': '🔍 触触搜',
   'ccs-baidu': '🐼 百度搜索',
   'ccs-google': '🔎 Google 搜索',
+  'ccs-tongyi': '🪄 通义千问',
+  'ccs-yiyan': '🧠 文心一言',
   'ccs-chatgpt': '🤖 ChatGPT (GPT-5)',
   'ccs-claude': '🧠 Claude',
   'ccs-zhihu': '💡 知乎搜索',
@@ -76,6 +78,8 @@ const MENU_FALLBACK_TITLES = {
   'ccs-label': '🔍 触触搜',
   'ccs-baidu': '百度搜索',
   'ccs-google': 'Google搜索',
+  'ccs-tongyi': '通义千问',
+  'ccs-yiyan': '文心一言',
   'ccs-chatgpt': 'ChatGPT (GPT-5)',
   'ccs-claude': 'Claude',
   'ccs-zhihu': '知乎搜索',
@@ -595,6 +599,8 @@ function createContextMenus() {
     const baseMenuItems = [
       'ccs-baidu',
       'ccs-google',
+      'ccs-tongyi',
+      'ccs-yiyan',
       'ccs-chatgpt',
       'ccs-claude',
       'ccs-zhihu',
@@ -1006,6 +1012,22 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       if (normalizedText) {
         chrome.tabs.create({
           url: `https://www.google.com/search?q=${encodeURIComponent(normalizedText)}`
+        });
+      }
+      break;
+
+    case 'ccs-tongyi':
+      if (normalizedText) {
+        chrome.tabs.create({
+          url: `https://www.tongyi.com/?q=${encodeURIComponent(normalizedText)}`
+        });
+      }
+      break;
+
+    case 'ccs-yiyan':
+      if (normalizedText) {
+        chrome.tabs.create({
+          url: `https://yiyan.baidu.com/?q=${encodeURIComponent(normalizedText)}`
         });
       }
       break;
