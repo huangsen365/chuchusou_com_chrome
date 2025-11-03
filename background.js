@@ -172,8 +172,11 @@ async function computeSearchTextForTab({ tabId, tabUrl, tabTitle = '', selection
   if (typeof selectionText === 'string' && selectionText.trim().length > 0) {
     text = selectionText;
   }
-  if (!text && tabId != null && selectedTextByTab[tabId] && selectedTextByTab[tabId].trim().length > 0) {
-    text = selectedTextByTab[tabId];
+  const stored = tabId != null ? selectedTextByTab[tabId] : null;
+  if (!text && stored && typeof stored.text === 'string' && stored.text.trim().length > 0) {
+    if (!stored.url || stored.url === tabUrl) {
+      text = stored.text;
+    }
   }
   if (!text && tabUrl) {
     const extracted = await extractSearchKeywords(tabUrl, { url: tabUrl, title: tabTitle });
@@ -959,7 +962,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const rawText = typeof request.text === 'string' ? request.text : '';
     const hasContent = rawText.trim().length > 0;
     if (hasContent) {
-      selectedTextByTab[tabId] = rawText;
+      selectedTextByTab[tabId] = {
+        text: rawText,
+        url: sender.tab.url || ''
+      };
     } else {
       delete selectedTextByTab[tabId];
     }
@@ -973,7 +979,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // 监听标签页更新，动态更新菜单标题
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url) {
+  if (changeInfo.status === 'loading') {
+    delete selectedTextByTab[tabId];
+  }
+  if ((changeInfo.status === 'complete' || changeInfo.status === 'loading') && tab.url) {
     updateContextMenuForTab(tab);
   }
 });
