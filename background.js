@@ -73,6 +73,7 @@ const MENU_ITEM_TITLES = {
   'ccs-google-translate': '🔁 Google 翻译',
   'ccs-chuchusou': '🌐 更多搜索引擎...',
   'ccs-top100-root': '🧠 触触搜百问',
+  'ccs-top100-open-all': '🚀 打开以下全部',
   'ccs-fastqa-root': '⚡ 速答壹拾佰',
   'ccs-fastqa-open-all': '🚀 打开以下全部',
   'ccs-copy': '📋 复制文本',
@@ -100,6 +101,7 @@ const MENU_FALLBACK_TITLES = {
   'ccs-google-translate': 'Google 翻译',
   'ccs-chuchusou': '更多搜索引擎...',
   'ccs-top100-root': '触触搜百问',
+  'ccs-top100-open-all': '打开以下全部',
   'ccs-fastqa-root': '速答壹拾佰',
   'ccs-fastqa-open-all': '打开以下全部',
   'ccs-copy': '复制文本',
@@ -781,6 +783,20 @@ function createContextMenus() {
       contexts: ['selection', 'page']
     });
 
+    chrome.contextMenus.create({
+      id: 'ccs-top100-open-all',
+      parentId: 'ccs-top100-root',
+      title: getMenuTitle('ccs-top100-open-all', '打开以下全部'),
+      contexts: ['selection', 'page']
+    });
+
+    chrome.contextMenus.create({
+      id: 'ccs-top100-separator',
+      parentId: 'ccs-top100-root',
+      type: 'separator',
+      contexts: ['selection', 'page']
+    });
+
     const topQuestionsTask = loadTopQuestionsConfig()
       .then((config) => {
         if (buildId !== menuBuildCounter) {
@@ -1098,6 +1114,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     selectionText: info.selectionText || ''
   });
 
+  const isTopQuestionsOpenAll = info.menuItemId === 'ccs-top100-open-all';
+  const isTopQuestionsMenu = info.menuItemId && info.menuItemId.startsWith('ccs-top100-');
+  const isTopQuestionsEngine = isTopQuestionsMenu && !isTopQuestionsOpenAll;
   const isFastAnswersMenu = info.menuItemId && info.menuItemId.startsWith('ccs-fastqa-');
   const isFastAnswersOpenAll = info.menuItemId === 'ccs-fastqa-open-all';
 
@@ -1105,6 +1124,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     !normalizedText &&
     info.menuItemId !== 'ccs-show-popover' &&
     !topQuestionsMenuMap.has(info.menuItemId) &&
+    !isTopQuestionsOpenAll &&
     !fastAnswersMenuMap.has(info.menuItemId) &&
     !isFastAnswersOpenAll &&
     !optimizedPromptMenuMap.has(info.menuItemId) &&
@@ -1117,7 +1137,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     return;
   }
 
-  if (info.menuItemId && info.menuItemId.startsWith('ccs-top100-')) {
+  if (isTopQuestionsOpenAll || isTopQuestionsEngine) {
     const effectiveInput = rawText || normalizedText;
     if (!effectiveInput) {
       chrome.tabs.sendMessage(tab.id, {
@@ -1139,22 +1159,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           ? config.templateLines.join('\\n')
           : (config.template || '');
       }
-      const engineId = info.menuItemId.replace('ccs-top100-', '');
-      let menuTarget = topQuestionsMenuMap.get(info.menuItemId);
-      if (!menuTarget) {
-        const engine = (config.engines || []).find((item) => item.id === engineId);
-        if (engine) {
-          menuTarget = { urlPattern: engine.urlPattern || '' };
-          topQuestionsMenuMap.set(info.menuItemId, menuTarget);
-        }
-      }
-      if (!menuTarget || !menuTarget.urlPattern) {
-        chrome.tabs.sendMessage(tab.id, {
-          action: 'showToast',
-          message: '未找到对应的引擎配置'
-        }).catch(() => {});
-        return;
-      }
       const prompt = buildTopQuestionsPrompt(effectiveInput);
       if (!prompt) {
         chrome.tabs.sendMessage(tab.id, {
@@ -1164,8 +1168,37 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         return;
       }
       const encodedPrompt = encodeURIComponent(prompt);
-      const url = menuTarget.urlPattern.split('${PROMPT}').join(encodedPrompt);
-      chrome.tabs.create({ url });
+      if (isTopQuestionsOpenAll) {
+        const engines = Array.isArray(config.engines) ? config.engines : [];
+        engines.forEach((engine, index) => {
+          if (!engine || typeof engine.urlPattern !== 'string' || !engine.urlPattern) {
+            return;
+          }
+          const targetUrl = engine.urlPattern.split('${PROMPT}').join(encodedPrompt);
+          if (targetUrl) {
+            chrome.tabs.create({ url: targetUrl, active: index === 0 });
+          }
+        });
+      } else {
+        const engineId = info.menuItemId.replace('ccs-top100-', '');
+        let menuTarget = topQuestionsMenuMap.get(info.menuItemId);
+        if (!menuTarget) {
+          const engine = (config.engines || []).find((item) => item.id === engineId);
+          if (engine) {
+            menuTarget = { urlPattern: engine.urlPattern || '' };
+            topQuestionsMenuMap.set(info.menuItemId, menuTarget);
+          }
+        }
+        if (!menuTarget || !menuTarget.urlPattern) {
+          chrome.tabs.sendMessage(tab.id, {
+            action: 'showToast',
+            message: '未找到对应的引擎配置'
+          }).catch(() => {});
+          return;
+        }
+        const url = menuTarget.urlPattern.split('${PROMPT}').join(encodedPrompt);
+        chrome.tabs.create({ url });
+      }
     }).catch(() => {
       chrome.tabs.sendMessage(tab.id, {
         action: 'showToast',
