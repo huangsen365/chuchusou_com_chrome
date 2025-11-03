@@ -638,6 +638,7 @@ function createContextMenus() {
     const baseMenuItems = [
       'ccs-baidu',
       'ccs-google',
+      // 'ccs-baidu-translate',
       'ccs-yiyan',
       'ccs-chatgpt',
       'ccs-claude',
@@ -646,7 +647,6 @@ function createContextMenus() {
       'ccs-taobao',
       'ccs-jd',
       'ccs-sov2ex',
-      'ccs-baidu-translate',
       'ccs-google-translate',
       'ccs-chuchusou'
     ];
@@ -1206,14 +1206,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       }
       break;
 
-    case 'ccs-baidu-translate':
-      if (normalizedText) {
-        chrome.tabs.create({
-          url: `https://fanyi.baidu.com/?query=${encodeURIComponent(normalizedText)}`
-        });
-      }
-      break;
-      
     case 'ccs-google-translate':
       if (normalizedText) {
         chrome.tabs.create({
