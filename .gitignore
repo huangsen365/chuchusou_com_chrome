@@ -1,0 +1,32 @@
+# Node / package managers
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+/dist/
+/build/
+*.crx
+*.zip
+
+# Editor / OS junk
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.env
+.env.*
+
+# Local cache and temp files
+*.local.json
+*.tmp
+*.bak
+
+# Logs
+*.log
+logs/
+
+# Generated assets
+assets/menu-icons/*.tmp
