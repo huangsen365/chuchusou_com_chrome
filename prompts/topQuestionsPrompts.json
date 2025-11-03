@@ -27,6 +27,11 @@
       "id": "claude",
       "label": "Claude (推荐 Opus)",
       "urlPattern": "https://claude.ai/new?q=${PROMPT}"
+    },
+    {
+      "id": "yiyan",
+      "label": "文心一言",
+      "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}"
     }
   ]
 }

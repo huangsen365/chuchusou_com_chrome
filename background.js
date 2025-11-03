@@ -124,8 +124,9 @@ const OPTIMIZE_ENGINE_TITLES = {
 };
 
 const TOP_QUESTION_ENGINE_TITLES = {
-  'chatgpt': '🤖 ChatGPT (默认 GPT-5)',
-  'claude': '🧠 Claude (推荐 Opus)'
+  'chatgpt': '🤖 ChatGPT',
+  'claude': '🧠 Claude',
+  'yiyan': '🧠 文心一言'
 };
 
 function applyMenuTitle(normalizedText) {
