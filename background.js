@@ -50,6 +50,7 @@ let menuIconConfig = null;
 const menuIconImageCache = new Map();
 
 const MENU_ITEM_TITLES = {
+  'ccs-label': '🔍 触触搜',
   'ccs-baidu': '🐼 百度搜索',
   'ccs-google': '🔎 Google 搜索',
   'ccs-chatgpt': '🤖 ChatGPT (GPT-5)',
@@ -61,8 +62,42 @@ const MENU_ITEM_TITLES = {
   'ccs-sov2ex': '💻 V2EX (sov2ex)',
   'ccs-baidu-translate': '✍️ 百度翻译',
   'ccs-google-translate': '🔁 Google 翻译',
-  'ccs-chuchusou': '🌐 更多搜索引擎...'
+  'ccs-chuchusou': '🌐 更多搜索引擎...',
+  'ccs-copy': '📋 复制文本',
+  'ccs-base64': '🔤 Base64 编码',
+  'ccs-md5': '🔐 MD5 哈希',
+  'ccs-url-encode': '🔗 URL 编码',
+  'ccs-upper': '🔠 转换为大写',
+  'ccs-lower': '🔡 转换为小写',
+  'ccs-show-popover': '🪟 打开触触搜面板 (Alt+S)'
 };
+
+const MENU_FALLBACK_TITLES = {
+  'ccs-label': '🔍 触触搜',
+  'ccs-baidu': '百度搜索',
+  'ccs-google': 'Google搜索',
+  'ccs-chatgpt': 'ChatGPT (GPT-5)',
+  'ccs-claude': 'Claude',
+  'ccs-zhihu': '知乎搜索',
+  'ccs-weixin': '微信搜一搜',
+  'ccs-taobao': '淘宝搜索',
+  'ccs-jd': '京东搜索',
+  'ccs-sov2ex': 'V2EX (sov2ex)',
+  'ccs-baidu-translate': '百度翻译',
+  'ccs-google-translate': 'Google 翻译',
+  'ccs-chuchusou': '更多搜索引擎...',
+  'ccs-copy': '复制文本',
+  'ccs-base64': 'Base64编码',
+  'ccs-md5': 'MD5哈希',
+  'ccs-url-encode': 'URL编码',
+  'ccs-upper': '转换为大写',
+  'ccs-lower': '转换为小写',
+  'ccs-show-popover': '打开触触搜面板 (Alt+S)'
+};
+
+function getMenuTitle(menuId, fallback) {
+  return MENU_ITEM_TITLES[menuId] || fallback || MENU_FALLBACK_TITLES[menuId] || menuId;
+}
 
 let menuBuildCounter = 0;
 
@@ -465,7 +500,7 @@ function createContextMenus() {
     chrome.contextMenus.create({
       id: 'ccs-label',
       parentId: 'ccs-main',
-      title: '🔍 触触搜',
+      title: getMenuTitle('ccs-label', '触触搜'),
       enabled: false,  // 禁用使其不可点击
       contexts: ['selection', 'page']
     });
@@ -497,7 +532,7 @@ function createContextMenus() {
       chrome.contextMenus.create({
         id: menuId,
         parentId: 'ccs-main',
-        title: MENU_ITEM_TITLES[menuId] || menuId,
+        title: getMenuTitle(menuId, MENU_FALLBACK_TITLES[menuId]),
         contexts: ['selection', 'page']
       });
     });
@@ -566,28 +601,28 @@ function createContextMenus() {
     chrome.contextMenus.create({
       id: 'ccs-copy',
       parentId: 'ccs-main',
-      title: '复制文本',
+      title: getMenuTitle('ccs-copy', '复制文本'),
       contexts: ['selection', 'page']
     });
 
     chrome.contextMenus.create({
       id: 'ccs-base64',
       parentId: 'ccs-main',
-      title: 'Base64编码',
+      title: getMenuTitle('ccs-base64', 'Base64编码'),
       contexts: ['selection', 'page']
     });
 
     chrome.contextMenus.create({
       id: 'ccs-md5',
       parentId: 'ccs-main',
-      title: 'MD5哈希',
+      title: getMenuTitle('ccs-md5', 'MD5哈希'),
       contexts: ['selection', 'page']
     });
 
     chrome.contextMenus.create({
       id: 'ccs-url-encode',
       parentId: 'ccs-main',
-      title: 'URL编码',
+      title: getMenuTitle('ccs-url-encode', 'URL编码'),
       contexts: ['selection', 'page']
     });
 
@@ -601,14 +636,14 @@ function createContextMenus() {
     chrome.contextMenus.create({
       id: 'ccs-upper',
       parentId: 'ccs-main',
-      title: '转换为大写',
+      title: getMenuTitle('ccs-upper', '转换为大写'),
       contexts: ['selection', 'page']
     });
 
     chrome.contextMenus.create({
       id: 'ccs-lower',
       parentId: 'ccs-main',
-      title: '转换为小写',
+      title: getMenuTitle('ccs-lower', '转换为小写'),
       contexts: ['selection', 'page']
     });
 
@@ -622,7 +657,7 @@ function createContextMenus() {
     chrome.contextMenus.create({
       id: 'ccs-show-popover',
       parentId: 'ccs-main',
-      title: '打开触触搜面板 (Alt+S)',
+      title: getMenuTitle('ccs-show-popover', '打开触触搜面板 (Alt+S)'),
       contexts: ['selection', 'page']
     });
   });
