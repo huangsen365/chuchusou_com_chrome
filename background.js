@@ -49,6 +49,21 @@ let optimizedPromptTemplate = '';
 let menuIconConfig = null;
 const menuIconImageCache = new Map();
 
+const MENU_ITEM_TITLES = {
+  'ccs-baidu': '🐼 百度搜索',
+  'ccs-google': '🔎 Google 搜索',
+  'ccs-chatgpt': '🤖 ChatGPT (GPT-5)',
+  'ccs-claude': '🧠 Claude',
+  'ccs-zhihu': '💡 知乎搜索',
+  'ccs-weixin': '💬 微信搜一搜',
+  'ccs-taobao': '🛒 淘宝搜索',
+  'ccs-jd': '🛍️ 京东搜索',
+  'ccs-sov2ex': '💻 V2EX (sov2ex)',
+  'ccs-baidu-translate': '✍️ 百度翻译',
+  'ccs-google-translate': '🔁 Google 翻译',
+  'ccs-chuchusou': '🌐 更多搜索引擎...'
+};
+
 let menuBuildCounter = 0;
 
 async function loadOptimizedPromptConfig() {
@@ -463,90 +478,30 @@ function createContextMenus() {
     });
 
     // 创建子菜单项
-    chrome.contextMenus.create({
-      id: 'ccs-baidu',
-      parentId: 'ccs-main',
-      title: '百度搜索',
-      contexts: ['selection', 'page']
+    const baseMenuItems = [
+      'ccs-baidu',
+      'ccs-google',
+      'ccs-chatgpt',
+      'ccs-claude',
+      'ccs-zhihu',
+      'ccs-weixin',
+      'ccs-taobao',
+      'ccs-jd',
+      'ccs-sov2ex',
+      'ccs-baidu-translate',
+      'ccs-google-translate',
+      'ccs-chuchusou'
+    ];
+
+    baseMenuItems.forEach((menuId) => {
+      chrome.contextMenus.create({
+        id: menuId,
+        parentId: 'ccs-main',
+        title: MENU_ITEM_TITLES[menuId] || menuId,
+        contexts: ['selection', 'page']
+      });
     });
     BG_DBG('[触触搜][BG][MENU] base search items created');
-
-    chrome.contextMenus.create({
-      id: 'ccs-google',
-      parentId: 'ccs-main',
-      title: 'Google搜索',
-      contexts: ['selection', 'page']
-    });
-
-    chrome.contextMenus.create({
-      id: 'ccs-chatgpt',
-      parentId: 'ccs-main',
-      title: 'ChatGPT (GPT-5)',
-      contexts: ['selection', 'page']
-    });
-
-    chrome.contextMenus.create({
-      id: 'ccs-claude',
-      parentId: 'ccs-main',
-      title: 'Claude',
-      contexts: ['selection', 'page']
-    });
-
-    chrome.contextMenus.create({
-      id: 'ccs-zhihu',
-      parentId: 'ccs-main',
-      title: '知乎搜索',
-      contexts: ['selection', 'page']
-    });
-
-    chrome.contextMenus.create({
-      id: 'ccs-weixin',
-      parentId: 'ccs-main',
-      title: '微信搜一搜',
-      contexts: ['selection', 'page']
-    });
-
-    chrome.contextMenus.create({
-      id: 'ccs-taobao',
-      parentId: 'ccs-main',
-      title: '淘宝搜索',
-      contexts: ['selection', 'page']
-    });
-
-    chrome.contextMenus.create({
-      id: 'ccs-jd',
-      parentId: 'ccs-main',
-      title: '京东搜索',
-      contexts: ['selection', 'page']
-    });
-
-    chrome.contextMenus.create({
-      id: 'ccs-sov2ex',
-      parentId: 'ccs-main',
-      title: 'V2EX (sov2ex)',
-      contexts: ['selection', 'page']
-    });
-
-    chrome.contextMenus.create({
-      id: 'ccs-baidu-translate',
-      parentId: 'ccs-main',
-      title: '百度翻译',
-      contexts: ['selection', 'page']
-    });
-
-    chrome.contextMenus.create({
-      id: 'ccs-google-translate',
-      parentId: 'ccs-main',
-      title: 'Google 翻译',
-      contexts: ['selection', 'page']
-    });
-
-    chrome.contextMenus.create({
-      id: 'ccs-chuchusou',
-      parentId: 'ccs-main',
-      title: '🌐 更多搜索引擎...',
-      contexts: ['selection', 'page']
-    });
 
     chrome.contextMenus.create({
       id: 'ccs-separator-optimized',
