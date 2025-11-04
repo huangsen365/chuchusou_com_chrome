@@ -1300,12 +1300,38 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // 异步响应
   }
   if (request.action === 'contextMenuPreview') {
-    const previewText = typeof request.selectionText === 'string' ? request.selectionText : '';
+    const tabId = sender?.tab?.id ?? null;
+    const incoming = typeof request.selectionText === 'string' ? request.selectionText : '';
+    logMenuEvent('context-preview-in', {
+      tabId,
+      incomingText: incoming
+    });
+
+    let previewText = incoming;
+    let source = previewText ? 'message' : 'none';
+
+    if (!previewText && tabId != null) {
+      const cached = selectedTextByTab[tabId];
+      const cachedText = typeof cached === 'string' ? cached : cached?.text;
+      if (typeof cachedText === 'string' && cachedText.trim().length > 0) {
+        previewText = cachedText;
+        source = 'cached-selection';
+      }
+    }
+
+    if (!previewText && currentMenuState.raw) {
+      previewText = currentMenuState.raw;
+      source = 'menu-state';
+    }
+
     const normalizedPreview = previewText ? normalizeSearchText(previewText) : '';
     logMenuEvent('context-preview', {
+      tabId,
       previewText,
-      normalizedPreview
+      normalizedPreview,
+      source
     });
+
     if (previewText) {
       setMenuState(previewText, normalizedPreview || previewText);
     }
