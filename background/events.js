@@ -6,6 +6,75 @@ if (chrome.runtime.onStartup) {
 // 预加载调试开关与图标支持状态
 ensureMenuIconSupportLoaded();
 
+function syncSelectionFromTab(tab, reason = 'unknown', options = {}) {
+  const updateMenu = options.updateMenu !== false;
+  const tabId = tab?.id;
+  const tabUrl = tab?.url || '';
+  if (tabId == null) {
+    return Promise.resolve('');
+  }
+  return new Promise((resolve) => {
+    let responded = false;
+    try {
+      chrome.tabs.sendMessage(tabId, { action: 'fetchSelectionSnapshot' }, (response) => {
+        responded = true;
+        if (chrome.runtime.lastError) {
+          logMenuEvent('selection-sync-error', {
+            tabId,
+            reason,
+            error: chrome.runtime.lastError.message
+          });
+          resolve('');
+          return;
+        }
+        const text = typeof response?.text === 'string' ? response.text : '';
+        const source = response?.source || '';
+        const trimmed = text.trim();
+        if (trimmed) {
+          selectedTextByTab[tabId] = {
+            text,
+            url: tabUrl || response?.url || ''
+          };
+          logMenuEvent('selection-sync', {
+            tabId,
+            reason,
+            source,
+            length: trimmed.length
+          });
+          if (updateMenu) {
+            setMenuState(text, normalizeSearchText(text), {
+              tabId,
+              url: tabUrl || response?.url || ''
+            });
+          }
+          resolve(text);
+        } else {
+          logMenuEvent('selection-sync-empty', {
+            tabId,
+            reason,
+            source
+          });
+          resolve('');
+        }
+      });
+    } catch (error) {
+      responded = true;
+      logMenuEvent('selection-sync-exception', {
+        tabId,
+        reason,
+        error: error?.message || String(error)
+      });
+      resolve('');
+    }
+    setTimeout(() => {
+      if (!responded) {
+        logMenuEvent('selection-sync-timeout', { tabId, reason });
+        resolve('');
+      }
+    }, 500);
+  });
+}
+
 // 监听来自content script和popup的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'ccs-log-menu-icons') {
@@ -75,8 +144,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       let normalizedPreview = previewText ? normalizeSearchText(previewText) : '';
       let source = previewText ? 'message' : 'none';
       const tabUrl = sender?.tab?.url || '';
+      const tabStub = tabId != null ? { id: tabId, url: tabUrl } : null;
 
       if (!previewText && tabId != null) {
+        await syncSelectionFromTab(tabStub, 'context-preview', { updateMenu: false });
         const cached = selectedTextByTab[tabId];
         const cachedText = typeof cached === 'string' ? cached : cached?.text;
         const cachedUrl = typeof cached === 'object' ? cached?.url : undefined;
@@ -197,8 +268,13 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'loading') {
     delete selectedTextByTab[tabId];
   }
-  if ((changeInfo.status === 'complete' || changeInfo.status === 'loading') && tab.url) {
+  if (changeInfo.status === 'complete' && tab.url) {
     const candidateUrl = changeInfo.url || tab.url;
+    const mergedTab = Object.assign({}, tab, { id: tabId, url: candidateUrl });
+    const syncedText = await syncSelectionFromTab(mergedTab, 'tab-updated');
+    if (syncedText) {
+      return;
+    }
     const stored = selectedTextByTab[tabId];
     const hasStoredSelection =
       stored && typeof stored.text === 'string' && stored.text.trim().length > 0;
@@ -206,13 +282,17 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (preserve && hasStoredSelection && stored.url === (candidateUrl || stored.url)) {
       return;
     }
-    await refreshMenuTitle(tab);
+    await refreshMenuTitle(mergedTab);
   }
 });
 
 // 监听标签页激活，动态更新菜单标题
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   const tab = await chrome.tabs.get(activeInfo.tabId);
+  const syncedText = await syncSelectionFromTab(tab, 'tab-activated');
+  if (syncedText) {
+    return;
+  }
   const stored = selectedTextByTab[activeInfo.tabId];
   const hasStoredSelection =
     stored && typeof stored.text === 'string' && stored.text.trim().length > 0;

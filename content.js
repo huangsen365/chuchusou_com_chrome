@@ -223,6 +223,41 @@
       case 'showToast':
         showInfoToast(request.message || '');
         return;
+      case 'fetchSelectionSnapshot': {
+        const live = readCurrentSelection();
+        let chosen = typeof live === 'string' ? live : '';
+        let source = 'live';
+        if (!chosen || !chosen.trim()) {
+          if (state.selection && state.selection.trim().length > 0) {
+            chosen = state.selection;
+            source = 'state';
+          } else if (window.lastNonEmptySelection && window.lastNonEmptySelection.trim().length > 0) {
+            chosen = window.lastNonEmptySelection;
+            source = 'memory';
+          } else {
+            chosen = '';
+            source = 'empty';
+          }
+        } else if (state.selection !== chosen) {
+          state.selection = chosen;
+        }
+
+        if (chosen && chosen.trim()) {
+          window.selectedText = chosen;
+          window.lastNonEmptySelection = chosen;
+        }
+
+        try {
+          sendResponse?.({
+            text: chosen,
+            source,
+            url: window.location.href
+          });
+        } catch (err) {
+          log('返回选区快照失败', err);
+        }
+        return true;
+      }
       default:
         return;
     }
