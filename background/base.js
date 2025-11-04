@@ -240,10 +240,10 @@ function logMenuEvent(stage, payload) {
 }
 
 const MENU_DEFINITIONS = {
-  'ccs-label': { text: '触触搜', icon: '🔍' },
-  'ccs-fastqa-chatgpt-quick': { text: '触触搜 · 速答壹拾佰 - ChatGPT', icon: '🤖' },
-  'ccs-fastqa-claude-quick': { text: '触触搜 · 速答壹拾佰 - Claude', icon: '🧠' },
-  'ccs-fastqa-grok-quick': { text: '触触搜 · 速答壹拾佰 - Grok', icon: '🦊' },
+  'ccs-main': { text: '触触搜', icon: '🔍' },
+  'ccs-fastqa-chatgpt-quick': { text: '触触搜 · 速答壹拾佰 - ChatGPT: "%s"', icon: '🤖' },
+  'ccs-fastqa-claude-quick': { text: '触触搜 · 速答壹拾佰 - Claude: "%s"', icon: '🧠' },
+  'ccs-fastqa-grok-quick': { text: '触触搜 · 速答壹拾佰 - Grok: "%s"', icon: '🦊' },
   'ccs-baidu': { text: '百度搜索', icon: '🐼' },
   'ccs-google': { text: 'Google 搜索', icon: '🔎' },
   'ccs-tongyi': { text: '通义千问', icon: '🪄' },
@@ -349,7 +349,10 @@ function updateFastQaQuickTitle(displayText) {
     if (!state?.registered) return;
     if (!isMenuEnabled(item.id)) return;
     const baseTitle = getMenuTitle(item.id);
-    const title = formatted ? `${baseTitle}: "${formatted}"` : baseTitle;
+    const usesPlaceholder = typeof baseTitle === 'string' && baseTitle.includes('%s');
+    const title = (!usesPlaceholder && formatted)
+      ? `${baseTitle}: "${formatted}"`
+      : baseTitle;
     chrome.contextMenus.update(item.id, { title }, () => {
       if (chrome.runtime.lastError) {
         const msg = chrome.runtime.lastError.message || '';
@@ -363,6 +366,7 @@ function updateFastQaQuickTitle(displayText) {
       title,
       formatted,
       baseTitle,
+      usesPlaceholder,
       menuDisplay: snapshot.display,
       menuRaw: snapshot.raw,
       menuNormalized: snapshot.normalized
@@ -396,21 +400,13 @@ function updateSearchMenuTitles(displayText) {
 }
 
 function updateMainMenuTitle(displayText) {
-  const baseTitle = getMenuTitle('ccs-label');
+  const baseTitle = getMenuTitle('ccs-main');
   const title = displayText ? `${baseTitle}: "${displayText}"` : baseTitle;
   chrome.contextMenus.update('ccs-main', { title }, () => {
     if (chrome.runtime.lastError) {
       const msg = chrome.runtime.lastError.message || '';
       if (!/Cannot find menu item/i.test(msg)) {
         logMenuEvent('main-title-update-failed', { error: msg });
-      }
-    }
-  });
-  chrome.contextMenus.update('ccs-label', { title }, () => {
-    if (chrome.runtime.lastError) {
-      const msg = chrome.runtime.lastError.message || '';
-      if (!/Cannot find menu item/i.test(msg)) {
-        logMenuEvent('label-title-update-failed', { error: msg });
       }
     }
   });

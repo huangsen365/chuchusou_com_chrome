@@ -1,5 +1,5 @@
 const MENU_CONTEXTS_DEFAULT = ['selection', 'page'];
-const MENU_CONTEXTS_WITH_EDITABLE = ['selection', 'page', 'editable'];
+const MENU_CONTEXTS_WITH_EDITABLE = ['selection', 'editable'];
 
 const SEARCH_MENU_ITEMS = [
   'ccs-baidu',
@@ -330,29 +330,10 @@ async function createContextMenus() {
 
     await createMenuItem({
       id: 'ccs-main',
-      title: getMenuTitle('ccs-label'),
+      title: getMenuTitle('ccs-main'),
       contexts: MENU_CONTEXTS_DEFAULT
     }, {
       failureLogStage: 'create-main-failed'
-    });
-
-    await createMenuItem({
-      id: 'ccs-label',
-      parentId: 'ccs-main',
-      title: getMenuTitle('ccs-label'),
-      enabled: false,
-      contexts: MENU_CONTEXTS_DEFAULT
-    }, {
-      failureLogStage: 'create-label-failed'
-    });
-
-    await createMenuItem({
-      id: 'ccs-separator-label',
-      parentId: 'ccs-main',
-      type: 'separator',
-      contexts: MENU_CONTEXTS_DEFAULT
-    }, {
-      failureLogStage: 'create-separator-label-failed'
     });
 
     await createQuickMenuItems(quickEnabledMap);
