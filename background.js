@@ -54,7 +54,7 @@ const fastAnswersMenuMap = new Map();
 let fastAnswersConfig = null;
 let fastAnswersTemplate = '';
 let fastQaQuickRegistered = false;
-const FAST_QA_QUICK_ID = 'ccs-fastqa-grok-quick';
+const FAST_QA_QUICK_ID = 'ccs-fastqa-chatgpt-quick';
 
 let menuToggleConfig = null;
 
@@ -79,7 +79,7 @@ function logMenuEvent(stage, payload) {
 
 const MENU_ITEM_TITLES = {
   'ccs-label': '🔍 触触搜',
-  [FAST_QA_QUICK_ID]: '🦊 触触搜 · 速答壹拾佰 - Grok',
+  [FAST_QA_QUICK_ID]: '🤖 触触搜 · 速答壹拾佰 - ChatGPT',
   'ccs-baidu': '🐼 百度搜索',
   'ccs-google': '🔎 Google 搜索',
   'ccs-yiyan': '🧠 文心一言',
@@ -108,7 +108,7 @@ const MENU_ITEM_TITLES = {
 
 const MENU_FALLBACK_TITLES = {
   'ccs-label': '🔍 触触搜',
-  [FAST_QA_QUICK_ID]: '触触搜 · 速答壹拾佰 - Grok',
+  [FAST_QA_QUICK_ID]: '触触搜 · 速答壹拾佰 - ChatGPT',
   'ccs-baidu': '百度搜索',
   'ccs-google': 'Google搜索',
   'ccs-yiyan': '文心一言',
@@ -996,7 +996,7 @@ function createContextMenus() {
             engines: (config.engines || []).map((engine) => ({
               id: engine?.id,
               enabled: isMenuEnabled(`ccs-fastqa-${engine?.id}`),
-              quickTarget: engine?.id === 'grok' && fastQaQuickEnabled
+              quickTarget: engine?.id === 'chatgpt' && fastQaQuickEnabled
             }))
           });
           (config.engines || []).forEach((engine) => {
@@ -1012,10 +1012,10 @@ function createContextMenus() {
               });
               fastAnswersMenuMap.set(menuId, { urlPattern });
             }
-            if (fastQaQuickEnabled && engine.id === 'grok') {
+            if (fastQaQuickEnabled && engine.id === 'chatgpt') {
               fastAnswersMenuMap.set(FAST_QA_QUICK_ID, { urlPattern });
               logMenuEvent('fastqa-quick-url-ready', { urlPattern });
-              updateFastQaQuickTitle('');
+              updateFastQaQuickTitle(currentMenuState.display);
             }
           });
         })
