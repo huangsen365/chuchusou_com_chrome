@@ -9,14 +9,19 @@ function formatMenuTitle(text) {
   return compact.substring(0, 20) + (compact.length > 20 ? '...' : '');
 }
 
-function shouldPreserveMenuStateForTab(tab) {
-  if (!tab || typeof tab.url !== 'string') return false;
+function shouldPreserveMenuStateForUrl(url) {
+  if (!url) return false;
   try {
-    const hostname = new URL(tab.url).hostname;
+    const hostname = new URL(url).hostname;
     return QUICK_RESULT_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
   } catch (_) {
     return false;
   }
+}
+
+function shouldPreserveMenuStateForTab(tab) {
+  if (!tab || typeof tab.url !== 'string') return false;
+  return shouldPreserveMenuStateForUrl(tab.url);
 }
 
 function cleanupTitleKeyword(rawTitle) {
@@ -282,6 +287,9 @@ function setMenuState(rawText, normalizedText) {
   const normalized = typeof normalizedText === 'string' ? normalizedText : '';
   const base = normalized || raw;
   const displayText = base ? formatMenuTitle(base) : '';
+  if (!displayText && currentMenuState.display) {
+    return;
+  }
   currentMenuState.raw = raw;
   currentMenuState.normalized = normalized;
   currentMenuState.display = displayText;

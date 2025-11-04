@@ -167,10 +167,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     delete selectedTextByTab[tabId];
   }
   if ((changeInfo.status === 'complete' || changeInfo.status === 'loading') && tab.url) {
+    const candidateUrl = changeInfo.url || tab.url;
     const stored = selectedTextByTab[tabId];
     const hasStoredSelection =
       stored && typeof stored.text === 'string' && stored.text.trim().length > 0;
-    if (!hasStoredSelection && shouldPreserveMenuStateForTab(tab)) {
+    if (!hasStoredSelection && shouldPreserveMenuStateForUrl(candidateUrl)) {
       return;
     }
     updateContextMenuForTab(tab);
@@ -215,7 +216,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     tabTitle: tab?.title || '',
     selectionText: info.selectionText || ''
   });
-  setMenuState(rawText, normalizedText);
+  if (rawText || normalizedText) {
+    setMenuState(rawText, normalizedText);
+  } else {
+    const stored = tab?.id != null ? selectedTextByTab[tab.id] : null;
+    if (stored && typeof stored.text === 'string' && stored.text.trim().length > 0) {
+      setMenuState(stored.text, normalizeSearchText(stored.text));
+    }
+  }
 
   const isTopQuestionsOpenAll = info.menuItemId === 'ccs-top100-open-all';
   const isTopQuestionsMenu = info.menuItemId && info.menuItemId.startsWith('ccs-top100-');
