@@ -596,6 +596,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 });
 
+let onShownWarningEmitted = false;
+
 if (chrome.contextMenus.onShown && typeof chrome.contextMenus.onShown.addListener === 'function') {
   chrome.contextMenus.onShown.addListener(async (info, tab) => {
     try {
@@ -614,6 +616,7 @@ if (chrome.contextMenus.onShown && typeof chrome.contextMenus.onShown.addListene
       console.warn('[触触搜][BG] onShown更新菜单失败:', error);
     }
   });
-} else {
+} else if (!onShownWarningEmitted) {
+  onShownWarningEmitted = true;
   console.warn('[触触搜][BG] chrome.contextMenus.onShown 不可用，跳过菜单 onShown 更新');
 }
