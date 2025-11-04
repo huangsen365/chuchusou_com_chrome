@@ -5,7 +5,8 @@
   const state = {
     debug: false,
     selection: '',
-    debounceTimer: null
+    debounceTimer: null,
+    isUserSelecting: false
   };
 
   // expose basic globals expected by other modules
@@ -123,11 +124,12 @@
 
   function applySelection(text, trigger = 'unknown') {
     const raw = typeof text === 'string' ? text : '';
-    const hasContent = raw.trim().length > 0;
-    const value = hasContent ? raw : '';
+    const trimmed = raw.trim();
+    const hasContent = trimmed.length > 0;
+    const value = hasContent ? trimmed : '';
     window.selectedText = value;
     if (hasContent) {
-      window.lastNonEmptySelection = raw;
+      window.lastNonEmptySelection = value;
     }
 
     if (state.selection === value) {
@@ -165,13 +167,32 @@
   function handleContextMenu() {
     // Right before the menu opens, capture the freshest selection.
     updateSelection('contextmenu', { immediate: true });
+    state.isUserSelecting = false;
   }
 
-  document.addEventListener('selectionchange', () => updateSelection('selectionchange'));
-  document.addEventListener('mouseup', () => updateSelection('mouseup'));
+  document.addEventListener('selectionchange', () => {
+    if (!state.isUserSelecting) return;
+    updateSelection('selectionchange');
+  });
+  document.addEventListener('mousedown', () => {
+    state.isUserSelecting = true;
+  }, true);
+  document.addEventListener('mouseup', () => {
+    updateSelection('mouseup');
+    state.isUserSelecting = false;
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Shift' || event.shiftKey) {
+      state.isUserSelecting = true;
+    }
+  });
   document.addEventListener('keyup', (event) => {
-    if (event.key === 'Escape' || event.key === 'Enter') {
+    const shouldUpdate = (event.key === 'Escape' || event.key === 'Enter' || event.key === 'Shift' || state.isUserSelecting);
+    if (shouldUpdate) {
       updateSelection('keyup');
+    }
+    if (!event.shiftKey || event.key === 'Shift') {
+      state.isUserSelecting = false;
     }
   });
   document.addEventListener('contextmenu', handleContextMenu, true);
@@ -256,7 +277,8 @@
           sendResponse?.({
             text: chosen,
             source,
-            url: window.location.href
+            url: window.location.href,
+            title: document.title || ''
           });
         } catch (err) {
           log('返回选区快照失败', err);

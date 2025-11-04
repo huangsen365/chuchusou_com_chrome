@@ -7,6 +7,12 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   await loadMenuToggleConfig();
   await syncSelectionFromTab(tab, 'context-click', { updateMenu: false });
   const selectionText = typeof info.selectionText === 'string' ? info.selectionText.trim() : '';
+  if (!selectionText && tab?.id != null) {
+    delete selectedTextByTab[tab.id];
+  }
+  const fallbackEntry = tab?.id != null ? fallbackKeywordByTab[tab.id] : null;
+  const fallbackFresh = !!fallbackEntry && (Date.now() - fallbackEntry.timestamp < 5000);
+  const shouldForceFallback = fallbackFresh && (!selectionText || selectionText.length <= Math.max(2, Math.min(6, fallbackEntry.normalized?.length || fallbackEntry.raw?.length || 0) / 4));
   if (selectionText) {
     setMenuState(selectionText, normalizeSearchText(selectionText), {
       tabId: tab?.id ?? null,
@@ -24,7 +30,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   const { raw: rawText, normalized: normalizedText } = await computeSearchTextForTab({
     tabId: tab?.id,
     tabUrl: tab?.url,
-    tabTitle: tab?.title || '',
+    tabTitle: (tab?.id != null ? getLatestTabPageTitle(tab.id) : '') || tab?.title || '',
     selectionText: info.selectionText || ''
   }, {
     forceFetchSelection: true,
@@ -41,12 +47,23 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   let effectiveRaw = rawText;
   let effectiveNormalized = normalizedText;
 
+  if (shouldForceFallback && fallbackEntry) {
+    effectiveRaw = fallbackEntry.raw;
+    effectiveNormalized = fallbackEntry.normalized;
+    logMenuEvent('context-click-forced-fallback', {
+      tabId: tab?.id ?? null,
+      menuItemId: info.menuItemId,
+      fallbackRaw: fallbackEntry.raw,
+      fallbackNormalized: fallbackEntry.normalized
+    });
+  }
+
   if (!effectiveRaw && !effectiveNormalized) {
     try {
       const fallbackResult = await computeSearchTextForTab({
         tabId: tab?.id,
         tabUrl: tab?.url,
-        tabTitle: tab?.title || '',
+        tabTitle: (tab?.id != null ? getLatestTabPageTitle(tab.id) : '') || tab?.title || '',
         selectionText: ''
       }, {
         forceFetchSelection: false,
@@ -81,6 +98,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       tabId: tab?.id ?? null,
       url: tab?.url || ''
     });
+    if (tab?.id != null) {
+      delete fallbackKeywordByTab[tab.id];
+    }
   } else {
     const stored = tab?.id != null ? selectedTextByTab[tab.id] : null;
     if (stored && typeof stored.text === 'string' && stored.text.trim().length > 0) {
@@ -93,6 +113,33 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   const finalRaw = effectiveRaw;
   const finalNormalized = effectiveNormalized;
+
+  if (tab?.id != null) {
+    const entry = latestTitleByTab[tab.id];
+    const titleForCompare = (entry?.keyword || entry?.title || tab?.title || '').trim();
+    const normalizedTitle = titleForCompare
+      ? (entry?.keywordNormalized || normalizeSearchText(titleForCompare))
+      : '';
+    const keywordRawForCompare = (finalRaw || finalNormalized || '').trim();
+    const normalizedKeyword = keywordRawForCompare ? normalizeSearchText(keywordRawForCompare) : '';
+    const matched = normalizedTitle && normalizedKeyword && normalizedTitle === normalizedKeyword;
+    const menuBase = finalRaw || finalNormalized || '';
+    const menuDisplay = menuBase
+      ? formatMenuTitle(finalNormalized || finalRaw) || menuBase
+      : currentMenuState?.display || '';
+    const menuRaw = menuBase || currentMenuState?.raw || '';
+    logMenuEvent('context-click-title-check', {
+      tabId: tab.id,
+      title: titleForCompare,
+      keyword: keywordRawForCompare,
+      normalizedTitle,
+      normalizedKeyword,
+      menuDisplay,
+      menuRaw,
+      match: !!matched,
+      forcedFallback: shouldForceFallback
+    });
+  }
 
   const isTopQuestionsOpenAll = info.menuItemId === 'ccs-top100-open-all';
   const isTopQuestionsMenu = info.menuItemId && info.menuItemId.startsWith('ccs-top100-');

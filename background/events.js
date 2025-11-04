@@ -6,8 +6,28 @@ if (chrome.runtime.onStartup) {
 // 预加载调试开关与图标支持状态
 ensureMenuIconSupportLoaded();
 
+async function reinjectContentForTab(tabId, reason) {
+  if (tabId == null) return false;
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['content.js']
+    });
+    logMenuEvent('selection-sync-reinject', { tabId, reason });
+    return true;
+  } catch (injectError) {
+    logMenuEvent('selection-sync-reinject-error', {
+      tabId,
+      reason,
+      error: injectError?.message || String(injectError)
+    });
+    return false;
+  }
+}
+
 function syncSelectionFromTab(tab, reason = 'unknown', options = {}) {
   const updateMenu = options.updateMenu !== false;
+  const retryOnMissing = options.retryOnMissing !== false; // default true
   const tabId = tab?.id;
   const tabUrl = tab?.url || '';
   if (tabId == null) {
@@ -19,22 +39,47 @@ function syncSelectionFromTab(tab, reason = 'unknown', options = {}) {
       chrome.tabs.sendMessage(tabId, { action: 'fetchSelectionSnapshot', preferEmpty: true }, (response) => {
         responded = true;
         if (chrome.runtime.lastError) {
+          const errorMessage = chrome.runtime.lastError.message || '';
           logMenuEvent('selection-sync-error', {
             tabId,
             reason,
-            error: chrome.runtime.lastError.message
+            error: errorMessage
           });
+          if (/Receiving end does not exist/i.test(errorMessage)) {
+            if (retryOnMissing) {
+              reinjectContentForTab(tabId, `${reason}-missing-listener`).then((reinjected) => {
+                if (!reinjected) {
+                  resolve('');
+                  return;
+                }
+                setTimeout(() => {
+                  syncSelectionFromTab(tab, `${reason}-retry`, {
+                    ...options,
+                    retryOnMissing: false
+                  }).then(resolve).catch(() => resolve(''));
+                }, 100);
+              }).catch(() => resolve(''));
+              return;
+            } else {
+              reinjectContentForTab(tabId, `${reason}-missing-listener`).catch(() => {});
+            }
+          }
           resolve('');
           return;
         }
         const text = typeof response?.text === 'string' ? response.text : '';
         const source = response?.source || '';
+        const responseTitle = typeof response?.title === 'string' ? response.title : '';
+        if (responseTitle) {
+          updateLatestTabTitle(tabId, responseTitle);
+        }
         const trimmed = text.trim();
         if (trimmed) {
           selectedTextByTab[tabId] = {
             text,
             url: tabUrl || response?.url || ''
           };
+          delete fallbackKeywordByTab[tabId];
           logMenuEvent('selection-sync', {
             tabId,
             reason,
@@ -68,10 +113,11 @@ function syncSelectionFromTab(tab, reason = 'unknown', options = {}) {
       delete selectedTextByTab[tabId];
       resolve('');
     }
-    setTimeout(() => {
+    setTimeout(async () => {
       if (!responded) {
         logMenuEvent('selection-sync-timeout', { tabId, reason });
         delete selectedTextByTab[tabId];
+        await reinjectContentForTab(tabId, `${reason}-timeout`);
         resolve('');
       }
     }, 500);
@@ -143,6 +189,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     });
 
     (async () => {
+      const incomingTrimmed = typeof incoming === 'string' ? incoming.trim() : '';
       let previewText = incoming;
       let normalizedPreview = previewText ? normalizeSearchText(previewText) : '';
       let source = previewText ? 'message' : 'none';
@@ -151,9 +198,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
       if (tabId != null) {
         await syncSelectionFromTab(tabStub, 'context-preview', { updateMenu: false });
+        if (!incomingTrimmed) {
+          delete selectedTextByTab[tabId];
+        }
       }
 
-      if (!previewText && tabId != null) {
+      if (!previewText && tabId != null && incomingTrimmed) {
         const cached = selectedTextByTab[tabId];
         const cachedText = typeof cached === 'string' ? cached : cached?.text;
         const cachedUrl = typeof cached === 'object' ? cached?.url : undefined;
@@ -170,12 +220,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
       if (!previewText && sender?.tab) {
         try {
-          const fallback = await computeSearchTextForTab({
-            tabId,
-            tabUrl: sender.tab.url || '',
-            tabTitle: sender.tab.title || '',
-            selectionText: ''
-          }, {
+      const fallback = await computeSearchTextForTab({
+        tabId,
+        tabUrl: sender.tab.url || '',
+        tabTitle: getLatestTabPageTitle(tabId) || sender.tab.title || '',
+        selectionText: ''
+      }, {
             forceFetchSelection: false,
             skipCurrentMenuFallback: false
           });
@@ -183,16 +233,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             previewText = fallback.raw;
             normalizedPreview = fallback.normalized || normalizeSearchText(fallback.raw);
             source = 'resolver-fallback';
-            logMenuEvent('context-preview-fallback', {
-              tabId,
-              raw: fallback.raw,
-              normalized: fallback.normalized
-            });
-          }
-        } catch (error) {
-          logMenuEvent('context-preview-fallback-error', {
+          logMenuEvent('context-preview-fallback', {
             tabId,
-            error: error?.message || String(error)
+            raw: fallback.raw,
+            normalized: fallback.normalized
+          });
+          if (tabId != null) {
+            fallbackKeywordByTab[tabId] = {
+              raw: fallback.raw,
+              normalized: fallback.normalized || normalizeSearchText(fallback.raw),
+              timestamp: Date.now(),
+              url: sender.tab.url || ''
+            };
+          }
+        }
+      } catch (error) {
+        logMenuEvent('context-preview-fallback-error', {
+          tabId,
+          error: error?.message || String(error)
           });
         }
       }
@@ -203,12 +261,38 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         source = 'menu-state';
       }
 
+      if (tabId != null && previewText) {
+        updateLatestTabKeyword(tabId, previewText, normalizedPreview || previewText);
+      }
+
       logMenuEvent('context-preview', {
         tabId,
         previewText,
         normalizedPreview,
         source
       });
+      if (tabId != null) {
+        const currentTitleEntry = latestTitleByTab[tabId];
+        const titleForCompare = (currentTitleEntry?.keyword || currentTitleEntry?.title || sender?.tab?.title || '').trim();
+        const normalizedTitle = titleForCompare ? normalizeSearchText(titleForCompare) : '';
+        const keywordForCompare = previewText ? normalizeSearchText(previewText) : '';
+        const matched = normalizedTitle && keywordForCompare && normalizedTitle === keywordForCompare;
+        const menuDisplay = previewText
+          ? formatMenuTitle(normalizedPreview || previewText) || previewText
+          : currentMenuState?.display || '';
+        const menuRaw = previewText || currentMenuState?.raw || '';
+        logMenuEvent('context-preview-title-check', {
+          tabId,
+          title: titleForCompare,
+          keyword: previewText,
+          normalizedTitle,
+          normalizedKeyword: keywordForCompare,
+          menuDisplay,
+          menuRaw,
+          match: !!matched,
+          source
+        });
+      }
 
       if (previewText && source !== 'menu-state') {
         if (tabId != null) {
@@ -216,6 +300,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             text: previewText,
             url: tabUrl
           };
+          delete fallbackKeywordByTab[tabId];
           logMenuEvent('context-selection-cache', {
             tabId,
             source,
@@ -254,10 +339,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     chrome.tabs.query({active: true, currentWindow: true}, async (tabs) => {
       if (tabs[0] && tabs[0].id === tabId) {
-        if (!hasContent && shouldPreserveMenuStateForTab(sender.tab)) {
-          return;
+        const preserve = shouldPreserveMenuStateForTab(sender.tab);
+        if (!hasContent || !preserve) {
+          await refreshMenuTitle(sender.tab, rawText);
         }
-        await refreshMenuTitle(sender.tab, rawText);
       }
     });
   }
@@ -273,6 +358,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     const mergedTab = Object.assign({}, tab, { id: tabId, url: candidateUrl });
     const syncedText = await syncSelectionFromTab(mergedTab, 'tab-updated');
     if (syncedText) {
+      delete fallbackKeywordByTab[tabId];
       return;
     }
     const stored = selectedTextByTab[tabId];
@@ -291,6 +377,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
   const tab = await chrome.tabs.get(activeInfo.tabId);
   const syncedText = await syncSelectionFromTab(tab, 'tab-activated');
   if (syncedText) {
+    delete fallbackKeywordByTab[activeInfo.tabId];
     return;
   }
   const stored = selectedTextByTab[activeInfo.tabId];
@@ -311,5 +398,68 @@ async function updateContextMenuForTab(tab) {
   applyMenuTitle(normalized, keywords || '', {
     tabId: tab?.id ?? null,
     url: tab?.url || ''
+  });
+}
+
+if (chrome.contextMenus.onShown) {
+  chrome.contextMenus.onShown.addListener((info, tab) => {
+    const tabId = tab?.id ?? null;
+    const tabUrl = tab?.url || '';
+    logMenuEvent('context-onShown', {
+      tabId,
+      menuIds: Array.isArray(info?.menuIds) ? info.menuIds : [],
+      contexts: info?.contexts || []
+    });
+    if (tabId == null) {
+      if (chrome.contextMenus.refresh) {
+        chrome.contextMenus.refresh();
+      }
+      return;
+    }
+    (async () => {
+      try {
+        const synced = await syncSelectionFromTab(tab, 'menu-shown', { updateMenu: false });
+        let raw = '';
+        let normalized = '';
+        if (typeof synced === 'string' && synced.trim()) {
+          raw = synced;
+          normalized = normalizeSearchText(synced);
+        } else {
+          const stored = selectedTextByTab[tabId];
+          const storedText = typeof stored?.text === 'string' ? stored.text.trim() : '';
+          if (storedText) {
+            raw = storedText;
+            normalized = normalizeSearchText(storedText);
+          } else {
+            const result = await computeSearchTextForTab({
+              tabId,
+              tabUrl,
+              tabTitle: getLatestTabPageTitle(tabId) || tab?.title || '',
+              selectionText: ''
+            }, {
+              forceFetchSelection: false,
+              skipCurrentMenuFallback: false
+            });
+            raw = result?.raw || '';
+            normalized = result?.normalized || '';
+          }
+        }
+        if (raw || normalized) {
+          setMenuState(raw, normalized || raw, {
+            tabId,
+            url: tabUrl
+          });
+        }
+      } catch (error) {
+        logMenuEvent('context-onShown-error', {
+          tabId,
+          error: error?.message || String(error)
+        });
+      } finally {
+        if (chrome.contextMenus.refresh) {
+          chrome.contextMenus.refresh();
+        }
+      }
+    })();
   });
 }

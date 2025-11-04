@@ -103,6 +103,47 @@ let menuIconSupportLoadPromise = null;
 let menuIconUpdateInProgress = false;
 const QUICK_RESULT_HOSTS = ['chatgpt.com', 'claude.ai'];
 
+const fallbackKeywordByTab = {};
+const latestTitleByTab = {};
+
+function getOrCreateTitleEntry(tabId) {
+  if (tabId == null) return null;
+  let entry = latestTitleByTab[tabId];
+  if (!entry) {
+    entry = {};
+    latestTitleByTab[tabId] = entry;
+  }
+  return entry;
+}
+
+function updateLatestTabTitle(tabId, pageTitle) {
+  if (tabId == null || typeof pageTitle !== 'string') return;
+  const entry = getOrCreateTitleEntry(tabId);
+  entry.title = pageTitle;
+  entry.pageTitle = pageTitle;
+  entry.timestamp = Date.now();
+}
+
+function updateLatestTabKeyword(tabId, keyword, normalized) {
+  if (tabId == null || typeof keyword !== 'string') return;
+  const entry = getOrCreateTitleEntry(tabId);
+  entry.keyword = keyword;
+  entry.keywordNormalized = typeof normalized === 'string' ? normalized : normalizeSearchText(keyword);
+  entry.keywordTimestamp = Date.now();
+}
+
+function getLatestTabPageTitle(tabId) {
+  if (tabId == null) return '';
+  const entry = latestTitleByTab[tabId];
+  return entry?.pageTitle || entry?.title || '';
+}
+
+function getLatestTabKeyword(tabId) {
+  if (tabId == null) return '';
+  const entry = latestTitleByTab[tabId];
+  return entry?.keyword || '';
+}
+
 function ensureMenuIconSupportLoaded() {
   if (menuIconSupportLoaded) {
     return Promise.resolve();
@@ -162,7 +203,32 @@ function buildLogPayload(payload) {
 
 function logMenuEvent(stage, payload) {
   try {
-    console.info(`${LOG_PREFIX} ${stage}`, buildLogPayload(payload));
+    const enrichedPayload = buildLogPayload(payload);
+    const summaryParts = [];
+    if (typeof enrichedPayload.match === 'boolean') {
+      summaryParts.push(`match=${enrichedPayload.match ? 'true' : 'false'}`);
+    }
+    if (typeof enrichedPayload.source === 'string' && enrichedPayload.source) {
+      summaryParts.push(`source=${enrichedPayload.source}`);
+    }
+    if (typeof enrichedPayload.keyword === 'string' && enrichedPayload.keyword) {
+      summaryParts.push(`keyword="${enrichedPayload.keyword}"`);
+    }
+    if (typeof enrichedPayload.title === 'string' && enrichedPayload.title) {
+      summaryParts.push(`title="${enrichedPayload.title}"`);
+    }
+    if (typeof enrichedPayload.menuDisplay === 'string' && enrichedPayload.menuDisplay) {
+      summaryParts.push(`menuDisplay="${enrichedPayload.menuDisplay}"`);
+    }
+    if (typeof enrichedPayload.menuRaw === 'string' && enrichedPayload.menuRaw) {
+      summaryParts.push(`menuRaw="${enrichedPayload.menuRaw}"`);
+    }
+    const summaryText = summaryParts.join(' | ');
+    if (summaryText) {
+      console.info(`${LOG_PREFIX} ${stage}`, summaryText, enrichedPayload);
+    } else {
+      console.info(`${LOG_PREFIX} ${stage}`, enrichedPayload);
+    }
   } catch (_) {
     // ignore logging errors
   }
@@ -327,6 +393,13 @@ function setMenuState(rawText, normalizedText, meta) {
     }
     if ('url' in meta) {
       currentMenuState.url = typeof meta.url === 'string' ? meta.url : '';
+    }
+  }
+  const targetTabId = typeof meta?.tabId === 'number' ? meta.tabId : null;
+  if (targetTabId != null) {
+    const keywordCandidate = raw || normalized;
+    if (keywordCandidate) {
+      updateLatestTabKeyword(targetTabId, keywordCandidate, normalized || keywordCandidate);
     }
   }
   logMenuEvent('state-update', { ...currentMenuState });
