@@ -90,6 +90,7 @@
   - `context-preview-title-check` / `context-click-title-check`：显示最新的 `keyword`/`title`、标准化结果以及菜单展示文本（`menuDisplay` / `menuRaw`），用于诊断菜单标题不同步的问题。
   - `selection-sync-error`：捕获内容脚本通信失败时的错误并自动触发脚本重新注入。
   - `context-onShown`：记录右键菜单被唤起时的上下文，便于确认菜单刷新流程是否完成。
+  - `prefetch-menu-state`：在页面加载、激活或标题变更时提前抓取关键词，确保首次右键立即展示最新内容。
 - **快速复现步骤**：
   1. 在页面选中文本，确认菜单标题即时更新。
   2. 清空选区后直接右键，应自动回退到 URL 关键词（如搜索结果页面的查询词）。

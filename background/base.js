@@ -336,6 +336,11 @@ const FAST_ANSWER_ENGINE_TITLES = {
 
 function updateFastQaQuickTitle(displayText) {
   const formatted = displayText ? formatMenuTitle(displayText) : '';
+  const snapshot = {
+    display: currentMenuState?.display || '',
+    raw: currentMenuState?.raw || '',
+    normalized: currentMenuState?.normalized || ''
+  };
   FAST_QA_QUICK_ITEMS.forEach((item) => {
     const state = quickMenuState.get(item.id);
     if (!state?.registered) return;
@@ -350,7 +355,15 @@ function updateFastQaQuickTitle(displayText) {
         }
       }
     });
-    logMenuEvent('fastqa-quick-title', { id: item.id, title, formatted });
+    logMenuEvent('fastqa-quick-title', {
+      id: item.id,
+      title,
+      formatted,
+      baseTitle,
+      menuDisplay: snapshot.display,
+      menuRaw: snapshot.raw,
+      menuNormalized: snapshot.normalized
+    });
   });
 }
 

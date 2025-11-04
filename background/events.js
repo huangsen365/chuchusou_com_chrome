@@ -6,6 +6,47 @@ if (chrome.runtime.onStartup) {
 // 预加载调试开关与图标支持状态
 ensureMenuIconSupportLoaded();
 
+async function prefetchMenuState(tab, reason = 'unknown') {
+  const tabId = tab?.id;
+  const url = tab?.url || '';
+  if (tabId == null || !url) return;
+  try {
+    const keywords = await extractSearchKeywords(url, tab);
+    const normalized = keywords ? normalizeSearchText(keywords) : '';
+    if (keywords) {
+      fallbackKeywordByTab[tabId] = {
+        raw: keywords,
+        normalized: normalized || normalizeSearchText(keywords),
+        timestamp: Date.now(),
+        url
+      };
+      if (tab.active || currentMenuState.tabId === tabId) {
+        setMenuState(keywords, normalized || keywords, {
+          tabId,
+          url
+        });
+      }
+    } else if (reason === 'tab-loading' && (tab.active || currentMenuState.tabId === tabId)) {
+      setMenuState('', '', { tabId, url });
+    }
+    logMenuEvent('prefetch-menu-state', {
+      tabId,
+      reason,
+      url,
+      title: tab?.title || '',
+      keywords: keywords || '',
+      normalized
+    });
+  } catch (error) {
+    logMenuEvent('prefetch-menu-state-error', {
+      tabId,
+      reason,
+      url,
+      error: error?.message || String(error)
+    });
+  }
+}
+
 async function reinjectContentForTab(tabId, reason) {
   if (tabId == null) return false;
   try {
@@ -350,12 +391,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // 监听标签页更新，动态更新菜单标题
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (typeof changeInfo.title === 'string') {
+    updateLatestTabTitle(tabId, changeInfo.title);
+    const mergedForTitle = Object.assign({}, tab, {
+      id: tabId,
+      title: changeInfo.title
+    });
+    if (tab?.url || changeInfo.url) {
+      mergedForTitle.url = changeInfo.url || tab?.url || '';
+      await prefetchMenuState(mergedForTitle, 'title-changed');
+    }
+    await refreshMenuTitle(mergedForTitle);
+  }
   if (changeInfo.status === 'loading') {
     delete selectedTextByTab[tabId];
+    delete fallbackKeywordByTab[tabId];
+    const mergedLoadingTab = Object.assign({}, tab, {
+      id: tabId,
+      url: changeInfo.url || tab?.url || ''
+    });
+    await prefetchMenuState(mergedLoadingTab, 'tab-loading');
   }
   if (changeInfo.status === 'complete' && tab.url) {
     const candidateUrl = changeInfo.url || tab.url;
     const mergedTab = Object.assign({}, tab, { id: tabId, url: candidateUrl });
+    await prefetchMenuState(mergedTab, 'tab-complete');
     const syncedText = await syncSelectionFromTab(mergedTab, 'tab-updated');
     if (syncedText) {
       delete fallbackKeywordByTab[tabId];
@@ -375,6 +435,9 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 // 监听标签页激活，动态更新菜单标题
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   const tab = await chrome.tabs.get(activeInfo.tabId);
+  if (tab?.url) {
+    await prefetchMenuState(tab, 'tab-activated');
+  }
   const syncedText = await syncSelectionFromTab(tab, 'tab-activated');
   if (syncedText) {
     delete fallbackKeywordByTab[activeInfo.tabId];

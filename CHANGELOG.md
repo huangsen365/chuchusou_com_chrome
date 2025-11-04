@@ -12,6 +12,9 @@
 - 自动恢复脚本：遇到 `Receiving end does not exist` 时，后台会自动注入内容脚本并重试同步。
 - 调试日志强化：`[触触搜][MENU] context-preview-title-check` / `context-click-title-check` 现包含 `menuDisplay` / `menuRaw`，排查标题不同步更直观。
 - 日志摘要：所有菜单事件在控制台输出中都会追加 `match/keyword/title` 等摘要字段，快速定位问题。
+- 动态标题监听：侦听 `tab.title` 变化并即时刷新菜单标题，适配单页应用动态切换（如 ChatGPT 会话页）。
+- 关键词预抓取：在标签页加载/激活时预计算 `prefetch-menu-state`，保证首次右键即可显示最新关键词。
+- URL 关键词不再写入选区缓存：防止旧的备选词覆盖真正的用户选区，确保二级菜单首次同步成功。
 
 ## v2.0.0 (2025-08-26) 🚀 重大更新
 

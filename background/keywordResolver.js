@@ -163,8 +163,10 @@ async function computeSearchTextForTab({
         tabTitle
       });
       if (tabId != null) {
-        selectedTextByTab[tabId] = {
-          text: extracted,
+        fallbackKeywordByTab[tabId] = {
+          raw: extracted,
+          normalized: normalizeSearchText(extracted),
+          timestamp: Date.now(),
           url: tabUrl || ''
         };
       }
