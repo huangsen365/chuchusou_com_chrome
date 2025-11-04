@@ -41,14 +41,84 @@
   function readCurrentSelection() {
     try {
       const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0) return '';
-      const raw = selection.toString();
-      if (!raw) return '';
-      return raw.trim().length > 0 ? raw : '';
+      if (selection && selection.rangeCount > 0) {
+        const raw = selection.toString();
+        if (raw && raw.trim().length > 0) {
+          return raw;
+        }
+      }
+      const fallback = readSelectionFromActiveElement();
+      if (fallback) {
+        return fallback;
+      }
+      return '';
     } catch (err) {
       log('读取选中文本失败:', err);
       return '';
     }
+  }
+
+  function readSelectionFromActiveElement() {
+    const activeElement = document.activeElement;
+    return extractSelectionFromElement(activeElement);
+  }
+
+  function extractSelectionFromElement(element) {
+    if (!element) return '';
+
+    try {
+      if (typeof element.value === 'string') {
+        const { selectionStart, selectionEnd } = element;
+        if (
+          typeof selectionStart === 'number' &&
+          typeof selectionEnd === 'number' &&
+          selectionStart !== selectionEnd
+        ) {
+          const value = element.value;
+          if (value) {
+            const start = Math.min(selectionStart, selectionEnd);
+            const end = Math.max(selectionStart, selectionEnd);
+            const result = value.slice(start, end);
+            if (result && result.trim().length > 0) {
+              return result;
+            }
+          }
+        }
+      }
+
+      if (element.shadowRoot) {
+        const shadowActive = element.shadowRoot.activeElement;
+        if (shadowActive && shadowActive !== element) {
+          const shadowText = extractSelectionFromElement(shadowActive);
+          if (shadowText) {
+            return shadowText;
+          }
+        }
+        const shadowSelection = element.shadowRoot.getSelection
+          ? element.shadowRoot.getSelection()
+          : null;
+        if (shadowSelection && shadowSelection.rangeCount > 0) {
+          const raw = shadowSelection.toString();
+          if (raw && raw.trim().length > 0) {
+            return raw;
+          }
+        }
+      }
+
+      if (element.isContentEditable) {
+        const editableSelection = window.getSelection();
+        if (editableSelection && editableSelection.rangeCount > 0) {
+          const raw = editableSelection.toString();
+          if (raw && raw.trim().length > 0) {
+            return raw;
+          }
+        }
+      }
+    } catch (err) {
+      log('从元素提取选区失败:', err);
+    }
+
+    return '';
   }
 
   function applySelection(text, trigger = 'unknown') {
@@ -71,7 +141,16 @@
 
   function updateSelection(trigger, { immediate = false } = {}) {
     if (immediate) {
-      applySelection(readCurrentSelection(), trigger);
+      const immediateSelection = readCurrentSelection();
+      applySelection(immediateSelection, trigger);
+      if (!immediateSelection || !immediateSelection.trim()) {
+        setTimeout(() => {
+          const retrySelection = readCurrentSelection();
+          if (retrySelection && retrySelection.trim()) {
+            applySelection(retrySelection, `${trigger}-retry`);
+          }
+        }, SELECTION_SYNC_DELAY);
+      }
       return;
     }
 
