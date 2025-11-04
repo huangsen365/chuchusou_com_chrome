@@ -38,8 +38,46 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     tabUrl: tab?.url || '',
     tabTitle: tab?.title || ''
   });
-  if (rawText || normalizedText) {
-    setMenuState(rawText, normalizedText, {
+  let effectiveRaw = rawText;
+  let effectiveNormalized = normalizedText;
+
+  if (!effectiveRaw && !effectiveNormalized) {
+    try {
+      const fallbackResult = await computeSearchTextForTab({
+        tabId: tab?.id,
+        tabUrl: tab?.url,
+        tabTitle: tab?.title || '',
+        selectionText: ''
+      }, {
+        forceFetchSelection: false,
+        skipCurrentMenuFallback: false
+      });
+      if (fallbackResult?.raw || fallbackResult?.normalized) {
+        effectiveRaw = fallbackResult.raw;
+        effectiveNormalized = fallbackResult.normalized;
+        if (tab?.id != null && fallbackResult?.raw) {
+          selectedTextByTab[tab.id] = {
+            text: fallbackResult.raw,
+            url: tab?.url || ''
+          };
+        }
+        logMenuEvent('context-click-fallback', {
+          tabId: tab?.id ?? null,
+          menuItemId: info.menuItemId,
+          raw: fallbackResult.raw,
+          normalized: fallbackResult.normalized
+        });
+      }
+    } catch (error) {
+      logMenuEvent('context-click-fallback-error', {
+        tabId: tab?.id ?? null,
+        error: error?.message || String(error)
+      });
+    }
+  }
+
+  if (effectiveRaw || effectiveNormalized) {
+    setMenuState(effectiveRaw, effectiveNormalized, {
       tabId: tab?.id ?? null,
       url: tab?.url || ''
     });
@@ -53,6 +91,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     }
   }
 
+  const finalRaw = effectiveRaw;
+  const finalNormalized = effectiveNormalized;
+
   const isTopQuestionsOpenAll = info.menuItemId === 'ccs-top100-open-all';
   const isTopQuestionsMenu = info.menuItemId && info.menuItemId.startsWith('ccs-top100-');
   const isTopQuestionsEngine = isTopQuestionsMenu && !isTopQuestionsOpenAll;
@@ -60,7 +101,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   const isFastAnswersOpenAll = info.menuItemId === 'ccs-fastqa-open-all';
 
   if (
-    !normalizedText &&
+    !finalNormalized && !finalRaw &&
     info.menuItemId !== 'ccs-show-popover' &&
     !topQuestionsMenuMap.has(info.menuItemId) &&
     !isTopQuestionsOpenAll &&
@@ -77,7 +118,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 
   if (isTopQuestionsOpenAll || isTopQuestionsEngine) {
-    const effectiveInput = rawText || normalizedText;
+    const effectiveInput = finalRaw || finalNormalized;
     if (!effectiveInput) {
       chrome.tabs.sendMessage(tab.id, {
         action: 'showToast',
@@ -153,7 +194,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   if (isFastAnswersOpenAll || isFastAnswersMenu) {
     logMenuEvent('fastqa-click', { menuItemId: info.menuItemId, isOpenAll: isFastAnswersOpenAll });
-    const effectiveInput = rawText || normalizedText;
+    const effectiveInput = finalRaw || finalNormalized;
     if (!effectiveInput) {
       chrome.tabs.sendMessage(tab.id, {
         action: 'showToast',
@@ -231,7 +272,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 
   if (optimizedPromptMenuMap.has(info.menuItemId) || (info.menuItemId && info.menuItemId.startsWith('ccs-optimize-'))) {
-    if (!normalizedText) {
+    if (!finalRaw && !finalNormalized) {
       chrome.tabs.sendMessage(tab.id, {
         action: 'showToast',
         message: '没有选中文本，无法生成优化后的提示词'
@@ -258,7 +299,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         }).catch(() => {});
         return;
       }
-      const prompt = buildOptimizedPrompt(menuTarget.purpose, rawText);
+      const prompt = buildOptimizedPrompt(menuTarget.purpose, finalRaw || finalNormalized || '');
       if (!prompt) {
         chrome.tabs.sendMessage(tab.id, {
           action: 'showToast',
@@ -280,105 +321,105 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   
   switch (info.menuItemId) {
     case 'ccs-baidu':
-      if (normalizedText) {
+      if (finalNormalized) {
         chrome.tabs.create({
-          url: `https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${encodeURIComponent(normalizedText)}`
+          url: `https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${encodeURIComponent(finalNormalized)}`
         });
       }
       break;
       
     case 'ccs-google':
-      if (normalizedText) {
+      if (finalNormalized) {
         chrome.tabs.create({
-          url: `https://www.google.com/search?q=${encodeURIComponent(normalizedText)}`
+          url: `https://www.google.com/search?q=${encodeURIComponent(finalNormalized)}`
         });
       }
       break;
 
     case 'ccs-tongyi':
-      if (normalizedText) {
+      if (finalNormalized) {
         chrome.tabs.create({
-          url: `https://www.tongyi.com/?q=${encodeURIComponent(normalizedText)}`
+          url: `https://www.tongyi.com/?q=${encodeURIComponent(finalNormalized)}`
         });
       }
       break;
 
     case 'ccs-yiyan':
-      if (normalizedText) {
+      if (finalNormalized) {
         chrome.tabs.create({
-          url: `https://yiyan.baidu.com/?q=${encodeURIComponent(normalizedText)}`
+          url: `https://yiyan.baidu.com/?q=${encodeURIComponent(finalNormalized)}`
         });
       }
       break;
 
     case 'ccs-chatgpt':
-      if (normalizedText) {
+      if (finalNormalized) {
         chrome.tabs.create({
-          url: `https://chatgpt.com/?model=gpt-5&q=${encodeURIComponent(normalizedText)}`
+          url: `https://chatgpt.com/?model=gpt-5&q=${encodeURIComponent(finalNormalized)}`
         });
       }
       break;
 
     case 'ccs-claude':
-      if (normalizedText) {
+      if (finalNormalized) {
         chrome.tabs.create({
-          url: `https://claude.ai/new?q=${encodeURIComponent(normalizedText)}`
+          url: `https://claude.ai/new?q=${encodeURIComponent(finalNormalized)}`
         });
       }
       break;
       
     case 'ccs-zhihu':
-      if (normalizedText) {
+      if (finalNormalized) {
         chrome.tabs.create({
-          url: `https://www.zhihu.com/search?q=${encodeURIComponent(normalizedText)}`
+          url: `https://www.zhihu.com/search?q=${encodeURIComponent(finalNormalized)}`
         });
       }
       break;
       
     case 'ccs-weixin':
-      if (normalizedText) {
+      if (finalNormalized) {
         chrome.tabs.create({
-          url: `https://search.weixin.qq.com/cgi-bin/newsearchweb/userclientjump?path=page/search/christmas_jump&query=${encodeURIComponent(normalizedText)}`
+          url: `https://search.weixin.qq.com/cgi-bin/newsearchweb/userclientjump?path=page/search/christmas_jump&query=${encodeURIComponent(finalNormalized)}`
         });
       }
       break;
       
     case 'ccs-taobao':
-      if (normalizedText) {
+      if (finalNormalized) {
         chrome.tabs.create({
-          url: `https://s.taobao.com/search?q=${encodeURIComponent(normalizedText)}`
+          url: `https://s.taobao.com/search?q=${encodeURIComponent(finalNormalized)}`
         });
       }
       break;
       
     case 'ccs-jd':
-      if (normalizedText) {
+      if (finalNormalized) {
         chrome.tabs.create({
-          url: `https://search.jd.com/Search?keyword=${encodeURIComponent(normalizedText)}`
+          url: `https://search.jd.com/Search?keyword=${encodeURIComponent(finalNormalized)}`
         });
       }
       break;
       
     case 'ccs-sov2ex':
-      if (normalizedText) {
+      if (finalNormalized) {
         chrome.tabs.create({
-          url: `https://www.sov2ex.com/?q=${encodeURIComponent(normalizedText)}`
+          url: `https://www.sov2ex.com/?q=${encodeURIComponent(finalNormalized)}`
         });
       }
       break;
 
     case 'ccs-google-translate':
-      if (normalizedText) {
+      if (finalNormalized) {
         chrome.tabs.create({
-          url: `https://translate.google.com/?text=${encodeURIComponent(normalizedText)}`
+          url: `https://translate.google.com/?text=${encodeURIComponent(finalNormalized)}`
         });
       }
       break;
       
     case 'ccs-chuchusou':
-      if (normalizedText) {
+      if (finalNormalized) {
         chrome.tabs.create({
-          url: `https://chuchusou.com/?q=${encodeURIComponent(normalizedText)}`
+          url: `https://chuchusou.com/?q=${encodeURIComponent(finalNormalized)}`
         });
       }
       break;

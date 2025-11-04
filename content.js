@@ -224,11 +224,16 @@
         showInfoToast(request.message || '');
         return;
       case 'fetchSelectionSnapshot': {
+        const preferEmpty = !!request.preferEmpty;
         const live = readCurrentSelection();
         let chosen = typeof live === 'string' ? live : '';
         let source = 'live';
+
         if (!chosen || !chosen.trim()) {
-          if (state.selection && state.selection.trim().length > 0) {
+          if (preferEmpty) {
+            chosen = '';
+            source = 'empty';
+          } else if (state.selection && state.selection.trim().length > 0) {
             chosen = state.selection;
             source = 'state';
           } else if (window.lastNonEmptySelection && window.lastNonEmptySelection.trim().length > 0) {

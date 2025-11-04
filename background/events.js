@@ -16,7 +16,7 @@ function syncSelectionFromTab(tab, reason = 'unknown', options = {}) {
   return new Promise((resolve) => {
     let responded = false;
     try {
-      chrome.tabs.sendMessage(tabId, { action: 'fetchSelectionSnapshot' }, (response) => {
+      chrome.tabs.sendMessage(tabId, { action: 'fetchSelectionSnapshot', preferEmpty: true }, (response) => {
         responded = true;
         if (chrome.runtime.lastError) {
           logMenuEvent('selection-sync-error', {
@@ -176,24 +176,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             tabTitle: sender.tab.title || '',
             selectionText: ''
           }, {
-            forceFetchSelection: true,
-            skipCurrentMenuFallback: true
+            forceFetchSelection: false,
+            skipCurrentMenuFallback: false
           });
-          if (fallback.raw) {
+          if (fallback?.raw) {
             previewText = fallback.raw;
             normalizedPreview = fallback.normalized || normalizeSearchText(fallback.raw);
-            source = 'tab-fallback';
-            logMenuEvent('context-preview-tab-fallback', {
+            source = 'resolver-fallback';
+            logMenuEvent('context-preview-fallback', {
               tabId,
               raw: fallback.raw,
               normalized: fallback.normalized
             });
-            if (tabId != null) {
-              selectedTextByTab[tabId] = {
-                text: fallback.raw,
-                url: sender.tab.url || ''
-              };
-            }
           }
         } catch (error) {
           logMenuEvent('context-preview-fallback-error', {
