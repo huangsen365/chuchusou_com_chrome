@@ -11,6 +11,7 @@ const MENU_TITLE_DEBUG_IDS = [
   'ccs-fastqa-claude-quick',
   'ccs-fastqa-root',
   'ccs-fastqa-open-all',
+  'ccs-fastqa-grok-quick',
   'ccs-chuchusou',
   'ccs-chatgpt',
   'ccs-claude'

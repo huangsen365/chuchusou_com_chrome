@@ -84,6 +84,11 @@ const FAST_QA_QUICK_ITEMS = [
     id: 'ccs-fastqa-claude-quick',
     engineId: 'claude',
     titleKey: 'claude'
+  },
+  {
+    id: 'ccs-fastqa-grok-quick',
+    engineId: 'grok',
+    titleKey: 'grok'
   }
 ];
 
@@ -238,6 +243,7 @@ const MENU_DEFINITIONS = {
   'ccs-label': { text: '触触搜', icon: '🔍' },
   'ccs-fastqa-chatgpt-quick': { text: '触触搜 · 速答壹拾佰 - ChatGPT', icon: '🤖' },
   'ccs-fastqa-claude-quick': { text: '触触搜 · 速答壹拾佰 - Claude', icon: '🧠' },
+  'ccs-fastqa-grok-quick': { text: '触触搜 · 速答壹拾佰 - Grok', icon: '🦊' },
   'ccs-baidu': { text: '百度搜索', icon: '🐼' },
   'ccs-google': { text: 'Google 搜索', icon: '🔎' },
   'ccs-tongyi': { text: '通义千问', icon: '🪄' },
