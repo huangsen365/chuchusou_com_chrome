@@ -5,6 +5,7 @@
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   await loadMenuToggleConfig();
+  await syncSelectionFromTab(tab, 'context-click', { updateMenu: false });
   const selectionText = typeof info.selectionText === 'string' ? info.selectionText.trim() : '';
   if (selectionText) {
     setMenuState(selectionText, normalizeSearchText(selectionText), {

@@ -54,6 +54,7 @@ function syncSelectionFromTab(tab, reason = 'unknown', options = {}) {
             reason,
             source
           });
+          delete selectedTextByTab[tabId];
           resolve('');
         }
       });
@@ -64,11 +65,13 @@ function syncSelectionFromTab(tab, reason = 'unknown', options = {}) {
         reason,
         error: error?.message || String(error)
       });
+      delete selectedTextByTab[tabId];
       resolve('');
     }
     setTimeout(() => {
       if (!responded) {
         logMenuEvent('selection-sync-timeout', { tabId, reason });
+        delete selectedTextByTab[tabId];
         resolve('');
       }
     }, 500);
@@ -146,8 +149,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const tabUrl = sender?.tab?.url || '';
       const tabStub = tabId != null ? { id: tabId, url: tabUrl } : null;
 
-      if (!previewText && tabId != null) {
+      if (tabId != null) {
         await syncSelectionFromTab(tabStub, 'context-preview', { updateMenu: false });
+      }
+
+      if (!previewText && tabId != null) {
         const cached = selectedTextByTab[tabId];
         const cachedText = typeof cached === 'string' ? cached : cached?.text;
         const cachedUrl = typeof cached === 'object' ? cached?.url : undefined;
