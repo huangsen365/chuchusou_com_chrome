@@ -3,6 +3,7 @@ importScripts(
   './config.js',
   './icons.js',
   './keywords.js',
+  './keywordResolver.js',
   './menuBuilder.js',
   './events.js'
 );

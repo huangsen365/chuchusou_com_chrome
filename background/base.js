@@ -319,28 +319,6 @@ async function refreshMenuTitle(tab, selectionText = '') {
   }
 }
 
-async function computeSearchTextForTab({ tabId, tabUrl, tabTitle = '', selectionText = '' }) {
-  let text = '';
-  if (typeof selectionText === 'string' && selectionText.trim().length > 0) {
-    text = selectionText;
-  }
-  const stored = tabId != null ? selectedTextByTab[tabId] : null;
-  if (!text && stored && typeof stored.text === 'string' && stored.text.trim().length > 0) {
-    if (!stored.url || stored.url === tabUrl) {
-      text = stored.text;
-    }
-  }
-  if (!text && tabUrl) {
-    const extracted = await extractSearchKeywords(tabUrl, { url: tabUrl, title: tabTitle });
-    if (extracted && extracted.trim().length > 0) {
-      text = extracted;
-    }
-  }
-  return {
-    raw: text || '',
-    normalized: normalizeSearchText(text)
-  };
-}
 
 async function copyTextInTab(tab, text) {
   if (!tab || !text) return false;
