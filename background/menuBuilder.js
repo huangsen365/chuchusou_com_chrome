@@ -1,65 +1,91 @@
 const MENU_CONTEXTS_DEFAULT = ['selection', 'page'];
 const MENU_CONTEXTS_WITH_EDITABLE = ['selection', 'page', 'editable'];
 
-const FAST_QA_QUICK_ITEM_DEFS = [
-  {
-    id: 'ccs-fastqa-chatgpt-quick',
+const FAST_QA_QUICK_ITEM_METADATA = Object.freeze({
+  'ccs-fastqa-chatgpt-quick': {
     engineId: 'chatgpt',
     titleKey: 'chatgpt',
     menuTitle: '触触搜 · 速答壹拾佰 - ChatGPT',
     menuIcon: '🤖'
   },
-  {
-    id: 'ccs-fastqa-claude-quick',
+  'ccs-fastqa-claude-quick': {
     engineId: 'claude',
     titleKey: 'claude',
     menuTitle: '触触搜 · 速答壹拾佰 - Claude',
     menuIcon: '🧠'
   },
-  {
-    id: 'ccs-fastqa-grok-quick',
+  'ccs-fastqa-grok-quick': {
     engineId: 'grok',
     titleKey: 'grok',
     menuTitle: '触触搜 · 速答壹拾佰 - Grok',
     menuIcon: '🦊'
   }
-];
+});
 
-setFastQaQuickItems(FAST_QA_QUICK_ITEM_DEFS);
+const MENU_GROUPS = Object.freeze({
+  fastQaQuick: [
+    { id: 'ccs-fastqa-chatgpt-quick' },
+    { id: 'ccs-fastqa-claude-quick' },
+    { id: 'ccs-fastqa-grok-quick' }
+  ],
+  search: [
+    { id: 'ccs-baidu' },
+    { id: 'ccs-google' },
+    { id: 'ccs-tongyi' },
+    { id: 'ccs-yiyan' }
+  ],
+  ai: [
+    { id: 'ccs-chatgpt' },
+    { id: 'ccs-claude' }
+  ],
+  general: [
+    { id: 'ccs-zhihu' },
+    { id: 'ccs-weixin' },
+    { id: 'ccs-taobao' },
+    { id: 'ccs-jd' },
+    { id: 'ccs-sov2ex' },
+    { id: 'ccs-google-translate' },
+    { id: 'ccs-chuchusou' }
+  ],
+  tool: [
+    { id: 'ccs-copy' },
+    { id: 'ccs-base64' },
+    { id: 'ccs-md5' },
+    { id: 'ccs-url-encode' }
+  ],
+  transform: [
+    { id: 'ccs-upper' },
+    { id: 'ccs-lower' }
+  ]
+});
 
-const SEARCH_MENU_ITEMS = [
-  'ccs-baidu',
-  'ccs-google',
-  'ccs-tongyi',
-  'ccs-yiyan'
-];
+setFastQaQuickItems(resolveFastQaQuickItems(MENU_GROUPS.fastQaQuick));
 
-const AI_MENU_ITEMS = [
-  'ccs-chatgpt',
-  'ccs-claude'
-];
+function resolveFastQaQuickItems(items) {
+  const normalized = Array.isArray(items) ? items : [];
+  const resolved = [];
 
-const GENERAL_MENU_ITEMS = [
-  'ccs-zhihu',
-  'ccs-weixin',
-  'ccs-taobao',
-  'ccs-jd',
-  'ccs-sov2ex',
-  'ccs-google-translate',
-  'ccs-chuchusou'
-];
+  for (const item of normalized) {
+    const id = typeof item === 'string' ? item : item?.id;
+    if (!id) continue;
 
-const TOOL_MENU_ITEMS = [
-  'ccs-copy',
-  'ccs-base64',
-  'ccs-md5',
-  'ccs-url-encode'
-];
+    const metadata = FAST_QA_QUICK_ITEM_METADATA[id];
+    if (!metadata || !metadata.engineId) {
+      console.warn('[触触搜][BG] 缺少速答快捷菜单配置:', id);
+      continue;
+    }
 
-const TRANSFORM_MENU_ITEMS = [
-  'ccs-upper',
-  'ccs-lower'
-];
+    resolved.push({
+      id,
+      engineId: metadata.engineId,
+      titleKey: metadata.titleKey || metadata.engineId,
+      menuTitle: metadata.menuTitle || '',
+      menuIcon: metadata.menuIcon || ''
+    });
+  }
+
+  return resolved;
+}
 
 function extractErrorMessage(error) {
   if (!error) return '';
@@ -131,8 +157,11 @@ async function removeAllContextMenus() {
   });
 }
 
-async function createMenuItemsGroup({ parentId, menuIds, contexts = MENU_CONTEXTS_DEFAULT, failureStage }) {
-  for (const menuId of menuIds) {
+async function createMenuItemsGroup({ parentId, menuItems, contexts = MENU_CONTEXTS_DEFAULT, failureStage }) {
+  const normalizedItems = Array.isArray(menuItems) ? menuItems : [];
+  for (const item of normalizedItems) {
+    const menuId = typeof item === 'string' ? item : item?.id;
+    if (!menuId) continue;
     if (!isMenuEnabled(menuId)) continue;
     await createMenuItem({
       id: menuId,
@@ -380,7 +409,7 @@ async function createContextMenus() {
 
     await createMenuItemsGroup({
       parentId: 'ccs-main',
-      menuIds: SEARCH_MENU_ITEMS,
+      menuItems: MENU_GROUPS.search,
       contexts: MENU_CONTEXTS_DEFAULT,
       failureStage: 'search-menu-create-failed'
     });
@@ -397,14 +426,14 @@ async function createContextMenus() {
 
     await createMenuItemsGroup({
       parentId: 'ccs-main',
-      menuIds: AI_MENU_ITEMS,
+      menuItems: MENU_GROUPS.ai,
       contexts: MENU_CONTEXTS_DEFAULT,
       failureStage: 'ai-menu-create-failed'
     });
 
     await createMenuItemsGroup({
       parentId: 'ccs-main',
-      menuIds: GENERAL_MENU_ITEMS,
+      menuItems: MENU_GROUPS.general,
       contexts: MENU_CONTEXTS_DEFAULT,
       failureStage: 'general-menu-create-failed'
     });
@@ -512,7 +541,7 @@ async function createContextMenus() {
 
     await createMenuItemsGroup({
       parentId: 'ccs-main',
-      menuIds: TOOL_MENU_ITEMS,
+      menuItems: MENU_GROUPS.tool,
       contexts: MENU_CONTEXTS_DEFAULT,
       failureStage: 'tool-menu-create-failed'
     });
@@ -528,7 +557,7 @@ async function createContextMenus() {
 
     await createMenuItemsGroup({
       parentId: 'ccs-main',
-      menuIds: TRANSFORM_MENU_ITEMS,
+      menuItems: MENU_GROUPS.transform,
       contexts: MENU_CONTEXTS_DEFAULT,
       failureStage: 'transform-menu-create-failed'
     });
