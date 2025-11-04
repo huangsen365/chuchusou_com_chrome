@@ -68,6 +68,9 @@ const FAST_QA_QUICK_ITEMS = [
 
 const quickMenuState = new Map(FAST_QA_QUICK_ITEMS.map((item) => [item.id, { registered: false }]));
 
+let menuBuildInProgress = false;
+let menuBuildPending = false;
+
 let menuToggleConfig = null;
 
 let menuIconConfig = null;
@@ -811,10 +814,25 @@ async function extractSearchKeywords(url, tab) {
 
 // 创建右键菜单
 function createContextMenus() {
+  if (menuBuildInProgress) {
+    menuBuildPending = true;
+    logMenuEvent('rebuild-queued', {});
+    return;
+  }
+  menuBuildInProgress = true;
   const buildId = ++menuBuildCounter;
   // 清除所有现有菜单
   chrome.contextMenus.removeAll(async () => {
+    const finalizeMenuBuild = () => {
+      if (!menuBuildInProgress) return;
+      menuBuildInProgress = false;
+      if (menuBuildPending) {
+        menuBuildPending = false;
+        createContextMenus();
+      }
+    };
     if (buildId !== menuBuildCounter) {
+      finalizeMenuBuild();
       return;
     }
     await loadMenuToggleConfig();
@@ -1137,6 +1155,7 @@ function createContextMenus() {
           });
         });
         logMenuEvent('rebuild-complete', { buildId });
+        finalizeMenuBuild();
       });
 
     chrome.contextMenus.create({
