@@ -264,9 +264,6 @@ async function extractSearchKeywords(url, tab) {
       }
 
       const cleaned = title.trim();
-      if (isGenericHostKeyword(hostname, cleaned)) {
-        return '';
-      }
       BG_DBG('[触触搜][BG][DEBUG] final title keyword:', cleaned);
       return cleaned;
     }
