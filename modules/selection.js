@@ -312,4 +312,18 @@
   window.notifySelectionChange = () => Selection.notifySelectionChange();
   window.getCurrentSearchText = (forceRefresh) => Selection.getCurrentSearchText(forceRefresh);
   window.syncAllTextVariables = () => Selection.syncAllTextVariables();
+
+  try {
+    document.addEventListener('contextmenu', () => {
+      try {
+        const text = Selection.getActiveSelectionText();
+        if (chrome && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
+          chrome.runtime.sendMessage({
+            action: 'contextMenuPreview',
+            selectionText: text
+          });
+        }
+      } catch (_) {}
+    }, true);
+  } catch (_) {}
 })();

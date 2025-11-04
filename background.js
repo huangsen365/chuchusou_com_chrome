@@ -1299,6 +1299,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
     return true; // 异步响应
   }
+  if (request.action === 'contextMenuPreview') {
+    const previewText = typeof request.selectionText === 'string' ? request.selectionText : '';
+    const normalizedPreview = previewText ? normalizeSearchText(previewText) : '';
+    logMenuEvent('context-preview', {
+      previewText,
+      normalizedPreview
+    });
+    if (previewText) {
+      setMenuState(previewText, normalizedPreview || previewText);
+    }
+    return;
+  }
   
   // 处理content script的选择变化
   if (request.action === 'selectionChanged' && sender.tab) {
@@ -1354,6 +1366,11 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (selectionText) {
     setMenuState(selectionText, normalizeSearchText(selectionText));
   }
+  logMenuEvent('context-click', {
+    menuItemId: info.menuItemId,
+    selectionText: info.selectionText,
+    normalizedSelection: selectionText ? normalizeSearchText(selectionText) : ''
+  });
   const { raw: rawText, normalized: normalizedText } = await computeSearchTextForTab({
     tabId: tab?.id,
     tabUrl: tab?.url,
