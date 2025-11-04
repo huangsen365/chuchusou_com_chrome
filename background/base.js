@@ -9,6 +9,16 @@ function formatMenuTitle(text) {
   return compact.substring(0, 20) + (compact.length > 20 ? '...' : '');
 }
 
+function shouldPreserveMenuStateForTab(tab) {
+  if (!tab || typeof tab.url !== 'string') return false;
+  try {
+    const hostname = new URL(tab.url).hostname;
+    return QUICK_RESULT_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
+  } catch (_) {
+    return false;
+  }
+}
+
 function cleanupTitleKeyword(rawTitle) {
   if (!rawTitle) return '';
   let cleaned = rawTitle.trim();
@@ -80,6 +90,7 @@ const MENU_ICON_SUPPORT_STORAGE_KEY = 'ccs_menu_icon_supported';
 let menuIconSupportLoaded = false;
 let menuIconSupportLoadPromise = null;
 let menuIconUpdateInProgress = false;
+const QUICK_RESULT_HOSTS = ['chatgpt.com', 'claude.ai'];
 
 function ensureMenuIconSupportLoaded() {
   if (menuIconSupportLoaded) {

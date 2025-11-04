@@ -152,6 +152,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     chrome.tabs.query({active: true, currentWindow: true}, async (tabs) => {
       if (tabs[0] && tabs[0].id === tabId) {
+        if (!hasContent && shouldPreserveMenuStateForTab(sender.tab)) {
+          return;
+        }
         await refreshMenuTitle(sender.tab, rawText);
       }
     });
@@ -164,6 +167,12 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     delete selectedTextByTab[tabId];
   }
   if ((changeInfo.status === 'complete' || changeInfo.status === 'loading') && tab.url) {
+    const stored = selectedTextByTab[tabId];
+    const hasStoredSelection =
+      stored && typeof stored.text === 'string' && stored.text.trim().length > 0;
+    if (!hasStoredSelection && shouldPreserveMenuStateForTab(tab)) {
+      return;
+    }
     updateContextMenuForTab(tab);
   }
 });
@@ -171,6 +180,12 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 // 监听标签页激活，动态更新菜单标题
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   const tab = await chrome.tabs.get(activeInfo.tabId);
+  const stored = selectedTextByTab[activeInfo.tabId];
+  const hasStoredSelection =
+    stored && typeof stored.text === 'string' && stored.text.trim().length > 0;
+  if (!hasStoredSelection && shouldPreserveMenuStateForTab(tab)) {
+    return;
+  }
   await refreshMenuTitle(tab);
 });
 
