@@ -8,6 +8,10 @@
 - 实时文本更新：当继续用键盘扩展选择（如 Shift+→）时，面板标题与按钮提示会实时反映最新选中文本。
 - 悬浮提示优化：功能按钮悬停时显示“功能名: 全文”（如“百度搜索: XXX”）。
 - 快捷键：Ctrl+Shift+S 现在用于打开/关闭面板（切换）；Alt+S 打开面板；ESC 关闭。
+- 右键菜单同步：首次右键即可刷新为最新选区/页面关键词，适配 ChatGPT / Claude 等快捷结果页。
+- 自动恢复脚本：遇到 `Receiving end does not exist` 时，后台会自动注入内容脚本并重试同步。
+- 调试日志强化：`[触触搜][MENU] context-preview-title-check` / `context-click-title-check` 现包含 `menuDisplay` / `menuRaw`，排查标题不同步更直观。
+- 日志摘要：所有菜单事件在控制台输出中都会追加 `match/keyword/title` 等摘要字段，快速定位问题。
 
 ## v2.0.0 (2025-08-26) 🚀 重大更新
 
