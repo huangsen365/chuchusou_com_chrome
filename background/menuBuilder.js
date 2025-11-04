@@ -68,6 +68,13 @@ function createContextMenus() {
     contexts: ['selection', 'page']
   });
 
+  chrome.contextMenus.create({
+    id: 'ccs-separator-label',
+    parentId: 'ccs-main',
+    type: 'separator',
+    contexts: ['selection', 'page']
+  });
+
   FAST_QA_QUICK_ITEMS.forEach((item) => {
     if (!quickEnabledMap.get(item.id)) {
       return;
