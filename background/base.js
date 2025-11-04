@@ -334,6 +334,12 @@ const FAST_ANSWER_ENGINE_TITLES = {
   'yiyan': '🧠 文心一言'
 };
 
+const DYNAMIC_SEARCH_MENU_ITEMS = [
+  'ccs-chuchusou',
+  'ccs-chatgpt',
+  'ccs-claude'
+];
+
 function updateFastQaQuickTitle(displayText) {
   const formatted = displayText ? formatMenuTitle(displayText) : '';
   const snapshot = {
@@ -363,6 +369,31 @@ function updateFastQaQuickTitle(displayText) {
       menuDisplay: snapshot.display,
       menuRaw: snapshot.raw,
       menuNormalized: snapshot.normalized
+    });
+  });
+}
+
+function updateSearchMenuTitles(displayText) {
+  const formatted = displayText ? formatMenuTitle(displayText) : '';
+  DYNAMIC_SEARCH_MENU_ITEMS.forEach((menuId) => {
+    const baseTitle = getMenuTitle(menuId, MENU_FALLBACK_TITLES[menuId]);
+    const title = formatted ? `${baseTitle}: "${formatted}"` : baseTitle;
+    chrome.contextMenus.update(menuId, { title }, () => {
+      if (chrome.runtime.lastError) {
+        const msg = chrome.runtime.lastError.message || '';
+        if (!/Cannot find menu item/i.test(msg)) {
+          logMenuEvent('search-menu-title-update-failed', { id: menuId, error: msg });
+        }
+      }
+    });
+    logMenuEvent('search-menu-title', {
+      id: menuId,
+      title,
+      baseTitle,
+      formatted,
+      menuDisplay: currentMenuState?.display || '',
+      menuRaw: currentMenuState?.raw || '',
+      menuNormalized: currentMenuState?.normalized || ''
     });
   });
 }
@@ -418,6 +449,7 @@ function setMenuState(rawText, normalizedText, meta) {
   logMenuEvent('state-update', { ...currentMenuState });
   updateMainMenuTitle(displayText);
   updateFastQaQuickTitle(displayText);
+  updateSearchMenuTitles(displayText);
   if (chrome.contextMenus.refresh) {
     chrome.contextMenus.refresh();
   }
