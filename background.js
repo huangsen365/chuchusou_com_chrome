@@ -62,6 +62,12 @@ let menuIconConfig = null;
 const menuIconImageCache = new Map();
 let menuIconUpdateSupported = true;
 
+const currentMenuState = {
+  raw: '',
+  normalized: '',
+  display: ''
+};
+
 const LOG_PREFIX = '[触触搜][MENU]';
 function logMenuEvent(stage, payload) {
   try {
@@ -184,24 +190,24 @@ function updateMainMenuTitle(displayText) {
   logMenuEvent('main-title', { title, displayText });
 }
 
-function applyMenuTitle(normalizedText) {
-  if (normalizedText) {
-    const displayText = formatMenuTitle(normalizedText);
-    if (displayText) {
-      updateMainMenuTitle(displayText);
-      updateFastQaQuickTitle(displayText);
-      if (chrome.contextMenus.refresh) {
-        chrome.contextMenus.refresh();
-      }
-      return;
-    }
-  }
-
-  updateMainMenuTitle('');
-  updateFastQaQuickTitle('');
+function setMenuState(rawText, normalizedText) {
+  const raw = typeof rawText === 'string' ? rawText : '';
+  const normalized = typeof normalizedText === 'string' ? normalizedText : '';
+  const base = normalized || raw;
+  const displayText = base ? formatMenuTitle(base) : '';
+  currentMenuState.raw = raw;
+  currentMenuState.normalized = normalized;
+  currentMenuState.display = displayText;
+  logMenuEvent('state-update', { ...currentMenuState });
+  updateMainMenuTitle(displayText);
+  updateFastQaQuickTitle(displayText);
   if (chrome.contextMenus.refresh) {
     chrome.contextMenus.refresh();
   }
+}
+
+function applyMenuTitle(normalizedText, rawText = '') {
+  setMenuState(rawText, normalizedText);
 }
 
 async function refreshMenuTitle(tab, selectionText = '') {
@@ -212,7 +218,7 @@ async function refreshMenuTitle(tab, selectionText = '') {
       tabTitle: tab?.title || '',
       selectionText
     });
-    applyMenuTitle(result.normalized);
+    applyMenuTitle(result.normalized, result.raw);
   } catch (error) {
     console.warn('[触触搜][BG] refreshMenuTitle失败:', error);
   }
@@ -828,7 +834,7 @@ function createContextMenus() {
         logMenuEvent('fastqa-quick-child-create-failed', { error: chrome.runtime.lastError.message });
       } else {
         fastQaQuickRegistered = true;
-        updateFastQaQuickTitle('');
+        updateFastQaQuickTitle(currentMenuState.display);
         logMenuEvent('fastqa-quick-child-created', {});
       }
     });
@@ -840,7 +846,8 @@ function createContextMenus() {
     type: 'separator',
     contexts: ['selection', 'page']
   });
-  updateMainMenuTitle('');
+  updateMainMenuTitle(currentMenuState.display);
+  updateFastQaQuickTitle(currentMenuState.display);
 
     // 创建子菜单项
     const aiMenuItems = [
@@ -1265,7 +1272,8 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 async function updateContextMenuForTab(tab) {
   // 注意：这里只是预显示，实际使用时选中文本优先级更高
   const keywords = await extractSearchKeywords(tab.url, tab);
-  applyMenuTitle(keywords ? normalizeSearchText(keywords) : '');
+  const normalized = keywords ? normalizeSearchText(keywords) : '';
+  applyMenuTitle(normalized, keywords || '');
 }
 
 // 处理右键菜单点击
@@ -1277,6 +1285,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     tabTitle: tab?.title || '',
     selectionText: info.selectionText || ''
   });
+  setMenuState(rawText, normalizedText);
 
   const isTopQuestionsOpenAll = info.menuItemId === 'ccs-top100-open-all';
   const isTopQuestionsMenu = info.menuItemId && info.menuItemId.startsWith('ccs-top100-');
@@ -1687,7 +1696,7 @@ if (chrome.contextMenus.onShown && typeof chrome.contextMenus.onShown.addListene
         tabTitle: tab?.title || '',
         selectionText: info.selectionText || ''
       });
-      applyMenuTitle(result.normalized);
+      applyMenuTitle(result.normalized, result.raw);
     } catch (error) {
       console.warn('[触触搜][BG] onShown更新菜单失败:', error);
     }
