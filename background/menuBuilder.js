@@ -1,33 +1,8 @@
 const MENU_CONTEXTS_DEFAULT = ['selection', 'page'];
 const MENU_CONTEXTS_WITH_EDITABLE = ['selection', 'page', 'editable'];
 
-const FAST_QA_QUICK_ITEM_METADATA = Object.freeze({
-  'ccs-fastqa-chatgpt-quick': {
-    engineId: 'chatgpt',
-    titleKey: 'chatgpt',
-    menuTitle: '触触搜 · 速答壹拾佰 - ChatGPT',
-    menuIcon: '🤖'
-  },
-  'ccs-fastqa-claude-quick': {
-    engineId: 'claude',
-    titleKey: 'claude',
-    menuTitle: '触触搜 · 速答壹拾佰 - Claude',
-    menuIcon: '🧠'
-  },
-  'ccs-fastqa-grok-quick': {
-    engineId: 'grok',
-    titleKey: 'grok',
-    menuTitle: '触触搜 · 速答壹拾佰 - Grok',
-    menuIcon: '🦊'
-  }
-});
-
 const MENU_GROUPS = Object.freeze({
-  fastQaQuick: [
-    { id: 'ccs-fastqa-chatgpt-quick' },
-    { id: 'ccs-fastqa-claude-quick' },
-    { id: 'ccs-fastqa-grok-quick' }
-  ],
+  fastQaQuick: FAST_QA_QUICK_ITEMS.map((item) => item.id),
   search: [
     { id: 'ccs-baidu' },
     { id: 'ccs-google' },
@@ -58,34 +33,6 @@ const MENU_GROUPS = Object.freeze({
     { id: 'ccs-lower' }
   ]
 });
-
-setFastQaQuickItems(resolveFastQaQuickItems(MENU_GROUPS.fastQaQuick));
-
-function resolveFastQaQuickItems(items) {
-  const normalized = Array.isArray(items) ? items : [];
-  const resolved = [];
-
-  for (const item of normalized) {
-    const id = typeof item === 'string' ? item : item?.id;
-    if (!id) continue;
-
-    const metadata = FAST_QA_QUICK_ITEM_METADATA[id];
-    if (!metadata || !metadata.engineId) {
-      console.warn('[触触搜][BG] 缺少速答快捷菜单配置:', id);
-      continue;
-    }
-
-    resolved.push({
-      id,
-      engineId: metadata.engineId,
-      titleKey: metadata.titleKey || metadata.engineId,
-      menuTitle: metadata.menuTitle || '',
-      menuIcon: metadata.menuIcon || ''
-    });
-  }
-
-  return resolved;
-}
 
 function extractErrorMessage(error) {
   if (!error) return '';
@@ -182,7 +129,7 @@ async function createMenuItemsGroup({ parentId, menuItems, contexts = MENU_CONTE
 }
 
 async function createQuickMenuItems(quickEnabledMap) {
-  for (const item of getFastQaQuickItems()) {
+  for (const item of FAST_QA_QUICK_ITEMS) {
     if (!quickEnabledMap.get(item.id)) continue;
     await createMenuItem({
       id: item.id,
@@ -190,12 +137,6 @@ async function createQuickMenuItems(quickEnabledMap) {
       title: getMenuTitle(item.id),
       contexts: MENU_CONTEXTS_WITH_EDITABLE
     }, {
-      onSuccess: () => {
-        const state = quickMenuState.get(item.id);
-        if (state) state.registered = true;
-        updateFastQaQuickTitle(currentMenuState.display);
-        logMenuEvent('fastqa-quick-child-created', { id: item.id });
-      },
       onError: (error) => {
         logMenuEvent('fastqa-quick-child-create-failed', {
           id: item.id,
@@ -244,7 +185,7 @@ async function populateFastAnswersMenus({ buildId, fastQaRootEnabled, quickEnabl
   try {
     const config = await loadFastAnswersConfig();
     if (!config || isStaleBuild(buildId)) return;
-    const quickItems = getFastQaQuickItems();
+    const quickItems = FAST_QA_QUICK_ITEMS;
 
     logMenuEvent('fastqa-config-loaded', {
       engines: (config.engines || []).map((engine) => ({
@@ -279,7 +220,6 @@ async function populateFastAnswersMenus({ buildId, fastQaRootEnabled, quickEnabl
         logMenuEvent('fastqa-quick-url-ready', { id: item.id, urlPattern });
       });
     }
-    updateFastQaQuickTitle(currentMenuState.display);
   } catch (error) {
     console.warn('[触触搜][BG] 无法构建速答壹拾佰菜单:', error);
     logMenuEvent('fastqa-config-error', { error: extractErrorMessage(error) });
@@ -361,7 +301,6 @@ async function createContextMenus() {
     optimizedPromptMenuMap.clear();
     topQuestionsMenuMap.clear();
     fastAnswersMenuMap.clear();
-    quickMenuState.forEach((state) => { state.registered = false; });
     logMenuEvent('rebuild-start', { buildId });
 
     const top100RootEnabled = isMenuEnabled('ccs-top100-root');
@@ -369,7 +308,7 @@ async function createContextMenus() {
     const fastQaRootEnabled = isMenuEnabled('ccs-fastqa-root');
     const fastQaOpenAllEnabled = fastQaRootEnabled && isMenuEnabled('ccs-fastqa-open-all');
     const optimizeRootEnabled = isMenuEnabled('ccs-optimize-root');
-    const quickItems = getFastQaQuickItems();
+    const quickItems = FAST_QA_QUICK_ITEMS;
     const quickEnabledMap = new Map(quickItems.map((item) => [item.id, isMenuEnabled(item.id)]));
     const hasAdvancedSections = top100RootEnabled || fastQaRootEnabled || optimizeRootEnabled;
     const needsFastAnswersConfig = fastQaRootEnabled || quickItems.some((item) => quickEnabledMap.get(item.id));
@@ -405,7 +344,6 @@ async function createContextMenus() {
     });
 
     updateMainMenuTitle(currentMenuState.display);
-    updateFastQaQuickTitle(currentMenuState.display);
 
     await createMenuItemsGroup({
       parentId: 'ccs-main',

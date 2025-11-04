@@ -74,9 +74,6 @@ let topQuestionsTemplate = '';
 const fastAnswersMenuMap = new Map();
 let fastAnswersConfig = null;
 let fastAnswersTemplate = '';
-let FAST_QA_QUICK_ITEMS = [];
-const quickMenuState = new Map();
-
 let menuBuildInProgress = false;
 let menuBuildPending = false;
 
@@ -252,6 +249,37 @@ const MENU_DEFINITIONS = {
   'ccs-show-popover': { text: '打开触触搜面板 (Alt+S)', icon: '🪟' }
 };
 
+const FAST_QA_QUICK_ITEMS = [
+  {
+    id: 'ccs-fastqa-chatgpt-quick',
+    engineId: 'chatgpt',
+    titleKey: 'chatgpt',
+    menuTitle: '触触搜 · 速答壹拾佰 - ChatGPT',
+    menuIcon: '🤖'
+  },
+  {
+    id: 'ccs-fastqa-claude-quick',
+    engineId: 'claude',
+    titleKey: 'claude',
+    menuTitle: '触触搜 · 速答壹拾佰 - Claude',
+    menuIcon: '🧠'
+  },
+  {
+    id: 'ccs-fastqa-grok-quick',
+    engineId: 'grok',
+    titleKey: 'grok',
+    menuTitle: '触触搜 · 速答壹拾佰 - Grok',
+    menuIcon: '🦊'
+  }
+];
+
+FAST_QA_QUICK_ITEMS.forEach((item) => {
+  MENU_DEFINITIONS[item.id] = {
+    text: item.menuTitle,
+    icon: item.menuIcon || ''
+  };
+});
+
 function getMenuDefinition(menuId) {
   return MENU_DEFINITIONS[menuId] || null;
 }
@@ -274,42 +302,6 @@ function getMenuTitle(menuId, fallback) {
     return `${definition.icon.trim()} ${text}`;
   }
   return text;
-}
-
-function clearFastQaQuickMenuDefinitions() {
-  Object.keys(MENU_DEFINITIONS).forEach((key) => {
-    if (key.startsWith('ccs-fastqa-') && key.endsWith('-quick')) {
-      delete MENU_DEFINITIONS[key];
-    }
-  });
-}
-
-function setFastQaQuickItems(items) {
-  const normalized = Array.isArray(items) ? items : [];
-  FAST_QA_QUICK_ITEMS = normalized.map((item) => ({
-    id: item?.id,
-    engineId: item?.engineId,
-    titleKey: item?.titleKey || item?.engineId || '',
-    menuTitle: item?.menuTitle || '',
-    menuIcon: item?.menuIcon || ''
-  })).filter((item) => typeof item.id === 'string' && item.id);
-
-  clearFastQaQuickMenuDefinitions();
-  quickMenuState.clear();
-
-  FAST_QA_QUICK_ITEMS.forEach((item) => {
-    quickMenuState.set(item.id, { registered: false });
-    if (item.menuTitle) {
-      MENU_DEFINITIONS[item.id] = {
-        text: item.menuTitle,
-        icon: item.menuIcon || ''
-      };
-    }
-  });
-}
-
-function getFastQaQuickItems() {
-  return FAST_QA_QUICK_ITEMS.slice();
 }
 
 const OPTIMIZE_CATEGORY_TITLES = {
@@ -345,47 +337,16 @@ const FAST_ANSWER_ENGINE_TITLES = {
 const DYNAMIC_SEARCH_MENU_ITEMS = [
   'ccs-chuchusou',
   'ccs-chatgpt',
-  'ccs-claude'
+  'ccs-claude',
+  'ccs-fastqa-chatgpt-quick',
+  'ccs-fastqa-claude-quick',
+  'ccs-fastqa-grok-quick'
 ];
 
 const FAST_QA_MENU_ITEMS = [
   'ccs-fastqa-root',
   'ccs-fastqa-open-all'
 ];
-
-function updateFastQaQuickTitle(displayText) {
-  const formatted = displayText ? formatMenuTitle(displayText) : '';
-  const snapshot = {
-    display: currentMenuState?.display || '',
-    raw: currentMenuState?.raw || '',
-    normalized: currentMenuState?.normalized || ''
-  };
-  FAST_QA_QUICK_ITEMS.forEach((item) => {
-    const state = quickMenuState.get(item.id);
-    if (!state?.registered) return;
-    if (!isMenuEnabled(item.id)) return;
-    const baseTitle = getMenuTitle(item.id);
-    const title = formatted ? `${baseTitle}: "${formatted}"` : baseTitle;
-    chrome.contextMenus.update(item.id, { title }, () => {
-      if (chrome.runtime.lastError) {
-        const msg = chrome.runtime.lastError.message || '';
-        if (!/Cannot find menu item/i.test(msg)) {
-          logMenuEvent('fastqa-quick-title-update-failed', { id: item.id, error: msg });
-        }
-      }
-    });
-    logMenuEvent('fastqa-quick-title', {
-      id: item.id,
-      title,
-      formatted,
-      baseTitle,
-      menuDisplay: snapshot.display,
-      menuRaw: snapshot.raw,
-      menuNormalized: snapshot.normalized
-    });
-  });
-}
-
 function updateSearchMenuTitles(displayText) {
   const formatted = displayText ? formatMenuTitle(displayText) : '';
   DYNAMIC_SEARCH_MENU_ITEMS.forEach((menuId) => {
@@ -453,7 +414,6 @@ function setMenuState(rawText, normalizedText, meta) {
   }
   logMenuEvent('state-update', { ...currentMenuState });
   updateMainMenuTitle(displayText);
-  updateFastQaQuickTitle(displayText);
   updateSearchMenuTitles(displayText);
   FAST_QA_MENU_ITEMS.forEach((menuId) => {
     const baseTitle = getMenuTitle(menuId);
