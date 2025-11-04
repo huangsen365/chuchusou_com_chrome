@@ -119,7 +119,17 @@ async function applyMenuIcons(buildId) {
         break;
       }
     } catch (error) {
-      console.warn('[触触搜][BG] 处理菜单图标失败:', menuId, error);
+      const message = error?.message || String(error);
+      console.warn('[触触搜][BG] 处理菜单图标失败:', menuId, message);
+      if (/Unexpected property: 'icons'/i.test(message)) {
+        if (menuIconUpdateSupported) {
+          menuIconUpdateSupported = false;
+          menuIconSupportLoaded = true;
+          chrome.storage.local.set({ [MENU_ICON_SUPPORT_STORAGE_KEY]: false });
+        }
+        logMenuEvent('icon-disable', { reason: message, source: 'throw' });
+        break;
+      }
     }
   }
   menuIconUpdateInProgress = false;
