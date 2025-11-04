@@ -350,9 +350,18 @@ function updateFastQaQuickTitle(displayText) {
     if (!isMenuEnabled(item.id)) return;
     const baseTitle = getMenuTitle(item.id);
     const usesPlaceholder = typeof baseTitle === 'string' && baseTitle.includes('%s');
-    const title = (!usesPlaceholder && formatted)
-      ? `${baseTitle}: "${formatted}"`
-      : baseTitle;
+    let title = baseTitle;
+    if (usesPlaceholder) {
+      const replacement = formatted || snapshot.display || snapshot.raw || snapshot.normalized || '';
+      if (replacement) {
+        title = baseTitle.replace('%s', replacement);
+      } else {
+        // Remove trailing placeholder decorations when no text is available.
+        title = baseTitle.replace(/[:：]\s*"?%s"?/, '').replace('%s', '');
+      }
+    } else if (formatted) {
+      title = `${baseTitle}: "${formatted}"`;
+    }
     chrome.contextMenus.update(item.id, { title }, () => {
       if (chrome.runtime.lastError) {
         const msg = chrome.runtime.lastError.message || '';

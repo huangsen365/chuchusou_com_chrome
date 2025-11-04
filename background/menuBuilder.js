@@ -1,5 +1,5 @@
 const MENU_CONTEXTS_DEFAULT = ['selection', 'page'];
-const MENU_CONTEXTS_WITH_EDITABLE = ['selection', 'editable'];
+const MENU_CONTEXTS_WITH_EDITABLE = ['selection', 'page', 'editable'];
 
 const SEARCH_MENU_ITEMS = [
   'ccs-baidu',
