@@ -76,28 +76,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       let source = previewText ? 'message' : 'none';
       const tabUrl = sender?.tab?.url || '';
 
-      try {
-        const computed = await computeSearchTextForTab({
-          tabId,
-          tabUrl: sender?.tab?.url || '',
-          tabTitle: sender?.tab?.title || '',
-          selectionText: incoming || ''
-        }, {
-          forceFetchSelection: true,
-          skipCurrentMenuFallback: true
-        });
-        if (computed && computed.raw) {
-          previewText = computed.raw;
-          normalizedPreview = computed.normalized || normalizeSearchText(computed.raw);
-          source = 'resolver-force';
-        }
-      } catch (error) {
-        logMenuEvent('context-preview-compute-error', {
-          tabId,
-          error: error?.message || String(error)
-        });
-      }
-
       if (!previewText && tabId != null) {
         const cached = selectedTextByTab[tabId];
         const cachedText = typeof cached === 'string' ? cached : cached?.text;
