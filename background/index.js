@@ -5,5 +5,6 @@ importScripts(
   './keywords.js',
   './keywordResolver.js',
   './menuBuilder.js',
-  './events.js'
+  './events.js',
+  './menuHandlers.js'
 );

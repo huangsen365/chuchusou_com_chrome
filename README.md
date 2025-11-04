@@ -71,6 +71,10 @@
 - **Shadow DOM**: 样式完全隔离，不影响网页原有样式
 - **轻量高效**: 无依赖，纯原生 JavaScript 实现
 
+## 已知限制
+
+- Chrome 当前仍未开放为 `chrome.contextMenus` 指定图标的能力，虽然我们在 `config/menuIcons.json` 中保留了本地与远程图标配置，实际渲染时浏览器会忽略这些图标。后续若官方支持，将可以直接复用该配置；目前可通过后台 Service Worker 日志中的 `[触触搜][MENU] icon-*` 事件进行排查。
+
 ## 文件结构
 
 ```

@@ -1,5 +1,6 @@
 {
-  "ccs-yiyan": false,
+  "ccs-tongyi": false,
+  "ccs-yiyan": true,
   "ccs-top100-yiyan": false,
   "ccs-fastqa-yiyan": false,
   "ccs-fastqa-chatgpt-quick": true,

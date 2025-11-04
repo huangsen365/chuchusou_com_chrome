@@ -99,6 +99,31 @@ function createContextMenus() {
   updateFastQaQuickTitle(currentMenuState.display);
 
     // 创建子菜单项
+    const searchMenuItems = [
+      'ccs-baidu',
+      'ccs-google',
+      'ccs-tongyi',
+      'ccs-yiyan'
+    ];
+
+    searchMenuItems.forEach((menuId) => {
+      if (!isMenuEnabled(menuId)) return;
+      chrome.contextMenus.create({
+        id: menuId,
+        parentId: 'ccs-main',
+        title: getMenuTitle(menuId, MENU_FALLBACK_TITLES[menuId]),
+        contexts: ['selection', 'page']
+      });
+    });
+    BG_DBG('[触触搜][BG][MENU] base search items created');
+
+    chrome.contextMenus.create({
+      id: 'ccs-separator-ai',
+      parentId: 'ccs-main',
+      type: 'separator',
+      contexts: ['selection', 'page']
+    });
+
     const aiMenuItems = [
       'ccs-chatgpt',
       'ccs-claude'
@@ -114,18 +139,7 @@ function createContextMenus() {
       });
     });
 
-    chrome.contextMenus.create({
-      id: 'ccs-separator-ai',
-      parentId: 'ccs-main',
-      type: 'separator',
-      contexts: ['selection', 'page']
-    });
-
-    const baseMenuItems = [
-      'ccs-baidu',
-      'ccs-google',
-      // 'ccs-baidu-translate',
-      'ccs-yiyan',
+    const generalMenuItems = [
       'ccs-zhihu',
       'ccs-weixin',
       'ccs-taobao',
@@ -135,7 +149,7 @@ function createContextMenus() {
       'ccs-chuchusou'
     ];
 
-    baseMenuItems.forEach((menuId) => {
+    generalMenuItems.forEach((menuId) => {
       if (!isMenuEnabled(menuId)) return;
       chrome.contextMenus.create({
         id: menuId,
@@ -144,7 +158,6 @@ function createContextMenus() {
         contexts: ['selection', 'page']
       });
     });
-    BG_DBG('[触触搜][BG][MENU] base search items created');
 
     const asyncTasks = [];
 

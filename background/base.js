@@ -30,7 +30,13 @@ function cleanupTitleKeyword(rawTitle) {
   const suffixes = [
     ' - 搜索结果',
     ' - 知乎',
-    ' - Zhihu'
+    ' - Zhihu',
+    ' - ChatGPT',
+    ' – ChatGPT',
+    ' — ChatGPT',
+    ' - Claude',
+    ' – Claude',
+    ' — Claude'
   ];
   suffixes.forEach((suffix) => {
     if (cleaned.endsWith(suffix)) {
@@ -127,13 +133,36 @@ function ensureMenuIconSupportLoaded() {
 const currentMenuState = {
   raw: '',
   normalized: '',
-  display: ''
+  display: '',
+  tabId: null,
+  url: ''
 };
 
 const LOG_PREFIX = '[触触搜][MENU]';
+let LOG_SEQUENCE = 0;
+
+function buildLogPayload(payload) {
+  const now = new Date();
+  const timestamp = now.toISOString();
+  const timeMs = now.getTime();
+  const monotonicMs = (typeof performance !== 'undefined' && performance.now)
+    ? Math.round(performance.now())
+    : null;
+  const seq = ++LOG_SEQUENCE;
+  return Object.assign(
+    {
+      timestamp,
+      timeMs,
+      monotonicMs,
+      seq
+    },
+    payload || {}
+  );
+}
+
 function logMenuEvent(stage, payload) {
   try {
-    console.info(`${LOG_PREFIX} ${stage}`, payload ?? {});
+    console.info(`${LOG_PREFIX} ${stage}`, buildLogPayload(payload));
   } catch (_) {
     // ignore logging errors
   }
@@ -149,6 +178,7 @@ const MENU_ITEM_TITLES = {
   ...QUICK_MENU_TITLES,
   'ccs-baidu': '🐼 百度搜索',
   'ccs-google': '🔎 Google 搜索',
+  'ccs-tongyi': '🪄 通义千问',
   'ccs-yiyan': '🧠 文心一言',
   'ccs-chatgpt': '🤖 ChatGPT',
   'ccs-claude': '🧠 Claude',
@@ -179,6 +209,7 @@ const MENU_FALLBACK_TITLES = {
   'ccs-fastqa-claude-quick': '触触搜 · 速答壹拾佰 - Claude',
   'ccs-baidu': '百度搜索',
   'ccs-google': 'Google搜索',
+  'ccs-tongyi': '通义千问',
   'ccs-yiyan': '文心一言',
   'ccs-chatgpt': 'ChatGPT',
   'ccs-claude': 'Claude',
@@ -282,17 +313,22 @@ function updateMainMenuTitle(displayText) {
   logMenuEvent('main-title', { title, displayText });
 }
 
-function setMenuState(rawText, normalizedText) {
+function setMenuState(rawText, normalizedText, meta) {
   const raw = typeof rawText === 'string' ? rawText : '';
   const normalized = typeof normalizedText === 'string' ? normalizedText : '';
   const base = normalized || raw;
   const displayText = base ? formatMenuTitle(base) : '';
-  if (!displayText && currentMenuState.display) {
-    return;
-  }
   currentMenuState.raw = raw;
   currentMenuState.normalized = normalized;
   currentMenuState.display = displayText;
+  if (meta && typeof meta === 'object') {
+    if ('tabId' in meta) {
+      currentMenuState.tabId = typeof meta.tabId === 'number' ? meta.tabId : null;
+    }
+    if ('url' in meta) {
+      currentMenuState.url = typeof meta.url === 'string' ? meta.url : '';
+    }
+  }
   logMenuEvent('state-update', { ...currentMenuState });
   updateMainMenuTitle(displayText);
   updateFastQaQuickTitle(displayText);
@@ -301,8 +337,8 @@ function setMenuState(rawText, normalizedText) {
   }
 }
 
-function applyMenuTitle(normalizedText, rawText = '') {
-  setMenuState(rawText, normalizedText);
+function applyMenuTitle(normalizedText, rawText = '', meta) {
+  setMenuState(rawText, normalizedText, meta);
 }
 
 async function refreshMenuTitle(tab, selectionText = '') {
@@ -313,7 +349,10 @@ async function refreshMenuTitle(tab, selectionText = '') {
       tabTitle: tab?.title || '',
       selectionText
     });
-    applyMenuTitle(result.normalized, result.raw);
+    applyMenuTitle(result.normalized, result.raw, {
+      tabId: tab?.id ?? null,
+      url: tab?.url || ''
+    });
   } catch (error) {
     console.warn('[触触搜][BG] refreshMenuTitle失败:', error);
   }

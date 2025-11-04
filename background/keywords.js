@@ -1,3 +1,26 @@
+function isGenericHostKeyword(hostname, keyword) {
+  if (!keyword) return false;
+  const value = keyword.trim().toLowerCase();
+  if (!value) return true;
+  if (hostname.includes('chatgpt.com')) {
+    if (value === 'chatgpt' || value === 'chatgpt.com' || value.startsWith('chatgpt.com/')) {
+      return true;
+    }
+    if (value === 'www.chatgpt.com') {
+      return true;
+    }
+  }
+  if (hostname.includes('claude.ai')) {
+    if (value === 'claude' || value === 'claude.ai' || value.startsWith('claude.ai/')) {
+      return true;
+    }
+    if (value === 'www.claude.ai') {
+      return true;
+    }
+  }
+  return false;
+}
+
 async function extractSearchKeywords(url, tab) {
   try {
     const urlObj = new URL(url);
@@ -12,6 +35,30 @@ async function extractSearchKeywords(url, tab) {
         const kw = decodeURIComponent(wd);
         BG_DBG('[触触搜][BG][DEBUG] matched baidu wd:', kw);
         return kw;
+      }
+    }
+    
+    // ChatGPT - 读取查询参数
+    if (hostname.includes('chatgpt.com')) {
+      const q = searchParams.get('q');
+      if (q) {
+        const kw = decodeURIComponent(q);
+        if (kw && !isGenericHostKeyword(hostname, kw)) {
+          BG_DBG('[触触搜][BG][DEBUG] matched chatgpt q:', kw);
+          return kw;
+        }
+      }
+    }
+    
+    // Claude - 读取查询参数
+    if (hostname.includes('claude.ai')) {
+      const q = searchParams.get('q') || searchParams.get('prompt');
+      if (q) {
+        const kw = decodeURIComponent(q);
+        if (kw && !isGenericHostKeyword(hostname, kw)) {
+          BG_DBG('[触触搜][BG][DEBUG] matched claude q:', kw);
+          return kw;
+        }
       }
     }
     
@@ -217,6 +264,9 @@ async function extractSearchKeywords(url, tab) {
       }
 
       const cleaned = title.trim();
+      if (isGenericHostKeyword(hostname, cleaned)) {
+        return '';
+      }
       BG_DBG('[触触搜][BG][DEBUG] final title keyword:', cleaned);
       return cleaned;
     }
