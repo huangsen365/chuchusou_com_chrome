@@ -1307,34 +1307,60 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       incomingText: incoming
     });
 
-    let previewText = incoming;
-    let source = previewText ? 'message' : 'none';
+    (async () => {
+      let previewText = incoming;
+      let normalizedPreview = previewText ? normalizeSearchText(previewText) : '';
+      let source = previewText ? 'message' : 'none';
 
-    if (!previewText && tabId != null) {
-      const cached = selectedTextByTab[tabId];
-      const cachedText = typeof cached === 'string' ? cached : cached?.text;
-      if (typeof cachedText === 'string' && cachedText.trim().length > 0) {
-        previewText = cachedText;
-        source = 'cached-selection';
+      if (!previewText && tabId != null) {
+        const cached = selectedTextByTab[tabId];
+        const cachedText = typeof cached === 'string' ? cached : cached?.text;
+        if (typeof cachedText === 'string' && cachedText.trim().length > 0) {
+          previewText = cachedText;
+          normalizedPreview = normalizeSearchText(previewText);
+          source = 'cached-selection';
+        }
       }
-    }
 
-    if (!previewText && currentMenuState.raw) {
-      previewText = currentMenuState.raw;
-      source = 'menu-state';
-    }
+      if (!previewText && sender?.tab) {
+        try {
+          const fallback = await computeSearchTextForTab({
+            tabId,
+            tabUrl: sender.tab.url || '',
+            tabTitle: sender.tab.title || '',
+            selectionText: ''
+          });
+          if (fallback.raw) {
+            previewText = fallback.raw;
+            normalizedPreview = fallback.normalized || normalizeSearchText(fallback.raw);
+            source = 'tab-fallback';
+          }
+        } catch (error) {
+          logMenuEvent('context-preview-fallback-error', {
+            tabId,
+            error: error?.message || String(error)
+          });
+        }
+      }
 
-    const normalizedPreview = previewText ? normalizeSearchText(previewText) : '';
-    logMenuEvent('context-preview', {
-      tabId,
-      previewText,
-      normalizedPreview,
-      source
-    });
+      if (!previewText && currentMenuState.raw) {
+        previewText = currentMenuState.raw;
+        normalizedPreview = currentMenuState.normalized || normalizeSearchText(previewText);
+        source = 'menu-state';
+      }
 
-    if (previewText) {
-      setMenuState(previewText, normalizedPreview || previewText);
-    }
+      logMenuEvent('context-preview', {
+        tabId,
+        previewText,
+        normalizedPreview,
+        source
+      });
+
+      if (previewText) {
+        setMenuState(previewText, normalizedPreview || previewText);
+      }
+    })();
+
     return;
   }
   
