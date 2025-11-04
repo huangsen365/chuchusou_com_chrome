@@ -1,6 +1,32 @@
 const MENU_CONTEXTS_DEFAULT = ['selection', 'page'];
 const MENU_CONTEXTS_WITH_EDITABLE = ['selection', 'page', 'editable'];
 
+const FAST_QA_QUICK_ITEM_DEFS = [
+  {
+    id: 'ccs-fastqa-chatgpt-quick',
+    engineId: 'chatgpt',
+    titleKey: 'chatgpt',
+    menuTitle: '触触搜 · 速答壹拾佰 - ChatGPT',
+    menuIcon: '🤖'
+  },
+  {
+    id: 'ccs-fastqa-claude-quick',
+    engineId: 'claude',
+    titleKey: 'claude',
+    menuTitle: '触触搜 · 速答壹拾佰 - Claude',
+    menuIcon: '🧠'
+  },
+  {
+    id: 'ccs-fastqa-grok-quick',
+    engineId: 'grok',
+    titleKey: 'grok',
+    menuTitle: '触触搜 · 速答壹拾佰 - Grok',
+    menuIcon: '🦊'
+  }
+];
+
+setFastQaQuickItems(FAST_QA_QUICK_ITEM_DEFS);
+
 const SEARCH_MENU_ITEMS = [
   'ccs-baidu',
   'ccs-google',
@@ -127,7 +153,7 @@ async function createMenuItemsGroup({ parentId, menuIds, contexts = MENU_CONTEXT
 }
 
 async function createQuickMenuItems(quickEnabledMap) {
-  for (const item of FAST_QA_QUICK_ITEMS) {
+  for (const item of getFastQaQuickItems()) {
     if (!quickEnabledMap.get(item.id)) continue;
     await createMenuItem({
       id: item.id,
@@ -189,12 +215,13 @@ async function populateFastAnswersMenus({ buildId, fastQaRootEnabled, quickEnabl
   try {
     const config = await loadFastAnswersConfig();
     if (!config || isStaleBuild(buildId)) return;
+    const quickItems = getFastQaQuickItems();
 
     logMenuEvent('fastqa-config-loaded', {
       engines: (config.engines || []).map((engine) => ({
         id: engine?.id,
         enabled: isMenuEnabled(`ccs-fastqa-${engine?.id}`),
-        quickTargets: FAST_QA_QUICK_ITEMS
+        quickTargets: quickItems
           .filter((item) => item.engineId === engine?.id && quickEnabledMap.get(item.id))
           .map((item) => item.id)
       }))
@@ -216,7 +243,7 @@ async function populateFastAnswersMenus({ buildId, fastQaRootEnabled, quickEnabl
         });
         fastAnswersMenuMap.set(menuId, { urlPattern });
       }
-      FAST_QA_QUICK_ITEMS.forEach((item) => {
+      quickItems.forEach((item) => {
         if (item.engineId !== engine.id) return;
         if (!quickEnabledMap.get(item.id)) return;
         fastAnswersMenuMap.set(item.id, { urlPattern });
@@ -313,9 +340,10 @@ async function createContextMenus() {
     const fastQaRootEnabled = isMenuEnabled('ccs-fastqa-root');
     const fastQaOpenAllEnabled = fastQaRootEnabled && isMenuEnabled('ccs-fastqa-open-all');
     const optimizeRootEnabled = isMenuEnabled('ccs-optimize-root');
-    const quickEnabledMap = new Map(FAST_QA_QUICK_ITEMS.map((item) => [item.id, isMenuEnabled(item.id)]));
+    const quickItems = getFastQaQuickItems();
+    const quickEnabledMap = new Map(quickItems.map((item) => [item.id, isMenuEnabled(item.id)]));
     const hasAdvancedSections = top100RootEnabled || fastQaRootEnabled || optimizeRootEnabled;
-    const needsFastAnswersConfig = fastQaRootEnabled || FAST_QA_QUICK_ITEMS.some((item) => quickEnabledMap.get(item.id));
+    const needsFastAnswersConfig = fastQaRootEnabled || quickItems.some((item) => quickEnabledMap.get(item.id));
 
     logMenuEvent('toggle-status', {
       top100RootEnabled,

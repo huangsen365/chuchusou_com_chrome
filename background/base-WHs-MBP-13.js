@@ -224,6 +224,9 @@ function logMenuEvent(stage, payload) {
 
 const MENU_DEFINITIONS = {
   'ccs-main': { text: '触触搜', icon: '🔍' },
+  'ccs-fastqa-chatgpt-quick': { text: '触触搜 · 速答壹拾佰 - ChatGPT: "%s"', icon: '🤖' },
+  'ccs-fastqa-claude-quick': { text: '触触搜 · 速答壹拾佰 - Claude: "%s"', icon: '🧠' },
+  'ccs-fastqa-grok-quick': { text: '触触搜 · 速答壹拾佰 - Grok: "%s"', icon: '🦊' },
   'ccs-baidu': { text: '百度搜索', icon: '🐼' },
   'ccs-google': { text: 'Google 搜索', icon: '🔎' },
   'ccs-tongyi': { text: '通义千问', icon: '🪄' },
@@ -274,42 +277,6 @@ function getMenuTitle(menuId, fallback) {
     return `${definition.icon.trim()} ${text}`;
   }
   return text;
-}
-
-function clearFastQaQuickMenuDefinitions() {
-  Object.keys(MENU_DEFINITIONS).forEach((key) => {
-    if (key.startsWith('ccs-fastqa-') && key.endsWith('-quick')) {
-      delete MENU_DEFINITIONS[key];
-    }
-  });
-}
-
-function setFastQaQuickItems(items) {
-  const normalized = Array.isArray(items) ? items : [];
-  FAST_QA_QUICK_ITEMS = normalized.map((item) => ({
-    id: item?.id,
-    engineId: item?.engineId,
-    titleKey: item?.titleKey || item?.engineId || '',
-    menuTitle: item?.menuTitle || '',
-    menuIcon: item?.menuIcon || ''
-  })).filter((item) => typeof item.id === 'string' && item.id);
-
-  clearFastQaQuickMenuDefinitions();
-  quickMenuState.clear();
-
-  FAST_QA_QUICK_ITEMS.forEach((item) => {
-    quickMenuState.set(item.id, { registered: false });
-    if (item.menuTitle) {
-      MENU_DEFINITIONS[item.id] = {
-        text: item.menuTitle,
-        icon: item.menuIcon || ''
-      };
-    }
-  });
-}
-
-function getFastQaQuickItems() {
-  return FAST_QA_QUICK_ITEMS.slice();
 }
 
 const OPTIMIZE_CATEGORY_TITLES = {
@@ -365,7 +332,19 @@ function updateFastQaQuickTitle(displayText) {
     if (!state?.registered) return;
     if (!isMenuEnabled(item.id)) return;
     const baseTitle = getMenuTitle(item.id);
-    const title = formatted ? `${baseTitle}: "${formatted}"` : baseTitle;
+    const usesPlaceholder = typeof baseTitle === 'string' && baseTitle.includes('%s');
+    let title = baseTitle;
+    if (usesPlaceholder) {
+      const replacement = formatted || snapshot.display || snapshot.raw || snapshot.normalized || '';
+      if (replacement) {
+        title = baseTitle.replace('%s', replacement);
+      } else {
+        // Remove trailing placeholder decorations when no text is available.
+        title = baseTitle.replace(/[:：]\s*"?%s"?/, '').replace('%s', '');
+      }
+    } else if (formatted) {
+      title = `${baseTitle}: "${formatted}"`;
+    }
     chrome.contextMenus.update(item.id, { title }, () => {
       if (chrome.runtime.lastError) {
         const msg = chrome.runtime.lastError.message || '';
@@ -379,6 +358,7 @@ function updateFastQaQuickTitle(displayText) {
       title,
       formatted,
       baseTitle,
+      usesPlaceholder,
       menuDisplay: snapshot.display,
       menuRaw: snapshot.raw,
       menuNormalized: snapshot.normalized
