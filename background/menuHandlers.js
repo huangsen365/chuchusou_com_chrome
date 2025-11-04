@@ -44,6 +44,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     tabUrl: tab?.url || '',
     tabTitle: tab?.title || ''
   });
+  snapshotMenuTitles('context-click-resolved');
   let effectiveRaw = rawText;
   let effectiveNormalized = normalizedText;
 
@@ -141,6 +142,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     });
   }
 
+  snapshotMenuTitles('context-click-final');
   const isTopQuestionsOpenAll = info.menuItemId === 'ccs-top100-open-all';
   const isTopQuestionsMenu = info.menuItemId && info.menuItemId.startsWith('ccs-top100-');
   const isTopQuestionsEngine = isTopQuestionsMenu && !isTopQuestionsOpenAll;
