@@ -111,7 +111,7 @@ async function createMenuItemsGroup({ parentId, menuIds, contexts = MENU_CONTEXT
     await createMenuItem({
       id: menuId,
       parentId,
-      title: getMenuTitle(menuId, MENU_FALLBACK_TITLES[menuId]),
+      title: getMenuTitle(menuId),
       contexts
     }, {
       onError: (error) => {
@@ -132,7 +132,7 @@ async function createQuickMenuItems(quickEnabledMap) {
     await createMenuItem({
       id: item.id,
       parentId: 'ccs-main',
-      title: getMenuTitle(item.id, MENU_FALLBACK_TITLES[item.id]),
+      title: getMenuTitle(item.id),
       contexts: MENU_CONTEXTS_WITH_EDITABLE
     }, {
       onSuccess: () => {
@@ -330,7 +330,7 @@ async function createContextMenus() {
 
     await createMenuItem({
       id: 'ccs-main',
-      title: '🔍 触触搜',
+      title: getMenuTitle('ccs-label'),
       contexts: MENU_CONTEXTS_DEFAULT
     }, {
       failureLogStage: 'create-main-failed'
@@ -339,7 +339,7 @@ async function createContextMenus() {
     await createMenuItem({
       id: 'ccs-label',
       parentId: 'ccs-main',
-      title: getMenuTitle('ccs-label', '触触搜'),
+      title: getMenuTitle('ccs-label'),
       enabled: false,
       contexts: MENU_CONTEXTS_DEFAULT
     }, {
@@ -415,7 +415,7 @@ async function createContextMenus() {
       await createMenuItem({
         id: 'ccs-top100-root',
         parentId: 'ccs-main',
-        title: getMenuTitle('ccs-top100-root', '触触搜百问'),
+        title: getMenuTitle('ccs-top100-root'),
         contexts: MENU_CONTEXTS_DEFAULT
       }, {
         failureLogStage: 'top100-root-create-failed'
@@ -425,7 +425,7 @@ async function createContextMenus() {
         await createMenuItem({
           id: 'ccs-top100-open-all',
           parentId: 'ccs-top100-root',
-          title: getMenuTitle('ccs-top100-open-all', '打开以下全部'),
+          title: getMenuTitle('ccs-top100-open-all'),
           contexts: MENU_CONTEXTS_DEFAULT
         }, {
           failureLogStage: 'top100-open-all-create-failed'
@@ -448,7 +448,7 @@ async function createContextMenus() {
       await createMenuItem({
         id: 'ccs-fastqa-root',
         parentId: 'ccs-main',
-        title: getMenuTitle('ccs-fastqa-root', '速答壹拾佰'),
+        title: getMenuTitle('ccs-fastqa-root'),
         contexts: MENU_CONTEXTS_DEFAULT
       }, {
         failureLogStage: 'fastqa-root-create-failed'
@@ -458,7 +458,7 @@ async function createContextMenus() {
         await createMenuItem({
           id: 'ccs-fastqa-open-all',
           parentId: 'ccs-fastqa-root',
-          title: getMenuTitle('ccs-fastqa-open-all', '打开以下全部'),
+          title: getMenuTitle('ccs-fastqa-open-all'),
           contexts: MENU_CONTEXTS_DEFAULT
         }, {
           failureLogStage: 'fastqa-open-all-create-failed'
@@ -483,7 +483,7 @@ async function createContextMenus() {
       await createMenuItem({
         id: 'ccs-optimize-root',
         parentId: 'ccs-main',
-        title: '🧠 优化提示词',
+        title: getMenuTitle('ccs-optimize-root'),
         contexts: MENU_CONTEXTS_DEFAULT
       }, {
         failureLogStage: 'optimize-root-create-failed'
@@ -536,7 +536,7 @@ async function createContextMenus() {
     await createMenuItem({
       id: 'ccs-show-popover',
       parentId: 'ccs-main',
-      title: getMenuTitle('ccs-show-popover', '打开触触搜面板 (Alt+S)'),
+      title: getMenuTitle('ccs-show-popover'),
       contexts: MENU_CONTEXTS_DEFAULT
     }, {
       failureLogStage: 'show-popover-create-failed'

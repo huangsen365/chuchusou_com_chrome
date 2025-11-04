@@ -234,74 +234,60 @@ function logMenuEvent(stage, payload) {
   }
 }
 
-const QUICK_MENU_TITLES = {
-  'ccs-fastqa-chatgpt-quick': '🤖 触触搜 · 速答壹拾佰 - ChatGPT',
-  'ccs-fastqa-claude-quick': '🧠 触触搜 · 速答壹拾佰 - Claude'
+const MENU_DEFINITIONS = {
+  'ccs-label': { text: '触触搜', icon: '🔍' },
+  'ccs-fastqa-chatgpt-quick': { text: '触触搜 · 速答壹拾佰 - ChatGPT', icon: '🤖' },
+  'ccs-fastqa-claude-quick': { text: '触触搜 · 速答壹拾佰 - Claude', icon: '🧠' },
+  'ccs-baidu': { text: '百度搜索', icon: '🐼' },
+  'ccs-google': { text: 'Google 搜索', icon: '🔎' },
+  'ccs-tongyi': { text: '通义千问', icon: '🪄' },
+  'ccs-yiyan': { text: '文心一言', icon: '🧠' },
+  'ccs-chatgpt': { text: 'ChatGPT', icon: '🤖' },
+  'ccs-claude': { text: 'Claude', icon: '🧠' },
+  'ccs-zhihu': { text: '知乎搜索', icon: '💡' },
+  'ccs-weixin': { text: '微信搜一搜', icon: '💬' },
+  'ccs-taobao': { text: '淘宝搜索', icon: '🛒' },
+  'ccs-jd': { text: '京东搜索', icon: '🛍️' },
+  'ccs-sov2ex': { text: 'V2EX (sov2ex)', icon: '💻' },
+  'ccs-baidu-translate': { text: '百度翻译', icon: '✍️' },
+  'ccs-google-translate': { text: 'Google 翻译', icon: '🔁' },
+  'ccs-chuchusou': { text: '更多搜索引擎...', icon: '🌐' },
+  'ccs-top100-root': { text: '触触搜百问', icon: '💯' },
+  'ccs-top100-open-all': { text: '打开以下全部', icon: '🚀' },
+  'ccs-fastqa-root': { text: '速答壹拾佰', icon: '⚡' },
+  'ccs-fastqa-open-all': { text: '打开以下全部', icon: '🚀' },
+  'ccs-optimize-root': { text: '优化提示词', icon: '🧠' },
+  'ccs-copy': { text: '复制文本', icon: '📋' },
+  'ccs-base64': { text: 'Base64 编码', icon: '🔤' },
+  'ccs-md5': { text: 'MD5 哈希', icon: '🔐' },
+  'ccs-url-encode': { text: 'URL 编码', icon: '🔗' },
+  'ccs-upper': { text: '转换为大写', icon: '🔠' },
+  'ccs-lower': { text: '转换为小写', icon: '🔡' },
+  'ccs-show-popover': { text: '打开触触搜面板 (Alt+S)', icon: '🪟' }
 };
 
-const MENU_ITEM_TITLES = {
-  'ccs-label': '🔍 触触搜',
-  ...QUICK_MENU_TITLES,
-  'ccs-baidu': '🐼 百度搜索',
-  'ccs-google': '🔎 Google 搜索',
-  'ccs-tongyi': '🪄 通义千问',
-  'ccs-yiyan': '🧠 文心一言',
-  'ccs-chatgpt': '🤖 ChatGPT',
-  'ccs-claude': '🧠 Claude',
-  'ccs-zhihu': '💡 知乎搜索',
-  'ccs-weixin': '💬 微信搜一搜',
-  'ccs-taobao': '🛒 淘宝搜索',
-  'ccs-jd': '🛍️ 京东搜索',
-  'ccs-sov2ex': '💻 V2EX (sov2ex)',
-  'ccs-baidu-translate': '✍️ 百度翻译',
-  'ccs-google-translate': '🔁 Google 翻译',
-  'ccs-chuchusou': '🌐 更多搜索引擎...',
-  'ccs-top100-root': '💯 触触搜百问',
-  'ccs-top100-open-all': '🚀 打开以下全部',
-  'ccs-fastqa-root': '⚡ 速答壹拾佰',
-  'ccs-fastqa-open-all': '🚀 打开以下全部',
-  'ccs-copy': '📋 复制文本',
-  'ccs-base64': '🔤 Base64 编码',
-  'ccs-md5': '🔐 MD5 哈希',
-  'ccs-url-encode': '🔗 URL 编码',
-  'ccs-upper': '🔠 转换为大写',
-  'ccs-lower': '🔡 转换为小写',
-  'ccs-show-popover': '🪟 打开触触搜面板 (Alt+S)'
-};
+function getMenuDefinition(menuId) {
+  return MENU_DEFINITIONS[menuId] || null;
+}
 
-const MENU_FALLBACK_TITLES = {
-  'ccs-label': '🔍 触触搜',
-  'ccs-fastqa-chatgpt-quick': '触触搜 · 速答壹拾佰 - ChatGPT',
-  'ccs-fastqa-claude-quick': '触触搜 · 速答壹拾佰 - Claude',
-  'ccs-baidu': '百度搜索',
-  'ccs-google': 'Google搜索',
-  'ccs-tongyi': '通义千问',
-  'ccs-yiyan': '文心一言',
-  'ccs-chatgpt': 'ChatGPT',
-  'ccs-claude': 'Claude',
-  'ccs-zhihu': '知乎搜索',
-  'ccs-weixin': '微信搜一搜',
-  'ccs-taobao': '淘宝搜索',
-  'ccs-jd': '京东搜索',
-  'ccs-sov2ex': 'V2EX (sov2ex)',
-  'ccs-baidu-translate': '百度翻译',
-  'ccs-google-translate': 'Google 翻译',
-  'ccs-chuchusou': '更多搜索引擎...',
-  'ccs-top100-root': '触触搜百问',
-  'ccs-top100-open-all': '打开以下全部',
-  'ccs-fastqa-root': '速答壹拾佰',
-  'ccs-fastqa-open-all': '打开以下全部',
-  'ccs-copy': '复制文本',
-  'ccs-base64': 'Base64编码',
-  'ccs-md5': 'MD5哈希',
-  'ccs-url-encode': 'URL编码',
-  'ccs-upper': '转换为大写',
-  'ccs-lower': '转换为小写',
-  'ccs-show-popover': '打开触触搜面板 (Alt+S)'
-};
+function getMenuText(menuId, fallback) {
+  const definition = getMenuDefinition(menuId);
+  if (definition && typeof definition.text === 'string' && definition.text) {
+    return definition.text;
+  }
+  if (typeof fallback === 'string' && fallback) {
+    return fallback;
+  }
+  return menuId;
+}
 
 function getMenuTitle(menuId, fallback) {
-  return MENU_ITEM_TITLES[menuId] || fallback || MENU_FALLBACK_TITLES[menuId] || menuId;
+  const definition = getMenuDefinition(menuId);
+  const text = getMenuText(menuId, fallback);
+  if (definition && typeof definition.icon === 'string' && definition.icon.trim()) {
+    return `${definition.icon.trim()} ${text}`;
+  }
+  return text;
 }
 
 const OPTIMIZE_CATEGORY_TITLES = {
@@ -356,7 +342,7 @@ function updateFastQaQuickTitle(displayText) {
     const state = quickMenuState.get(item.id);
     if (!state?.registered) return;
     if (!isMenuEnabled(item.id)) return;
-    const baseTitle = getMenuTitle(item.id, MENU_FALLBACK_TITLES[item.id]);
+    const baseTitle = getMenuTitle(item.id);
     const title = formatted ? `${baseTitle}: "${formatted}"` : baseTitle;
     chrome.contextMenus.update(item.id, { title }, () => {
       if (chrome.runtime.lastError) {
@@ -381,7 +367,7 @@ function updateFastQaQuickTitle(displayText) {
 function updateSearchMenuTitles(displayText) {
   const formatted = displayText ? formatMenuTitle(displayText) : '';
   DYNAMIC_SEARCH_MENU_ITEMS.forEach((menuId) => {
-    const baseTitle = getMenuTitle(menuId, MENU_FALLBACK_TITLES[menuId]);
+    const baseTitle = getMenuTitle(menuId);
     const title = formatted ? `${baseTitle}: "${formatted}"` : baseTitle;
     chrome.contextMenus.update(menuId, { title }, () => {
       if (chrome.runtime.lastError) {
@@ -404,7 +390,7 @@ function updateSearchMenuTitles(displayText) {
 }
 
 function updateMainMenuTitle(displayText) {
-  const baseTitle = getMenuTitle('ccs-label', MENU_FALLBACK_TITLES['ccs-label']);
+  const baseTitle = getMenuTitle('ccs-label');
   const title = displayText ? `${baseTitle}: "${displayText}"` : baseTitle;
   chrome.contextMenus.update('ccs-main', { title }, () => {
     if (chrome.runtime.lastError) {
@@ -456,7 +442,7 @@ function setMenuState(rawText, normalizedText, meta) {
   updateFastQaQuickTitle(displayText);
   updateSearchMenuTitles(displayText);
   FAST_QA_MENU_ITEMS.forEach((menuId) => {
-    const baseTitle = getMenuTitle(menuId, MENU_FALLBACK_TITLES[menuId]);
+    const baseTitle = getMenuTitle(menuId);
     const title = displayText ? `${baseTitle}: "${displayText}"` : baseTitle;
     chrome.contextMenus.update(menuId, { title }, () => {
       if (chrome.runtime.lastError) {
