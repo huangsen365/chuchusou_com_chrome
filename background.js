@@ -53,10 +53,20 @@ let topQuestionsTemplate = '';
 const fastAnswersMenuMap = new Map();
 let fastAnswersConfig = null;
 let fastAnswersTemplate = '';
-let fastQaQuickRegistered = false;
-let fastQaQuickRegisteredClaude = false;
-const FAST_QA_QUICK_ID = 'ccs-fastqa-chatgpt-quick';
-const FAST_QA_QUICK_ID_CLAUDE = 'ccs-fastqa-claude-quick';
+const FAST_QA_QUICK_ITEMS = [
+  {
+    id: 'ccs-fastqa-chatgpt-quick',
+    engineId: 'chatgpt',
+    titleKey: 'chatgpt'
+  },
+  {
+    id: 'ccs-fastqa-claude-quick',
+    engineId: 'claude',
+    titleKey: 'claude'
+  }
+];
+
+const quickMenuState = new Map(FAST_QA_QUICK_ITEMS.map((item) => [item.id, { registered: false }]));
 
 let menuToggleConfig = null;
 
@@ -79,10 +89,14 @@ function logMenuEvent(stage, payload) {
   }
 }
 
+const QUICK_MENU_TITLES = {
+  'ccs-fastqa-chatgpt-quick': '🤖 触触搜 · 速答壹拾佰 - ChatGPT',
+  'ccs-fastqa-claude-quick': '🧠 触触搜 · 速答壹拾佰 - Claude'
+};
+
 const MENU_ITEM_TITLES = {
   'ccs-label': '🔍 触触搜',
-  [FAST_QA_QUICK_ID]: '🤖 触触搜 · 速答壹拾佰 - ChatGPT',
-  [FAST_QA_QUICK_ID_CLAUDE]: '🧠 触触搜 · 速答壹拾佰 - Claude',
+  ...QUICK_MENU_TITLES,
   'ccs-baidu': '🐼 百度搜索',
   'ccs-google': '🔎 Google 搜索',
   'ccs-yiyan': '🧠 文心一言',
@@ -111,8 +125,8 @@ const MENU_ITEM_TITLES = {
 
 const MENU_FALLBACK_TITLES = {
   'ccs-label': '🔍 触触搜',
-  [FAST_QA_QUICK_ID]: '触触搜 · 速答壹拾佰 - ChatGPT',
-  [FAST_QA_QUICK_ID_CLAUDE]: '触触搜 · 速答壹拾佰 - Claude',
+  'ccs-fastqa-chatgpt-quick': '触触搜 · 速答壹拾佰 - ChatGPT',
+  'ccs-fastqa-claude-quick': '触触搜 · 速答壹拾佰 - Claude',
   'ccs-baidu': '百度搜索',
   'ccs-google': 'Google搜索',
   'ccs-yiyan': '文心一言',
@@ -175,25 +189,43 @@ const FAST_ANSWER_ENGINE_TITLES = {
 
 function updateFastQaQuickTitle(displayText) {
   const formatted = displayText ? formatMenuTitle(displayText) : '';
-  if (fastQaQuickRegistered && isMenuEnabled(FAST_QA_QUICK_ID)) {
-    const baseTitle = getMenuTitle(FAST_QA_QUICK_ID, MENU_FALLBACK_TITLES[FAST_QA_QUICK_ID]);
+  FAST_QA_QUICK_ITEMS.forEach((item) => {
+    const state = quickMenuState.get(item.id);
+    if (!state?.registered) return;
+    if (!isMenuEnabled(item.id)) return;
+    const baseTitle = getMenuTitle(item.id, MENU_FALLBACK_TITLES[item.id]);
     const title = formatted ? `${baseTitle}: "${formatted}"` : baseTitle;
-    chrome.contextMenus.update(FAST_QA_QUICK_ID, { title });
-    logMenuEvent('fastqa-quick-title-chatgpt', { title, formatted });
-  }
-  if (fastQaQuickRegisteredClaude && isMenuEnabled(FAST_QA_QUICK_ID_CLAUDE)) {
-    const baseTitleClaude = getMenuTitle(FAST_QA_QUICK_ID_CLAUDE, MENU_FALLBACK_TITLES[FAST_QA_QUICK_ID_CLAUDE]);
-    const titleClaude = formatted ? `${baseTitleClaude}: "${formatted}"` : baseTitleClaude;
-    chrome.contextMenus.update(FAST_QA_QUICK_ID_CLAUDE, { title: titleClaude });
-    logMenuEvent('fastqa-quick-title-claude', { title: titleClaude, formatted });
-  }
+    chrome.contextMenus.update(item.id, { title }, () => {
+      if (chrome.runtime.lastError) {
+        const msg = chrome.runtime.lastError.message || '';
+        if (!/Cannot find menu item/i.test(msg)) {
+          logMenuEvent('fastqa-quick-title-update-failed', { id: item.id, error: msg });
+        }
+      }
+    });
+    logMenuEvent('fastqa-quick-title', { id: item.id, title, formatted });
+  });
 }
 
 function updateMainMenuTitle(displayText) {
   const baseTitle = getMenuTitle('ccs-label', MENU_FALLBACK_TITLES['ccs-label']);
   const title = displayText ? `${baseTitle}: "${displayText}"` : baseTitle;
-  chrome.contextMenus.update('ccs-main', { title });
-  chrome.contextMenus.update('ccs-label', { title });
+  chrome.contextMenus.update('ccs-main', { title }, () => {
+    if (chrome.runtime.lastError) {
+      const msg = chrome.runtime.lastError.message || '';
+      if (!/Cannot find menu item/i.test(msg)) {
+        logMenuEvent('main-title-update-failed', { error: msg });
+      }
+    }
+  });
+  chrome.contextMenus.update('ccs-label', { title }, () => {
+    if (chrome.runtime.lastError) {
+      const msg = chrome.runtime.lastError.message || '';
+      if (!/Cannot find menu item/i.test(msg)) {
+        logMenuEvent('label-title-update-failed', { error: msg });
+      }
+    }
+  });
   if (chrome.action && chrome.action.setTitle) {
     chrome.action.setTitle({ title });
   }
@@ -803,23 +835,20 @@ function createContextMenus() {
 
     topQuestionsMenuMap.clear();
     fastAnswersMenuMap.clear();
-    fastQaQuickRegistered = false;
-    fastQaQuickRegisteredClaude = false;
+    quickMenuState.forEach((state) => { state.registered = false; });
 
     const top100RootEnabled = isMenuEnabled('ccs-top100-root');
     const top100OpenAllEnabled = top100RootEnabled && isMenuEnabled('ccs-top100-open-all');
-    const fastQaQuickEnabled = isMenuEnabled(FAST_QA_QUICK_ID);
-    const fastQaQuickEnabledClaude = isMenuEnabled(FAST_QA_QUICK_ID_CLAUDE);
+    const quickEnabledMap = new Map(FAST_QA_QUICK_ITEMS.map((item) => [item.id, isMenuEnabled(item.id)]));
     const fastQaRootEnabled = isMenuEnabled('ccs-fastqa-root');
     const fastQaOpenAllEnabled = fastQaRootEnabled && isMenuEnabled('ccs-fastqa-open-all');
     const optimizeRootEnabled = isMenuEnabled('ccs-optimize-root');
     const hasAdvancedSections = top100RootEnabled || fastQaRootEnabled || optimizeRootEnabled;
-    const needsFastAnswersConfig = fastQaRootEnabled || fastQaQuickEnabled || fastQaQuickEnabledClaude;
+    const needsFastAnswersConfig = fastQaRootEnabled || FAST_QA_QUICK_ITEMS.some((item) => quickEnabledMap.get(item.id));
     logMenuEvent('toggle-status', {
       top100RootEnabled,
       top100OpenAllEnabled,
-      fastQaQuickEnabled,
-      fastQaQuickEnabledClaude,
+      quickEnabled: Object.fromEntries(quickEnabledMap.entries()),
       fastQaRootEnabled,
       fastQaOpenAllEnabled,
       optimizeRootEnabled,
@@ -836,39 +865,26 @@ function createContextMenus() {
     contexts: ['selection', 'page']
   });
 
-  if (fastQaQuickEnabled) {
+  FAST_QA_QUICK_ITEMS.forEach((item) => {
+    if (!quickEnabledMap.get(item.id)) {
+      return;
+    }
     chrome.contextMenus.create({
-      id: FAST_QA_QUICK_ID,
+      id: item.id,
       parentId: 'ccs-main',
-      title: getMenuTitle(FAST_QA_QUICK_ID, MENU_FALLBACK_TITLES[FAST_QA_QUICK_ID]),
+      title: getMenuTitle(item.id, MENU_FALLBACK_TITLES[item.id]),
       contexts: ['selection', 'page', 'editable']
     }, () => {
       if (chrome.runtime.lastError) {
-        logMenuEvent('fastqa-quick-child-create-failed', { error: chrome.runtime.lastError.message });
+        logMenuEvent('fastqa-quick-child-create-failed', { id: item.id, error: chrome.runtime.lastError.message });
       } else {
-        fastQaQuickRegistered = true;
+        const state = quickMenuState.get(item.id);
+        if (state) state.registered = true;
         updateFastQaQuickTitle(currentMenuState.display);
-        logMenuEvent('fastqa-quick-child-created', {});
+        logMenuEvent('fastqa-quick-child-created', { id: item.id });
       }
     });
-  }
-
-  if (fastQaQuickEnabledClaude) {
-    chrome.contextMenus.create({
-      id: FAST_QA_QUICK_ID_CLAUDE,
-      parentId: 'ccs-main',
-      title: getMenuTitle(FAST_QA_QUICK_ID_CLAUDE, MENU_FALLBACK_TITLES[FAST_QA_QUICK_ID_CLAUDE]),
-      contexts: ['selection', 'page', 'editable']
-    }, () => {
-      if (chrome.runtime.lastError) {
-        logMenuEvent('fastqa-quick-claude-child-create-failed', { error: chrome.runtime.lastError.message });
-      } else {
-        fastQaQuickRegisteredClaude = true;
-        updateFastQaQuickTitle(currentMenuState.display);
-        logMenuEvent('fastqa-quick-claude-child-created', {});
-      }
-    });
-  }
+  });
 
   chrome.contextMenus.create({
     id: 'ccs-separator-0',
@@ -1026,8 +1042,9 @@ function createContextMenus() {
             engines: (config.engines || []).map((engine) => ({
               id: engine?.id,
               enabled: isMenuEnabled(`ccs-fastqa-${engine?.id}`),
-              quickChatgpt: engine?.id === 'chatgpt' && fastQaQuickEnabled,
-              quickClaude: engine?.id === 'claude' && fastQaQuickEnabledClaude
+              quickTargets: FAST_QA_QUICK_ITEMS
+                .filter((item) => item.engineId === engine?.id && quickEnabledMap.get(item.id))
+                .map((item) => item.id)
             }))
           });
           (config.engines || []).forEach((engine) => {
@@ -1043,16 +1060,13 @@ function createContextMenus() {
               });
               fastAnswersMenuMap.set(menuId, { urlPattern });
             }
-            if (fastQaQuickEnabled && engine.id === 'chatgpt') {
-              fastAnswersMenuMap.set(FAST_QA_QUICK_ID, { urlPattern });
-              logMenuEvent('fastqa-quick-url-ready-chatgpt', { urlPattern });
+            FAST_QA_QUICK_ITEMS.forEach((item) => {
+              if (item.engineId !== engine.id) return;
+              if (!quickEnabledMap.get(item.id)) return;
+              fastAnswersMenuMap.set(item.id, { urlPattern });
+              logMenuEvent('fastqa-quick-url-ready', { id: item.id, urlPattern });
               updateFastQaQuickTitle(currentMenuState.display);
-            }
-            if (fastQaQuickEnabledClaude && engine.id === 'claude') {
-              fastAnswersMenuMap.set(FAST_QA_QUICK_ID_CLAUDE, { urlPattern });
-              logMenuEvent('fastqa-quick-url-ready-claude', { urlPattern });
-              updateFastQaQuickTitle(currentMenuState.display);
-            }
+            });
           });
         })
         .catch((error) => {
@@ -1470,14 +1484,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           }
         });
       } else {
-        const engineKey = info.menuItemId.replace('ccs-fastqa-', '');
-        let engineId = engineKey;
-        if (engineId.endsWith('-shortcut')) {
-          engineId = engineId.replace(/-shortcut$/, '');
-        }
-        if (engineId.endsWith('-quick')) {
-          engineId = engineId.replace(/-quick$/, '');
-        }
+        const quickItem = FAST_QA_QUICK_ITEMS.find((item) => item.id === info.menuItemId);
+        let engineId = quickItem ? quickItem.engineId : info.menuItemId.replace('ccs-fastqa-', '').replace(/-(shortcut|quick)$/, '');
         let menuTarget = fastAnswersMenuMap.get(info.menuItemId);
         if (!menuTarget) {
           const engine = (config.engines || []).find((item) => item.id === engineId);
