@@ -1310,6 +1310,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         text: rawText,
         url: sender.tab.url || ''
       };
+      const normalizedSelection = normalizeSearchText(rawText);
+      setMenuState(rawText, normalizedSelection || rawText);
     } else {
       delete selectedTextByTab[tabId];
     }
@@ -1348,6 +1350,10 @@ async function updateContextMenuForTab(tab) {
 // 处理右键菜单点击
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   await loadMenuToggleConfig();
+  const selectionText = typeof info.selectionText === 'string' ? info.selectionText.trim() : '';
+  if (selectionText) {
+    setMenuState(selectionText, normalizeSearchText(selectionText));
+  }
   const { raw: rawText, normalized: normalizedText } = await computeSearchTextForTab({
     tabId: tab?.id,
     tabUrl: tab?.url,
@@ -1753,6 +1759,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 if (chrome.contextMenus.onShown && typeof chrome.contextMenus.onShown.addListener === 'function') {
   chrome.contextMenus.onShown.addListener(async (info, tab) => {
     try {
+      const selectionText = typeof info.selectionText === 'string' ? info.selectionText.trim() : '';
+      if (selectionText) {
+        setMenuState(selectionText, normalizeSearchText(selectionText));
+      }
       const result = await computeSearchTextForTab({
         tabId: tab?.id,
         tabUrl: tab?.url,
