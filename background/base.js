@@ -340,6 +340,11 @@ const DYNAMIC_SEARCH_MENU_ITEMS = [
   'ccs-claude'
 ];
 
+const FAST_QA_MENU_ITEMS = [
+  'ccs-fastqa-root',
+  'ccs-fastqa-open-all'
+];
+
 function updateFastQaQuickTitle(displayText) {
   const formatted = displayText ? formatMenuTitle(displayText) : '';
   const snapshot = {
@@ -450,6 +455,27 @@ function setMenuState(rawText, normalizedText, meta) {
   updateMainMenuTitle(displayText);
   updateFastQaQuickTitle(displayText);
   updateSearchMenuTitles(displayText);
+  FAST_QA_MENU_ITEMS.forEach((menuId) => {
+    const baseTitle = getMenuTitle(menuId, MENU_FALLBACK_TITLES[menuId]);
+    const title = displayText ? `${baseTitle}: "${displayText}"` : baseTitle;
+    chrome.contextMenus.update(menuId, { title }, () => {
+      if (chrome.runtime.lastError) {
+        const msg = chrome.runtime.lastError.message || '';
+        if (!/Cannot find menu item/i.test(msg)) {
+          logMenuEvent('fastqa-menu-title-update-failed', { id: menuId, error: msg });
+        }
+      }
+    });
+    logMenuEvent('fastqa-menu-title', {
+      id: menuId,
+      title,
+      baseTitle,
+      formatted: displayText ? formatMenuTitle(displayText) : '',
+      menuDisplay: currentMenuState?.display || '',
+      menuRaw: currentMenuState?.raw || '',
+      menuNormalized: currentMenuState?.normalized || ''
+    });
+  });
   if (chrome.contextMenus.refresh) {
     chrome.contextMenus.refresh();
   }

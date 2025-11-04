@@ -16,6 +16,8 @@
 - 关键词预抓取：在标签页加载/激活时预计算 `prefetch-menu-state`，保证首次右键即可显示最新关键词。
 - URL 关键词不再写入选区缓存：防止旧的备选词覆盖真正的用户选区，确保二级菜单首次同步成功。
 - 二级菜单日志：`search-menu-title` 输出 `ccs-chuchusou` / `ccs-chatgpt` / `ccs-claude` 的实时标题与菜单快照，便于排查速答入口。
+- 速答菜单日志：`fastqa-menu-title` 记录 `ccs-fastqa-root` / `ccs-fastqa-open-all` 的最新标题与快照。
+- 菜单快照：`menu-title-snapshot` 在右键弹出后抓取核心菜单项的实际标题，用于比对更新是否落地。
 
 ## v2.0.0 (2025-08-26) 🚀 重大更新
 

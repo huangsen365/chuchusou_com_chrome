@@ -6,6 +6,16 @@ if (chrome.runtime.onStartup) {
 // 预加载调试开关与图标支持状态
 ensureMenuIconSupportLoaded();
 
+const MENU_TITLE_DEBUG_IDS = [
+  'ccs-fastqa-chatgpt-quick',
+  'ccs-fastqa-claude-quick',
+  'ccs-fastqa-root',
+  'ccs-fastqa-open-all',
+  'ccs-chuchusou',
+  'ccs-chatgpt',
+  'ccs-claude'
+];
+
 async function prefetchMenuState(tab, reason = 'unknown') {
   const tabId = tab?.id;
   const url = tab?.url || '';
@@ -45,6 +55,36 @@ async function prefetchMenuState(tab, reason = 'unknown') {
       error: error?.message || String(error)
     });
   }
+}
+
+function snapshotMenuTitles(reason) {
+  MENU_TITLE_DEBUG_IDS.forEach((menuId) => {
+    try {
+      chrome.contextMenus.get(menuId, (menu) => {
+        if (chrome.runtime.lastError || !menu) {
+          logMenuEvent('menu-title-snapshot-failed', {
+            reason,
+            id: menuId,
+            error: chrome.runtime.lastError?.message || 'not-found'
+          });
+          return;
+        }
+        logMenuEvent('menu-title-snapshot', {
+          reason,
+          id: menuId,
+          title: menu.title,
+          contexts: menu.contexts,
+          enabled: menu.enabled
+        });
+      });
+    } catch (error) {
+      logMenuEvent('menu-title-snapshot-exception', {
+        reason,
+        id: menuId,
+        error: error?.message || String(error)
+      });
+    }
+  });
 }
 
 async function reinjectContentForTab(tabId, reason) {
@@ -519,6 +559,7 @@ if (chrome.contextMenus.onShown) {
           error: error?.message || String(error)
         });
       } finally {
+        snapshotMenuTitles('onShown-final');
         if (chrome.contextMenus.refresh) {
           chrome.contextMenus.refresh();
         }
