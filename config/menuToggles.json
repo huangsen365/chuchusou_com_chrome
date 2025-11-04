@@ -2,5 +2,6 @@
   "ccs-yiyan": false,
   "ccs-top100-yiyan": false,
   "ccs-fastqa-yiyan": false,
-  "ccs-fastqa-chatgpt-quick": true
+  "ccs-fastqa-chatgpt-quick": true,
+  "ccs-fastqa-claude-quick": true
 }

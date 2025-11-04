@@ -54,7 +54,9 @@ const fastAnswersMenuMap = new Map();
 let fastAnswersConfig = null;
 let fastAnswersTemplate = '';
 let fastQaQuickRegistered = false;
+let fastQaQuickRegisteredClaude = false;
 const FAST_QA_QUICK_ID = 'ccs-fastqa-chatgpt-quick';
+const FAST_QA_QUICK_ID_CLAUDE = 'ccs-fastqa-claude-quick';
 
 let menuToggleConfig = null;
 
@@ -80,6 +82,7 @@ function logMenuEvent(stage, payload) {
 const MENU_ITEM_TITLES = {
   'ccs-label': '🔍 触触搜',
   [FAST_QA_QUICK_ID]: '🤖 触触搜 · 速答壹拾佰 - ChatGPT',
+  [FAST_QA_QUICK_ID_CLAUDE]: '🧠 触触搜 · 速答壹拾佰 - Claude',
   'ccs-baidu': '🐼 百度搜索',
   'ccs-google': '🔎 Google 搜索',
   'ccs-yiyan': '🧠 文心一言',
@@ -109,6 +112,7 @@ const MENU_ITEM_TITLES = {
 const MENU_FALLBACK_TITLES = {
   'ccs-label': '🔍 触触搜',
   [FAST_QA_QUICK_ID]: '触触搜 · 速答壹拾佰 - ChatGPT',
+  [FAST_QA_QUICK_ID_CLAUDE]: '触触搜 · 速答壹拾佰 - Claude',
   'ccs-baidu': '百度搜索',
   'ccs-google': 'Google搜索',
   'ccs-yiyan': '文心一言',
@@ -170,13 +174,19 @@ const FAST_ANSWER_ENGINE_TITLES = {
 };
 
 function updateFastQaQuickTitle(displayText) {
-  if (!fastQaQuickRegistered) return;
-  if (!isMenuEnabled(FAST_QA_QUICK_ID)) return;
-  const baseTitle = getMenuTitle(FAST_QA_QUICK_ID, MENU_FALLBACK_TITLES[FAST_QA_QUICK_ID]);
   const formatted = displayText ? formatMenuTitle(displayText) : '';
-  const title = formatted ? `${baseTitle}: "${formatted}"` : baseTitle;
-  chrome.contextMenus.update(FAST_QA_QUICK_ID, { title });
-  logMenuEvent('fastqa-quick-title', { title, formatted });
+  if (fastQaQuickRegistered && isMenuEnabled(FAST_QA_QUICK_ID)) {
+    const baseTitle = getMenuTitle(FAST_QA_QUICK_ID, MENU_FALLBACK_TITLES[FAST_QA_QUICK_ID]);
+    const title = formatted ? `${baseTitle}: "${formatted}"` : baseTitle;
+    chrome.contextMenus.update(FAST_QA_QUICK_ID, { title });
+    logMenuEvent('fastqa-quick-title-chatgpt', { title, formatted });
+  }
+  if (fastQaQuickRegisteredClaude && isMenuEnabled(FAST_QA_QUICK_ID_CLAUDE)) {
+    const baseTitleClaude = getMenuTitle(FAST_QA_QUICK_ID_CLAUDE, MENU_FALLBACK_TITLES[FAST_QA_QUICK_ID_CLAUDE]);
+    const titleClaude = formatted ? `${baseTitleClaude}: "${formatted}"` : baseTitleClaude;
+    chrome.contextMenus.update(FAST_QA_QUICK_ID_CLAUDE, { title: titleClaude });
+    logMenuEvent('fastqa-quick-title-claude', { title: titleClaude, formatted });
+  }
 }
 
 function updateMainMenuTitle(displayText) {
@@ -794,19 +804,22 @@ function createContextMenus() {
     topQuestionsMenuMap.clear();
     fastAnswersMenuMap.clear();
     fastQaQuickRegistered = false;
+    fastQaQuickRegisteredClaude = false;
 
     const top100RootEnabled = isMenuEnabled('ccs-top100-root');
     const top100OpenAllEnabled = top100RootEnabled && isMenuEnabled('ccs-top100-open-all');
     const fastQaQuickEnabled = isMenuEnabled(FAST_QA_QUICK_ID);
+    const fastQaQuickEnabledClaude = isMenuEnabled(FAST_QA_QUICK_ID_CLAUDE);
     const fastQaRootEnabled = isMenuEnabled('ccs-fastqa-root');
     const fastQaOpenAllEnabled = fastQaRootEnabled && isMenuEnabled('ccs-fastqa-open-all');
     const optimizeRootEnabled = isMenuEnabled('ccs-optimize-root');
     const hasAdvancedSections = top100RootEnabled || fastQaRootEnabled || optimizeRootEnabled;
-    const needsFastAnswersConfig = fastQaRootEnabled || fastQaQuickEnabled;
+    const needsFastAnswersConfig = fastQaRootEnabled || fastQaQuickEnabled || fastQaQuickEnabledClaude;
     logMenuEvent('toggle-status', {
       top100RootEnabled,
       top100OpenAllEnabled,
       fastQaQuickEnabled,
+      fastQaQuickEnabledClaude,
       fastQaRootEnabled,
       fastQaOpenAllEnabled,
       optimizeRootEnabled,
@@ -836,6 +849,23 @@ function createContextMenus() {
         fastQaQuickRegistered = true;
         updateFastQaQuickTitle(currentMenuState.display);
         logMenuEvent('fastqa-quick-child-created', {});
+      }
+    });
+  }
+
+  if (fastQaQuickEnabledClaude) {
+    chrome.contextMenus.create({
+      id: FAST_QA_QUICK_ID_CLAUDE,
+      parentId: 'ccs-main',
+      title: getMenuTitle(FAST_QA_QUICK_ID_CLAUDE, MENU_FALLBACK_TITLES[FAST_QA_QUICK_ID_CLAUDE]),
+      contexts: ['selection', 'page', 'editable']
+    }, () => {
+      if (chrome.runtime.lastError) {
+        logMenuEvent('fastqa-quick-claude-child-create-failed', { error: chrome.runtime.lastError.message });
+      } else {
+        fastQaQuickRegisteredClaude = true;
+        updateFastQaQuickTitle(currentMenuState.display);
+        logMenuEvent('fastqa-quick-claude-child-created', {});
       }
     });
   }
@@ -996,7 +1026,8 @@ function createContextMenus() {
             engines: (config.engines || []).map((engine) => ({
               id: engine?.id,
               enabled: isMenuEnabled(`ccs-fastqa-${engine?.id}`),
-              quickTarget: engine?.id === 'chatgpt' && fastQaQuickEnabled
+              quickChatgpt: engine?.id === 'chatgpt' && fastQaQuickEnabled,
+              quickClaude: engine?.id === 'claude' && fastQaQuickEnabledClaude
             }))
           });
           (config.engines || []).forEach((engine) => {
@@ -1014,7 +1045,12 @@ function createContextMenus() {
             }
             if (fastQaQuickEnabled && engine.id === 'chatgpt') {
               fastAnswersMenuMap.set(FAST_QA_QUICK_ID, { urlPattern });
-              logMenuEvent('fastqa-quick-url-ready', { urlPattern });
+              logMenuEvent('fastqa-quick-url-ready-chatgpt', { urlPattern });
+              updateFastQaQuickTitle(currentMenuState.display);
+            }
+            if (fastQaQuickEnabledClaude && engine.id === 'claude') {
+              fastAnswersMenuMap.set(FAST_QA_QUICK_ID_CLAUDE, { urlPattern });
+              logMenuEvent('fastqa-quick-url-ready-claude', { urlPattern });
               updateFastQaQuickTitle(currentMenuState.display);
             }
           });
