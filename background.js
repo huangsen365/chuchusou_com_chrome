@@ -53,14 +53,27 @@ let topQuestionsTemplate = '';
 const fastAnswersMenuMap = new Map();
 let fastAnswersConfig = null;
 let fastAnswersTemplate = '';
+let fastQaQuickRegistered = false;
+const FAST_QA_QUICK_ID = 'ccs-fastqa-grok-quick';
 
 let menuToggleConfig = null;
 
 let menuIconConfig = null;
 const menuIconImageCache = new Map();
+let menuIconUpdateSupported = true;
+
+const LOG_PREFIX = '[触触搜][MENU]';
+function logMenuEvent(stage, payload) {
+  try {
+    console.info(`${LOG_PREFIX} ${stage}`, payload ?? {});
+  } catch (_) {
+    // ignore logging errors
+  }
+}
 
 const MENU_ITEM_TITLES = {
   'ccs-label': '🔍 触触搜',
+  [FAST_QA_QUICK_ID]: '🦊 触触搜 · 速答壹拾佰 - Grok',
   'ccs-baidu': '🐼 百度搜索',
   'ccs-google': '🔎 Google 搜索',
   'ccs-yiyan': '🧠 文心一言',
@@ -89,6 +102,7 @@ const MENU_ITEM_TITLES = {
 
 const MENU_FALLBACK_TITLES = {
   'ccs-label': '🔍 触触搜',
+  [FAST_QA_QUICK_ID]: '触触搜 · 速答壹拾佰 - Grok',
   'ccs-baidu': '百度搜索',
   'ccs-google': 'Google搜索',
   'ccs-yiyan': '文心一言',
@@ -149,16 +163,33 @@ const FAST_ANSWER_ENGINE_TITLES = {
   'yiyan': '🧠 文心一言'
 };
 
+function updateFastQaQuickTitle(displayText) {
+  if (!fastQaQuickRegistered) return;
+  if (!isMenuEnabled(FAST_QA_QUICK_ID)) return;
+  const baseTitle = getMenuTitle(FAST_QA_QUICK_ID, MENU_FALLBACK_TITLES[FAST_QA_QUICK_ID]);
+  const formatted = displayText ? formatMenuTitle(displayText) : '';
+  const title = formatted ? `${baseTitle}: "${formatted}"` : baseTitle;
+  chrome.contextMenus.update(FAST_QA_QUICK_ID, { title });
+  logMenuEvent('fastqa-quick-title', { title, formatted });
+}
+
+function updateMainMenuTitle(displayText) {
+  const baseTitle = getMenuTitle('ccs-label', MENU_FALLBACK_TITLES['ccs-label']);
+  const title = displayText ? `${baseTitle}: "${displayText}"` : baseTitle;
+  chrome.contextMenus.update('ccs-main', { title });
+  chrome.contextMenus.update('ccs-label', { title });
+  if (chrome.action && chrome.action.setTitle) {
+    chrome.action.setTitle({ title });
+  }
+  logMenuEvent('main-title', { title, displayText });
+}
+
 function applyMenuTitle(normalizedText) {
   if (normalizedText) {
     const displayText = formatMenuTitle(normalizedText);
     if (displayText) {
-      chrome.contextMenus.update('ccs-main', {
-        title: `🔍 触触搜: "${displayText}"`
-      });
-      chrome.contextMenus.update('ccs-label', {
-        title: `🔍 触触搜: "${displayText}"`
-      });
+      updateMainMenuTitle(displayText);
+      updateFastQaQuickTitle(displayText);
       if (chrome.contextMenus.refresh) {
         chrome.contextMenus.refresh();
       }
@@ -166,8 +197,8 @@ function applyMenuTitle(normalizedText) {
     }
   }
 
-  chrome.contextMenus.update('ccs-main', { title: '🔍 触触搜' });
-  chrome.contextMenus.update('ccs-label', { title: '🔍 触触搜' });
+  updateMainMenuTitle('');
+  updateFastQaQuickTitle('');
   if (chrome.contextMenus.refresh) {
     chrome.contextMenus.refresh();
   }
@@ -465,6 +496,10 @@ async function resolveMenuIconTargets(iconConfig) {
 }
 
 async function applyMenuIcons(buildId) {
+  if (!menuIconUpdateSupported) {
+    logMenuEvent('icon-skip', { reason: 'unsupported' });
+    return;
+  }
   const config = await loadMenuIconConfig();
   if (buildId !== menuBuildCounter) return;
   if (!config?.items) return;
@@ -475,10 +510,17 @@ async function applyMenuIcons(buildId) {
       if (!isMenuEnabled(menuId)) return;
       const icons = await resolveMenuIconTargets(iconCfg);
       if (!icons || buildId !== menuBuildCounter) return;
+      if (!menuIconUpdateSupported) return;
       BG_DBG('[触触搜][BG][ICON] updating menu icon', { menuId, icons: Object.keys(icons) });
       chrome.contextMenus.update(menuId, { icons }, () => {
         if (chrome.runtime.lastError) {
-          console.warn('[触触搜][BG] 更新菜单图标失败:', menuId, chrome.runtime.lastError.message);
+          const msg = chrome.runtime.lastError.message || '';
+          console.warn('[触触搜][BG] 更新菜单图标失败:', menuId, msg);
+          logMenuEvent('icon-update-error', { menuId, message: msg });
+          if (/Unexpected property: 'icons'/i.test(msg)) {
+            menuIconUpdateSupported = false;
+            logMenuEvent('icon-disable', { reason: msg });
+          }
         } else {
           BG_DBG('[触触搜][BG][ICON] menu icon applied', menuId);
         }
@@ -730,32 +772,75 @@ function createContextMenus() {
     await loadMenuToggleConfig();
     BG_DBG('[触触搜][BG][MENU] rebuilding context menus', { buildId });
     optimizedPromptMenuMap.clear();
+    logMenuEvent('rebuild-start', { buildId });
     
     // 创建主菜单 - 对选中文本和页面都生效
     chrome.contextMenus.create({
       id: 'ccs-main',
       title: '🔍 触触搜',
       contexts: ['selection', 'page']
-    });
-
-    // 创建标签项（不可点击，仅显示）
-    chrome.contextMenus.create({
-      id: 'ccs-label',
-      parentId: 'ccs-main',
-      title: getMenuTitle('ccs-label', '触触搜'),
-      enabled: false,  // 禁用使其不可点击
-      contexts: ['selection', 'page']
-    });
-
-    chrome.contextMenus.create({
-      id: 'ccs-separator-0',
-      parentId: 'ccs-main',
-      type: 'separator',
-      contexts: ['selection', 'page']
+    }, () => {
+      if (chrome.runtime.lastError) {
+        logMenuEvent('create-main-failed', { error: chrome.runtime.lastError.message });
+      }
     });
 
     topQuestionsMenuMap.clear();
     fastAnswersMenuMap.clear();
+    fastQaQuickRegistered = false;
+
+    const top100RootEnabled = isMenuEnabled('ccs-top100-root');
+    const top100OpenAllEnabled = top100RootEnabled && isMenuEnabled('ccs-top100-open-all');
+    const fastQaQuickEnabled = isMenuEnabled(FAST_QA_QUICK_ID);
+    const fastQaRootEnabled = isMenuEnabled('ccs-fastqa-root');
+    const fastQaOpenAllEnabled = fastQaRootEnabled && isMenuEnabled('ccs-fastqa-open-all');
+    const optimizeRootEnabled = isMenuEnabled('ccs-optimize-root');
+    const hasAdvancedSections = top100RootEnabled || fastQaRootEnabled || optimizeRootEnabled;
+    const needsFastAnswersConfig = fastQaRootEnabled || fastQaQuickEnabled;
+    logMenuEvent('toggle-status', {
+      top100RootEnabled,
+      top100OpenAllEnabled,
+      fastQaQuickEnabled,
+      fastQaRootEnabled,
+      fastQaOpenAllEnabled,
+      optimizeRootEnabled,
+      hasAdvancedSections,
+      needsFastAnswersConfig
+    });
+
+    // 创建标签项（不可点击，仅显示）
+  chrome.contextMenus.create({
+    id: 'ccs-label',
+    parentId: 'ccs-main',
+    title: getMenuTitle('ccs-label', '触触搜'),
+    enabled: false,  // 禁用使其不可点击
+    contexts: ['selection', 'page']
+  });
+
+  if (fastQaQuickEnabled) {
+    chrome.contextMenus.create({
+      id: FAST_QA_QUICK_ID,
+      parentId: 'ccs-main',
+      title: getMenuTitle(FAST_QA_QUICK_ID, MENU_FALLBACK_TITLES[FAST_QA_QUICK_ID]),
+      contexts: ['selection', 'page', 'editable']
+    }, () => {
+      if (chrome.runtime.lastError) {
+        logMenuEvent('fastqa-quick-child-create-failed', { error: chrome.runtime.lastError.message });
+      } else {
+        fastQaQuickRegistered = true;
+        updateFastQaQuickTitle('');
+        logMenuEvent('fastqa-quick-child-created', {});
+      }
+    });
+  }
+
+  chrome.contextMenus.create({
+    id: 'ccs-separator-0',
+    parentId: 'ccs-main',
+    type: 'separator',
+    contexts: ['selection', 'page']
+  });
+  updateMainMenuTitle('');
 
     // 创建子菜单项
     const aiMenuItems = [
@@ -807,8 +892,6 @@ function createContextMenus() {
 
     const asyncTasks = [];
 
-    const hasAdvancedSections = isMenuEnabled('ccs-top100-root') || isMenuEnabled('ccs-fastqa-root') || isMenuEnabled('ccs-optimize-root');
-
     if (hasAdvancedSections) {
       chrome.contextMenus.create({
         id: 'ccs-separator-optimized',
@@ -818,7 +901,7 @@ function createContextMenus() {
       });
     }
 
-    if (isMenuEnabled('ccs-top100-root')) {
+    if (top100RootEnabled) {
       chrome.contextMenus.create({
         id: 'ccs-top100-root',
         parentId: 'ccs-main',
@@ -826,7 +909,7 @@ function createContextMenus() {
         contexts: ['selection', 'page']
       });
 
-      if (isMenuEnabled('ccs-top100-open-all')) {
+      if (top100OpenAllEnabled) {
         chrome.contextMenus.create({
           id: 'ccs-top100-open-all',
           parentId: 'ccs-top100-root',
@@ -869,7 +952,8 @@ function createContextMenus() {
       asyncTasks.push(topQuestionsTask);
     }
 
-    if (isMenuEnabled('ccs-fastqa-root')) {
+    let fastAnswersTask = null;
+    if (fastQaRootEnabled) {
       chrome.contextMenus.create({
         id: 'ccs-fastqa-root',
         parentId: 'ccs-main',
@@ -877,7 +961,7 @@ function createContextMenus() {
         contexts: ['selection', 'page']
       });
 
-      if (isMenuEnabled('ccs-fastqa-open-all')) {
+      if (fastQaOpenAllEnabled) {
         chrome.contextMenus.create({
           id: 'ccs-fastqa-open-all',
           parentId: 'ccs-fastqa-root',
@@ -892,35 +976,50 @@ function createContextMenus() {
         type: 'separator',
         contexts: ['selection', 'page']
       });
+    }
 
-      const fastAnswersTask = loadFastAnswersConfig()
+    if (needsFastAnswersConfig) {
+      fastAnswersTask = loadFastAnswersConfig()
         .then((config) => {
           if (buildId !== menuBuildCounter) {
             return;
           }
           if (!config) return;
+          logMenuEvent('fastqa-config-loaded', {
+            engines: (config.engines || []).map((engine) => ({
+              id: engine?.id,
+              enabled: isMenuEnabled(`ccs-fastqa-${engine?.id}`),
+              quickTarget: engine?.id === 'grok' && fastQaQuickEnabled
+            }))
+          });
           (config.engines || []).forEach((engine) => {
             const menuId = `ccs-fastqa-${engine.id}`;
-            if (!isMenuEnabled(menuId)) return;
-            const engineTitle = FAST_ANSWER_ENGINE_TITLES[engine.id] || engine.label;
-            chrome.contextMenus.create({
-              id: menuId,
-              parentId: 'ccs-fastqa-root',
-              title: engineTitle,
-              contexts: ['selection', 'page']
-            });
-            fastAnswersMenuMap.set(menuId, {
-              urlPattern: engine.urlPattern || ''
-            });
+            const urlPattern = engine.urlPattern || '';
+            if (fastQaRootEnabled && isMenuEnabled(menuId)) {
+              const engineTitle = FAST_ANSWER_ENGINE_TITLES[engine.id] || engine.label;
+              chrome.contextMenus.create({
+                id: menuId,
+                parentId: 'ccs-fastqa-root',
+                title: engineTitle,
+                contexts: ['selection', 'page']
+              });
+              fastAnswersMenuMap.set(menuId, { urlPattern });
+            }
+            if (fastQaQuickEnabled && engine.id === 'grok') {
+              fastAnswersMenuMap.set(FAST_QA_QUICK_ID, { urlPattern });
+              logMenuEvent('fastqa-quick-url-ready', { urlPattern });
+              updateFastQaQuickTitle('');
+            }
           });
         })
         .catch((error) => {
           console.warn('[触触搜][BG] 无法构建速答壹拾佰菜单:', error);
+          logMenuEvent('fastqa-config-error', { error: error?.message || String(error) });
         });
       asyncTasks.push(fastAnswersTask);
     }
 
-    if (isMenuEnabled('ccs-optimize-root')) {
+    if (optimizeRootEnabled) {
       chrome.contextMenus.create({
         id: 'ccs-optimize-root',
         parentId: 'ccs-main',
@@ -973,6 +1072,14 @@ function createContextMenus() {
         applyMenuIcons(buildId).catch((err) => {
           console.warn('[触触搜][BG] 无法应用菜单图标:', err);
         });
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          if (!Array.isArray(tabs) || !tabs[0]) return;
+          refreshMenuTitle(tabs[0]).catch((err) => {
+            console.warn('[触触搜][BG] 初始化菜单标题失败:', err);
+            logMenuEvent('initial-title-error', { error: err?.message || String(err) });
+          });
+        });
+        logMenuEvent('rebuild-complete', { buildId });
       });
 
     chrome.contextMenus.create({
@@ -1270,6 +1377,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 
   if (isFastAnswersOpenAll || isFastAnswersMenu) {
+    logMenuEvent('fastqa-click', { menuItemId: info.menuItemId, isOpenAll: isFastAnswersOpenAll });
     const effectiveInput = rawText || normalizedText;
     if (!effectiveInput) {
       chrome.tabs.sendMessage(tab.id, {
@@ -1313,10 +1421,18 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           if (targetUrl) {
             chrome.tabs.create({ url: targetUrl, active: openedCount === 0 });
             openedCount += 1;
+            logMenuEvent('fastqa-open-url', { targetUrl, menuId, index: openedCount });
           }
         });
       } else {
-        const engineId = info.menuItemId.replace('ccs-fastqa-', '');
+        const engineKey = info.menuItemId.replace('ccs-fastqa-', '');
+        let engineId = engineKey;
+        if (engineId.endsWith('-shortcut')) {
+          engineId = engineId.replace(/-shortcut$/, '');
+        }
+        if (engineId.endsWith('-quick')) {
+          engineId = engineId.replace(/-quick$/, '');
+        }
         let menuTarget = fastAnswersMenuMap.get(info.menuItemId);
         if (!menuTarget) {
           const engine = (config.engines || []).find((item) => item.id === engineId);
@@ -1333,6 +1449,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           return;
         }
         const url = menuTarget.urlPattern.split('${PROMPT}').join(encodedPrompt);
+        logMenuEvent('fastqa-open-url', { targetUrl: url, menuItemId: info.menuItemId, engineId });
         chrome.tabs.create({ url });
       }
     }).catch(() => {
