@@ -3,20 +3,21 @@ let BG_DEBUG = false;
 const BG_DBG = (...args) => { if (BG_DEBUG) console.log(...args); };
 
 // ==================== 新架构：关键字同步机制重构 ====================
-// 导入新的关键字同步模块（注意：需要在 manifest.json 中配置为模块）
-// 临时使用全局变量，稍后会重构为 ES6 模块
-let menuRegistry = null;
-let keywordSyncManager = null;
+// MenuRegistry.js 会自动导出 menuRegistry 单例
+// KeywordSyncManager 需要手动初始化
 
 // 初始化新的同步系统（延迟初始化，在 MenuRegistry.js 加载后）
 function initKeywordSyncSystem() {
-  if (typeof MenuRegistry !== 'undefined') {
-    menuRegistry = new MenuRegistry();
-    console.log('[触触搜] MenuRegistry 已初始化');
+  // MenuRegistry 已经作为全局单例导出，检查是否可用
+  if (typeof menuRegistry === 'undefined') {
+    console.warn('[触触搜] menuRegistry 未定义，可能 MenuRegistry.js 未加载');
+    return;
   }
 
-  if (typeof KeywordSyncManager !== 'undefined' && menuRegistry) {
-    keywordSyncManager = new KeywordSyncManager(menuRegistry);
+  // 创建 KeywordSyncManager 实例（只有在未创建时）
+  if (typeof keywordSyncManager === 'undefined' && typeof KeywordSyncManager !== 'undefined') {
+    // 直接在全局作用域创建实例
+    globalThis.keywordSyncManager = new KeywordSyncManager(menuRegistry);
     console.log('[触触搜] KeywordSyncManager 已初始化');
   }
 }
