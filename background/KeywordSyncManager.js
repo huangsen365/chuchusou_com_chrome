@@ -144,11 +144,14 @@ class KeywordSyncManager {
   async _refreshKeywordForTab(tabId) {
     try {
       // 兼容模式：读取全局对象（旧系统维护的数据）
-      const selectedText = (typeof selectedTextByTab !== 'undefined' && selectedTextByTab[tabId]) || '';
+      // BUGFIX: selectedTextByTab[tabId] is an object {text: '...', url: '...'}, not a string
+      const selectedEntry = (typeof selectedTextByTab !== 'undefined' && selectedTextByTab[tabId]) || null;
+      const selectedText = (typeof selectedEntry === 'object' && selectedEntry?.text) ||
+                          (typeof selectedEntry === 'string' ? selectedEntry : '');
       const fallbackEntry = (typeof fallbackKeywordByTab !== 'undefined' && fallbackKeywordByTab[tabId]) || null;
-      const fallbackKeyword = fallbackEntry?.keyword || fallbackEntry?.raw || '';
+      const fallbackKeyword = fallbackEntry?.raw || fallbackEntry?.keyword || '';
       const titleEntry = (typeof latestTitleByTab !== 'undefined' && latestTitleByTab[tabId]) || null;
-      const pageTitle = titleEntry?.title || '';
+      const pageTitle = titleEntry?.title || titleEntry?.pageTitle || '';
 
       // 优先级：选中文本 > 备用关键字 > 页面标题
       let raw = selectedText || fallbackKeyword || pageTitle || '';
@@ -287,11 +290,14 @@ class KeywordSyncManager {
    */
   getKeywordForTab(tabId) {
     // 兼容模式：读取全局对象
-    const selectedText = (typeof selectedTextByTab !== 'undefined' && selectedTextByTab[tabId]) || '';
+    // BUGFIX: selectedTextByTab[tabId] is an object {text: '...', url: '...'}, not a string
+    const selectedEntry = (typeof selectedTextByTab !== 'undefined' && selectedTextByTab[tabId]) || null;
+    const selectedText = (typeof selectedEntry === 'object' && selectedEntry?.text) ||
+                        (typeof selectedEntry === 'string' ? selectedEntry : '');
     const fallbackEntry = (typeof fallbackKeywordByTab !== 'undefined' && fallbackKeywordByTab[tabId]) || null;
-    const fallbackKeyword = fallbackEntry?.keyword || fallbackEntry?.raw || '';
+    const fallbackKeyword = fallbackEntry?.raw || fallbackEntry?.keyword || '';
     const titleEntry = (typeof latestTitleByTab !== 'undefined' && latestTitleByTab[tabId]) || null;
-    const pageTitle = titleEntry?.title || '';
+    const pageTitle = titleEntry?.title || titleEntry?.pageTitle || '';
 
     return selectedText || fallbackKeyword || pageTitle || '';
   }
