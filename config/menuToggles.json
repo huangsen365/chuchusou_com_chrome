@@ -6,5 +6,10 @@
   "ccs-fastqa-chatgpt-quick": true,
   "ccs-fastqa-claude-quick": true,
   "ccs-fastqa-grok-quick": true,
-  "ccs-fastqa-yiyan-quick": true
+  "ccs-fastqa-yiyan-quick": true,
+  "ccs-base64": false,
+  "ccs-md5": false,
+  "ccs-url-encode": false,
+  "ccs-upper": false,
+  "ccs-lower": false
 }
