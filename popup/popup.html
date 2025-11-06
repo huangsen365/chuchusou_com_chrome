@@ -128,6 +128,10 @@
             <span class="shortcut-icon">🐞</span>
             <span class="shortcut-label">调试日志：关</span>
           </button>
+          <button class="shortcut-btn" data-action="export-menu-state">
+            <span class="shortcut-icon">📋</span>
+            <span class="shortcut-label">导出菜单状态</span>
+          </button>
           <button class="shortcut-btn" data-action="shortcut-settings">
             <span class="shortcut-icon">⌨️</span>
             <span class="shortcut-label">快捷键设置</span>
@@ -160,6 +164,18 @@
         <div class="blacklist-list"></div>
         <div class="blacklist-tips">
           💡 黑名单网站恢复：<kbd>Alt+右键</kbd> / <kbd>Alt+S</kbd>
+        </div>
+      </section>
+
+      <section class="menu-debug-section" style="display: none;">
+        <h2>菜单状态调试</h2>
+        <div class="menu-debug-info">
+          <p>状态信息已复制到剪贴板！</p>
+          <button class="copy-debug-info">再次复制</button>
+          <button class="close-debug-info">关闭</button>
+        </div>
+        <div class="menu-debug-content">
+          <pre class="menu-debug-text"></pre>
         </div>
       </section>
     </main>

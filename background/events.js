@@ -267,6 +267,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
     return true; // 异步响应
   }
+  // 处理popup的菜单调试信息导出请求
+  if (request.action === 'getMenuDebugInfo') {
+    const tabId = request.tabId;
+    getMenuDebugInfo(tabId)
+      .then(data => {
+        sendResponse({ success: true, data });
+      })
+      .catch(error => {
+        console.error('[触触搜][BG] 获取菜单调试信息失败:', error);
+        sendResponse({ success: false, error: error?.message || String(error) });
+      });
+    return true; // 异步响应
+  }
   if (request.action === 'contextMenuPreview') {
     const tabId = sender?.tab?.id ?? null;
     const incoming = typeof request.selectionText === 'string' ? request.selectionText : '';

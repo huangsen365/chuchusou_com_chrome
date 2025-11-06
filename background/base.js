@@ -720,3 +720,143 @@ async function copyTextInTab(tab, text) {
 
 let menuBuildCounter = 0;
 const selectedTextByTab = {};
+
+/**
+ * 获取菜单调试信息（供 popup 调试使用）
+ *
+ * @param {number} tabId - 当前活动标签页 ID
+ * @returns {Promise<Object>} 包含所有菜单状态的调试信息
+ */
+async function getMenuDebugInfo(tabId) {
+  const debugInfo = {
+    timestamp: new Date().toISOString(),
+    generatedAt: Date.now(),
+
+    // 1. 当前活动 tab 信息
+    activeTab: {
+      tabId: tabId,
+      url: null,
+      title: null
+    },
+
+    // 2. currentMenuState
+    currentMenuState: {
+      raw: currentMenuState.raw,
+      normalized: currentMenuState.normalized,
+      display: currentMenuState.display,
+      tabId: currentMenuState.tabId,
+      url: currentMenuState.url
+    },
+
+    // 3. 全局缓存对象
+    globalCaches: {
+      selectedTextByTab: {},
+      fallbackKeywordByTab: {},
+      latestTitleByTab: {}
+    },
+
+    // 4. MenuRegistry 状态
+    menuRegistry: {
+      available: typeof menuRegistry !== 'undefined',
+      stats: null
+    },
+
+    // 5. KeywordSyncManager 状态
+    keywordSyncManager: {
+      available: typeof keywordSyncManager !== 'undefined',
+      currentState: null,
+      stats: null
+    }
+  };
+
+  // 获取 tab 详细信息
+  if (tabId) {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      debugInfo.activeTab.url = tab.url;
+      debugInfo.activeTab.title = tab.title;
+    } catch (error) {
+      debugInfo.activeTab.error = error.message;
+    }
+  }
+
+  // 复制全局缓存对象（转换为普通对象以便 JSON 序列化）
+  if (typeof selectedTextByTab !== 'undefined') {
+    debugInfo.globalCaches.selectedTextByTab = Object.assign({}, selectedTextByTab);
+  }
+
+  if (typeof fallbackKeywordByTab !== 'undefined') {
+    debugInfo.globalCaches.fallbackKeywordByTab = Object.assign({}, fallbackKeywordByTab);
+  }
+
+  if (typeof latestTitleByTab !== 'undefined') {
+    debugInfo.globalCaches.latestTitleByTab = Object.assign({}, latestTitleByTab);
+  }
+
+  // 获取 MenuRegistry 状态
+  if (typeof menuRegistry !== 'undefined' && menuRegistry) {
+    try {
+      debugInfo.menuRegistry.stats = menuRegistry.getStats();
+
+      // 获取所有注册的菜单项详细信息
+      const allMenuIds = menuRegistry.getAllMenuIds();
+      debugInfo.menuRegistry.registeredMenus = {};
+
+      for (const menuId of allMenuIds) {
+        const config = menuRegistry.get(menuId);
+        if (config) {
+          debugInfo.menuRegistry.registeredMenus[menuId] = {
+            title: config.title,
+            icon: config.icon,
+            titleTemplate: config.titleTemplate,
+            syncGroup: config.syncGroup,
+            autoSync: config.autoSync,
+            parentId: config.parentId
+          };
+        }
+      }
+    } catch (error) {
+      debugInfo.menuRegistry.error = error.message;
+    }
+  }
+
+  // 获取 KeywordSyncManager 状态
+  if (typeof keywordSyncManager !== 'undefined' && keywordSyncManager) {
+    try {
+      debugInfo.keywordSyncManager.currentState = keywordSyncManager.getState();
+      debugInfo.keywordSyncManager.stats = keywordSyncManager.getStats();
+    } catch (error) {
+      debugInfo.keywordSyncManager.error = error.message;
+    }
+  }
+
+  // 添加变量来源说明
+  debugInfo.variableSources = {
+    currentMenuState: 'background/base.js (全局变量)',
+    selectedTextByTab: 'background/base.js (全局变量，由 events.js 更新)',
+    fallbackKeywordByTab: 'background/base.js (全局变量，由 keywordResolver.js 更新)',
+    latestTitleByTab: 'background/base.js (全局变量，由 events.js 更新)',
+    menuRegistry: 'background/MenuRegistry.js (单例)',
+    keywordSyncManager: 'background/KeywordSyncManager.js (单例)'
+  };
+
+  // 添加数据流说明
+  debugInfo.dataFlow = {
+    description: '关键字更新流程',
+    steps: [
+      '1. 用户操作触发 (选中文本/Tab切换) → events.js',
+      '2. events.js 更新全局缓存 (selectedTextByTab/fallbackKeywordByTab/latestTitleByTab)',
+      '3. events.js 调用 setMenuState(raw, normalized, meta)',
+      '4. setMenuState 更新 currentMenuState',
+      '5. setMenuState 调用 keywordSyncManager.update()',
+      '6. setMenuState 调用 keywordSyncManager.syncMenus()',
+      '7. syncMenus 调用 menuRegistry.syncAll(context)',
+      '8. menuRegistry.syncAll 遍历所有注册的菜单项',
+      '9. 使用 titleTemplate 渲染标题',
+      '10. 调用 chrome.contextMenus.update() 更新菜单',
+      '11. (同时) 旧系统调用 updateMainMenuTitle/updateSearchLabelTitle/updateSubmenuLabels'
+    ]
+  };
+
+  return debugInfo;
+}

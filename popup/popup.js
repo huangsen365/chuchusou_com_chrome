@@ -28,6 +28,9 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'debug':
           toggleDebug();
           break;
+        case 'export-menu-state':
+          exportMenuState();
+          break;
         case 'shortcut-settings':
           toggleShortcutSettings();
           break;
@@ -475,4 +478,105 @@ function saveShortcutSettings() {
       });
     });
   });
+}
+
+// 导出菜单状态（调试用）
+async function exportMenuState() {
+  const btn = document.querySelector('[data-action="export-menu-state"]');
+  if (btn) {
+    btn.disabled = true;
+    const label = btn.querySelector('.shortcut-label');
+    label.textContent = '获取中...';
+  }
+
+  try {
+    // 获取当前活动标签页
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    // 向 background 请求菜单调试信息
+    chrome.runtime.sendMessage({
+      action: 'getMenuDebugInfo',
+      tabId: tab?.id
+    }, (response) => {
+      if (response && response.success) {
+        showMenuDebugInfo(response.data);
+      } else {
+        showToast('获取菜单状态失败: ' + (response?.error || '未知错误'));
+      }
+
+      // 恢复按钮状态
+      if (btn) {
+        btn.disabled = false;
+        const label = btn.querySelector('.shortcut-label');
+        label.textContent = '导出菜单状态';
+      }
+    });
+  } catch (error) {
+    showToast('获取菜单状态失败');
+    console.error('Export menu state error:', error);
+
+    // 恢复按钮状态
+    if (btn) {
+      btn.disabled = false;
+      const label = btn.querySelector('.shortcut-label');
+      label.textContent = '导出菜单状态';
+    }
+  }
+}
+
+// 显示菜单调试信息
+function showMenuDebugInfo(data) {
+  const section = document.querySelector('.menu-debug-section');
+  const textEl = document.querySelector('.menu-debug-text');
+  const commandSection = document.querySelector('.command-section');
+  const blacklistSection = document.querySelector('.blacklist-section');
+  const shortcutSection = document.querySelector('.shortcut-settings-section');
+
+  if (!section || !textEl) return;
+
+  // 格式化 JSON 数据
+  const formatted = JSON.stringify(data, null, 2);
+
+  // 显示数据
+  textEl.textContent = formatted;
+
+  // 隐藏其他 section，显示调试 section
+  commandSection.style.display = 'none';
+  blacklistSection.style.display = 'none';
+  shortcutSection.style.display = 'none';
+  section.style.display = 'block';
+
+  // 复制到剪贴板
+  navigator.clipboard.writeText(formatted).then(() => {
+    showToast('菜单状态已复制到剪贴板');
+  }).catch(() => {
+    showToast('自动复制失败，请手动复制');
+  });
+
+  // 绑定按钮事件
+  const copyBtn = document.querySelector('.copy-debug-info');
+  const closeBtn = document.querySelector('.close-debug-info');
+
+  if (copyBtn) {
+    copyBtn.onclick = () => {
+      navigator.clipboard.writeText(formatted).then(() => {
+        showToast('已复制到剪贴板');
+        copyBtn.style.background = '#27ae60';
+        copyBtn.style.color = 'white';
+        setTimeout(() => {
+          copyBtn.style.background = '';
+          copyBtn.style.color = '';
+        }, 500);
+      }).catch(() => {
+        showToast('复制失败');
+      });
+    };
+  }
+
+  if (closeBtn) {
+    closeBtn.onclick = () => {
+      section.style.display = 'none';
+      commandSection.style.display = 'block';
+    };
+  }
 }
