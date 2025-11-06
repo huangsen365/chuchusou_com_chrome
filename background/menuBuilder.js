@@ -10,7 +10,8 @@ const MENU_GROUPS = Object.freeze({
   ],
   ai: [
     { id: 'ccs-chatgpt' },
-    { id: 'ccs-claude' }
+    { id: 'ccs-claude' },
+    { id: 'ccs-grok' }
   ],
   general: [
     { id: 'ccs-yiyan' },
@@ -530,14 +531,17 @@ async function createContextMenus() {
       failureLogStage: 'create-separator-3-failed'
     });
 
-    await createMenuItem({
-      id: 'ccs-show-popover',
-      parentId: 'ccs-main',
-      title: getMenuTitle('ccs-show-popover'),
-      contexts: MENU_CONTEXTS_DEFAULT
-    }, {
-      failureLogStage: 'show-popover-create-failed'
-    });
+    // Only create "Open Panel" menu item if enabled in menuToggles.json
+    if (isMenuEnabled('ccs-show-popover')) {
+      await createMenuItem({
+        id: 'ccs-show-popover',
+        parentId: 'ccs-main',
+        title: getMenuTitle('ccs-show-popover'),
+        contexts: MENU_CONTEXTS_DEFAULT
+      }, {
+        failureLogStage: 'show-popover-create-failed'
+      });
+    }
   } catch (error) {
     console.warn('[触触搜][BG] 构建上下文菜单时发生错误:', error);
     logMenuEvent('rebuild-error', {
