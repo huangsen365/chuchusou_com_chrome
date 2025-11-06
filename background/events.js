@@ -953,8 +953,16 @@ if (chrome.contextMenus.onShown) {
         });
       } finally {
         snapshotMenuTitles('onShown-final');
+        // BUGFIX: Add delay before refresh to ensure Chrome updates its menu cache
+        // This prevents showing stale menu items when onShown triggers
         if (chrome.contextMenus.refresh) {
-          chrome.contextMenus.refresh();
+          setTimeout(() => {
+            chrome.contextMenus.refresh();
+            logMenuEvent('onShown-refreshed-delayed', {
+              timestamp: Date.now(),
+              delayMs: 50
+            });
+          }, 50);
         }
       }
     })();
