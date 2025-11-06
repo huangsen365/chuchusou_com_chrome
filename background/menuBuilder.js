@@ -766,20 +766,8 @@ async function createContextMenus() {
     }
   }
 
-  // 旧系统（兼容模式）：BUGFIX: Sync all submenu labels with current keyword after menu creation completes
-  // This ensures labels show the correct keyword immediately, not just the default '🔍 触触搜'
-  if (currentMenuState.display) {
-    updateSubmenuLabels(currentMenuState.display);
-    logMenuEvent('submenu-labels-synced-after-rebuild', {
-      buildId,
-      display: currentMenuState.display,
-      optimizeLabelCount: optimizeCategoryLabelIds.length
-    });
-  } else {
-    // Even without keyword, update to ensure consistency
-    updateSubmenuLabels('');
-    logMenuEvent('submenu-labels-synced-empty', { buildId });
-  }
+  // Old system compatibility code removed - now handled exclusively by MenuRegistry.syncAll()
+  // This prevents the race condition where old system overwrites new system's correct keyword display
 
   finalizeMenuBuild();
 }
