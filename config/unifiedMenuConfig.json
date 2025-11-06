@@ -60,6 +60,18 @@
           "contexts": ["selection", "page", "editable"],
           "urlPattern": "https://grok.com/?q=${PROMPT}",
           "enabled": true
+        },
+        {
+          "id": "ccs-fastqa-yiyan-quick",
+          "type": "fastqa-quick",
+          "title": "触触搜 · 速答壹拾佰 - 文心一言",
+          "icon": "🧠",
+          "engineId": "yiyan",
+          "titleKey": "yiyan",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page", "editable"],
+          "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}",
+          "enabled": true
         }
       ]
     },
@@ -228,6 +240,18 @@
               "title": "打开以下全部",
               "icon": "🚀",
               "contexts": ["selection", "page"]
+            },
+            {
+              "id": "ccs-top100-yiyan",
+              "type": "top100",
+              "title": "文心一言",
+              "icon": "🧠",
+              "engineId": "yiyan",
+              "titleKey": "yiyan",
+              "dynamicTitle": true,
+              "contexts": ["selection", "page"],
+              "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}",
+              "enabled": true
             }
           ]
         },
@@ -246,6 +270,18 @@
               "title": "打开以下全部",
               "icon": "🚀",
               "contexts": ["selection", "page"]
+            },
+            {
+              "id": "ccs-fastqa-yiyan",
+              "type": "fastqa",
+              "title": "触触搜 · 速答壹拾佰 - 文心一言",
+              "icon": "🧠",
+              "engineId": "yiyan",
+              "titleKey": "yiyan",
+              "dynamicTitle": true,
+              "contexts": ["selection", "page"],
+              "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}",
+              "enabled": true
             }
           ]
         },

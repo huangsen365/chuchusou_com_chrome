@@ -270,6 +270,13 @@ const FAST_QA_QUICK_ITEMS = [
     titleKey: 'grok',
     menuTitle: '触触搜 · 速答壹拾佰 - Grok',
     menuIcon: '🦊'
+  },
+  {
+    id: 'ccs-fastqa-yiyan-quick',
+    engineId: 'yiyan',
+    titleKey: 'yiyan',
+    menuTitle: '触触搜 · 速答壹拾佰 - 文心一言',
+    menuIcon: '🧠'
   }
 ];
 
@@ -340,7 +347,8 @@ const DYNAMIC_SEARCH_MENU_ITEMS = [
   'ccs-claude',
   'ccs-fastqa-chatgpt-quick',
   'ccs-fastqa-claude-quick',
-  'ccs-fastqa-grok-quick'
+  'ccs-fastqa-grok-quick',
+  'ccs-fastqa-yiyan-quick'
 ];
 
 const FAST_QA_MENU_ITEMS = [
