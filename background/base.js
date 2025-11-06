@@ -589,7 +589,7 @@ async function setMenuState(rawText, normalizedText, meta) {
   }
   logMenuEvent('state-update', { ...currentMenuState });
 
-  // 新架构：使用 KeywordSyncManager 统一同步所有菜单
+  // 新架构：使用 KeywordSyncManager 统一同步所有菜单（尝试更新，不强制依赖）
   if (typeof keywordSyncManager !== 'undefined' && keywordSyncManager) {
     try {
       // 更新状态
@@ -606,27 +606,26 @@ async function setMenuState(rawText, normalizedText, meta) {
         syncResult
       });
     } catch (error) {
-      console.error('[触触搜] 新同步系统更新失败，回退到旧系统:', error);
-      logMenuEvent('keyword-sync-error-fallback', {
+      console.error('[触触搜] 新同步系统更新失败:', error);
+      logMenuEvent('keyword-sync-error', {
         error: error.message,
         stack: error.stack
       });
-      // 回退到旧系统
-      updateMainMenuTitle(displayText);
-      updateSearchLabelTitle(displayText);
-      updateSubmenuLabels(displayText);
-      updateSearchMenuTitles(displayText);
     }
-  } else {
-    // 旧系统（兼容模式）
-    logMenuEvent('keyword-sync-fallback-to-old-system', {
-      hasKeywordSyncManager: typeof keywordSyncManager !== 'undefined'
-    });
-    updateMainMenuTitle(displayText);
-    updateSearchLabelTitle(displayText);
-    updateSubmenuLabels(displayText);
-    updateSearchMenuTitles(displayText);
   }
+
+  // BUGFIX: 强制使用旧系统更新所有菜单，确保优化提示词菜单总是被正确更新
+  // 不依赖新系统的成功与否，旧系统已证明对其他菜单有效
+  updateMainMenuTitle(displayText);
+  updateSearchLabelTitle(displayText);
+  updateSubmenuLabels(displayText);  // ← 更新优化提示词标签
+  updateSearchMenuTitles(displayText);
+
+  logMenuEvent('keyword-sync-old-system-forced', {
+    display: displayText,
+    raw,
+    normalized
+  });
   // 移除速答壹拾佰等菜单项的关键字显示，避免重复
   // FAST_QA_MENU_ITEMS.forEach((menuId) => {
   //   const baseTitle = getMenuTitle(menuId);
