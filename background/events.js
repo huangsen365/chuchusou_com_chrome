@@ -22,6 +22,11 @@ async function prefetchMenuState(tab, reason = 'unknown') {
   const url = tab?.url || '';
   if (tabId == null || !url) return;
   try {
+    // BUGFIX: Update title cache whenever we prefetch to ensure freshness
+    if (tab.title && typeof tab.title === 'string') {
+      updateLatestTabTitle(tabId, tab.title);
+    }
+
     const keywords = await extractSearchKeywords(url, tab);
     const normalized = keywords ? normalizeSearchText(keywords) : '';
     if (keywords) {
@@ -471,6 +476,34 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       return;
     }
     await refreshMenuTitle(mergedTab);
+
+    // BUGFIX: Delayed title refresh to catch late-updating titles
+    // Some pages (especially SPAs) update their title after 'complete' status
+    setTimeout(async () => {
+      try {
+        const freshTab = await chrome.tabs.get(tabId);
+        if (freshTab && freshTab.url === candidateUrl) {
+          // Update title cache if title has changed
+          if (freshTab.title && freshTab.title !== (tab.title || '')) {
+            updateLatestTabTitle(tabId, freshTab.title);
+            logMenuEvent('delayed-title-update', {
+              tabId,
+              oldTitle: tab.title,
+              newTitle: freshTab.title,
+              url: candidateUrl
+            });
+          }
+          // Refresh keywords with the latest title
+          await prefetchMenuState(freshTab, 'delayed-title-refresh');
+        }
+      } catch (err) {
+        // Tab may have been closed, ignore
+        logMenuEvent('delayed-title-refresh-failed', {
+          tabId,
+          error: err?.message
+        });
+      }
+    }, 300); // 300ms delay to catch late title updates
   }
 });
 
@@ -735,6 +768,57 @@ if (chrome.contextMenus.onShown) {
             });
             raw = result?.raw || '';
             normalized = result?.normalized || '';
+
+            // BUGFIX: Retry mechanism for late-updating titles
+            // If we only got URL-based keywords but no title-based keywords, retry after a short delay
+            if (raw && !freshTab?.title) {
+              logMenuEvent('onShown-scheduling-retry', {
+                tabId,
+                reason: 'no-title-on-first-attempt',
+                currentKeyword: raw.substring(0, 50)
+              });
+
+              setTimeout(async () => {
+                try {
+                  const retryTab = await chrome.tabs.get(tabId);
+                  if (retryTab && retryTab.title && retryTab.url === (freshTab?.url || tabUrl)) {
+                    updateLatestTabTitle(tabId, retryTab.title);
+                    const retryResult = await computeSearchTextForTab({
+                      tabId,
+                      tabUrl: retryTab.url,
+                      tabTitle: retryTab.title,
+                      selectionText: ''
+                    }, {
+                      forceFetchSelection: false,
+                      skipCurrentMenuFallback: false
+                    });
+
+                    const retryRaw = retryResult?.raw || '';
+                    const retryNormalized = retryResult?.normalized || '';
+
+                    // Only update if we got a better result (with title)
+                    if (retryRaw && retryRaw !== raw) {
+                      setMenuState(retryRaw, retryNormalized || retryRaw, {
+                        tabId,
+                        url: retryTab.url
+                      });
+                      await refreshContextMenu();
+                      logMenuEvent('onShown-retry-success', {
+                        tabId,
+                        oldKeyword: raw.substring(0, 50),
+                        newKeyword: retryRaw.substring(0, 50),
+                        title: retryTab.title
+                      });
+                    }
+                  }
+                } catch (err) {
+                  logMenuEvent('onShown-retry-failed', {
+                    tabId,
+                    error: err?.message
+                  });
+                }
+              }, 150); // 150ms delay for title to update
+            }
           }
         }
         if (raw || normalized) {
