@@ -8,17 +8,28 @@ const BG_DBG = (...args) => { if (BG_DEBUG) console.log(...args); };
 
 // 初始化新的同步系统（延迟初始化，在 MenuRegistry.js 加载后）
 function initKeywordSyncSystem() {
+  console.log('[触触搜] initKeywordSyncSystem called');
+
   // MenuRegistry 已经作为全局单例导出，检查是否可用
   if (typeof menuRegistry === 'undefined') {
     console.warn('[触触搜] menuRegistry 未定义，可能 MenuRegistry.js 未加载');
     return;
   }
 
+  console.log('[触触搜] menuRegistry found, stats:', menuRegistry.getStats());
+
   // 创建 KeywordSyncManager 实例（只有在未创建时）
   if (typeof keywordSyncManager === 'undefined' && typeof KeywordSyncManager !== 'undefined') {
     // 直接在全局作用域创建实例
     globalThis.keywordSyncManager = new KeywordSyncManager(menuRegistry);
-    console.log('[触触搜] KeywordSyncManager 已初始化');
+    console.log('[触触搜] KeywordSyncManager 已初始化, stats:', keywordSyncManager.getStats());
+
+    // 确认 onShown 监听器已注册
+    console.log('[触触搜] KeywordSyncManager onShown listener should be registered');
+  } else if (typeof keywordSyncManager !== 'undefined') {
+    console.log('[触触搜] keywordSyncManager already initialized');
+  } else {
+    console.warn('[触触搜] KeywordSyncManager class not found');
   }
 }
 // ==================================================================

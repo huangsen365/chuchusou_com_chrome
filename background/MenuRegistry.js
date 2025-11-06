@@ -261,17 +261,43 @@ class MenuRegistry {
    * @returns {Promise<{success: number, failed: number, total: number}>}
    */
   async syncAll(context) {
+    if (typeof logMenuEvent === 'function') {
+      logMenuEvent('menu-registry-sync-all-start', {
+        syncableItemsCount: this.syncableItems.size,
+        keyword: context.keyword,
+        raw: context.raw,
+        normalized: context.normalized
+      });
+    }
+
     if (this.syncableItems.size === 0) {
+      if (typeof logMenuEvent === 'function') {
+        logMenuEvent('menu-registry-no-syncable-items', {});
+      }
       return { success: 0, failed: 0, total: 0 };
     }
 
     const promises = [];
+    const menuIds = [];
     for (const menuId of this.syncableItems) {
       const config = this.items.get(menuId);
-      if (!config) continue;
+      if (!config) {
+        if (typeof logMenuEvent === 'function') {
+          logMenuEvent('menu-registry-missing-config', { menuId });
+        }
+        continue;
+      }
 
       const title = this.renderTitle(config, context);
+      menuIds.push({ menuId, title });
       promises.push(this._updateMenuItem(menuId, title, config));
+    }
+
+    if (typeof logMenuEvent === 'function') {
+      logMenuEvent('menu-registry-updating-items', {
+        count: menuIds.length,
+        items: menuIds
+      });
     }
 
     const results = await Promise.allSettled(promises);

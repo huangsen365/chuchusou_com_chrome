@@ -75,19 +75,45 @@ class KeywordSyncManager {
 
     chrome.contextMenus.onShown.addListener(async (info, tab) => {
       try {
+        if (typeof logMenuEvent === 'function') {
+          logMenuEvent('on-shown-triggered', {
+            tabId: tab?.id,
+            hasTab: !!tab
+          });
+        }
+
         // 获取当前标签页的最新关键字
         const tabId = tab?.id;
-        if (!tabId) return;
+        if (!tabId) {
+          console.warn('[KeywordSyncManager] onShown: no tabId');
+          return;
+        }
 
         // 确保使用最新的关键字状态
         await this._refreshKeywordForTab(tabId);
 
+        if (typeof logMenuEvent === 'function') {
+          logMenuEvent('keyword-refreshed-for-tab', {
+            tabId,
+            raw: this.currentState.raw,
+            display: this.currentState.display,
+            source: this.currentState.source
+          });
+        }
+
         // 同步所有菜单标题
-        await this.syncMenus();
+        const syncResult = await this.syncMenus();
+
+        if (typeof logMenuEvent === 'function') {
+          logMenuEvent('menus-synced-on-shown', syncResult);
+        }
 
         // 刷新菜单显示
         if (chrome.contextMenus.refresh) {
           chrome.contextMenus.refresh();
+          if (typeof logMenuEvent === 'function') {
+            logMenuEvent('menu-refreshed', {});
+          }
         }
 
         if (typeof logMenuEvent === 'function') {
@@ -99,6 +125,12 @@ class KeywordSyncManager {
         }
       } catch (error) {
         console.error('[KeywordSyncManager] Error in onShown:', error);
+        if (typeof logMenuEvent === 'function') {
+          logMenuEvent('on-shown-error', {
+            error: error.message,
+            stack: error.stack
+          });
+        }
       }
     });
   }
@@ -330,6 +362,9 @@ class KeywordSyncManager {
   async syncMenus() {
     if (this.syncing) {
       // 避免并发同步
+      if (typeof logMenuEvent === 'function') {
+        logMenuEvent('sync-skipped-already-syncing', {});
+      }
       return { success: 0, failed: 0, total: 0 };
     }
 
@@ -342,6 +377,13 @@ class KeywordSyncManager {
         normalized: this.currentState.normalized
       };
 
+      if (typeof logMenuEvent === 'function') {
+        logMenuEvent('sync-menus-start', {
+          context,
+          hasRegistry: !!this.menuRegistry
+        });
+      }
+
       const result = await this.menuRegistry.syncAll(context);
 
       if (typeof logMenuEvent === 'function') {
@@ -351,6 +393,12 @@ class KeywordSyncManager {
       return result;
     } catch (error) {
       console.error('[KeywordSyncManager] Error syncing menus:', error);
+      if (typeof logMenuEvent === 'function') {
+        logMenuEvent('sync-menus-error', {
+          error: error.message,
+          stack: error.stack
+        });
+      }
       return { success: 0, failed: 0, total: 0 };
     } finally {
       this.syncing = false;
