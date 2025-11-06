@@ -135,6 +135,16 @@
           "contexts": ["selection", "page"],
           "urlPattern": "https://claude.ai/new?q=${KEYWORD}",
           "enabled": true
+        },
+        {
+          "id": "ccs-grok",
+          "type": "ai-chat",
+          "title": "Grok",
+          "icon": "🦊",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://grok.com/?q=${KEYWORD}",
+          "enabled": true
         }
       ]
     },
@@ -151,16 +161,6 @@
           "icon": "🧠",
           "contexts": ["selection", "page"],
           "urlPattern": "https://yiyan.baidu.com/?q=${KEYWORD}",
-          "enabled": true
-        },
-        {
-          "id": "ccs-grok",
-          "type": "ai-search",
-          "title": "Grok",
-          "icon": "🦊",
-          "dynamicTitle": true,
-          "contexts": ["selection", "page"],
-          "urlPattern": "https://x.com/i/grok?q=${KEYWORD}",
           "enabled": true
         },
         {
