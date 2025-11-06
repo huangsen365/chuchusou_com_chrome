@@ -336,7 +336,7 @@ async function createContextMenus() {
     await createMenuItem({
       id: 'ccs-search-label',
       parentId: 'ccs-main',
-      title: '🔍 搜索',
+      title: '🔍 触触搜',
       enabled: false,
       contexts: MENU_CONTEXTS_DEFAULT
     }, {

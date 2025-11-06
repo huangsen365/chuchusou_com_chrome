@@ -423,7 +423,7 @@ function updateMainMenuTitle(displayText) {
 
 function updateSearchLabelTitle(displayText) {
   const formatted = displayText ? formatMenuTitle(displayText) : '';
-  const title = formatted ? `🔍 搜索: "${formatted}"` : '🔍 搜索';
+  const title = formatted ? `🔍 触触搜: "${formatted}"` : '🔍 触触搜';
   chrome.contextMenus.update('ccs-search-label', { title }, () => {
     if (chrome.runtime.lastError) {
       const msg = chrome.runtime.lastError.message || '';
