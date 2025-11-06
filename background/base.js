@@ -257,6 +257,7 @@ const MENU_DEFINITIONS = {
   'ccs-yiyan': { text: '文心一言', icon: '🧠' },
   'ccs-chatgpt': { text: 'ChatGPT', icon: '🤖' },
   'ccs-claude': { text: 'Claude', icon: '🧠' },
+  'ccs-grok': { text: 'Grok', icon: '🦊' },
   'ccs-zhihu': { text: '知乎搜索', icon: '💡' },
   'ccs-weixin': { text: '微信搜一搜', icon: '💬' },
   'ccs-taobao': { text: '淘宝搜索', icon: '🛒' },

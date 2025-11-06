@@ -31,6 +31,7 @@ const MENU_IDS = Object.freeze({
   // AI 对话组
   CHATGPT: 'ccs-chatgpt',
   CLAUDE: 'ccs-claude',
+  GROK: 'ccs-grok',
 
   // 通用搜索组
   ZHIHU: 'ccs-zhihu',
@@ -74,6 +75,7 @@ const MENU_ID_GROUPS = Object.freeze({
     MENU_IDS.ROOT,
     MENU_IDS.CHATGPT,
     MENU_IDS.CLAUDE,
+    MENU_IDS.GROK,
     MENU_IDS.CHUCHUSOU,
     MENU_IDS.FASTQA_CHATGPT_QUICK,
     MENU_IDS.FASTQA_CLAUDE_QUICK,
@@ -100,7 +102,8 @@ const MENU_ID_GROUPS = Object.freeze({
   // AI 对话
   AI_CHAT: [
     MENU_IDS.CHATGPT,
-    MENU_IDS.CLAUDE
+    MENU_IDS.CLAUDE,
+    MENU_IDS.GROK
   ],
 
   // 通用搜索
