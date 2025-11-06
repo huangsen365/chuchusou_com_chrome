@@ -578,37 +578,55 @@ async function createContextMenus() {
       await populateOptimizedMenus({ buildId });
     }
 
-    await createMenuItem({
-      id: 'ccs-separator-1',
-      parentId: 'ccs-main',
-      type: 'separator',
-      contexts: MENU_CONTEXTS_DEFAULT
-    }, {
-      failureLogStage: 'create-separator-1-failed'
+    // Check if tool group has any enabled items
+    const toolGroupEnabled = MENU_GROUPS.tool.some(item => {
+      const menuId = typeof item === 'string' ? item : item?.id;
+      return menuId && isMenuEnabled(menuId);
     });
 
-    await createMenuItemsGroup({
-      parentId: 'ccs-main',
-      menuItems: MENU_GROUPS.tool,
-      contexts: MENU_CONTEXTS_DEFAULT,
-      failureStage: 'tool-menu-create-failed'
+    // Check if transform group has any enabled items
+    const transformGroupEnabled = MENU_GROUPS.transform.some(item => {
+      const menuId = typeof item === 'string' ? item : item?.id;
+      return menuId && isMenuEnabled(menuId);
     });
 
-    await createMenuItem({
-      id: 'ccs-separator-2',
-      parentId: 'ccs-main',
-      type: 'separator',
-      contexts: MENU_CONTEXTS_DEFAULT
-    }, {
-      failureLogStage: 'create-separator-2-failed'
-    });
+    // Only create separator-1 and tool group if tool group has enabled items
+    if (toolGroupEnabled) {
+      await createMenuItem({
+        id: 'ccs-separator-1',
+        parentId: 'ccs-main',
+        type: 'separator',
+        contexts: MENU_CONTEXTS_DEFAULT
+      }, {
+        failureLogStage: 'create-separator-1-failed'
+      });
 
-    await createMenuItemsGroup({
-      parentId: 'ccs-main',
-      menuItems: MENU_GROUPS.transform,
-      contexts: MENU_CONTEXTS_DEFAULT,
-      failureStage: 'transform-menu-create-failed'
-    });
+      await createMenuItemsGroup({
+        parentId: 'ccs-main',
+        menuItems: MENU_GROUPS.tool,
+        contexts: MENU_CONTEXTS_DEFAULT,
+        failureStage: 'tool-menu-create-failed'
+      });
+    }
+
+    // Only create separator-2 and transform group if transform group has enabled items
+    if (transformGroupEnabled) {
+      await createMenuItem({
+        id: 'ccs-separator-2',
+        parentId: 'ccs-main',
+        type: 'separator',
+        contexts: MENU_CONTEXTS_DEFAULT
+      }, {
+        failureLogStage: 'create-separator-2-failed'
+      });
+
+      await createMenuItemsGroup({
+        parentId: 'ccs-main',
+        menuItems: MENU_GROUPS.transform,
+        contexts: MENU_CONTEXTS_DEFAULT,
+        failureStage: 'transform-menu-create-failed'
+      });
+    }
 
     // Only create separator and "Open Panel" menu item if show-popover is enabled
     if (isMenuEnabled('ccs-show-popover')) {
