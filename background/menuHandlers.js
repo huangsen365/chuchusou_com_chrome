@@ -546,38 +546,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 });
 
-let onShownWarningEmitted = false;
-
-if (chrome.contextMenus.onShown && typeof chrome.contextMenus.onShown.addListener === 'function') {
-  chrome.contextMenus.onShown.addListener(async (info, tab) => {
-    try {
-      const selectionText = typeof info.selectionText === 'string' ? info.selectionText.trim() : '';
-      if (selectionText) {
-        setMenuState(selectionText, normalizeSearchText(selectionText), {
-          tabId: tab?.id ?? null,
-          url: tab?.url || ''
-        });
-      }
-      const result = await computeSearchTextForTab({
-        tabId: tab?.id,
-        tabUrl: tab?.url,
-        tabTitle: tab?.title || '',
-        selectionText: info.selectionText || ''
-      }, {
-        forceFetchSelection: true,
-        skipCurrentMenuFallback: true
-      });
-      applyMenuTitle(result.normalized, result.raw, {
-        tabId: tab?.id ?? null,
-        url: tab?.url || ''
-      });
-    } catch (error) {
-      console.warn('[触触搜][BG] onShown更新菜单失败:', error);
-    }
-  });
-} else if (!onShownWarningEmitted) {
-  onShownWarningEmitted = true;
-  logMenuEvent('context-onshown-unavailable', {
-    message: 'chrome.contextMenus.onShown unavailable; relying on manual refresh'
-  });
-}
+// BUGFIX: Removed duplicate onShown listener to prevent race conditions
+// The onShown listener is now registered only in background/events.js
+// This fixes the issue where menu titles showed wrong tab content after switching tabs

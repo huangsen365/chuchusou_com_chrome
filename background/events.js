@@ -494,6 +494,17 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
     currentMenuState.url = '';
   }
 
+  // BUGFIX: Immediately update latestTitleByTab cache with fresh tab title
+  // This ensures onShown will have up-to-date data if triggered quickly after tab switch
+  if (tab?.id != null && tab?.title) {
+    updateLatestTabTitle(tab.id, tab.title);
+    logMenuEvent('tab-activated-title-preload', {
+      tabId: tab.id,
+      title: tab.title,
+      url: tab.url
+    });
+  }
+
   if (tab?.url) {
     await prefetchMenuState(tab, 'tab-activated');
   }
@@ -572,6 +583,26 @@ if (chrome.contextMenus.onShown) {
     }
     (async () => {
       try {
+        // BUGFIX: Force refresh tab info to ensure we have the latest title and URL
+        let freshTab = tab;
+        if (tabId != null) {
+          try {
+            freshTab = await chrome.tabs.get(tabId);
+            logMenuEvent('onShown-tab-refreshed', {
+              tabId,
+              freshTitle: freshTab?.title,
+              originalTitle: tab?.title,
+              titleChanged: freshTab?.title !== tab?.title
+            });
+          } catch (err) {
+            // Tab may have been closed, use original tab object
+            logMenuEvent('onShown-tab-refresh-failed', {
+              tabId,
+              error: err?.message
+            });
+          }
+        }
+
         // BUGFIX: Clear stale currentMenuState if it's from a different tab
         const isCurrentMenuStateStale = currentMenuState.tabId != null && currentMenuState.tabId !== tabId;
         if (isCurrentMenuStateStale) {
@@ -579,11 +610,11 @@ if (chrome.contextMenus.onShown) {
             staleTabId: currentMenuState.tabId,
             currentTabId: tabId,
             staleUrl: currentMenuState.url,
-            currentUrl: tabUrl
+            currentUrl: freshTab?.url || tabUrl
           });
         }
 
-        const synced = await syncSelectionFromTab(tab, 'menu-shown', { updateMenu: false });
+        const synced = await syncSelectionFromTab(freshTab, 'menu-shown', { updateMenu: false });
         let raw = '';
         let normalized = '';
         if (typeof synced === 'string' && synced.trim()) {
@@ -598,14 +629,15 @@ if (chrome.contextMenus.onShown) {
           } else {
             const result = await computeSearchTextForTab({
               tabId,
-              tabUrl,
-              // BUGFIX: Prefer fresh tab.title over cached value to avoid cross-tab contamination
-              tabTitle: tab?.title || getLatestTabPageTitle(tabId) || '',
+              tabUrl: freshTab?.url || tabUrl,
+              // BUGFIX: Always use freshly fetched tab.title, no fallback to cache
+              // This prevents using a cached title from a different tab
+              tabTitle: freshTab?.title || '',
               selectionText: ''
             }, {
               forceFetchSelection: false,
-              // BUGFIX: Skip using currentMenuState fallback if it's from a different tab
-              skipCurrentMenuFallback: isCurrentMenuStateStale
+              // BUGFIX: Always skip currentMenuState fallback to prevent cross-tab contamination
+              skipCurrentMenuFallback: true
             });
             raw = result?.raw || '';
             normalized = result?.normalized || '';
@@ -614,7 +646,7 @@ if (chrome.contextMenus.onShown) {
         if (raw || normalized) {
           setMenuState(raw, normalized || raw, {
             tabId,
-            url: tabUrl
+            url: freshTab?.url || tabUrl
           });
         }
       } catch (error) {

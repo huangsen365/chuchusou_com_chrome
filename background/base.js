@@ -117,15 +117,45 @@ function updateLatestTabKeyword(tabId, keyword, normalized) {
   entry.keywordTimestamp = Date.now();
 }
 
-function getLatestTabPageTitle(tabId) {
+function getLatestTabPageTitle(tabId, maxAge = 5000) {
   if (tabId == null) return '';
   const entry = latestTitleByTab[tabId];
+  if (!entry) return '';
+
+  // BUGFIX: Check cache freshness to prevent using stale titles from other tabs
+  const now = Date.now();
+  const age = now - (entry.timestamp || 0);
+  if (age > maxAge) {
+    logMenuEvent('cached-title-expired', {
+      tabId,
+      age,
+      maxAge,
+      title: entry.pageTitle || entry.title
+    });
+    return ''; // Cache expired, return empty string to force fresh fetch
+  }
+
   return entry?.pageTitle || entry?.title || '';
 }
 
-function getLatestTabKeyword(tabId) {
+function getLatestTabKeyword(tabId, maxAge = 5000) {
   if (tabId == null) return '';
   const entry = latestTitleByTab[tabId];
+  if (!entry) return '';
+
+  // BUGFIX: Check cache freshness to prevent using stale keywords from other tabs
+  const now = Date.now();
+  const keywordAge = now - (entry.keywordTimestamp || 0);
+  if (keywordAge > maxAge) {
+    logMenuEvent('cached-keyword-expired', {
+      tabId,
+      age: keywordAge,
+      maxAge,
+      keyword: entry.keyword
+    });
+    return ''; // Cache expired, return empty string
+  }
+
   return entry?.keyword || '';
 }
 

@@ -194,24 +194,25 @@ async function computeSearchTextForTab({
     const preservedUrl = currentMenuState.url;
     const preservedTabId = currentMenuState.tabId;
     if (preservedRaw && preservedRaw.trim().length > 0) {
-      const preserveByUrl = tabUrl ? shouldPreserveMenuStateForUrl(tabUrl) : true;
+      const preserveByUrl = tabUrl ? shouldPreserveMenuStateForUrl(tabUrl) : false; // Changed from true to false
       const sameUrl = typeof preservedUrl === 'string' && preservedUrl && tabUrl === preservedUrl;
       const sameTab = typeof preservedTabId === 'number' && tabId != null && preservedTabId === tabId;
       let targetHostname = '';
       try {
         targetHostname = tabUrl ? new URL(tabUrl).hostname : '';
       } catch (_) {}
-      const allowPreserve = sameUrl || sameTab;
-      if (preserveByUrl && allowPreserve && !isGenericQuickHostKeyword(targetHostname, preservedRaw)) {
+      // BUGFIX: Use AND logic instead of OR to prevent cross-tab contamination
+      // Only preserve if BOTH URL and tabId match AND the URL allows preservation
+      const allowPreserve = sameUrl && sameTab && preserveByUrl;
+      if (allowPreserve && !isGenericQuickHostKeyword(targetHostname, preservedRaw)) {
         candidates.push(preservedRaw);
-        const reason = sameUrl ? 'same-url' : 'same-tab';
         logResolver('candidate', {
           source: 'current-menu-state',
           value: preservedRaw,
           tabUrl,
           preservedUrl,
           preservedTabId,
-          reason
+          reason: 'url-and-tab-match'
         });
       }
     }
