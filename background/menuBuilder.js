@@ -250,7 +250,7 @@ async function populateOptimizedMenus({ buildId }) {
 
       // Add label with keyword at top of category submenu
       const labelId = `${categoryId}-label`;
-      await createMenuItem({
+      const labelResult = await createMenuItem({
         id: labelId,
         parentId: categoryId,
         title: '🔍 触触搜',
@@ -259,11 +259,21 @@ async function populateOptimizedMenus({ buildId }) {
       }, {
         failureLogStage: 'optimize-category-label-create-failed'
       });
-      // Track this label ID for dynamic updates
-      optimizeCategoryLabelIds.push(labelId);
+
+      // BUGFIX: Track this label ID for dynamic updates ONLY if creation succeeded
+      // If createMenuItem fails, don't push to array to prevent updating non-existent items
+      if (labelResult.ok) {
+        optimizeCategoryLabelIds.push(labelId);
+      } else {
+        logMenuEvent('optimize-category-label-creation-failed-skipped', {
+          categoryId,
+          labelId,
+          error: labelResult.error?.message || 'unknown'
+        });
+      }
 
       // Add separator below label
-      await createMenuItem({
+      const separatorResult = await createMenuItem({
         id: `${categoryId}-label-separator`,
         parentId: categoryId,
         type: 'separator',
@@ -271,6 +281,13 @@ async function populateOptimizedMenus({ buildId }) {
       }, {
         failureLogStage: 'optimize-category-label-separator-create-failed'
       });
+
+      if (!separatorResult.ok) {
+        logMenuEvent('optimize-separator-creation-failed', {
+          categoryId,
+          error: separatorResult.error?.message || 'unknown'
+        });
+      }
 
       for (const engine of category.engines || []) {
         const menuId = `ccs-optimize-${category.id}-${engine.id}`;
