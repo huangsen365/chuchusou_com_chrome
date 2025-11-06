@@ -439,38 +439,50 @@ function updateSearchMenuTitles(displayText) {
   });
 }
 
-function updateMainMenuTitle(displayText) {
+async function updateMainMenuTitle(displayText) {
   const baseTitle = getMenuTitle('ccs-main');
   const title = displayText ? `${baseTitle}: "${displayText}"` : baseTitle;
-  chrome.contextMenus.update('ccs-main', { title }, () => {
-    if (chrome.runtime.lastError) {
-      const msg = chrome.runtime.lastError.message || '';
-      if (!/Cannot find menu item/i.test(msg)) {
-        logMenuEvent('main-title-update-failed', { error: msg });
+
+  // Wait for menu update to complete
+  await new Promise((resolve) => {
+    chrome.contextMenus.update('ccs-main', { title }, () => {
+      if (chrome.runtime.lastError) {
+        const msg = chrome.runtime.lastError.message || '';
+        if (!/Cannot find menu item/i.test(msg)) {
+          logMenuEvent('main-title-update-failed', { error: msg });
+        }
       }
-    }
+      resolve();
+    });
   });
+
   if (chrome.action && chrome.action.setTitle) {
     chrome.action.setTitle({ title });
   }
   logMenuEvent('main-title', { title, displayText });
 }
 
-function updateSearchLabelTitle(displayText) {
+async function updateSearchLabelTitle(displayText) {
   const formatted = displayText ? formatMenuTitle(displayText) : '';
   const title = formatted ? `🔍 触触搜: "${formatted}"` : '🔍 触触搜';
-  chrome.contextMenus.update('ccs-search-label', { title }, () => {
-    if (chrome.runtime.lastError) {
-      const msg = chrome.runtime.lastError.message || '';
-      if (!/Cannot find menu item/i.test(msg)) {
-        logMenuEvent('search-label-update-failed', { error: msg });
+
+  // Wait for menu update to complete
+  await new Promise((resolve) => {
+    chrome.contextMenus.update('ccs-search-label', { title }, () => {
+      if (chrome.runtime.lastError) {
+        const msg = chrome.runtime.lastError.message || '';
+        if (!/Cannot find menu item/i.test(msg)) {
+          logMenuEvent('search-label-update-failed', { error: msg });
+        }
       }
-    }
+      resolve();
+    });
   });
+
   logMenuEvent('search-label', { title, displayText });
 }
 
-function updateSubmenuLabels(displayText) {
+async function updateSubmenuLabels(displayText) {
   const formatted = displayText ? formatMenuTitle(displayText) : '';
   const title = formatted ? `🔍 触触搜: "${formatted}"` : '🔍 触触搜';
 
@@ -480,52 +492,69 @@ function updateSubmenuLabels(displayText) {
     'ccs-fastqa-label'
   ];
 
-  // Update fixed labels
-  let fixedUpdated = 0;
-  fixedLabelIds.forEach(labelId => {
-    chrome.contextMenus.update(labelId, { title }, () => {
-      if (chrome.runtime.lastError) {
-        const msg = chrome.runtime.lastError.message || '';
-        if (!/Cannot find menu item/i.test(msg)) {
-          logMenuEvent('submenu-label-update-failed', { labelId, error: msg });
-        }
-      } else {
-        fixedUpdated++;
-        logMenuEvent('fixed-label-updated', { labelId, title });
-      }
-    });
-  });
-
-  // Update optimize category labels
-  let optimizeUpdated = 0;
   logMenuEvent('optimize-labels-before-update', {
     optimizeLabelIds: Array.from(optimizeCategoryLabelIds),
     count: optimizeCategoryLabelIds.length,
     title
   });
 
-  optimizeCategoryLabelIds.forEach(labelId => {
-    chrome.contextMenus.update(labelId, { title }, () => {
-      if (chrome.runtime.lastError) {
-        const msg = chrome.runtime.lastError.message || '';
-        if (!/Cannot find menu item/i.test(msg)) {
-          logMenuEvent('optimize-label-update-failed', { labelId, error: msg });
+  // Collect all update promises
+  const updatePromises = [];
+
+  // Update fixed labels (Promise-based)
+  fixedLabelIds.forEach(labelId => {
+    const promise = new Promise((resolve) => {
+      chrome.contextMenus.update(labelId, { title }, () => {
+        if (chrome.runtime.lastError) {
+          const msg = chrome.runtime.lastError.message || '';
+          if (!/Cannot find menu item/i.test(msg)) {
+            logMenuEvent('submenu-label-update-failed', { labelId, error: msg });
+          }
+          resolve({ labelId, success: false, error: msg });
         } else {
-          logMenuEvent('optimize-label-update-error-ignored', { labelId, error: msg });
+          logMenuEvent('fixed-label-updated', { labelId, title });
+          resolve({ labelId, success: true });
         }
-      } else {
-        optimizeUpdated++;
-        logMenuEvent('optimize-label-updated', { labelId, title });
-      }
+      });
     });
+    updatePromises.push(promise);
   });
+
+  // Update optimize category labels (Promise-based)
+  optimizeCategoryLabelIds.forEach(labelId => {
+    const promise = new Promise((resolve) => {
+      chrome.contextMenus.update(labelId, { title }, () => {
+        if (chrome.runtime.lastError) {
+          const msg = chrome.runtime.lastError.message || '';
+          if (!/Cannot find menu item/i.test(msg)) {
+            logMenuEvent('optimize-label-update-failed', { labelId, error: msg });
+          } else {
+            logMenuEvent('optimize-label-update-error-ignored', { labelId, error: msg });
+          }
+          resolve({ labelId, success: false, error: msg });
+        } else {
+          logMenuEvent('optimize-label-updated', { labelId, title });
+          resolve({ labelId, success: true });
+        }
+      });
+    });
+    updatePromises.push(promise);
+  });
+
+  // Wait for all updates to complete
+  const results = await Promise.all(updatePromises);
+  const successCount = results.filter(r => r.success).length;
+  const failedCount = results.filter(r => !r.success).length;
 
   logMenuEvent('submenu-labels-updated', {
     title,
     displayText,
     fixedCount: fixedLabelIds.length,
     optimizeCount: optimizeCategoryLabelIds.length,
-    optimizeLabelIds: Array.from(optimizeCategoryLabelIds)
+    optimizeLabelIds: Array.from(optimizeCategoryLabelIds),
+    successCount,
+    failedCount,
+    totalUpdates: updatePromises.length
   });
 }
 
@@ -633,10 +662,14 @@ async function setMenuState(rawText, normalizedText, meta) {
 
   // BUGFIX: 强制使用旧系统更新所有菜单，确保优化提示词菜单总是被正确更新
   // 不依赖新系统的成功与否，旧系统已证明对其他菜单有效
-  updateMainMenuTitle(displayText);
-  updateSearchLabelTitle(displayText);
-  updateSubmenuLabels(displayText);  // ← 更新优化提示词标签
-  updateSearchMenuTitles(displayText);
+  // TIMING FIX: Wait for all menu updates to complete before returning
+  // This ensures menu titles are updated before chrome.contextMenus.refresh() is called
+  await Promise.all([
+    updateMainMenuTitle(displayText),
+    updateSearchLabelTitle(displayText),
+    updateSubmenuLabels(displayText)  // ← 更新优化提示词标签
+  ]);
+  updateSearchMenuTitles(displayText);  // This one is rarely used, keep sync
 
   logMenuEvent('keyword-sync-old-system-forced', {
     display: displayText,
@@ -691,6 +724,18 @@ async function refreshMenuTitle(tab, selectionText = '') {
   }
 }
 
+/**
+ * Refresh context menu display
+ * Called after menu state updates to ensure visual updates are applied
+ */
+async function refreshContextMenu() {
+  if (chrome.contextMenus.refresh) {
+    chrome.contextMenus.refresh();
+    logMenuEvent('context-menu-refreshed', {
+      timestamp: Date.now()
+    });
+  }
+}
 
 async function copyTextInTab(tab, text) {
   if (!tab || !text) return false;
