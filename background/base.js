@@ -459,27 +459,28 @@ function setMenuState(rawText, normalizedText, meta) {
   updateMainMenuTitle(displayText);
   updateSearchLabelTitle(displayText);
   updateSearchMenuTitles(displayText);
-  FAST_QA_MENU_ITEMS.forEach((menuId) => {
-    const baseTitle = getMenuTitle(menuId);
-    const title = displayText ? `${baseTitle}: "${displayText}"` : baseTitle;
-    chrome.contextMenus.update(menuId, { title }, () => {
-      if (chrome.runtime.lastError) {
-        const msg = chrome.runtime.lastError.message || '';
-        if (!/Cannot find menu item/i.test(msg)) {
-          logMenuEvent('fastqa-menu-title-update-failed', { id: menuId, error: msg });
-        }
-      }
-    });
-    logMenuEvent('fastqa-menu-title', {
-      id: menuId,
-      title,
-      baseTitle,
-      formatted: displayText ? formatMenuTitle(displayText) : '',
-      menuDisplay: currentMenuState?.display || '',
-      menuRaw: currentMenuState?.raw || '',
-      menuNormalized: currentMenuState?.normalized || ''
-    });
-  });
+  // 移除速答壹拾佰等菜单项的关键字显示，避免重复
+  // FAST_QA_MENU_ITEMS.forEach((menuId) => {
+  //   const baseTitle = getMenuTitle(menuId);
+  //   const title = displayText ? `${baseTitle}: "${displayText}"` : baseTitle;
+  //   chrome.contextMenus.update(menuId, { title }, () => {
+  //     if (chrome.runtime.lastError) {
+  //       const msg = chrome.runtime.lastError.message || '';
+  //       if (!/Cannot find menu item/i.test(msg)) {
+  //         logMenuEvent('fastqa-menu-title-update-failed', { id: menuId, error: msg });
+  //       }
+  //     }
+  //   });
+  //   logMenuEvent('fastqa-menu-title', {
+  //     id: menuId,
+  //     title,
+  //     baseTitle,
+  //     formatted: displayText ? formatMenuTitle(displayText) : '',
+  //     menuDisplay: currentMenuState?.display || '',
+  //     menuRaw: currentMenuState?.raw || '',
+  //     menuNormalized: currentMenuState?.normalized || ''
+  //   });
+  // });
   if (chrome.contextMenus.refresh) {
     chrome.contextMenus.refresh();
   }
