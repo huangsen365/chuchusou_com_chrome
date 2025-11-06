@@ -481,6 +481,7 @@ function updateSubmenuLabels(displayText) {
   ];
 
   // Update fixed labels
+  let fixedUpdated = 0;
   fixedLabelIds.forEach(labelId => {
     chrome.contextMenus.update(labelId, { title }, () => {
       if (chrome.runtime.lastError) {
@@ -488,18 +489,33 @@ function updateSubmenuLabels(displayText) {
         if (!/Cannot find menu item/i.test(msg)) {
           logMenuEvent('submenu-label-update-failed', { labelId, error: msg });
         }
+      } else {
+        fixedUpdated++;
+        logMenuEvent('fixed-label-updated', { labelId, title });
       }
     });
   });
 
   // Update optimize category labels
+  let optimizeUpdated = 0;
+  logMenuEvent('optimize-labels-before-update', {
+    optimizeLabelIds: Array.from(optimizeCategoryLabelIds),
+    count: optimizeCategoryLabelIds.length,
+    title
+  });
+
   optimizeCategoryLabelIds.forEach(labelId => {
     chrome.contextMenus.update(labelId, { title }, () => {
       if (chrome.runtime.lastError) {
         const msg = chrome.runtime.lastError.message || '';
         if (!/Cannot find menu item/i.test(msg)) {
           logMenuEvent('optimize-label-update-failed', { labelId, error: msg });
+        } else {
+          logMenuEvent('optimize-label-update-error-ignored', { labelId, error: msg });
         }
+      } else {
+        optimizeUpdated++;
+        logMenuEvent('optimize-label-updated', { labelId, title });
       }
     });
   });
@@ -508,7 +524,8 @@ function updateSubmenuLabels(displayText) {
     title,
     displayText,
     fixedCount: fixedLabelIds.length,
-    optimizeCount: optimizeCategoryLabelIds.length
+    optimizeCount: optimizeCategoryLabelIds.length,
+    optimizeLabelIds: Array.from(optimizeCategoryLabelIds)
   });
 }
 

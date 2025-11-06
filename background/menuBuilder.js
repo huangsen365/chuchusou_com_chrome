@@ -264,6 +264,12 @@ async function populateOptimizedMenus({ buildId }) {
       if (labelResult.ok) {
         // 保留旧系统兼容（可在完全迁移后删除）
         optimizeCategoryLabelIds.push(labelId);
+        logMenuEvent('optimize-label-added', {
+          labelId,
+          categoryId,
+          totalCount: optimizeCategoryLabelIds.length,
+          allLabels: Array.from(optimizeCategoryLabelIds)
+        });
 
         // 注册到新的同步系统（约定：-label 结尾自动识别）
         if (typeof menuRegistry !== 'undefined' && menuRegistry) {
@@ -276,11 +282,16 @@ async function populateOptimizedMenus({ buildId }) {
             syncGroup: 'labels',
             autoSync: true
           });
+          logMenuEvent('optimize-label-registered-to-registry', {
+            labelId,
+            syncGroup: 'labels'
+          });
         }
       } else {
-        logMenuEvent('optimize-category-label-creation-failed-skipped', {
-          categoryId,
+        logMenuEvent('optimize-label-creation-failed', {
           labelId,
+          categoryId,
+          reason: 'labelResult.ok is false',
           error: labelResult.error?.message || 'unknown'
         });
       }
