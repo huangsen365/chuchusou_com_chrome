@@ -6,6 +6,11 @@ if (chrome.runtime.onStartup) {
 // 预加载调试开关与图标支持状态
 ensureMenuIconSupportLoaded();
 
+// Debounce variables for contextMenuPreview to prevent race conditions
+// when user rapidly selects text (e.g., "题" → "显示" → "内容" → "英国殖民统治问题")
+let contextPreviewTimeout = null;
+let latestPreviewData = null;
+
 const MENU_TITLE_DEBUG_IDS = [
   'ccs-fastqa-chatgpt-quick',
   'ccs-fastqa-claude-quick',
@@ -283,52 +288,89 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'contextMenuPreview') {
     const tabId = sender?.tab?.id ?? null;
     const incoming = typeof request.selectionText === 'string' ? request.selectionText : '';
+
+    // DEBOUNCE: Save latest preview data to prevent race conditions
+    // when user rapidly selects text (e.g., dragging across "英国殖民统治问题")
+    // Content script sends intermediate states: "题" → "显示" → "内容" → "英国殖民统治问题"
+    // We only want to process the final selection after user stops moving mouse
+    latestPreviewData = {
+      request,
+      sender,
+      timestamp: Date.now()
+    };
+
     logMenuEvent('context-preview-in', {
       tabId,
-      incomingText: incoming
+      incomingText: incoming,
+      debounceQueued: true
     });
 
-    (async () => {
+    // Clear previous timeout to prevent processing stale intermediate selections
+    if (contextPreviewTimeout) {
+      clearTimeout(contextPreviewTimeout);
+      logMenuEvent('context-preview-debounce-cancelled', {
+        tabId,
+        reason: 'new-selection'
+      });
+    }
+
+    // Set new timeout - only process after 50ms of inactivity
+    contextPreviewTimeout = setTimeout(() => {
+      const data = latestPreviewData;
+      if (!data) return;
+
+      const finalRequest = data.request;
+      const finalSender = data.sender;
+      const finalTabId = finalSender?.tab?.id ?? null;
+      const finalIncoming = typeof finalRequest.selectionText === 'string' ? finalRequest.selectionText : '';
+
+      logMenuEvent('context-preview-debounce-triggered', {
+        tabId: finalTabId,
+        incomingText: finalIncoming,
+        delayMs: Date.now() - data.timestamp
+      });
+
+      (async () => {
       // BUGFIX: Validate that the message is from the currently active tab
       // to prevent cross-tab state contamination during fast tab switching
-      if (tabId != null) {
+      if (finalTabId != null) {
         try {
           const activeTabs = await chrome.tabs.query({active: true, currentWindow: true});
           const activeTabId = activeTabs?.[0]?.id ?? null;
 
-          if (tabId !== activeTabId) {
+          if (finalTabId !== activeTabId) {
             logMenuEvent('context-preview-ignored-inactive-tab', {
-              senderTabId: tabId,
+              senderTabId: finalTabId,
               activeTabId: activeTabId,
-              incomingText: incoming?.substring(0, 50)
+              incomingText: finalIncoming?.substring(0, 50)
             });
             return; // Ignore messages from inactive tabs
           }
         } catch (error) {
           logMenuEvent('context-preview-validation-error', {
-            tabId,
+            tabId: finalTabId,
             error: error?.message
           });
           // Continue processing if validation fails (fail-open)
         }
       }
 
-      const incomingTrimmed = typeof incoming === 'string' ? incoming.trim() : '';
-      let previewText = incoming;
+      const incomingTrimmed = typeof finalIncoming === 'string' ? finalIncoming.trim() : '';
+      let previewText = finalIncoming;
       let normalizedPreview = previewText ? normalizeSearchText(previewText) : '';
       let source = previewText ? 'message' : 'none';
-      const tabUrl = sender?.tab?.url || '';
-      const tabStub = tabId != null ? { id: tabId, url: tabUrl } : null;
+      const tabUrl = finalSender?.tab?.url || '';
+      const tabStub = finalTabId != null ? { id: finalTabId, url: tabUrl } : null;
 
-      if (tabId != null) {
+      if (finalTabId != null) {
         await syncSelectionFromTab(tabStub, 'context-preview', { updateMenu: false });
         if (!incomingTrimmed) {
-          delete selectedTextByTab[tabId];
+          delete selectedTextByTab[finalTabId];
         }
       }
 
-      if (!previewText && tabId != null && incomingTrimmed) {
-        const cached = selectedTextByTab[tabId];
+      if (!previewText && finalTabId != null && incomingTrimmed) {
+        const cached = selectedTextByTab[finalTabId];
         const cachedText = typeof cached === 'string' ? cached : cached?.text;
         const cachedUrl = typeof cached === 'object' ? cached?.url : undefined;
         if (
@@ -342,13 +384,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
       }
 
-      if (!previewText && sender?.tab) {
+      if (!previewText && finalSender?.tab) {
         try {
       const fallback = await computeSearchTextForTab({
-        tabId,
-        tabUrl: sender.tab.url || '',
+        tabId: finalTabId,
+        tabUrl: finalSender.tab.url || '',
         // BUGFIX: Prefer fresh tab.title over cached value to avoid cross-tab contamination
-        tabTitle: sender.tab.title || getLatestTabPageTitle(tabId) || '',
+        tabTitle: finalSender.tab.title || getLatestTabPageTitle(finalTabId) || '',
         selectionText: ''
       }, {
             forceFetchSelection: false,
@@ -359,22 +401,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             normalizedPreview = fallback.normalized || normalizeSearchText(fallback.raw);
             source = 'resolver-fallback';
           logMenuEvent('context-preview-fallback', {
-            tabId,
+            tabId: finalTabId,
             raw: fallback.raw,
             normalized: fallback.normalized
           });
-          if (tabId != null) {
-            fallbackKeywordByTab[tabId] = {
+          if (finalTabId != null) {
+            fallbackKeywordByTab[finalTabId] = {
               raw: fallback.raw,
               normalized: fallback.normalized || normalizeSearchText(fallback.raw),
               timestamp: Date.now(),
-              url: sender.tab.url || ''
+              url: finalSender.tab.url || ''
             };
           }
         }
       } catch (error) {
         logMenuEvent('context-preview-fallback-error', {
-          tabId,
+          tabId: finalTabId,
           error: error?.message || String(error)
           });
         }
@@ -386,19 +428,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         source = 'menu-state';
       }
 
-      if (tabId != null && previewText) {
-        updateLatestTabKeyword(tabId, previewText, normalizedPreview || previewText);
+      if (finalTabId != null && previewText) {
+        updateLatestTabKeyword(finalTabId, previewText, normalizedPreview || previewText);
       }
 
       logMenuEvent('context-preview', {
-        tabId,
+        tabId: finalTabId,
         previewText,
         normalizedPreview,
         source
       });
-      if (tabId != null) {
-        const currentTitleEntry = latestTitleByTab[tabId];
-        const titleForCompare = (currentTitleEntry?.keyword || currentTitleEntry?.title || sender?.tab?.title || '').trim();
+      if (finalTabId != null) {
+        const currentTitleEntry = latestTitleByTab[finalTabId];
+        const titleForCompare = (currentTitleEntry?.keyword || currentTitleEntry?.title || finalSender?.tab?.title || '').trim();
         const normalizedTitle = titleForCompare ? normalizeSearchText(titleForCompare) : '';
         const keywordForCompare = previewText ? normalizeSearchText(previewText) : '';
         const matched = normalizedTitle && keywordForCompare && normalizedTitle === keywordForCompare;
@@ -407,7 +449,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           : currentMenuState?.display || '';
         const menuRaw = previewText || currentMenuState?.raw || '';
         logMenuEvent('context-preview-title-check', {
-          tabId,
+          tabId: finalTabId,
           title: titleForCompare,
           keyword: previewText,
           normalizedTitle,
@@ -420,14 +462,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
 
       if (previewText && source !== 'menu-state') {
-        if (tabId != null) {
-          selectedTextByTab[tabId] = {
+        if (finalTabId != null) {
+          selectedTextByTab[finalTabId] = {
             text: previewText,
             url: tabUrl
           };
-          delete fallbackKeywordByTab[tabId];
+          delete fallbackKeywordByTab[finalTabId];
           logMenuEvent('context-selection-cache', {
-            tabId,
+            tabId: finalTabId,
             source,
             text: previewText,
             normalized: normalizedPreview,
@@ -435,11 +477,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           });
         }
         setMenuState(previewText, normalizedPreview || previewText, {
-          tabId,
+          tabId: finalTabId,
           url: tabUrl
         });
       }
     })();
+    }, 50); // 50ms debounce delay
 
     return;
   }
