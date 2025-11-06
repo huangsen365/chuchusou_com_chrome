@@ -232,6 +232,8 @@ async function populateOptimizedMenus({ buildId }) {
     const config = await loadOptimizedPromptConfig();
     if (!config || isStaleBuild(buildId)) return;
     populateOptimizedMenuMap(config);
+    // Clear and rebuild optimize category label IDs
+    optimizeCategoryLabelIds.length = 0;
     for (const category of config.categories || []) {
       const categoryId = `ccs-optimize-${category.id}`;
       if (!isMenuEnabled(categoryId)) continue;
@@ -245,6 +247,31 @@ async function populateOptimizedMenus({ buildId }) {
       }, {
         failureLogStage: 'optimize-category-create-failed'
       });
+
+      // Add label with keyword at top of category submenu
+      const labelId = `${categoryId}-label`;
+      await createMenuItem({
+        id: labelId,
+        parentId: categoryId,
+        title: '🔍 触触搜',
+        enabled: false,
+        contexts: MENU_CONTEXTS_DEFAULT
+      }, {
+        failureLogStage: 'optimize-category-label-create-failed'
+      });
+      // Track this label ID for dynamic updates
+      optimizeCategoryLabelIds.push(labelId);
+
+      // Add separator below label
+      await createMenuItem({
+        id: `${categoryId}-label-separator`,
+        parentId: categoryId,
+        type: 'separator',
+        contexts: MENU_CONTEXTS_DEFAULT
+      }, {
+        failureLogStage: 'optimize-category-label-separator-create-failed'
+      });
+
       for (const engine of category.engines || []) {
         const menuId = `ccs-optimize-${category.id}-${engine.id}`;
         if (!isMenuEnabled(menuId)) continue;
@@ -430,6 +457,27 @@ async function createContextMenus() {
         });
       }
 
+      // Add label with keyword at top of submenu
+      await createMenuItem({
+        id: 'ccs-top100-label',
+        parentId: 'ccs-top100-root',
+        title: '🔍 触触搜',
+        enabled: false,
+        contexts: MENU_CONTEXTS_DEFAULT
+      }, {
+        failureLogStage: 'top100-label-create-failed'
+      });
+
+      // Add separator below label
+      await createMenuItem({
+        id: 'ccs-top100-label-separator',
+        parentId: 'ccs-top100-root',
+        type: 'separator',
+        contexts: MENU_CONTEXTS_DEFAULT
+      }, {
+        failureLogStage: 'top100-label-separator-create-failed'
+      });
+
       await createMenuItem({
         id: 'ccs-top100-separator',
         parentId: 'ccs-top100-root',
@@ -462,6 +510,27 @@ async function createContextMenus() {
           failureLogStage: 'fastqa-open-all-create-failed'
         });
       }
+
+      // Add label with keyword at top of submenu
+      await createMenuItem({
+        id: 'ccs-fastqa-label',
+        parentId: 'ccs-fastqa-root',
+        title: '🔍 触触搜',
+        enabled: false,
+        contexts: MENU_CONTEXTS_DEFAULT
+      }, {
+        failureLogStage: 'fastqa-label-create-failed'
+      });
+
+      // Add separator below label
+      await createMenuItem({
+        id: 'ccs-fastqa-label-separator',
+        parentId: 'ccs-fastqa-root',
+        type: 'separator',
+        contexts: MENU_CONTEXTS_DEFAULT
+      }, {
+        failureLogStage: 'fastqa-label-separator-create-failed'
+      });
 
       await createMenuItem({
         id: 'ccs-fastqa-separator',

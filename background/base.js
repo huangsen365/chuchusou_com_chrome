@@ -66,6 +66,8 @@ function normalizeSearchText(raw) {
 const optimizedPromptMenuMap = new Map();
 let optimizedPromptConfig = null;
 let optimizedPromptTemplate = '';
+// Track optimize category label IDs for dynamic updates
+const optimizeCategoryLabelIds = [];
 
 const topQuestionsMenuMap = new Map();
 let topQuestionsConfig = null;
@@ -436,6 +438,48 @@ function updateSearchLabelTitle(displayText) {
   logMenuEvent('search-label', { title, displayText });
 }
 
+function updateSubmenuLabels(displayText) {
+  const formatted = displayText ? formatMenuTitle(displayText) : '';
+  const title = formatted ? `🔍 触触搜: "${formatted}"` : '🔍 触触搜';
+
+  // Fixed submenu labels
+  const fixedLabelIds = [
+    'ccs-top100-label',
+    'ccs-fastqa-label'
+  ];
+
+  // Update fixed labels
+  fixedLabelIds.forEach(labelId => {
+    chrome.contextMenus.update(labelId, { title }, () => {
+      if (chrome.runtime.lastError) {
+        const msg = chrome.runtime.lastError.message || '';
+        if (!/Cannot find menu item/i.test(msg)) {
+          logMenuEvent('submenu-label-update-failed', { labelId, error: msg });
+        }
+      }
+    });
+  });
+
+  // Update optimize category labels
+  optimizeCategoryLabelIds.forEach(labelId => {
+    chrome.contextMenus.update(labelId, { title }, () => {
+      if (chrome.runtime.lastError) {
+        const msg = chrome.runtime.lastError.message || '';
+        if (!/Cannot find menu item/i.test(msg)) {
+          logMenuEvent('optimize-label-update-failed', { labelId, error: msg });
+        }
+      }
+    });
+  });
+
+  logMenuEvent('submenu-labels-updated', {
+    title,
+    displayText,
+    fixedCount: fixedLabelIds.length,
+    optimizeCount: optimizeCategoryLabelIds.length
+  });
+}
+
 function setMenuState(rawText, normalizedText, meta) {
   const raw = typeof rawText === 'string' ? rawText : '';
   const normalized = typeof normalizedText === 'string' ? normalizedText : '';
@@ -489,6 +533,7 @@ function setMenuState(rawText, normalizedText, meta) {
   logMenuEvent('state-update', { ...currentMenuState });
   updateMainMenuTitle(displayText);
   updateSearchLabelTitle(displayText);
+  updateSubmenuLabels(displayText);
   updateSearchMenuTitles(displayText);
   // 移除速答壹拾佰等菜单项的关键字显示，避免重复
   // FAST_QA_MENU_ITEMS.forEach((menuId) => {
