@@ -876,7 +876,7 @@ if (chrome.contextMenus.onShown) {
           }
         }
         if (raw || normalized) {
-          setMenuState(raw, normalized || raw, {
+          await setMenuState(raw, normalized || raw, {
             tabId,
             url: freshTab?.url || tabUrl
           });
