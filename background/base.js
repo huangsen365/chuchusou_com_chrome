@@ -117,7 +117,7 @@ function updateLatestTabKeyword(tabId, keyword, normalized) {
   entry.keywordTimestamp = Date.now();
 }
 
-function getLatestTabPageTitle(tabId, maxAge = 5000) {
+function getLatestTabPageTitle(tabId, maxAge = 30000) { // BUGFIX: Extended from 5s to 30s for better cache hit rate
   if (tabId == null) return '';
   const entry = latestTitleByTab[tabId];
   if (!entry) return '';
@@ -138,7 +138,7 @@ function getLatestTabPageTitle(tabId, maxAge = 5000) {
   return entry?.pageTitle || entry?.title || '';
 }
 
-function getLatestTabKeyword(tabId, maxAge = 5000) {
+function getLatestTabKeyword(tabId, maxAge = 30000) { // BUGFIX: Extended from 5s to 30s for better cache hit rate
   if (tabId == null) return '';
   const entry = latestTitleByTab[tabId];
   if (!entry) return '';

@@ -2,6 +2,18 @@
   const EXTENSION_NAME = '触触搜';
   const SELECTION_SYNC_DELAY = 35;
 
+  // BUGFIX: Wait for DOM to be ready before initializing
+  // This is necessary because manifest.json now uses document_start
+  function waitForDOMReady() {
+    return new Promise((resolve) => {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', resolve, { once: true });
+      } else {
+        resolve();
+      }
+    });
+  }
+
   const state = {
     debug: false,
     selection: '',
@@ -204,7 +216,12 @@
     }
   });
 
-  updateSelection('init', { immediate: true });
+  // BUGFIX: Wait for DOM ready before initializing selection
+  // This prevents errors when content script injects at document_start
+  (async () => {
+    await waitForDOMReady();
+    updateSelection('init', { immediate: true });
+  })();
 
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     switch (request.action) {

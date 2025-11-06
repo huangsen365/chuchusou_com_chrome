@@ -555,6 +555,33 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
     });
   }
 
+  // BUGFIX: Preload keywords to prevent empty menu on first right-click
+  // Extract keywords from URL/title and cache them immediately
+  if (tab?.url && tab?.id != null) {
+    try {
+      const keywords = await extractSearchKeywords(tab.url, tab);
+      if (keywords && keywords.trim()) {
+        fallbackKeywordByTab[activeInfo.tabId] = {
+          raw: keywords,
+          normalized: normalizeSearchText(keywords),
+          timestamp: Date.now(),
+          url: tab.url
+        };
+        logMenuEvent('tab-activated-keyword-preload', {
+          tabId: activeInfo.tabId,
+          keywords: keywords.substring(0, 50),
+          url: tab.url
+        });
+      }
+    } catch (err) {
+      // Keyword extraction failed, but don't block other operations
+      logMenuEvent('tab-activated-keyword-preload-failed', {
+        tabId: activeInfo.tabId,
+        error: err?.message
+      });
+    }
+  }
+
   if (tab?.url) {
     await prefetchMenuState(tab, 'tab-activated');
   }
