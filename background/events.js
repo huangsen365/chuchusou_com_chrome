@@ -478,20 +478,70 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   const tab = await chrome.tabs.get(activeInfo.tabId);
 
-  // BUGFIX: Clear stale currentMenuState when switching to a different tab
+  // BUGFIX: Smart cache preservation - save and restore selection state
   if (currentMenuState.tabId != null && currentMenuState.tabId !== activeInfo.tabId) {
-    logMenuEvent('tab-activated-clearing-stale-state', {
-      previousTabId: currentMenuState.tabId,
+    const previousTabId = currentMenuState.tabId;
+
+    logMenuEvent('tab-activated-state-transition', {
+      previousTabId,
       newTabId: activeInfo.tabId,
-      previousUrl: currentMenuState.url,
-      newUrl: tab?.url
+      hasCurrentState: !!(currentMenuState.raw),
+      hasStoredSelection: !!selectedTextByTab[activeInfo.tabId]
     });
-    // Reset currentMenuState to prevent cross-tab contamination
-    currentMenuState.raw = '';
-    currentMenuState.normalized = '';
-    currentMenuState.display = '';
-    currentMenuState.tabId = null;
-    currentMenuState.url = '';
+
+    // Save current tab's state to cache before switching
+    if (currentMenuState.raw && currentMenuState.raw.trim()) {
+      selectedTextByTab[previousTabId] = {
+        text: currentMenuState.raw,
+        url: currentMenuState.url,
+        timestamp: Date.now()
+      };
+      logMenuEvent('tab-activated-saved-to-cache', {
+        tabId: previousTabId,
+        text: currentMenuState.raw.substring(0, 50)
+      });
+    }
+
+    // Try to restore new tab's state from cache
+    const cached = selectedTextByTab[activeInfo.tabId];
+    if (cached && cached.text && cached.text.trim()) {
+      const age = Date.now() - (cached.timestamp || 0);
+      const isFresh = age < 10000; // 10 seconds threshold
+      const urlMatches = cached.url === tab.url;
+
+      if (isFresh && urlMatches) {
+        // Restore from cache
+        setMenuState(cached.text, normalizeSearchText(cached.text), {
+          tabId: activeInfo.tabId,
+          url: tab.url
+        });
+        logMenuEvent('tab-activated-restored-from-cache', {
+          tabId: activeInfo.tabId,
+          age,
+          text: cached.text.substring(0, 50)
+        });
+      } else {
+        // Cache expired or URL changed, clear state
+        currentMenuState.raw = '';
+        currentMenuState.normalized = '';
+        currentMenuState.display = '';
+        currentMenuState.tabId = null;
+        currentMenuState.url = '';
+        logMenuEvent('tab-activated-cache-invalid', {
+          tabId: activeInfo.tabId,
+          age,
+          isFresh,
+          urlMatches
+        });
+      }
+    } else {
+      // No cache, clear state
+      currentMenuState.raw = '';
+      currentMenuState.normalized = '';
+      currentMenuState.display = '';
+      currentMenuState.tabId = null;
+      currentMenuState.url = '';
+    }
   }
 
   // BUGFIX: Immediately update latestTitleByTab cache with fresh tab title
@@ -623,10 +673,26 @@ if (chrome.contextMenus.onShown) {
         } else {
           const stored = selectedTextByTab[tabId];
           const storedText = typeof stored?.text === 'string' ? stored.text.trim() : '';
-          if (storedText) {
+          const storedAge = stored?.timestamp ? (Date.now() - stored.timestamp) : Infinity;
+          const isCacheFresh = storedAge < 10000; // 10 seconds threshold
+
+          // BUGFIX: Validate cache freshness before using stored selection
+          if (storedText && isCacheFresh) {
             raw = storedText;
             normalized = normalizeSearchText(storedText);
+            logMenuEvent('onShown-used-cached-selection', {
+              tabId,
+              age: storedAge,
+              text: storedText.substring(0, 50)
+            });
           } else {
+            if (storedText && !isCacheFresh) {
+              logMenuEvent('onShown-cache-expired', {
+                tabId,
+                age: storedAge,
+                text: storedText.substring(0, 50)
+              });
+            }
             const result = await computeSearchTextForTab({
               tabId,
               tabUrl: freshTab?.url || tabUrl,
@@ -636,8 +702,9 @@ if (chrome.contextMenus.onShown) {
               selectionText: ''
             }, {
               forceFetchSelection: false,
-              // BUGFIX: Always skip currentMenuState fallback to prevent cross-tab contamination
-              skipCurrentMenuFallback: true
+              // BUGFIX: Only skip fallback if currentMenuState is from a different tab
+              // This allows using cached selection for the same tab after switching back
+              skipCurrentMenuFallback: isCurrentMenuStateStale
             });
             raw = result?.raw || '';
             normalized = result?.normalized || '';

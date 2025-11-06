@@ -198,7 +198,9 @@
   document.addEventListener('contextmenu', handleContextMenu, true);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
-      updateSelection('visibility');
+      // BUGFIX: Immediately sync selection when tab becomes visible
+      // Skip debounce to ensure selection is available before user right-clicks
+      updateSelection('visibility', { immediate: true });
     }
   });
 
