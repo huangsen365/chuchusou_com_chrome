@@ -107,15 +107,6 @@
           "contexts": ["selection", "page"],
           "urlPattern": "https://tongyi.aliyun.com/qianwen/?q=${KEYWORD}",
           "enabled": true
-        },
-        {
-          "id": "ccs-yiyan",
-          "type": "ai-search",
-          "title": "文心一言",
-          "icon": "🧠",
-          "contexts": ["selection", "page"],
-          "urlPattern": "https://yiyan.baidu.com/?q=${KEYWORD}",
-          "enabled": true
         }
       ]
     },
@@ -153,6 +144,15 @@
       "position": "middle",
       "separator": "before",
       "items": [
+        {
+          "id": "ccs-yiyan",
+          "type": "ai-search",
+          "title": "文心一言",
+          "icon": "🧠",
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://yiyan.baidu.com/?q=${KEYWORD}",
+          "enabled": true
+        },
         {
           "id": "ccs-zhihu",
           "type": "search",

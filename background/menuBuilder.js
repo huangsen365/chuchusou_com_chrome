@@ -332,6 +332,27 @@ async function createContextMenus() {
       failureLogStage: 'create-main-failed'
     });
 
+    // 创建关键字标签菜单项（禁用，仅作为标签显示）
+    await createMenuItem({
+      id: 'ccs-search-label',
+      parentId: 'ccs-main',
+      title: '🔍 搜索',
+      enabled: false,
+      contexts: MENU_CONTEXTS_DEFAULT
+    }, {
+      failureLogStage: 'create-search-label-failed'
+    });
+
+    // 在标签下方添加分割线
+    await createMenuItem({
+      id: 'ccs-search-label-separator',
+      parentId: 'ccs-main',
+      type: 'separator',
+      contexts: MENU_CONTEXTS_DEFAULT
+    }, {
+      failureLogStage: 'create-search-label-separator-failed'
+    });
+
     await createQuickMenuItems(quickEnabledMap);
 
     await createMenuItem({

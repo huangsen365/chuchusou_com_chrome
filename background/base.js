@@ -341,15 +341,9 @@ const FAST_ANSWER_ENGINE_TITLES = {
   'yiyan': '🧠 文心一言'
 };
 
-const DYNAMIC_SEARCH_MENU_ITEMS = [
-  'ccs-chuchusou',
-  'ccs-chatgpt',
-  'ccs-claude',
-  'ccs-fastqa-chatgpt-quick',
-  'ccs-fastqa-claude-quick',
-  'ccs-fastqa-grok-quick',
-  'ccs-fastqa-yiyan-quick'
-];
+// 动态搜索菜单项 - 清空以移除各菜单项后的关键字显示
+// 关键字将统一显示在二级菜单顶部的标签中
+const DYNAMIC_SEARCH_MENU_ITEMS = [];
 
 const FAST_QA_MENU_ITEMS = [
   'ccs-fastqa-root',
@@ -395,6 +389,20 @@ function updateMainMenuTitle(displayText) {
     chrome.action.setTitle({ title });
   }
   logMenuEvent('main-title', { title, displayText });
+}
+
+function updateSearchLabelTitle(displayText) {
+  const formatted = displayText ? formatMenuTitle(displayText) : '';
+  const title = formatted ? `🔍 搜索: "${formatted}"` : '🔍 搜索';
+  chrome.contextMenus.update('ccs-search-label', { title }, () => {
+    if (chrome.runtime.lastError) {
+      const msg = chrome.runtime.lastError.message || '';
+      if (!/Cannot find menu item/i.test(msg)) {
+        logMenuEvent('search-label-update-failed', { error: msg });
+      }
+    }
+  });
+  logMenuEvent('search-label', { title, displayText });
 }
 
 function setMenuState(rawText, normalizedText, meta) {
@@ -449,6 +457,7 @@ function setMenuState(rawText, normalizedText, meta) {
   }
   logMenuEvent('state-update', { ...currentMenuState });
   updateMainMenuTitle(displayText);
+  updateSearchLabelTitle(displayText);
   updateSearchMenuTitles(displayText);
   FAST_QA_MENU_ITEMS.forEach((menuId) => {
     const baseTitle = getMenuTitle(menuId);

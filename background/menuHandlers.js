@@ -462,7 +462,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     case 'ccs-google-translate':
       if (finalNormalized) {
         chrome.tabs.create({
-          url: `https://translate.google.com/?text=${encodeURIComponent(finalNormalized)}`
+          url: `https://translate.google.com/?sl=auto&tl=zh-CN&text=${encodeURIComponent(finalNormalized)}`
         });
       }
       break;
