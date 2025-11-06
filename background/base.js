@@ -599,12 +599,14 @@ async function setMenuState(rawText, normalizedText, meta) {
 
   // BUGFIX: Validate that the requested tabId is the currently active tab
   // to prevent cross-tab state contamination during fast tab switching
+  // FAIL-OPEN MODE: Only reject if CERTAIN the message is from inactive tab
   if (newTabId != null && raw) {
     try {
       const activeTabs = await chrome.tabs.query({active: true, currentWindow: true});
       const activeTabId = activeTabs?.[0]?.id ?? null;
 
-      if (newTabId !== activeTabId) {
+      // Only reject if we have valid activeTabId AND it differs
+      if (activeTabId != null && newTabId !== activeTabId) {
         logMenuEvent('state-update-rejected-inactive-tab', {
           requestedTabId: newTabId,
           activeTabId: activeTabId,
@@ -612,6 +614,15 @@ async function setMenuState(rawText, normalizedText, meta) {
           normalized: normalized?.substring(0, 50)
         });
         return; // Reject state updates from inactive tabs
+      }
+
+      // Log when allowing through due to null activeTabId (fail-open)
+      if (activeTabId == null) {
+        logMenuEvent('state-update-validation-null-active', {
+          newTabId,
+          raw: raw?.substring(0, 50),
+          reason: 'chrome.tabs.query returned no active tab, allowing through (fail-open)'
+        });
       }
     } catch (error) {
       logMenuEvent('state-update-validation-error', {
