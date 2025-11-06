@@ -610,17 +610,17 @@ async function createContextMenus() {
       failureStage: 'transform-menu-create-failed'
     });
 
-    await createMenuItem({
-      id: 'ccs-separator-3',
-      parentId: 'ccs-main',
-      type: 'separator',
-      contexts: MENU_CONTEXTS_DEFAULT
-    }, {
-      failureLogStage: 'create-separator-3-failed'
-    });
-
-    // Only create "Open Panel" menu item if enabled in menuToggles.json
+    // Only create separator and "Open Panel" menu item if show-popover is enabled
     if (isMenuEnabled('ccs-show-popover')) {
+      await createMenuItem({
+        id: 'ccs-separator-3',
+        parentId: 'ccs-main',
+        type: 'separator',
+        contexts: MENU_CONTEXTS_DEFAULT
+      }, {
+        failureLogStage: 'create-separator-3-failed'
+      });
+
       await createMenuItem({
         id: 'ccs-show-popover',
         parentId: 'ccs-main',
