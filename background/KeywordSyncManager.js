@@ -68,6 +68,24 @@ class KeywordSyncManager {
    * @private
    */
   _setupOnShownListener() {
+    // BUGFIX: Disable onShown listener to prevent stale cache reads and cross-tab contamination
+    //
+    // Problems with onShown approach:
+    // 1. The `tab` parameter is unreliable - may contain stale or incorrect tab info
+    // 2. _refreshKeywordForTab reads from global cache without validation
+    // 3. Can read data from closed tabs if cache not cleaned properly
+    // 4. Multiple onShown listeners compete and overwrite each other
+    //
+    // Solution: Menu sync now happens immediately in setMenuState() (base.js:547-604)
+    // This makes onShown sync redundant and only causes problems.
+    //
+    // Result: All menus (including optimize category) show correct keywords from active tab
+    console.log('[KeywordSyncManager] onShown listener DISABLED - using immediate sync in setMenuState instead');
+    return;
+
+    // Old onShown listener code below (kept for reference, never executed)
+    // ===================================================================
+
     if (!chrome.contextMenus || !chrome.contextMenus.onShown) {
       console.warn('[KeywordSyncManager] chrome.contextMenus.onShown not available');
       return;
