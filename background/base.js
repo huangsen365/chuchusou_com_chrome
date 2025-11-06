@@ -716,8 +716,16 @@ async function setMenuState(rawText, normalizedText, meta) {
   //     menuNormalized: currentMenuState?.normalized || ''
   //   });
   // });
+  // BUGFIX: Add small delay before refreshing to ensure Chrome updates its internal menu cache
+  // Without this delay, Chrome may show stale menu items when right-clicking immediately after text selection
   if (chrome.contextMenus.refresh) {
-    chrome.contextMenus.refresh();
+    setTimeout(() => {
+      chrome.contextMenus.refresh();
+      logMenuEvent('context-menu-refreshed-delayed', {
+        timestamp: Date.now(),
+        delayMs: 50
+      });
+    }, 50);
   }
 }
 
