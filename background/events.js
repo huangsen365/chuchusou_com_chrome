@@ -333,18 +333,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       (async () => {
       // BUGFIX: Validate that the message is from the currently active tab
       // to prevent cross-tab state contamination during fast tab switching
+      // FAIL-OPEN MODE: Only reject if we're CERTAIN the message is from an inactive tab
+      // (i.e., activeTabId exists and differs from finalTabId)
       if (finalTabId != null) {
         try {
           const activeTabs = await chrome.tabs.query({active: true, currentWindow: true});
           const activeTabId = activeTabs?.[0]?.id ?? null;
 
-          if (finalTabId !== activeTabId) {
+          // Only reject if we have a valid activeTabId AND it differs from finalTabId
+          // If activeTabId is null (macOS focus issues, Chrome API bug), allow through (fail-open)
+          if (activeTabId != null && finalTabId !== activeTabId) {
             logMenuEvent('context-preview-ignored-inactive-tab', {
               senderTabId: finalTabId,
               activeTabId: activeTabId,
               incomingText: finalIncoming?.substring(0, 50)
             });
             return; // Ignore messages from inactive tabs
+          }
+
+          if (activeTabId == null) {
+            logMenuEvent('context-preview-validation-null-active', {
+              finalTabId,
+              reason: 'chrome.tabs.query returned no active tab, allowing through (fail-open)'
+            });
           }
         } catch (error) {
           logMenuEvent('context-preview-validation-error', {
@@ -495,10 +506,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     // BUGFIX: Validate that the message is from the currently active tab
     // to prevent cross-tab state contamination during fast tab switching
+    // FAIL-OPEN MODE: Only reject if we're CERTAIN the message is from an inactive tab
     chrome.tabs.query({active: true, currentWindow: true}, async (tabs) => {
       const activeTabId = tabs?.[0]?.id ?? null;
 
-      if (tabId !== activeTabId) {
+      // Only reject if we have a valid activeTabId AND it differs from tabId
+      // If activeTabId is null (macOS focus issues, Chrome API bug), allow through (fail-open)
+      if (activeTabId != null && tabId !== activeTabId) {
         logMenuEvent('selection-changed-ignored-inactive-tab', {
           senderTabId: tabId,
           activeTabId: activeTabId,
@@ -506,6 +520,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           hasContent
         });
         return; // Ignore messages from inactive tabs
+      }
+
+      if (activeTabId == null) {
+        logMenuEvent('selection-changed-validation-null-active', {
+          tabId,
+          reason: 'chrome.tabs.query returned no active tab, allowing through (fail-open)',
+          hasContent
+        });
       }
 
       // Only update state for active tab
