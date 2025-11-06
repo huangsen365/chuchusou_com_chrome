@@ -137,17 +137,34 @@ async function computeSearchTextForTab({
     if (
       stored &&
       typeof stored.text === 'string' &&
-      stored.text.trim().length > 0 &&
-      typeof stored.url === 'string' &&
-      stored.url === tabUrl
+      stored.text.trim().length > 0
     ) {
-      candidates.push(stored.text);
-      logResolver('candidate', {
-        source: 'stored-selection',
-        value: stored.text,
-        storedUrl: stored.url,
-        tabUrl
-      });
+      // BUGFIX: Relax URL matching - allow stored selection if it's recent (within 10 seconds)
+      // This prevents user's actual selection from being overwritten by URL fallback
+      // due to minor URL changes (hash, query params, etc.)
+      const storedAge = stored.timestamp ? (Date.now() - stored.timestamp) : Infinity;
+      const isFresh = storedAge < 10000; // 10 seconds
+      const urlMatches = typeof stored.url === 'string' && stored.url === tabUrl;
+
+      if (urlMatches || isFresh) {
+        candidates.push(stored.text);
+        logResolver('candidate', {
+          source: 'stored-selection',
+          value: stored.text,
+          storedUrl: stored.url,
+          tabUrl,
+          urlMatches,
+          isFresh,
+          ageMs: storedAge
+        });
+      } else {
+        logResolver('stored-selection-skipped', {
+          reason: 'stale-or-url-mismatch',
+          storedUrl: stored.url,
+          tabUrl,
+          ageMs: storedAge
+        });
+      }
     }
   }
 
