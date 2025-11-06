@@ -7,9 +7,11 @@
   "ccs-fastqa-claude-quick": true,
   "ccs-fastqa-grok-quick": true,
   "ccs-fastqa-yiyan-quick": true,
-  "ccs-base64": true,
+  "ccs-copy": false,
+  "ccs-base64": false,
   "ccs-md5": false,
   "ccs-url-encode": false,
   "ccs-upper": false,
-  "ccs-lower": false
+  "ccs-lower": false,
+  "ccs-show-popover": false
 }
