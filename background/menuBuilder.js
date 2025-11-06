@@ -556,7 +556,9 @@ async function createContextMenus() {
         failureLogStage: 'optimize-root-create-failed'
       });
 
-      asyncTasks.push(populateOptimizedMenus({ buildId }));
+      // BUGFIX: Changed to synchronous to ensure optimizeCategoryLabelIds is populated
+      // before createContextMenus() completes, preventing race condition
+      await populateOptimizedMenus({ buildId });
     }
 
     await createMenuItem({
@@ -646,5 +648,21 @@ async function createContextMenus() {
   }
 
   logMenuEvent('rebuild-complete', { buildId });
+
+  // BUGFIX: Sync all submenu labels with current keyword after menu creation completes
+  // This ensures labels show the correct keyword immediately, not just the default '🔍 触触搜'
+  if (currentMenuState.display) {
+    updateSubmenuLabels(currentMenuState.display);
+    logMenuEvent('submenu-labels-synced-after-rebuild', {
+      buildId,
+      display: currentMenuState.display,
+      optimizeLabelCount: optimizeCategoryLabelIds.length
+    });
+  } else {
+    // Even without keyword, update to ensure consistency
+    updateSubmenuLabels('');
+    logMenuEvent('submenu-labels-synced-empty', { buildId });
+  }
+
   finalizeMenuBuild();
 }
