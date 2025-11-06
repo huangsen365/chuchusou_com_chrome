@@ -276,6 +276,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     });
 
     (async () => {
+      // BUGFIX: Validate that the message is from the currently active tab
+      // to prevent cross-tab state contamination during fast tab switching
+      if (tabId != null) {
+        try {
+          const activeTabs = await chrome.tabs.query({active: true, currentWindow: true});
+          const activeTabId = activeTabs?.[0]?.id ?? null;
+
+          if (tabId !== activeTabId) {
+            logMenuEvent('context-preview-ignored-inactive-tab', {
+              senderTabId: tabId,
+              activeTabId: activeTabId,
+              incomingText: incoming?.substring(0, 50)
+            });
+            return; // Ignore messages from inactive tabs
+          }
+        } catch (error) {
+          logMenuEvent('context-preview-validation-error', {
+            tabId,
+            error: error?.message
+          });
+          // Continue processing if validation fails (fail-open)
+        }
+      }
+
       const incomingTrimmed = typeof incoming === 'string' ? incoming.trim() : '';
       let previewText = incoming;
       let normalizedPreview = previewText ? normalizeSearchText(previewText) : '';
@@ -412,25 +436,40 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const tabId = sender.tab.id;
     const rawText = typeof request.text === 'string' ? request.text : '';
     const hasContent = rawText.trim().length > 0;
-    if (hasContent) {
-      selectedTextByTab[tabId] = {
-        text: rawText,
-        url: sender.tab.url || ''
-      };
-      const normalizedSelection = normalizeSearchText(rawText);
-      setMenuState(rawText, normalizedSelection || rawText, {
-        tabId,
-        url: sender.tab.url || ''
-      });
-    } else {
-      delete selectedTextByTab[tabId];
-    }
+
+    // BUGFIX: Validate that the message is from the currently active tab
+    // to prevent cross-tab state contamination during fast tab switching
     chrome.tabs.query({active: true, currentWindow: true}, async (tabs) => {
-      if (tabs[0] && tabs[0].id === tabId) {
-        const preserve = shouldPreserveMenuStateForTab(sender.tab);
-        if (!hasContent || !preserve) {
-          await refreshMenuTitle(sender.tab, rawText);
-        }
+      const activeTabId = tabs?.[0]?.id ?? null;
+
+      if (tabId !== activeTabId) {
+        logMenuEvent('selection-changed-ignored-inactive-tab', {
+          senderTabId: tabId,
+          activeTabId: activeTabId,
+          text: rawText?.substring(0, 50),
+          hasContent
+        });
+        return; // Ignore messages from inactive tabs
+      }
+
+      // Only update state for active tab
+      if (hasContent) {
+        selectedTextByTab[tabId] = {
+          text: rawText,
+          url: sender.tab.url || ''
+        };
+        const normalizedSelection = normalizeSearchText(rawText);
+        setMenuState(rawText, normalizedSelection || rawText, {
+          tabId,
+          url: sender.tab.url || ''
+        });
+      } else {
+        delete selectedTextByTab[tabId];
+      }
+
+      const preserve = shouldPreserveMenuStateForTab(sender.tab);
+      if (!hasContent || !preserve) {
+        await refreshMenuTitle(sender.tab, rawText);
       }
     });
   }
@@ -555,11 +594,12 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
         });
       } else {
         // Cache expired or URL changed, clear state
+        // BUGFIX: Set tabId to new active tab immediately to prevent stale messages
         currentMenuState.raw = '';
         currentMenuState.normalized = '';
         currentMenuState.display = '';
-        currentMenuState.tabId = null;
-        currentMenuState.url = '';
+        currentMenuState.tabId = activeInfo.tabId; // ✅ Set to new tab, not null
+        currentMenuState.url = tab.url || '';
         logMenuEvent('tab-activated-cache-invalid', {
           tabId: activeInfo.tabId,
           age,
@@ -569,11 +609,12 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
       }
     } else {
       // No cache, clear state
+      // BUGFIX: Set tabId to new active tab immediately to prevent stale messages
       currentMenuState.raw = '';
       currentMenuState.normalized = '';
       currentMenuState.display = '';
-      currentMenuState.tabId = null;
-      currentMenuState.url = '';
+      currentMenuState.tabId = activeInfo.tabId; // ✅ Set to new tab, not null
+      currentMenuState.url = tab.url || '';
     }
   }
 

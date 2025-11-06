@@ -544,6 +544,31 @@ async function setMenuState(rawText, normalizedText, meta) {
     });
   }
 
+  // BUGFIX: Validate that the requested tabId is the currently active tab
+  // to prevent cross-tab state contamination during fast tab switching
+  if (newTabId != null && raw) {
+    try {
+      const activeTabs = await chrome.tabs.query({active: true, currentWindow: true});
+      const activeTabId = activeTabs?.[0]?.id ?? null;
+
+      if (newTabId !== activeTabId) {
+        logMenuEvent('state-update-rejected-inactive-tab', {
+          requestedTabId: newTabId,
+          activeTabId: activeTabId,
+          raw: raw?.substring(0, 50),
+          normalized: normalized?.substring(0, 50)
+        });
+        return; // Reject state updates from inactive tabs
+      }
+    } catch (error) {
+      logMenuEvent('state-update-validation-error', {
+        error: error?.message,
+        tabId: newTabId
+      });
+      // Continue processing if validation fails (fail-open)
+    }
+  }
+
   currentMenuState.raw = raw;
   currentMenuState.normalized = normalized;
   currentMenuState.display = displayText;
