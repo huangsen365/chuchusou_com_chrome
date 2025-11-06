@@ -9,13 +9,22 @@
     "editableContexts": ["selection", "page", "editable"]
   },
 
+  "syncRules": {
+    "autoDetect": true,
+    "labelPattern": "-label$",
+    "templatePattern": "\\$\\{keyword\\}",
+    "defaultFormat": "${icon} ${title}: \"${keyword}\""
+  },
+
   "root": {
     "id": "ccs-main",
     "title": "触触搜",
     "icon": "🔍",
     "contexts": ["all"],
     "dynamicTitle": true,
-    "titleTemplate": "${icon} ${title}"
+    "titleTemplate": "${icon} ${title}: \"${keyword}\"",
+    "syncGroup": "main",
+    "autoSync": true
   },
 
   "groups": [

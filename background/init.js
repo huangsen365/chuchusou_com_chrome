@@ -113,13 +113,22 @@ async function initializeMenuSystem() {
 
     console.log('[Init] ✅ 新菜单系统工具已就绪');
 
+    // 初始化关键字同步系统（新架构）
+    if (typeof initKeywordSyncSystem === 'function') {
+      initKeywordSyncSystem();
+      console.log('[Init] ✅ 关键字同步系统已初始化');
+    }
+
     // 导出全局访问点（方便调试）
     if (INIT_CONFIG.debug) {
       globalThis._debugMenuSystem = {
         stateManager: MenuSystem.getStateManager(),
         urlBuilder: MenuSystem.getURLBuilder(),
         menuManager: MenuSystem.getMenuManager(),
-        config: MenuSystem.getSystemConfig()
+        config: MenuSystem.getSystemConfig(),
+        // 新增：关键字同步系统调试接口
+        menuRegistry: typeof menuRegistry !== 'undefined' ? menuRegistry : null,
+        keywordSyncManager: typeof keywordSyncManager !== 'undefined' ? keywordSyncManager : null
       };
 
       console.log('[Init] 🔧 调试工具已挂载到 _debugMenuSystem');

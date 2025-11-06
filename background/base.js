@@ -2,6 +2,26 @@
 let BG_DEBUG = false;
 const BG_DBG = (...args) => { if (BG_DEBUG) console.log(...args); };
 
+// ==================== 新架构：关键字同步机制重构 ====================
+// 导入新的关键字同步模块（注意：需要在 manifest.json 中配置为模块）
+// 临时使用全局变量，稍后会重构为 ES6 模块
+let menuRegistry = null;
+let keywordSyncManager = null;
+
+// 初始化新的同步系统（延迟初始化，在 MenuRegistry.js 加载后）
+function initKeywordSyncSystem() {
+  if (typeof MenuRegistry !== 'undefined') {
+    menuRegistry = new MenuRegistry();
+    console.log('[触触搜] MenuRegistry 已初始化');
+  }
+
+  if (typeof KeywordSyncManager !== 'undefined' && menuRegistry) {
+    keywordSyncManager = new KeywordSyncManager(menuRegistry);
+    console.log('[触触搜] KeywordSyncManager 已初始化');
+  }
+}
+// ==================================================================
+
 function formatMenuTitle(text) {
   if (!text) return null;
   const compact = text.replace(/\s+/g, ' ').trim();
@@ -480,7 +500,7 @@ function updateSubmenuLabels(displayText) {
   });
 }
 
-function setMenuState(rawText, normalizedText, meta) {
+async function setMenuState(rawText, normalizedText, meta) {
   const raw = typeof rawText === 'string' ? rawText : '';
   const normalized = typeof normalizedText === 'string' ? normalizedText : '';
   const base = normalized || raw;
@@ -531,10 +551,34 @@ function setMenuState(rawText, normalizedText, meta) {
     }
   }
   logMenuEvent('state-update', { ...currentMenuState });
-  updateMainMenuTitle(displayText);
-  updateSearchLabelTitle(displayText);
-  updateSubmenuLabels(displayText);
-  updateSearchMenuTitles(displayText);
+
+  // 新架构：使用 KeywordSyncManager 统一同步所有菜单
+  if (typeof keywordSyncManager !== 'undefined' && keywordSyncManager) {
+    try {
+      // 注意：onShown 监听器会自动同步，这里不需要立即同步
+      // 只更新状态，避免频繁更新菜单
+      await keywordSyncManager.update(raw, normalized, meta);
+      logMenuEvent('keyword-sync-via-new-system', {
+        raw,
+        normalized,
+        displayText,
+        tabId: newTabId
+      });
+    } catch (error) {
+      console.error('[触触搜] 新同步系统更新失败，回退到旧系统:', error);
+      // 回退到旧系统
+      updateMainMenuTitle(displayText);
+      updateSearchLabelTitle(displayText);
+      updateSubmenuLabels(displayText);
+      updateSearchMenuTitles(displayText);
+    }
+  } else {
+    // 旧系统（兼容模式）
+    updateMainMenuTitle(displayText);
+    updateSearchLabelTitle(displayText);
+    updateSubmenuLabels(displayText);
+    updateSearchMenuTitles(displayText);
+  }
   // 移除速答壹拾佰等菜单项的关键字显示，避免重复
   // FAST_QA_MENU_ITEMS.forEach((menuId) => {
   //   const baseTitle = getMenuTitle(menuId);

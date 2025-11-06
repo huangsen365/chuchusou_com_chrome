@@ -2,6 +2,10 @@ importScripts(
   // 日志系统（最先加载）
   './Logger.js',
 
+  // 关键字同步系统重构模块（新架构）
+  './MenuRegistry.js',
+  './KeywordSyncManager.js',
+
   // 新菜单系统核心模块（先加载，供旧模块使用）
   './menuIds.js',
   './StateManager.js',

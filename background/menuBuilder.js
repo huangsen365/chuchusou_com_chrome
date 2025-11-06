@@ -260,10 +260,23 @@ async function populateOptimizedMenus({ buildId }) {
         failureLogStage: 'optimize-category-label-create-failed'
       });
 
-      // BUGFIX: Track this label ID for dynamic updates ONLY if creation succeeded
-      // If createMenuItem fails, don't push to array to prevent updating non-existent items
+      // 新架构：注册到 MenuRegistry，替代原有的 optimizeCategoryLabelIds 数组
       if (labelResult.ok) {
+        // 保留旧系统兼容（可在完全迁移后删除）
         optimizeCategoryLabelIds.push(labelId);
+
+        // 注册到新的同步系统（约定：-label 结尾自动识别）
+        if (typeof menuRegistry !== 'undefined' && menuRegistry) {
+          menuRegistry.register({
+            id: labelId,
+            parentId: categoryId,
+            title: '触触搜',
+            icon: '🔍',
+            titleTemplate: '${icon} ${title}: "${keyword}"',
+            syncGroup: 'labels',
+            autoSync: true
+          });
+        }
       } else {
         logMenuEvent('optimize-category-label-creation-failed-skipped', {
           categoryId,
@@ -369,7 +382,7 @@ async function createContextMenus() {
       needsFastAnswersConfig
     });
 
-    await createMenuItem({
+    const mainResult = await createMenuItem({
       id: 'ccs-main',
       title: getMenuTitle('ccs-main'),
       contexts: MENU_CONTEXTS_DEFAULT
@@ -377,8 +390,20 @@ async function createContextMenus() {
       failureLogStage: 'create-main-failed'
     });
 
+    // 注册主菜单到新的同步系统
+    if (mainResult.ok && typeof menuRegistry !== 'undefined' && menuRegistry) {
+      menuRegistry.register({
+        id: 'ccs-main',
+        title: '触触搜',
+        icon: '🔍',
+        titleTemplate: '${icon} ${title}: "${keyword}"',
+        syncGroup: 'main',
+        autoSync: true
+      });
+    }
+
     // 创建关键字标签菜单项（禁用，仅作为标签显示）
-    await createMenuItem({
+    const searchLabelResult = await createMenuItem({
       id: 'ccs-search-label',
       parentId: 'ccs-main',
       title: '🔍 触触搜',
@@ -387,6 +412,19 @@ async function createContextMenus() {
     }, {
       failureLogStage: 'create-search-label-failed'
     });
+
+    // 注册搜索标签到新的同步系统（约定：-label 结尾自动识别）
+    if (searchLabelResult.ok && typeof menuRegistry !== 'undefined' && menuRegistry) {
+      menuRegistry.register({
+        id: 'ccs-search-label',
+        parentId: 'ccs-main',
+        title: '触触搜',
+        icon: '🔍',
+        titleTemplate: '${icon} ${title}: "${keyword}"',
+        syncGroup: 'labels',
+        autoSync: true
+      });
+    }
 
     // 在标签下方添加分割线
     await createMenuItem({
@@ -475,7 +513,7 @@ async function createContextMenus() {
       }
 
       // Add label with keyword at top of submenu
-      await createMenuItem({
+      const top100LabelResult = await createMenuItem({
         id: 'ccs-top100-label',
         parentId: 'ccs-top100-root',
         title: '🔍 触触搜',
@@ -484,6 +522,19 @@ async function createContextMenus() {
       }, {
         failureLogStage: 'top100-label-create-failed'
       });
+
+      // 注册到新的同步系统（约定：-label 结尾自动识别）
+      if (top100LabelResult.ok && typeof menuRegistry !== 'undefined' && menuRegistry) {
+        menuRegistry.register({
+          id: 'ccs-top100-label',
+          parentId: 'ccs-top100-root',
+          title: '触触搜',
+          icon: '🔍',
+          titleTemplate: '${icon} ${title}: "${keyword}"',
+          syncGroup: 'labels',
+          autoSync: true
+        });
+      }
 
       // Add separator below label
       await createMenuItem({
@@ -529,7 +580,7 @@ async function createContextMenus() {
       }
 
       // Add label with keyword at top of submenu
-      await createMenuItem({
+      const fastqaLabelResult = await createMenuItem({
         id: 'ccs-fastqa-label',
         parentId: 'ccs-fastqa-root',
         title: '🔍 触触搜',
@@ -538,6 +589,19 @@ async function createContextMenus() {
       }, {
         failureLogStage: 'fastqa-label-create-failed'
       });
+
+      // 注册到新的同步系统（约定：-label 结尾自动识别）
+      if (fastqaLabelResult.ok && typeof menuRegistry !== 'undefined' && menuRegistry) {
+        menuRegistry.register({
+          id: 'ccs-fastqa-label',
+          parentId: 'ccs-fastqa-root',
+          title: '触触搜',
+          icon: '🔍',
+          titleTemplate: '${icon} ${title}: "${keyword}"',
+          syncGroup: 'labels',
+          autoSync: true
+        });
+      }
 
       // Add separator below label
       await createMenuItem({
