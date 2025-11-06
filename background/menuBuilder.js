@@ -748,7 +748,25 @@ async function createContextMenus() {
 
   logMenuEvent('rebuild-complete', { buildId });
 
-  // BUGFIX: Sync all submenu labels with current keyword after menu creation completes
+  // 新架构：菜单创建完成后，立即同步所有菜单标题
+  if (typeof keywordSyncManager !== 'undefined' && keywordSyncManager && currentMenuState.display) {
+    try {
+      const syncResult = await keywordSyncManager.syncMenus();
+      logMenuEvent('menus-synced-after-rebuild-new-system', {
+        buildId,
+        display: currentMenuState.display,
+        syncResult
+      });
+    } catch (error) {
+      console.error('[触触搜][BG] 菜单创建后同步失败:', error);
+      logMenuEvent('menus-sync-after-rebuild-failed', {
+        buildId,
+        error: extractErrorMessage(error)
+      });
+    }
+  }
+
+  // 旧系统（兼容模式）：BUGFIX: Sync all submenu labels with current keyword after menu creation completes
   // This ensures labels show the correct keyword immediately, not just the default '🔍 触触搜'
   if (currentMenuState.display) {
     updateSubmenuLabels(currentMenuState.display);

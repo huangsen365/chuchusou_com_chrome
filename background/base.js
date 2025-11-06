@@ -567,17 +567,25 @@ async function setMenuState(rawText, normalizedText, meta) {
   // 新架构：使用 KeywordSyncManager 统一同步所有菜单
   if (typeof keywordSyncManager !== 'undefined' && keywordSyncManager) {
     try {
-      // 注意：onShown 监听器会自动同步，这里不需要立即同步
-      // 只更新状态，避免频繁更新菜单
+      // 更新状态
       await keywordSyncManager.update(raw, normalized, meta);
+
+      // 立即同步菜单（不依赖 onShown）
+      const syncResult = await keywordSyncManager.syncMenus();
+
       logMenuEvent('keyword-sync-via-new-system', {
         raw,
         normalized,
         displayText,
-        tabId: newTabId
+        tabId: newTabId,
+        syncResult
       });
     } catch (error) {
       console.error('[触触搜] 新同步系统更新失败，回退到旧系统:', error);
+      logMenuEvent('keyword-sync-error-fallback', {
+        error: error.message,
+        stack: error.stack
+      });
       // 回退到旧系统
       updateMainMenuTitle(displayText);
       updateSearchLabelTitle(displayText);
@@ -586,6 +594,9 @@ async function setMenuState(rawText, normalizedText, meta) {
     }
   } else {
     // 旧系统（兼容模式）
+    logMenuEvent('keyword-sync-fallback-to-old-system', {
+      hasKeywordSyncManager: typeof keywordSyncManager !== 'undefined'
+    });
     updateMainMenuTitle(displayText);
     updateSearchLabelTitle(displayText);
     updateSubmenuLabels(displayText);
