@@ -42,23 +42,9 @@ class KeywordSyncManager {
       source: null
     };
 
-    /**
-     * 按标签页缓存的选中文本（替代原有的 selectedTextByTab）
-     * @type {Map<number, string>}
-     */
-    this.selectedTextByTab = new Map();
-
-    /**
-     * 按标签页缓存的备用关键字（替代原有的 fallbackKeywordByTab）
-     * @type {Map<number, string>}
-     */
-    this.fallbackKeywordByTab = new Map();
-
-    /**
-     * 按标签页缓存的页面标题（替代原有的 latestTitleByTab）
-     * @type {Map<number, string>}
-     */
-    this.latestTitleByTab = new Map();
+    // 兼容模式：直接使用全局对象，而不是创建新的 Map
+    // 这样旧代码更新的数据可以被新系统读取
+    // 注意：这些全局对象在 base.js 中定义
 
     /**
      * 订阅者列表（观察者模式）
@@ -125,10 +111,12 @@ class KeywordSyncManager {
    */
   async _refreshKeywordForTab(tabId) {
     try {
-      // 尝试获取最新的选中文本
-      const selectedText = this.selectedTextByTab.get(tabId) || '';
-      const fallbackKeyword = this.fallbackKeywordByTab.get(tabId) || '';
-      const pageTitle = this.latestTitleByTab.get(tabId) || '';
+      // 兼容模式：读取全局对象（旧系统维护的数据）
+      const selectedText = (typeof selectedTextByTab !== 'undefined' && selectedTextByTab[tabId]) || '';
+      const fallbackEntry = (typeof fallbackKeywordByTab !== 'undefined' && fallbackKeywordByTab[tabId]) || null;
+      const fallbackKeyword = fallbackEntry?.keyword || fallbackEntry?.raw || '';
+      const titleEntry = (typeof latestTitleByTab !== 'undefined' && latestTitleByTab[tabId]) || null;
+      const pageTitle = titleEntry?.title || '';
 
       // 优先级：选中文本 > 备用关键字 > 页面标题
       let raw = selectedText || fallbackKeyword || pageTitle || '';
@@ -194,16 +182,9 @@ class KeywordSyncManager {
       source
     };
 
-    // 如果有 tabId，更新对应的缓存
-    if (tabId) {
-      if (source === 'selection') {
-        this.selectedTextByTab.set(tabId, raw);
-      } else if (source === 'fallback') {
-        this.fallbackKeywordByTab.set(tabId, raw);
-      } else if (source === 'title') {
-        this.latestTitleByTab.set(tabId, raw);
-      }
-    }
+    // 兼容模式：直接操作全局对象，而不是内部 Map
+    // 这样可以与旧代码共享状态
+    // 注意：这里不需要更新缓存，因为旧代码会直接更新全局对象
 
     // 通知订阅者
     this._notifySubscribers(this.currentState);
@@ -230,28 +211,31 @@ class KeywordSyncManager {
    * @returns {Promise<void>}
    */
   async updateSelection(tabId, text) {
-    this.selectedTextByTab.set(tabId, text || '');
+    // 兼容模式：旧代码会直接更新 selectedTextByTab[tabId]
+    // 这里只需要更新状态即可
     await this.update(text, null, { tabId, source: 'selection' });
   }
 
   /**
    * 更新备用关键字
+   * 注意：兼容模式下，旧代码会直接操作 fallbackKeywordByTab[tabId]
    *
    * @param {number} tabId - 标签页 ID
    * @param {string} keyword - 备用关键字
    */
   updateFallback(tabId, keyword) {
-    this.fallbackKeywordByTab.set(tabId, keyword || '');
+    // 空实现，旧代码会直接更新全局对象
   }
 
   /**
    * 更新页面标题
+   * 注意：兼容模式下，旧代码会直接操作 latestTitleByTab[tabId]
    *
    * @param {number} tabId - 标签页 ID
    * @param {string} title - 页面标题
    */
   updatePageTitle(tabId, title) {
-    this.latestTitleByTab.set(tabId, title || '');
+    // 空实现，旧代码会直接更新全局对象
   }
 
   /**
@@ -270,21 +254,33 @@ class KeywordSyncManager {
    * @returns {string}
    */
   getKeywordForTab(tabId) {
-    return this.selectedTextByTab.get(tabId) ||
-           this.fallbackKeywordByTab.get(tabId) ||
-           this.latestTitleByTab.get(tabId) ||
-           '';
+    // 兼容模式：读取全局对象
+    const selectedText = (typeof selectedTextByTab !== 'undefined' && selectedTextByTab[tabId]) || '';
+    const fallbackEntry = (typeof fallbackKeywordByTab !== 'undefined' && fallbackKeywordByTab[tabId]) || null;
+    const fallbackKeyword = fallbackEntry?.keyword || fallbackEntry?.raw || '';
+    const titleEntry = (typeof latestTitleByTab !== 'undefined' && latestTitleByTab[tabId]) || null;
+    const pageTitle = titleEntry?.title || '';
+
+    return selectedText || fallbackKeyword || pageTitle || '';
   }
 
   /**
    * 清除指定标签页的缓存
+   * 注意：兼容模式下，旧代码会直接操作全局对象
    *
    * @param {number} tabId - 标签页 ID
    */
   clearTabCache(tabId) {
-    this.selectedTextByTab.delete(tabId);
-    this.fallbackKeywordByTab.delete(tabId);
-    this.latestTitleByTab.delete(tabId);
+    // 兼容模式：操作全局对象
+    if (typeof selectedTextByTab !== 'undefined') {
+      delete selectedTextByTab[tabId];
+    }
+    if (typeof fallbackKeywordByTab !== 'undefined') {
+      delete fallbackKeywordByTab[tabId];
+    }
+    if (typeof latestTitleByTab !== 'undefined') {
+      delete latestTitleByTab[tabId];
+    }
   }
 
   /**
@@ -383,17 +379,26 @@ class KeywordSyncManager {
    * @returns {Object}
    */
   getStats() {
+    // 兼容模式：统计全局对象
+    const cachedTabs = (typeof selectedTextByTab !== 'undefined')
+      ? Object.keys(selectedTextByTab).length : 0;
+    const fallbackTabs = (typeof fallbackKeywordByTab !== 'undefined')
+      ? Object.keys(fallbackKeywordByTab).length : 0;
+    const titleTabs = (typeof latestTitleByTab !== 'undefined')
+      ? Object.keys(latestTitleByTab).length : 0;
+
     return {
       currentState: this.currentState,
-      cachedTabs: this.selectedTextByTab.size,
-      fallbackTabs: this.fallbackKeywordByTab.size,
-      titleTabs: this.latestTitleByTab.size,
+      cachedTabs,
+      fallbackTabs,
+      titleTabs,
       subscribers: this.subscribers.length
     };
   }
 
   /**
    * 清空所有状态
+   * 注意：兼容模式下不清空全局对象，避免影响旧代码
    */
   clear() {
     this.currentState = {
@@ -404,9 +409,8 @@ class KeywordSyncManager {
       timestamp: Date.now(),
       source: null
     };
-    this.selectedTextByTab.clear();
-    this.fallbackKeywordByTab.clear();
-    this.latestTitleByTab.clear();
     this.subscribers = [];
+
+    // 不清空全局对象，因为旧代码可能还在使用
   }
 }
