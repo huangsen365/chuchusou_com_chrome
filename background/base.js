@@ -394,6 +394,33 @@ function setMenuState(rawText, normalizedText, meta) {
   const normalized = typeof normalizedText === 'string' ? normalizedText : '';
   const base = normalized || raw;
   const displayText = base ? formatMenuTitle(base) : '';
+
+  // BUGFIX: Log tab ID transitions to detect cross-tab contamination
+  const previousTabId = currentMenuState.tabId;
+  const newTabId = (meta && typeof meta === 'object' && 'tabId' in meta)
+    ? (typeof meta.tabId === 'number' ? meta.tabId : null)
+    : previousTabId; // Keep previous if not specified
+
+  if (previousTabId != null && newTabId != null && previousTabId !== newTabId) {
+    logMenuEvent('state-update-tab-change', {
+      previousTabId,
+      newTabId,
+      previousUrl: currentMenuState.url,
+      newUrl: meta?.url || currentMenuState.url,
+      raw,
+      normalized
+    });
+  }
+
+  // BUGFIX: Warn if setting state without explicit tab ID (potential bug source)
+  if (raw && !newTabId) {
+    logMenuEvent('state-update-missing-tabid', {
+      raw,
+      normalized,
+      url: meta?.url || currentMenuState.url
+    });
+  }
+
   currentMenuState.raw = raw;
   currentMenuState.normalized = normalized;
   currentMenuState.display = displayText;

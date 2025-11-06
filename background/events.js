@@ -305,7 +305,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const fallback = await computeSearchTextForTab({
         tabId,
         tabUrl: sender.tab.url || '',
-        tabTitle: getLatestTabPageTitle(tabId) || sender.tab.title || '',
+        // BUGFIX: Prefer fresh tab.title over cached value to avoid cross-tab contamination
+        tabTitle: sender.tab.title || getLatestTabPageTitle(tabId) || '',
         selectionText: ''
       }, {
             forceFetchSelection: false,
@@ -476,6 +477,23 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 // 监听标签页激活，动态更新菜单标题
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   const tab = await chrome.tabs.get(activeInfo.tabId);
+
+  // BUGFIX: Clear stale currentMenuState when switching to a different tab
+  if (currentMenuState.tabId != null && currentMenuState.tabId !== activeInfo.tabId) {
+    logMenuEvent('tab-activated-clearing-stale-state', {
+      previousTabId: currentMenuState.tabId,
+      newTabId: activeInfo.tabId,
+      previousUrl: currentMenuState.url,
+      newUrl: tab?.url
+    });
+    // Reset currentMenuState to prevent cross-tab contamination
+    currentMenuState.raw = '';
+    currentMenuState.normalized = '';
+    currentMenuState.display = '';
+    currentMenuState.tabId = null;
+    currentMenuState.url = '';
+  }
+
   if (tab?.url) {
     await prefetchMenuState(tab, 'tab-activated');
   }
@@ -492,6 +510,38 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
     return;
   }
   await refreshMenuTitle(tab);
+});
+
+// BUGFIX: Clean up stale cache entries when tabs are closed
+chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
+  logMenuEvent('tab-removed', {
+    tabId,
+    windowClosing: removeInfo.windowClosing
+  });
+
+  // Clean up per-tab caches to prevent memory leaks and stale data
+  if (selectedTextByTab[tabId]) {
+    delete selectedTextByTab[tabId];
+  }
+  if (fallbackKeywordByTab[tabId]) {
+    delete fallbackKeywordByTab[tabId];
+  }
+  if (latestTitleByTab[tabId]) {
+    delete latestTitleByTab[tabId];
+  }
+
+  // Clear currentMenuState if it belongs to the closed tab
+  if (currentMenuState.tabId === tabId) {
+    logMenuEvent('tab-removed-clearing-current-state', {
+      tabId,
+      url: currentMenuState.url
+    });
+    currentMenuState.raw = '';
+    currentMenuState.normalized = '';
+    currentMenuState.display = '';
+    currentMenuState.tabId = null;
+    currentMenuState.url = '';
+  }
 });
 
 // 根据URL更新菜单标题
@@ -522,6 +572,17 @@ if (chrome.contextMenus.onShown) {
     }
     (async () => {
       try {
+        // BUGFIX: Clear stale currentMenuState if it's from a different tab
+        const isCurrentMenuStateStale = currentMenuState.tabId != null && currentMenuState.tabId !== tabId;
+        if (isCurrentMenuStateStale) {
+          logMenuEvent('onShown-clearing-stale-state', {
+            staleTabId: currentMenuState.tabId,
+            currentTabId: tabId,
+            staleUrl: currentMenuState.url,
+            currentUrl: tabUrl
+          });
+        }
+
         const synced = await syncSelectionFromTab(tab, 'menu-shown', { updateMenu: false });
         let raw = '';
         let normalized = '';
@@ -538,11 +599,13 @@ if (chrome.contextMenus.onShown) {
             const result = await computeSearchTextForTab({
               tabId,
               tabUrl,
-              tabTitle: getLatestTabPageTitle(tabId) || tab?.title || '',
+              // BUGFIX: Prefer fresh tab.title over cached value to avoid cross-tab contamination
+              tabTitle: tab?.title || getLatestTabPageTitle(tabId) || '',
               selectionText: ''
             }, {
               forceFetchSelection: false,
-              skipCurrentMenuFallback: false
+              // BUGFIX: Skip using currentMenuState fallback if it's from a different tab
+              skipCurrentMenuFallback: isCurrentMenuStateStale
             });
             raw = result?.raw || '';
             normalized = result?.normalized || '';

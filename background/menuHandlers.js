@@ -30,7 +30,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   const { raw: rawText, normalized: normalizedText } = await computeSearchTextForTab({
     tabId: tab?.id,
     tabUrl: tab?.url,
-    tabTitle: (tab?.id != null ? getLatestTabPageTitle(tab.id) : '') || tab?.title || '',
+    // BUGFIX: Prefer fresh tab.title over cached value to avoid cross-tab contamination
+    tabTitle: tab?.title || (tab?.id != null ? getLatestTabPageTitle(tab.id) : '') || '',
     selectionText: info.selectionText || ''
   }, {
     forceFetchSelection: true,
@@ -64,7 +65,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       const fallbackResult = await computeSearchTextForTab({
         tabId: tab?.id,
         tabUrl: tab?.url,
-        tabTitle: (tab?.id != null ? getLatestTabPageTitle(tab.id) : '') || tab?.title || '',
+        // BUGFIX: Prefer fresh tab.title over cached value to avoid cross-tab contamination
+        tabTitle: tab?.title || (tab?.id != null ? getLatestTabPageTitle(tab.id) : '') || '',
         selectionText: ''
       }, {
         forceFetchSelection: false,
