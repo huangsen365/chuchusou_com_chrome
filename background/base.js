@@ -441,11 +441,18 @@ function updateSearchMenuTitles(displayText) {
 
 async function updateMainMenuTitle(displayText) {
   const baseTitle = getMenuTitle('ccs-main');
-  const title = displayText ? `${baseTitle}: "${displayText}"` : baseTitle;
+
+  // TIMING FIX: Keep top-level menu title clean without keyword
+  // to avoid showing stale keywords during fast right-click.
+  // Submenu labels will still show keywords with more time to update.
+  const menuTitle = baseTitle;  // No keyword in top-level menu
+
+  // Extension icon title can still show keyword (no timing issue there)
+  const iconTitle = displayText ? `${baseTitle}: "${displayText}"` : baseTitle;
 
   // Wait for menu update to complete
   await new Promise((resolve) => {
-    chrome.contextMenus.update('ccs-main', { title }, () => {
+    chrome.contextMenus.update('ccs-main', { title: menuTitle }, () => {
       if (chrome.runtime.lastError) {
         const msg = chrome.runtime.lastError.message || '';
         if (!/Cannot find menu item/i.test(msg)) {
@@ -457,9 +464,9 @@ async function updateMainMenuTitle(displayText) {
   });
 
   if (chrome.action && chrome.action.setTitle) {
-    chrome.action.setTitle({ title });
+    chrome.action.setTitle({ title: iconTitle });
   }
-  logMenuEvent('main-title', { title, displayText });
+  logMenuEvent('main-title', { menuTitle, iconTitle, displayText });
 }
 
 async function updateSearchLabelTitle(displayText) {
