@@ -442,10 +442,9 @@ function updateSearchMenuTitles(displayText) {
 async function updateMainMenuTitle(displayText) {
   const baseTitle = getMenuTitle('ccs-main');
 
-  // TIMING FIX: Keep top-level menu title clean without keyword
-  // to avoid showing stale keywords during fast right-click.
-  // Submenu labels will still show keywords with more time to update.
-  const menuTitle = baseTitle;  // No keyword in top-level menu
+  // Show keyword in top-level menu, same as secondary menus
+  // Menu remains clickable to access submenus
+  const menuTitle = displayText ? `${baseTitle}: "${displayText}"` : baseTitle;
 
   // Extension icon title can still show keyword (no timing issue there)
   const iconTitle = displayText ? `${baseTitle}: "${displayText}"` : baseTitle;
