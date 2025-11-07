@@ -232,8 +232,8 @@ async function populateOptimizedMenus({ buildId }) {
     const config = await loadOptimizedPromptConfig();
     if (!config || isStaleBuild(buildId)) return;
     populateOptimizedMenuMap(config);
-    // Clear and rebuild optimize category label IDs
-    optimizeCategoryLabelIds.length = 0;
+    // BUGFIX: No longer using dynamic optimizeCategoryLabelIds array
+    // Optimize labels are now hardcoded in base.js fixedLabelIds to avoid race conditions
     for (const category of config.categories || []) {
       const categoryId = `ccs-optimize-${category.id}`;
       if (!isMenuEnabled(categoryId)) continue;
@@ -260,17 +260,8 @@ async function populateOptimizedMenus({ buildId }) {
         failureLogStage: 'optimize-category-label-create-failed'
       });
 
-      // 新架构：注册到 MenuRegistry，替代原有的 optimizeCategoryLabelIds 数组
+      // 注册到 MenuRegistry 用于新系统同步
       if (labelResult.ok) {
-        // 保留旧系统兼容（可在完全迁移后删除）
-        optimizeCategoryLabelIds.push(labelId);
-        logMenuEvent('optimize-label-added', {
-          labelId,
-          categoryId,
-          totalCount: optimizeCategoryLabelIds.length,
-          allLabels: Array.from(optimizeCategoryLabelIds)
-        });
-
         // 注册到新的同步系统（约定：-label 结尾自动识别）
         if (typeof menuRegistry !== 'undefined' && menuRegistry) {
           menuRegistry.register({

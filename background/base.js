@@ -492,22 +492,25 @@ async function updateSubmenuLabels(displayText) {
   const formatted = displayText ? formatMenuTitle(displayText) : '';
   const title = formatted ? `🔍 触触搜: "${formatted}"` : '🔍 触触搜';
 
-  // Fixed submenu labels
+  // Fixed submenu labels (hardcoded to avoid race conditions)
   const fixedLabelIds = [
     'ccs-top100-label',
-    'ccs-fastqa-label'
+    'ccs-fastqa-label',
+    // Optimize prompt category labels (hardcoded to match other working labels)
+    'ccs-optimize-deep-research-label',
+    'ccs-optimize-general-conversation-label',
+    'ccs-optimize-code-writing-label',
+    'ccs-optimize-content-creation-label',
+    'ccs-optimize-data-analysis-label',
+    'ccs-optimize-problem-solving-label',
+    'ccs-optimize-brainstorm-label',
+    'ccs-optimize-description-polish-label'
   ];
-
-  logMenuEvent('optimize-labels-before-update', {
-    optimizeLabelIds: Array.from(optimizeCategoryLabelIds),
-    count: optimizeCategoryLabelIds.length,
-    title
-  });
 
   // Collect all update promises
   const updatePromises = [];
 
-  // Update fixed labels (Promise-based)
+  // Update all fixed labels (including optimize labels)
   fixedLabelIds.forEach(labelId => {
     const promise = new Promise((resolve) => {
       chrome.contextMenus.update(labelId, { title }, () => {
@@ -518,28 +521,7 @@ async function updateSubmenuLabels(displayText) {
           }
           resolve({ labelId, success: false, error: msg });
         } else {
-          logMenuEvent('fixed-label-updated', { labelId, title });
-          resolve({ labelId, success: true });
-        }
-      });
-    });
-    updatePromises.push(promise);
-  });
-
-  // Update optimize category labels (Promise-based)
-  optimizeCategoryLabelIds.forEach(labelId => {
-    const promise = new Promise((resolve) => {
-      chrome.contextMenus.update(labelId, { title }, () => {
-        if (chrome.runtime.lastError) {
-          const msg = chrome.runtime.lastError.message || '';
-          if (!/Cannot find menu item/i.test(msg)) {
-            logMenuEvent('optimize-label-update-failed', { labelId, error: msg });
-          } else {
-            logMenuEvent('optimize-label-update-error-ignored', { labelId, error: msg });
-          }
-          resolve({ labelId, success: false, error: msg });
-        } else {
-          logMenuEvent('optimize-label-updated', { labelId, title });
+          logMenuEvent('submenu-label-updated', { labelId, title });
           resolve({ labelId, success: true });
         }
       });
@@ -555,12 +537,9 @@ async function updateSubmenuLabels(displayText) {
   logMenuEvent('submenu-labels-updated', {
     title,
     displayText,
-    fixedCount: fixedLabelIds.length,
-    optimizeCount: optimizeCategoryLabelIds.length,
-    optimizeLabelIds: Array.from(optimizeCategoryLabelIds),
+    totalLabels: fixedLabelIds.length,
     successCount,
-    failedCount,
-    totalUpdates: updatePromises.length
+    failedCount
   });
 }
 
