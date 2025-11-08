@@ -3,6 +3,7 @@
   "name": "触触搜",
   "version": "1.1.0",
   "description": "选中文本快速搜索和处理工具",
+  "homepage_url": "https://chuchusou.com",
   "permissions": [
     "activeTab",
     "clipboardWrite",
