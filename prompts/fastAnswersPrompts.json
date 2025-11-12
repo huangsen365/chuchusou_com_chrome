@@ -33,7 +33,7 @@
     {
       "id": "chatgpt",
       "label": "ChatGPT",
-      "urlPattern": "https://chatgpt.com/?model=gpt-5&q=${PROMPT}"
+      "urlPattern": "https://chatgpt.com/?model=gpt-5-1&q=${PROMPT}"
     },
     {
       "id": "claude",
