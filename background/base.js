@@ -388,7 +388,7 @@ const OPTIMIZE_CATEGORY_TITLES = {
 };
 
 const OPTIMIZE_ENGINE_TITLES = {
-  'chatgpt': '🤖 ChatGPT (默认 GPT-5)',
+  'chatgpt': '🤖 ChatGPT',
   'claude': '🧠 Claude (推荐 Opus)'
 };
 

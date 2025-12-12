@@ -44,8 +44,8 @@
   "engines": [
     {
       "id": "chatgpt",
-      "label": "ChatGPT（默认 GPT-5）",
-      "urlPattern": "https://chatgpt.com/?model=gpt-5-1&q=${PROMPT}"
+      "label": "ChatGPT",
+      "urlPattern": "https://chatgpt.com/?q=${PROMPT}"
     },
     {
       "id": "claude",

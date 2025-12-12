@@ -43,7 +43,7 @@
           "titleKey": "chatgpt",
           "dynamicTitle": true,
           "contexts": ["selection", "page", "editable"],
-          "urlPattern": "https://chatgpt.com/?model=gpt-5-1&q=${PROMPT}",
+          "urlPattern": "https://chatgpt.com/?q=${PROMPT}",
           "enabled": true
         },
         {
@@ -458,7 +458,7 @@
   "optimizeEngines": {
     "chatgpt": {
       "id": "chatgpt",
-      "label": "ChatGPT (默认 GPT-5)",
+      "label": "ChatGPT",
       "icon": "🤖"
     },
     "claude": {
