@@ -106,38 +106,26 @@ if (typeof normalizeSearchText === 'undefined') {
   globalThis.normalizeSearchText = normalizeSearchText;
 }
 
-const optimizedPromptMenuMap = new Map();
-let optimizedPromptConfig = null;
-let optimizedPromptTemplate = '';
+// ==================== 变量声明 ====================
+// 注意：这些变量现在在 Constants.js 中定义
+// 此处只定义 Constants.js 中没有的变量
+
 // Track optimize category label IDs for dynamic updates
 const optimizeCategoryLabelIds = [];
 
-const topQuestionsMenuMap = new Map();
-let topQuestionsConfig = null;
-let topQuestionsTemplate = '';
-
-const fastAnswersMenuMap = new Map();
-let fastAnswersConfig = null;
-let fastAnswersTemplate = '';
-let menuBuildInProgress = false;
-let menuBuildPending = false;
-
-let menuToggleConfig = null;
-
-let menuIconConfig = null;
-const menuIconImageCache = new Map();
-let menuIconUpdateSupported = true;
-const MENU_ICON_SUPPORT_STORAGE_KEY = 'ccs_menu_icon_supported';
-let menuIconSupportLoaded = false;
+// menuIconSupportLoadPromise 在 Constants.js 中没有定义
 let menuIconSupportLoadPromise = null;
-let menuIconUpdateInProgress = false;
 
 // 使用 Constants.js 中的常量（如果可用）
-// QUICK_RESULT_HOSTS 已在 Constants.js 中定义
-
-// 全局缓存对象（用于跨标签页状态管理）
-const fallbackKeywordByTab = {};
-const latestTitleByTab = {};
+// 所有以下变量已在 Constants.js 中定义并导出到 globalThis：
+// - optimizedPromptMenuMap, optimizedPromptConfig, optimizedPromptTemplate
+// - topQuestionsMenuMap, topQuestionsConfig, topQuestionsTemplate
+// - fastAnswersMenuMap, fastAnswersConfig, fastAnswersTemplate
+// - menuBuildInProgress, menuBuildPending
+// - menuToggleConfig
+// - menuIconConfig, menuIconImageCache, menuIconUpdateSupported
+// - MENU_ICON_SUPPORT_STORAGE_KEY, menuIconSupportLoaded, menuIconUpdateInProgress
+// - fallbackKeywordByTab, selectedTextByTab, latestTitleByTab
 
 function getOrCreateTitleEntry(tabId) {
   if (tabId == null) return null;
@@ -786,8 +774,7 @@ async function copyTextInTab(tab, text) {
   return false;
 }
 
-let menuBuildCounter = 0;
-const selectedTextByTab = {};
+// menuBuildCounter 和 selectedTextByTab 已在 Constants.js 中定义
 
 /**
  * 获取菜单调试信息（供 popup 调试使用）

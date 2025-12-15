@@ -273,18 +273,19 @@ let menuBuildCounter = 0;
 
 /**
  * 每个标签页的选中文本
+ * 注意：使用普通对象而非 Map，因为现有代码使用 bracket notation
  */
-const selectedTextByTab = new Map();
+const selectedTextByTab = {};
 
 /**
  * 每个标签页的备用关键词（从URL/标题提取）
  */
-const fallbackKeywordByTab = new Map();
+const fallbackKeywordByTab = {};
 
 /**
  * 每个标签页的最新标题
  */
-const latestTitleByTab = new Map();
+const latestTitleByTab = {};
 
 /**
  * 当前菜单状态
@@ -295,15 +296,15 @@ let currentMenuState = {};
 
 let optimizedPromptConfig = null;
 let optimizedPromptTemplate = '';
-let optimizedPromptMenuMap = {};
+let optimizedPromptMenuMap = new Map();
 
 let topQuestionsConfig = null;
 let topQuestionsTemplate = '';
-let topQuestionsMenuMap = {};
+let topQuestionsMenuMap = new Map();
 
 let fastAnswersConfig = null;
 let fastAnswersTemplate = '';
-let fastAnswersMenuMap = {};
+let fastAnswersMenuMap = new Map();
 
 let menuToggleConfig = {};
 
