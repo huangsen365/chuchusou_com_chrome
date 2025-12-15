@@ -251,7 +251,7 @@
           "title": "触触搜百问",
           "icon": "💯",
           "contexts": ["selection", "page"],
-          "enabled": false,
+          "enabled": true,
           "children": [
             {
               "id": "ccs-top100-open-all",
@@ -281,7 +281,7 @@
           "icon": "⚡",
           "dynamicTitle": true,
           "contexts": ["selection", "page"],
-          "enabled": false,
+          "enabled": true,
           "children": [
             {
               "id": "ccs-fastqa-open-all",
@@ -310,7 +310,7 @@
           "title": "优化提示词",
           "icon": "🧠",
           "contexts": ["selection", "page"],
-          "enabled": false,
+          "enabled": true,
           "children": []
         }
       ]
