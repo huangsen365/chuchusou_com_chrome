@@ -115,7 +115,7 @@
           "icon": "🪄",
           "contexts": ["selection", "page"],
           "urlPattern": "https://tongyi.aliyun.com/qianwen/?q=${KEYWORD}",
-          "enabled": true
+          "enabled": false
         }
       ]
     },
@@ -328,7 +328,7 @@
           "icon": "📋",
           "contexts": ["selection"],
           "action": "copy",
-          "enabled": true
+          "enabled": false
         },
         {
           "id": "ccs-base64",
@@ -337,7 +337,7 @@
           "icon": "🔤",
           "contexts": ["selection"],
           "action": "base64-encode",
-          "enabled": true
+          "enabled": false
         },
         {
           "id": "ccs-md5",
@@ -346,7 +346,7 @@
           "icon": "🔐",
           "contexts": ["selection"],
           "action": "md5-hash",
-          "enabled": true
+          "enabled": false
         },
         {
           "id": "ccs-url-encode",
@@ -355,7 +355,7 @@
           "icon": "🔗",
           "contexts": ["selection"],
           "action": "url-encode",
-          "enabled": true
+          "enabled": false
         }
       ]
     },
@@ -372,7 +372,7 @@
           "icon": "🔠",
           "contexts": ["selection"],
           "action": "to-uppercase",
-          "enabled": true
+          "enabled": false
         },
         {
           "id": "ccs-lower",
@@ -381,7 +381,7 @@
           "icon": "🔡",
           "contexts": ["selection"],
           "action": "to-lowercase",
-          "enabled": true
+          "enabled": false
         }
       ]
     },
@@ -398,7 +398,7 @@
           "icon": "🪟",
           "contexts": ["all"],
           "action": "show-popover",
-          "enabled": true
+          "enabled": false
         }
       ]
     }

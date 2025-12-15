@@ -1,5 +1,9 @@
 importScripts(
-  // 日志系统（最先加载）
+  // 工具模块（最先加载）
+  './utils/Constants.js',
+  './utils/TextUtils.js',
+
+  // 日志系统
   './Logger.js',
 
   // 关键字同步系统重构模块（新架构）

@@ -8,6 +8,8 @@
  * - fallbackKeywordByTab
  * - latestTitleByTab
  *
+ * 提供向后兼容的代理属性，支持渐进式迁移。
+ *
  * @class StateManager
  */
 class StateManager {
@@ -21,7 +23,13 @@ class StateManager {
       // 自动清理间隔（毫秒）
       autoCleanupInterval: options.autoCleanupInterval || 60 * 1000, // 默认 1 分钟
       // 是否启用调试日志
-      debug: options.debug || false
+      debug: options.debug || false,
+      // 缓存过期时间配置
+      cacheExpiry: {
+        title: options.titleCacheExpiry || 30000,      // 标题缓存 30 秒
+        keyword: options.keywordCacheExpiry || 30000,  // 关键词缓存 30 秒
+        selection: options.selectionCacheExpiry || 10000 // 选区缓存 10 秒
+      }
     };
 
     /**
@@ -403,6 +411,261 @@ class StateManager {
     this.stopAutoCleanup();
     this.clearAll();
     this._log('destroy');
+  }
+
+  // ==================== 向后兼容的代理方法 ====================
+  // 这些方法提供与旧全局变量相同的接口，便于渐进式迁移
+
+  /**
+   * 获取标签页的页面标题（兼容 getLatestTabPageTitle）
+   * @param {number} tabId - 标签页 ID
+   * @param {number} maxAge - 最大缓存年龄（毫秒）
+   * @returns {string}
+   */
+  getLatestTabPageTitle(tabId, maxAge = null) {
+    if (tabId == null) return '';
+    const state = this.tabStates.get(tabId);
+    if (!state || !state.title) return '';
+
+    const effectiveMaxAge = maxAge || this.options.cacheExpiry.title;
+    const now = Date.now();
+    const age = now - (state.title.timestamp || 0);
+
+    if (age > effectiveMaxAge) {
+      this._log('getLatestTabPageTitle-expired', { tabId, age, maxAge: effectiveMaxAge });
+      return '';
+    }
+
+    return state.title.text || '';
+  }
+
+  /**
+   * 获取标签页的关键词（兼容 getLatestTabKeyword）
+   * @param {number} tabId - 标签页 ID
+   * @param {number} maxAge - 最大缓存年龄（毫秒）
+   * @returns {string}
+   */
+  getLatestTabKeyword(tabId, maxAge = null) {
+    if (tabId == null) return '';
+    const state = this.tabStates.get(tabId);
+    if (!state || !state.title) return '';
+
+    const effectiveMaxAge = maxAge || this.options.cacheExpiry.keyword;
+    const now = Date.now();
+    const age = now - (state.title.timestamp || 0);
+
+    if (age > effectiveMaxAge) {
+      this._log('getLatestTabKeyword-expired', { tabId, age, maxAge: effectiveMaxAge });
+      return '';
+    }
+
+    return state.title.keyword || '';
+  }
+
+  /**
+   * 更新标签页的标题（兼容 updateLatestTabTitle）
+   * @param {number} tabId - 标签页 ID
+   * @param {string} pageTitle - 页面标题
+   */
+  updateLatestTabTitle(tabId, pageTitle) {
+    if (tabId == null || typeof pageTitle !== 'string') return;
+    const state = this._getOrCreateTabState(tabId);
+    state.title.text = pageTitle;
+    state.title.timestamp = Date.now();
+    state.meta.updatedAt = Date.now();
+    this._log('updateLatestTabTitle', { tabId, pageTitle });
+  }
+
+  /**
+   * 更新标签页的关键词（兼容 updateLatestTabKeyword）
+   * @param {number} tabId - 标签页 ID
+   * @param {string} keyword - 关键词
+   * @param {string} normalized - 标准化后的关键词
+   */
+  updateLatestTabKeyword(tabId, keyword, normalized) {
+    if (tabId == null || typeof keyword !== 'string') return;
+    const state = this._getOrCreateTabState(tabId);
+    state.title.keyword = keyword;
+    if (typeof normalized === 'string') {
+      state.fallback.normalized = normalized;
+    }
+    state.title.timestamp = Date.now();
+    state.meta.updatedAt = Date.now();
+    this._log('updateLatestTabKeyword', { tabId, keyword, normalized });
+  }
+
+  /**
+   * 获取或创建标题条目（兼容 getOrCreateTitleEntry）
+   * @param {number} tabId - 标签页 ID
+   * @returns {Object|null}
+   */
+  getOrCreateTitleEntry(tabId) {
+    if (tabId == null) return null;
+    const state = this._getOrCreateTabState(tabId);
+    // 返回一个兼容旧格式的对象
+    return {
+      title: state.title.text,
+      pageTitle: state.title.text,
+      keyword: state.title.keyword,
+      keywordNormalized: state.fallback.normalized,
+      timestamp: state.title.timestamp,
+      keywordTimestamp: state.title.timestamp
+    };
+  }
+
+  /**
+   * 获取选中文本（兼容 selectedTextByTab[tabId]）
+   * @param {number} tabId - 标签页 ID
+   * @returns {Object|null} - { text, url, timestamp }
+   */
+  getSelectedText(tabId) {
+    if (tabId == null) return null;
+    const state = this.tabStates.get(tabId);
+    if (!state) return null;
+    return {
+      text: state.selection.text,
+      url: state.selection.url,
+      timestamp: state.selection.timestamp
+    };
+  }
+
+  /**
+   * 设置选中文本（兼容 selectedTextByTab[tabId] = ...）
+   * @param {number} tabId - 标签页 ID
+   * @param {string} text - 选中的文本
+   * @param {string} url - 页面 URL
+   */
+  setSelectedText(tabId, text, url = '') {
+    if (tabId == null) return;
+    this.setSelection(tabId, text, url);
+  }
+
+  /**
+   * 获取备用关键词（兼容 fallbackKeywordByTab[tabId]）
+   * @param {number} tabId - 标签页 ID
+   * @returns {Object|null} - { raw, normalized, url, timestamp }
+   */
+  getFallbackKeyword(tabId) {
+    if (tabId == null) return null;
+    const state = this.tabStates.get(tabId);
+    if (!state) return null;
+    return {
+      raw: state.fallback.raw,
+      normalized: state.fallback.normalized,
+      url: state.fallback.url,
+      timestamp: state.fallback.timestamp
+    };
+  }
+
+  /**
+   * 设置备用关键词（兼容 fallbackKeywordByTab[tabId] = ...）
+   * @param {number} tabId - 标签页 ID
+   * @param {Object} data - { raw, normalized, url }
+   */
+  setFallbackKeyword(tabId, data) {
+    if (tabId == null || !data) return;
+    this.setFallback(tabId, data.raw, data.normalized, data.url);
+  }
+
+  /**
+   * 判断 URL 是否为需要保留菜单状态的快速结果页面
+   * @param {string} url - URL 字符串
+   * @returns {boolean}
+   */
+  shouldPreserveMenuStateForUrl(url) {
+    if (!url) return false;
+    try {
+      const hostname = new URL(url).hostname;
+      // 使用 Constants.js 中的 QUICK_RESULT_HOSTS（如果可用）
+      const quickResultHosts = typeof QUICK_RESULT_HOSTS !== 'undefined'
+        ? QUICK_RESULT_HOSTS
+        : ['chatgpt.com', 'claude.ai'];
+      return quickResultHosts.some((host) => hostname === host || hostname.endsWith(`.${host}`));
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /**
+   * 判断标签页是否为需要保留菜单状态的快速结果页面
+   * @param {Object} tab - 标签页对象
+   * @returns {boolean}
+   */
+  shouldPreserveMenuStateForTab(tab) {
+    if (!tab || typeof tab.url !== 'string') return false;
+    return this.shouldPreserveMenuStateForUrl(tab.url);
+  }
+
+  /**
+   * 创建向后兼容的代理对象
+   * 用于逐步替换全局变量
+   * @returns {Object}
+   */
+  createLegacyProxy() {
+    const self = this;
+
+    return {
+      // currentMenuState 代理
+      get currentMenuState() {
+        return self.getCurrentState();
+      },
+
+      // selectedTextByTab 代理
+      selectedTextByTab: new Proxy({}, {
+        get(target, tabId) {
+          const numTabId = parseInt(tabId, 10);
+          if (isNaN(numTabId)) return undefined;
+          return self.getSelectedText(numTabId);
+        },
+        set(target, tabId, value) {
+          const numTabId = parseInt(tabId, 10);
+          if (isNaN(numTabId)) return false;
+          if (value && typeof value === 'object') {
+            self.setSelectedText(numTabId, value.text, value.url);
+          }
+          return true;
+        }
+      }),
+
+      // fallbackKeywordByTab 代理
+      fallbackKeywordByTab: new Proxy({}, {
+        get(target, tabId) {
+          const numTabId = parseInt(tabId, 10);
+          if (isNaN(numTabId)) return undefined;
+          return self.getFallbackKeyword(numTabId);
+        },
+        set(target, tabId, value) {
+          const numTabId = parseInt(tabId, 10);
+          if (isNaN(numTabId)) return false;
+          if (value && typeof value === 'object') {
+            self.setFallbackKeyword(numTabId, value);
+          }
+          return true;
+        }
+      }),
+
+      // latestTitleByTab 代理
+      latestTitleByTab: new Proxy({}, {
+        get(target, tabId) {
+          const numTabId = parseInt(tabId, 10);
+          if (isNaN(numTabId)) return undefined;
+          return self.getOrCreateTitleEntry(numTabId);
+        },
+        set(target, tabId, value) {
+          const numTabId = parseInt(tabId, 10);
+          if (isNaN(numTabId)) return false;
+          if (value && typeof value === 'object') {
+            if (value.title || value.pageTitle) {
+              self.updateLatestTabTitle(numTabId, value.title || value.pageTitle);
+            }
+            if (value.keyword) {
+              self.updateLatestTabKeyword(numTabId, value.keyword, value.keywordNormalized);
+            }
+          }
+          return true;
+        }
+      })
+    };
   }
 }
 

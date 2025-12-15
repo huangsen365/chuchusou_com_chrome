@@ -1,0 +1,60 @@
+{
+  "version": "1.0",
+  "description": "触触搜 AI 引擎统一配置",
+
+  "engines": {
+    "chatgpt": {
+      "id": "chatgpt",
+      "label": "ChatGPT",
+      "icon": "🤖",
+      "urlPattern": "https://chatgpt.com/?q=${PROMPT}",
+      "searchUrlPattern": "https://chatgpt.com/?q=${KEYWORD}",
+      "description": "OpenAI ChatGPT"
+    },
+    "claude": {
+      "id": "claude",
+      "label": "Claude",
+      "labelAlt": "Claude (推荐 Opus)",
+      "icon": "🧠",
+      "urlPattern": "https://claude.ai/new?q=${PROMPT}",
+      "searchUrlPattern": "https://claude.ai/new?q=${KEYWORD}",
+      "description": "Anthropic Claude"
+    },
+    "grok": {
+      "id": "grok",
+      "label": "Grok",
+      "labelAlt": "Grok (xAI)",
+      "icon": "🦊",
+      "urlPattern": "https://grok.com/?q=${PROMPT}",
+      "searchUrlPattern": "https://grok.com/?q=${KEYWORD}",
+      "description": "xAI Grok"
+    },
+    "yiyan": {
+      "id": "yiyan",
+      "label": "文心一言",
+      "icon": "🧠",
+      "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}",
+      "searchUrlPattern": "https://yiyan.baidu.com/?q=${KEYWORD}",
+      "description": "百度文心一言"
+    }
+  },
+
+  "presets": {
+    "topQuestions": {
+      "description": "触触搜百问引擎列表",
+      "engines": ["chatgpt", "claude", "grok", "yiyan"]
+    },
+    "fastAnswers": {
+      "description": "速答壹拾佰引擎列表",
+      "engines": ["chatgpt", "claude", "grok", "yiyan"]
+    },
+    "optimizePrompts": {
+      "description": "优化提示词引擎列表",
+      "engines": ["chatgpt", "claude"]
+    },
+    "fastQaQuick": {
+      "description": "速答快捷菜单引擎列表",
+      "engines": ["chatgpt", "claude", "grok", "yiyan"]
+    }
+  }
+}

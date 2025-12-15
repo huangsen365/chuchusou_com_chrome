@@ -57,8 +57,18 @@ async function initMenuSystem(options = {}) {
     stateManager = new StateManager({
       debug,
       stateExpiry: 5 * 60 * 1000,      // 5 分钟
-      autoCleanupInterval: 60 * 1000    // 1 分钟清理一次
+      autoCleanupInterval: 60 * 1000,   // 1 分钟清理一次
+      // 使用 Constants.js 中的缓存过期时间（如果可用）
+      titleCacheExpiry: typeof CACHE_EXPIRY !== 'undefined' ? CACHE_EXPIRY.TITLE : 30000,
+      keywordCacheExpiry: typeof CACHE_EXPIRY !== 'undefined' ? CACHE_EXPIRY.KEYWORD : 30000,
+      selectionCacheExpiry: typeof CACHE_EXPIRY !== 'undefined' ? CACHE_EXPIRY.SELECTION : 10000
     });
+
+    // 创建并暴露向后兼容的代理对象
+    const legacyProxy = stateManager.createLegacyProxy();
+    const globalObj = typeof globalThis !== 'undefined' ? globalThis :
+                      typeof self !== 'undefined' ? self : {};
+    globalObj._stateManagerLegacy = legacyProxy;
 
     // 2. 创建 URL 构建器
     urlBuilder = new URLBuilder({

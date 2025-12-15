@@ -85,21 +85,62 @@ function buildFastAnswersPrompt(inputText) {
   return fastAnswersTemplate.split('${input}').join(safeInput);
 }
 
-async function loadMenuToggleConfig() {
-  if (menuToggleConfig) return menuToggleConfig;
+// 统一菜单配置缓存
+let unifiedMenuConfig = null;
+
+async function loadUnifiedMenuConfig() {
+  if (unifiedMenuConfig) return unifiedMenuConfig;
   try {
-    const url = chrome.runtime.getURL('config/menuToggles.json');
+    const url = chrome.runtime.getURL('config/unifiedMenuConfig.json');
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`Failed to load menu toggle config: ${response.status}`);
+      throw new Error(`Failed to load unified menu config: ${response.status}`);
     }
-    menuToggleConfig = await response.json();
-    return menuToggleConfig;
+    unifiedMenuConfig = await response.json();
+    return unifiedMenuConfig;
   } catch (error) {
-    console.warn('[触触搜][BG] Failed to load menu toggle config:', error);
+    console.warn('[触触搜][BG] Failed to load unified menu config:', error);
+    unifiedMenuConfig = null;
+    return null;
+  }
+}
+
+async function loadMenuToggleConfig() {
+  // 现在使用统一配置，menuToggleConfig 作为兼容层
+  if (menuToggleConfig) return menuToggleConfig;
+
+  // 加载统一配置
+  const config = await loadUnifiedMenuConfig();
+  if (!config) {
     menuToggleConfig = {};
     return menuToggleConfig;
   }
+
+  // 从统一配置中提取 enabled 状态，构建 menuToggleConfig
+  menuToggleConfig = {};
+
+  // 处理所有菜单组中的项目
+  if (Array.isArray(config.groups)) {
+    for (const group of config.groups) {
+      if (Array.isArray(group.items)) {
+        for (const item of group.items) {
+          if (item.id && typeof item.enabled === 'boolean') {
+            menuToggleConfig[item.id] = item.enabled;
+          }
+          // 处理子菜单
+          if (Array.isArray(item.children)) {
+            for (const child of item.children) {
+              if (child.id && typeof child.enabled === 'boolean') {
+                menuToggleConfig[child.id] = child.enabled;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return menuToggleConfig;
 }
 
 function isMenuEnabled(menuId) {
@@ -111,22 +152,35 @@ function isMenuEnabled(menuId) {
   return true;
 }
 
-async function loadMenuIconConfig() {
-  await loadMenuToggleConfig();
-  if (menuIconConfig) return menuIconConfig;
+// 引擎配置缓存
+let enginesConfig = null;
+
+async function loadEnginesConfig() {
+  if (enginesConfig) return enginesConfig;
   try {
-    const url = chrome.runtime.getURL('config/menuIcons.json');
+    const url = chrome.runtime.getURL('config/engines.json');
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`Failed to load menu icon config: ${response.status}`);
+      throw new Error(`Failed to load engines config: ${response.status}`);
     }
-    menuIconConfig = await response.json();
-    return menuIconConfig;
+    enginesConfig = await response.json();
+    return enginesConfig;
   } catch (error) {
-    console.warn('[触触搜][BG] Failed to load menu icon config:', error);
-    menuIconConfig = null;
+    console.warn('[触触搜][BG] Failed to load engines config:', error);
+    enginesConfig = null;
     return null;
   }
+}
+
+function getEngine(engineId) {
+  if (!enginesConfig || !enginesConfig.engines) return null;
+  return enginesConfig.engines[engineId] || null;
+}
+
+function getEngineUrlPattern(engineId, type = 'prompt') {
+  const engine = getEngine(engineId);
+  if (!engine) return null;
+  return type === 'search' ? engine.searchUrlPattern : engine.urlPattern;
 }
 
 function populateOptimizedMenuMap(config) {
