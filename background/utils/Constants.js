@@ -243,12 +243,15 @@ const GENERIC_HOST_KEYWORDS = {
  * 调试标志 - 从存储中初始化
  */
 let BG_DEBUG = false;
-let BG_DBG = false;  // 别名
+
+/**
+ * 调试日志函数 - 当 BG_DEBUG 为 true 时输出日志
+ */
+const BG_DBG = (...args) => { if (BG_DEBUG) console.log(...args); };
 
 // 异步初始化调试标志
 chrome.storage.local.get([STORAGE_KEYS.DEBUG], (result) => {
   BG_DEBUG = !!result[STORAGE_KEYS.DEBUG];
-  BG_DBG = BG_DEBUG;
 });
 
 // ==================== 菜单图标支持 ====================
@@ -290,7 +293,13 @@ const latestTitleByTab = {};
 /**
  * 当前菜单状态
  */
-let currentMenuState = {};
+let currentMenuState = {
+  raw: '',
+  normalized: '',
+  display: '',
+  tabId: null,
+  url: ''
+};
 
 // ==================== 配置变量 ====================
 

@@ -8,9 +8,7 @@
  * - events/TabEvents.js, MessageEvents.js, MenuEvents.js: 事件处理
  */
 
-// 调试开关
-let BG_DEBUG = false;
-const BG_DBG = (...args) => { if (BG_DEBUG) console.log(...args); };
+// 调试开关 - BG_DEBUG 和 BG_DBG 已在 Constants.js 中定义
 
 // ==================== 新架构：关键字同步机制重构 ====================
 function initKeywordSyncSystem() {
@@ -222,13 +220,7 @@ function ensureMenuIconSupportLoaded() {
   return menuIconSupportLoadPromise;
 }
 
-const currentMenuState = {
-  raw: '',
-  normalized: '',
-  display: '',
-  tabId: null,
-  url: ''
-};
+// currentMenuState 已在 Constants.js 中定义
 
 // 日志系统：使用 Constants.js 中的 LOG_PREFIX（如果可用）
 const LOG_PREFIX_LOCAL = typeof LOG_PREFIX !== 'undefined' ? LOG_PREFIX : '[触触搜][MENU]';
