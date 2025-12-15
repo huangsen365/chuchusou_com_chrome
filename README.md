@@ -105,33 +105,106 @@
 chuchusou_com_chrome/
 ├── manifest.json              # Manifest V3 配置
 ├── CLAUDE.md                  # 开发指南（给 Claude Code 用）
+├── README.md                  # 项目说明文档
+├── eslint.config.mjs          # ESLint 配置
+├── package.json               # NPM 依赖配置
 ├── background/                # Service Worker 后台脚本
-│   ├── base.js               # 菜单定义、状态管理
-│   ├── events.js             # 消息处理、事件监听
+│   ├── index.js              # 入口点（importScripts 加载顺序）
+│   ├── utils/                # 工具模块
+│   │   ├── Constants.js      # 常量定义（全局变量集中管理）
+│   │   └── TextUtils.js      # 文本处理函数
+│   ├── menu/                 # 新架构菜单模块
+│   │   ├── MenuBuilder.js    # 菜单构建工具类
+│   │   ├── MenuUpdater.js    # 动态标题更新
+│   │   └── MenuHandlers.js   # 点击处理逻辑
+│   ├── events/               # 新架构事件模块
+│   │   ├── TabEvents.js      # 标签页事件处理
+│   │   ├── MessageEvents.js  # 消息事件处理
+│   │   └── MenuEvents.js     # 菜单事件处理
+│   ├── base.js               # 核心状态与函数（逐步迁移中）
+│   ├── events.js             # 消息处理、事件监听（兼容模式）
 │   ├── menuBuilder.js        # 右键菜单构建
 │   ├── menuHandlers.js       # 菜单点击处理
-│   └── config.js             # 配置加载
-├── content/                   # 内容脚本
-│   ├── content.js            # 悬浮面板核心逻辑
-│   └── content.css           # 悬浮面板样式
+│   ├── config.js             # 配置加载
+│   ├── StateManager.js       # 状态管理器
+│   ├── MenuRegistry.js       # 菜单注册表
+│   └── KeywordSyncManager.js # 关键字同步管理
+├── content/                   # 内容脚本模块
+│   ├── SelectionManager.js   # 选区管理器
+│   ├── TextEncoder.js        # 文本编码工具
+│   ├── ToastUI.js            # Toast 通知组件
+│   └── ClipboardHelper.js    # 剪贴板助手
+├── content.js                 # 主内容脚本
+├── content.css                # 悬浮面板样式
 ├── popup/                     # Popup 菜单（点击扩展图标）
 │   ├── popup.html
 │   ├── popup.js              # 从 background 获取菜单结构
 │   ├── popup.css
-│   └── _archived/            # 旧版 popup 归档
+│   └── modules/              # Popup 模块
+│       ├── MenuRenderer.js   # 菜单渲染器
+│       ├── SettingsManager.js# 设置管理器
+│       └── ToastHelper.js    # Toast 助手
+├── modules/                   # 共享模块
 ├── config/                    # 配置文件
-│   ├── unifiedMenuConfig.json
-│   ├── menuToggles.json      # 菜单开关配置
-│   └── menuIcons.json
+│   ├── unifiedMenuConfig.json # 统一菜单配置（含开关）
+│   └── engines.json          # 引擎配置
 ├── prompts/                   # 提示词模板
 │   ├── topQuestionsPrompts.json
 │   ├── fastAnswersPrompts.json
 │   └── optimizedPrompts.json
+├── scripts/                   # 开发工具脚本
+│   ├── analyze-errors.js     # ESLint 错误分析工具
+│   └── log-menu-icons.js     # 菜单图标日志工具
 └── icons/                     # 插件图标
-    ├── icon16.png
-    ├── icon48.png
-    └── icon128.png
+    ├── 16x16.png
+    ├── 48x48.png
+    └── 128x128.png
 ```
+
+## 开发指南
+
+### 环境准备
+
+```bash
+# 安装依赖
+npm install
+```
+
+### 代码检查
+
+项目使用 ESLint 进行代码质量检查：
+
+```bash
+# 运行 ESLint
+npx eslint .
+
+# 使用错误分析工具（推荐）
+node scripts/analyze-errors.js
+```
+
+`analyze-errors.js` 会将 ESLint 错误按规则和文件分组显示，特别适合快速定位问题：
+- 按规则分组：显示每种错误的数量，`no-undef` 错误会列出所有未定义的变量名
+- 按文件分组：显示每个文件的错误详情
+
+### 语法检查
+
+Service Worker 脚本可以使用 Node.js 快速检查语法：
+
+```bash
+# 检查单个文件
+node --check background/base.js
+
+# 批量检查
+for f in background/*.js background/**/*.js; do node --check "$f"; done
+```
+
+### 注意事项
+
+**Service Worker 共享作用域**：所有通过 `importScripts()` 加载的脚本共享同一个全局作用域，不能在多个文件中用 `let`/`const` 声明同名变量。解决方案：
+1. 将变量集中到 `background/utils/Constants.js` 定义
+2. 通过 `globalThis.VAR_NAME` 导出和访问
+
+更多开发细节请参阅 [CLAUDE.md](./CLAUDE.md)。
 
 ## 版本历史
 

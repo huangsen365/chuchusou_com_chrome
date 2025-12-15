@@ -290,3 +290,91 @@ Popup 菜单和右键菜单必须保持一致：
 - 新模块使用类封装，导出到 `globalThis` 或 `window.CCSModules`
 - 使用条件检查避免重复定义
 - 保持向后兼容，逐步迁移到新架构
+
+## 开发工具
+
+### ESLint 配置
+
+项目使用 ESLint 进行代码检查，配置文件为 `eslint.config.mjs`。
+
+```bash
+# 运行 ESLint 检查
+npx eslint background/ content/ popup/ modules/
+
+# 检查所有 JS 文件
+npx eslint .
+```
+
+ESLint 配置了所有 Chrome Extension API 和项目全局变量，包括：
+- Browser globals (window, document, console 等)
+- Chrome Extension APIs (chrome.*)
+- Service Worker globals (importScripts, globalThis, self)
+- 项目特定的全局变量 (Constants.js 导出的变量等)
+
+### 错误分析工具
+
+`scripts/analyze-errors.js` 是一个自定义的 ESLint 错误分析工具，用于快速定位问题。
+
+```bash
+# 运行错误分析
+node scripts/analyze-errors.js
+```
+
+输出内容：
+- **ERRORS BY RULE**: 按规则分组显示错误数量，对于 `no-undef` 错误会列出所有未定义的变量名
+- **ERRORS BY FILE**: 按文件分组显示错误，每个文件显示前 5 个错误
+- **TOTAL**: 总错误数
+
+这个工具特别适合在重构后快速发现：
+- 未定义的变量（可能需要添加 globalThis 导出）
+- 重复声明的变量（Service Worker 共享作用域问题）
+- 未使用的变量
+
+### 语法检查
+
+对于 Service Worker 脚本，可以使用 Node.js 进行快速语法检查：
+
+```bash
+# 检查单个文件
+node --check background/base.js
+
+# 批量检查所有 background 脚本
+for file in background/*.js background/**/*.js; do
+  echo "=== Checking: $file ==="
+  node --check "$file" 2>&1 || echo "SYNTAX ERROR in $file"
+done
+```
+
+### 重复声明检测
+
+Service Worker 使用 `importScripts()` 加载脚本，所有脚本共享同一个全局作用域。因此不能在多个文件中使用 `let` 或 `const` 声明同名变量。
+
+常见问题模式：
+```javascript
+// Constants.js
+const MY_VAR = 'value';  // 第一次声明
+
+// base.js
+const MY_VAR = 'value';  // ❌ 错误：Identifier 'MY_VAR' has already been declared
+```
+
+解决方案：
+1. 将变量集中到 `Constants.js` 中定义
+2. 在其他文件中通过 `globalThis.MY_VAR` 访问
+3. 或使用 `if (typeof MY_VAR === 'undefined')` 条件检查
+
+### 常用开发命令
+
+```bash
+# 安装依赖
+npm install
+
+# ESLint 检查
+npx eslint .
+
+# 分析错误（推荐）
+node scripts/analyze-errors.js
+
+# 语法检查所有 background 脚本
+for f in background/*.js background/**/*.js; do node --check "$f"; done
+```
