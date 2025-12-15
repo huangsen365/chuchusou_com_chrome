@@ -22,6 +22,10 @@
     {
       "matches": ["<all_urls>"],
       "js": [
+        "content/SelectionManager.js",
+        "content/TextEncoder.js",
+        "content/ToastUI.js",
+        "content/ClipboardHelper.js",
         "modules/utils.js",
         "modules/toast.js",
         "modules/stateManager.js",
