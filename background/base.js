@@ -388,14 +388,8 @@ if (typeof FAST_ANSWER_ENGINE_TITLES === 'undefined') {
   globalThis.FAST_ANSWER_ENGINE_TITLES = FAST_ANSWER_ENGINE_TITLES;
 }
 
-// 动态搜索菜单项 - 清空以移除各菜单项后的关键字显示
-// 关键字将统一显示在二级菜单顶部的标签中
-const DYNAMIC_SEARCH_MENU_ITEMS = [];
+// DYNAMIC_SEARCH_MENU_ITEMS 和 FAST_QA_MENU_ITEMS 已在 Constants.js 中定义
 
-const FAST_QA_MENU_ITEMS = [
-  'ccs-fastqa-root',
-  'ccs-fastqa-open-all'
-];
 function updateSearchMenuTitles(displayText) {
   const formatted = displayText ? formatMenuTitle(displayText) : '';
   DYNAMIC_SEARCH_MENU_ITEMS.forEach((menuId) => {
