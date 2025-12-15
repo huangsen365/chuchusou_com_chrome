@@ -236,3 +236,135 @@ const GENERIC_HOST_KEYWORDS = {
   'chatgpt.com': ['chatgpt', 'chatgpt.com', 'www.chatgpt.com'],
   'claude.ai': ['claude', 'claude.ai', 'www.claude.ai']
 };
+
+// ==================== 调试标志 ====================
+
+/**
+ * 调试标志 - 从存储中初始化
+ */
+let BG_DEBUG = false;
+let BG_DBG = false;  // 别名
+
+// 异步初始化调试标志
+chrome.storage.local.get([STORAGE_KEYS.DEBUG], (result) => {
+  BG_DEBUG = !!result[STORAGE_KEYS.DEBUG];
+  BG_DBG = BG_DEBUG;
+});
+
+// ==================== 菜单图标支持 ====================
+
+/**
+ * 菜单图标支持标志
+ */
+const MENU_ICON_SUPPORT_STORAGE_KEY = STORAGE_KEYS.MENU_ICON_SUPPORT;
+let menuIconSupportLoaded = false;
+let menuIconUpdateSupported = false;
+let menuIconConfig = null;
+let menuIconImageCache = {};
+let menuIconUpdateInProgress = false;
+
+// ==================== 菜单构建状态 ====================
+
+let menuBuildInProgress = false;
+let menuBuildPending = false;
+let menuBuildCounter = 0;
+
+// ==================== Tab 状态映射 ====================
+
+/**
+ * 每个标签页的选中文本
+ */
+const selectedTextByTab = new Map();
+
+/**
+ * 每个标签页的备用关键词（从URL/标题提取）
+ */
+const fallbackKeywordByTab = new Map();
+
+/**
+ * 每个标签页的最新标题
+ */
+const latestTitleByTab = new Map();
+
+/**
+ * 当前菜单状态
+ */
+let currentMenuState = {};
+
+// ==================== 配置变量 ====================
+
+let optimizedPromptConfig = null;
+let optimizedPromptTemplate = '';
+let optimizedPromptMenuMap = {};
+
+let topQuestionsConfig = null;
+let topQuestionsTemplate = '';
+let topQuestionsMenuMap = {};
+
+let fastAnswersConfig = null;
+let fastAnswersTemplate = '';
+let fastAnswersMenuMap = {};
+
+let menuToggleConfig = {};
+
+// ==================== 导出到全局 ====================
+
+// 常量
+globalThis.LOG_PREFIX = LOG_PREFIX;
+globalThis.STORAGE_KEYS = STORAGE_KEYS;
+globalThis.QUICK_RESULT_HOSTS = QUICK_RESULT_HOSTS;
+globalThis.MENU_DEFINITIONS = MENU_DEFINITIONS;
+globalThis.FAST_QA_QUICK_ITEMS = FAST_QA_QUICK_ITEMS;
+globalThis.OPTIMIZE_CATEGORY_TITLES = OPTIMIZE_CATEGORY_TITLES;
+globalThis.OPTIMIZE_ENGINE_TITLES = OPTIMIZE_ENGINE_TITLES;
+globalThis.TOP_QUESTION_ENGINE_TITLES = TOP_QUESTION_ENGINE_TITLES;
+globalThis.FAST_ANSWER_ENGINE_TITLES = FAST_ANSWER_ENGINE_TITLES;
+globalThis.DYNAMIC_SEARCH_MENU_ITEMS = DYNAMIC_SEARCH_MENU_ITEMS;
+globalThis.FAST_QA_MENU_ITEMS = FAST_QA_MENU_ITEMS;
+globalThis.MENU_TITLE_MAX_LENGTH = MENU_TITLE_MAX_LENGTH;
+globalThis.KEYWORD_MAX_LENGTH = KEYWORD_MAX_LENGTH;
+globalThis.TITLE_CLEANUP_SUFFIXES = TITLE_CLEANUP_SUFFIXES;
+globalThis.SEARCH_ENGINE_SUFFIXES = SEARCH_ENGINE_SUFFIXES;
+globalThis.CACHE_EXPIRY = CACHE_EXPIRY;
+globalThis.GENERIC_HOST_KEYWORDS = GENERIC_HOST_KEYWORDS;
+
+// 调试标志（getter/setter 以便动态更新）
+Object.defineProperty(globalThis, 'BG_DEBUG', {
+  get: () => BG_DEBUG,
+  set: (v) => { BG_DEBUG = v; BG_DBG = v; }
+});
+Object.defineProperty(globalThis, 'BG_DBG', {
+  get: () => BG_DBG,
+  set: (v) => { BG_DBG = v; BG_DEBUG = v; }
+});
+
+// 菜单图标支持
+globalThis.MENU_ICON_SUPPORT_STORAGE_KEY = MENU_ICON_SUPPORT_STORAGE_KEY;
+globalThis.menuIconSupportLoaded = menuIconSupportLoaded;
+globalThis.menuIconUpdateSupported = menuIconUpdateSupported;
+globalThis.menuIconConfig = menuIconConfig;
+globalThis.menuIconImageCache = menuIconImageCache;
+globalThis.menuIconUpdateInProgress = menuIconUpdateInProgress;
+
+// 菜单构建状态
+globalThis.menuBuildInProgress = menuBuildInProgress;
+globalThis.menuBuildPending = menuBuildPending;
+globalThis.menuBuildCounter = menuBuildCounter;
+
+// Tab 状态映射
+globalThis.selectedTextByTab = selectedTextByTab;
+globalThis.fallbackKeywordByTab = fallbackKeywordByTab;
+globalThis.latestTitleByTab = latestTitleByTab;
+globalThis.currentMenuState = currentMenuState;
+
+// 配置变量
+globalThis.optimizedPromptConfig = optimizedPromptConfig;
+globalThis.optimizedPromptTemplate = optimizedPromptTemplate;
+globalThis.optimizedPromptMenuMap = optimizedPromptMenuMap;
+globalThis.topQuestionsConfig = topQuestionsConfig;
+globalThis.topQuestionsTemplate = topQuestionsTemplate;
+globalThis.topQuestionsMenuMap = topQuestionsMenuMap;
+globalThis.fastAnswersConfig = fastAnswersConfig;
+globalThis.fastAnswersTemplate = fastAnswersTemplate;
+globalThis.fastAnswersMenuMap = fastAnswersMenuMap;
+globalThis.menuToggleConfig = menuToggleConfig;

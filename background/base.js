@@ -1227,3 +1227,25 @@ async function getPopupMenuStructure() {
 
   return structure;
 }
+
+// ==================== 导出到全局 ====================
+
+// 从 base.js 导出的函数
+globalThis.updateLatestTabTitle = updateLatestTabTitle;
+globalThis.ensureMenuIconSupportLoaded = ensureMenuIconSupportLoaded;
+globalThis.copyTextInTab = copyTextInTab;
+globalThis.getMenuDebugInfo = getMenuDebugInfo;
+globalThis.getPopupMenuStructure = getPopupMenuStructure;
+globalThis.refreshMenuTitle = refreshMenuTitle;
+globalThis.refreshContextMenu = typeof refreshContextMenu !== 'undefined' ? refreshContextMenu : null;
+globalThis.applyMenuTitle = typeof applyMenuTitle !== 'undefined' ? applyMenuTitle : null;
+globalThis.updateMainMenuTitle = typeof updateMainMenuTitle !== 'undefined' ? updateMainMenuTitle : null;
+globalThis.applyMenuIcons = typeof applyMenuIcons !== 'undefined' ? applyMenuIcons : null;
+globalThis.snapshotMenuTitles = typeof snapshotMenuTitles !== 'undefined' ? snapshotMenuTitles : null;
+globalThis.getLatestTabPageTitle = typeof getLatestTabPageTitle !== 'undefined' ? getLatestTabPageTitle : null;
+globalThis.getLatestTabKeyword = typeof getLatestTabKeyword !== 'undefined' ? getLatestTabKeyword : null;
+globalThis.updateLatestTabKeyword = typeof updateLatestTabKeyword !== 'undefined' ? updateLatestTabKeyword : null;
+globalThis.initKeywordSyncSystem = typeof initKeywordSyncSystem !== 'undefined' ? initKeywordSyncSystem : null;
+globalThis.setMenuState = typeof setMenuState !== 'undefined' ? setMenuState : null;
+globalThis.getMenuState = typeof getMenuState !== 'undefined' ? getMenuState : null;
+globalThis.createContextMenus = typeof createContextMenus !== 'undefined' ? createContextMenus : null;

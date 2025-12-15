@@ -428,3 +428,30 @@ if (typeof globalThis !== 'undefined') {
   console.log('  - _loggerDebug.export() - 导出日志');
   console.log('  - _loggerDebug.loggers() - 查看所有模块');
 }
+
+// ============================================
+// 兼容函数：logMenuEvent
+// ============================================
+
+/**
+ * 记录菜单事件（兼容函数）
+ * @param {string} eventName - 事件名称
+ * @param {Object} data - 事件数据
+ */
+function logMenuEvent(eventName, data = {}) {
+  // 检查是否启用调试
+  const debugEnabled = typeof BG_DEBUG !== 'undefined' ? BG_DEBUG : false;
+  if (!debugEnabled) return;
+
+  const logger = loggers.menuSystem || new Logger('MenuSystem');
+  logger.debug(`[${eventName}]`, data);
+}
+
+// ============================================
+// 导出到全局
+// ============================================
+
+globalThis.Logger = Logger;
+globalThis.getLogger = getLogger;
+globalThis.logMenuEvent = logMenuEvent;
+globalThis.loggers = loggers;

@@ -257,3 +257,32 @@ function pickFirstMeaningfulText(candidates) {
   }
   return { raw: '', trimmed: '' };
 }
+
+// ==================== 导出到全局 ====================
+
+globalThis.formatMenuTitle = formatMenuTitle;
+globalThis.normalizeSearchText = normalizeSearchText;
+globalThis.cleanupTitleKeyword = cleanupTitleKeyword;
+globalThis.extractKeywordFromTitle = extractKeywordFromTitle;
+globalThis.isGenericHostKeyword = isGenericHostKeyword;
+globalThis.getMenuDefinition = getMenuDefinition;
+globalThis.getMenuText = getMenuText;
+globalThis.getMenuTitle = getMenuTitle;
+globalThis.shouldPreserveMenuStateForUrl = shouldPreserveMenuStateForUrl;
+globalThis.shouldPreserveMenuStateForTab = shouldPreserveMenuStateForTab;
+globalThis.pickFirstMeaningfulText = pickFirstMeaningfulText;
+
+// TextUtils 对象
+globalThis.TextUtils = {
+  formatMenuTitle,
+  normalizeSearchText,
+  cleanupTitleKeyword,
+  extractKeywordFromTitle,
+  isGenericHostKeyword,
+  getMenuDefinition,
+  getMenuText,
+  getMenuTitle,
+  shouldPreserveMenuStateForUrl,
+  shouldPreserveMenuStateForTab,
+  pickFirstMeaningfulText
+};

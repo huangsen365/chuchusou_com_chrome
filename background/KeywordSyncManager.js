@@ -486,3 +486,6 @@ class KeywordSyncManager {
     // 不清空全局对象，因为旧代码可能还在使用
   }
 }
+
+// 导出到全局
+globalThis.KeywordSyncManager = KeywordSyncManager;

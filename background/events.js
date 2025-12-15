@@ -1223,3 +1223,8 @@ if (chrome.contextMenus.onShown) {
     })();
   });
 }
+
+// ==================== 导出到全局 ====================
+
+globalThis.prefetchMenuState = prefetchMenuState;
+globalThis.syncSelectionFromTab = syncSelectionFromTab;

@@ -251,3 +251,7 @@ async function computeSearchTextForTab({
   });
   return result;
 }
+
+// ==================== 导出到全局 ====================
+
+globalThis.computeSearchTextForTab = computeSearchTextForTab;

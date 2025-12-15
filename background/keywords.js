@@ -264,13 +264,19 @@ async function extractSearchKeywords(url, tab) {
       }
 
       const cleaned = title.trim();
-      BG_DBG('[触触搜][BG][DEBUG] final title keyword:', cleaned);
+      if (typeof BG_DBG !== 'undefined' && BG_DBG) {
+        console.log('[触触搜][BG][DEBUG] final title keyword:', cleaned);
+      }
       return cleaned;
     }
-    
+
   } catch (error) {
     console.error('[触触搜][BG][DEBUG] Error extracting keywords:', error);
   }
-  
+
   return null;
 }
+
+// ==================== 导出到全局 ====================
+
+globalThis.extractSearchKeywords = extractSearchKeywords;

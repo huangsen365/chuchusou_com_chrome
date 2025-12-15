@@ -395,3 +395,7 @@ class MenuRegistry {
 
 // 导出单例
 const menuRegistry = new MenuRegistry();
+
+// 导出到全局
+globalThis.MenuRegistry = MenuRegistry;
+globalThis.menuRegistry = menuRegistry;

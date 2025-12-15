@@ -1,0 +1,27 @@
+{
+  "name": "chuchusou_com_chrome",
+  "version": "1.0.0",
+  "description": "**触触搜** —— 轻触即搜，一触即达。",
+  "main": "content.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/huangsen365/chuchusou_com_chrome.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/huangsen365/chuchusou_com_chrome/issues"
+  },
+  "homepage": "https://github.com/huangsen365/chuchusou_com_chrome#readme",
+  "devDependencies": {
+    "eslint": "^9.39.2"
+  }
+}
