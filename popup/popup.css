@@ -576,3 +576,27 @@ body {
 .menu-error {
   color: #e74c3c;
 }
+
+/* ==================== 版本信息 ==================== */
+.version-info {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 12px;
+  margin-top: 8px;
+  border-top: 1px solid #e8ecf0;
+  background: #fafbfc;
+  border-radius: 6px;
+}
+
+.version-label {
+  font-size: 11px;
+  color: #95a5a6;
+}
+
+.version-number {
+  font-size: 11px;
+  color: #667eea;
+  font-weight: 500;
+}

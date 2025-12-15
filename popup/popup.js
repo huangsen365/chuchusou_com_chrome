@@ -25,9 +25,18 @@ class PopupMenuRenderer {
       this.render();
       this.bindEvents();
       this.initSettings();
+      this.loadVersion();
     } catch (error) {
       console.error('[触触搜] Popup 初始化失败:', error);
       this.showError('加载失败，请重试');
+    }
+  }
+
+  loadVersion() {
+    const manifest = chrome.runtime.getManifest();
+    const versionEl = document.getElementById('versionNumber');
+    if (versionEl && manifest.version) {
+      versionEl.textContent = `v${manifest.version}`;
     }
   }
 
