@@ -1,16 +1,21 @@
-// 提取URL中的搜索关键词或页面标题
+/**
+ * 触触搜 - 核心状态与函数
+ * 注意：此文件正在逐步重构，许多功能已迁移至新模块：
+ * - Constants.js: 常量定义
+ * - TextUtils.js: 文本处理函数
+ * - StateManager.js: 状态管理
+ * - menu/MenuBuilder.js, MenuUpdater.js, MenuHandlers.js: 菜单模块
+ * - events/TabEvents.js, MessageEvents.js, MenuEvents.js: 事件处理
+ */
+
+// 调试开关
 let BG_DEBUG = false;
 const BG_DBG = (...args) => { if (BG_DEBUG) console.log(...args); };
 
 // ==================== 新架构：关键字同步机制重构 ====================
-// MenuRegistry.js 会自动导出 menuRegistry 单例
-// KeywordSyncManager 需要手动初始化
-
-// 初始化新的同步系统（延迟初始化，在 MenuRegistry.js 加载后）
 function initKeywordSyncSystem() {
   console.log('[触触搜] initKeywordSyncSystem called');
 
-  // MenuRegistry 已经作为全局单例导出，检查是否可用
   if (typeof menuRegistry === 'undefined') {
     console.warn('[触触搜] menuRegistry 未定义，可能 MenuRegistry.js 未加载');
     return;
@@ -18,14 +23,9 @@ function initKeywordSyncSystem() {
 
   console.log('[触触搜] menuRegistry found, stats:', menuRegistry.getStats());
 
-  // 创建 KeywordSyncManager 实例（只有在未创建时）
   if (typeof keywordSyncManager === 'undefined' && typeof KeywordSyncManager !== 'undefined') {
-    // 直接在全局作用域创建实例
     globalThis.keywordSyncManager = new KeywordSyncManager(menuRegistry);
     console.log('[触触搜] KeywordSyncManager 已初始化, stats:', keywordSyncManager.getStats());
-
-    // 确认 onShown 监听器已注册
-    console.log('[触触搜] KeywordSyncManager onShown listener should be registered');
   } else if (typeof keywordSyncManager !== 'undefined') {
     console.log('[触触搜] keywordSyncManager already initialized');
   } else {
@@ -34,65 +34,76 @@ function initKeywordSyncSystem() {
 }
 // ==================================================================
 
-function formatMenuTitle(text) {
-  if (!text) return null;
-  const compact = text.replace(/\s+/g, ' ').trim();
-  if (!compact) return null;
-  return compact.substring(0, 20) + (compact.length > 20 ? '...' : '');
-}
-
-function shouldPreserveMenuStateForUrl(url) {
-  if (!url) return false;
-  try {
-    const hostname = new URL(url).hostname;
-    return QUICK_RESULT_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
-  } catch (_) {
-    return false;
+// 使用 TextUtils.js 中的函数（如果可用），否则提供本地实现
+// 这样可以逐步迁移到新模块
+if (typeof formatMenuTitle === 'undefined') {
+  function formatMenuTitle(text) {
+    if (!text) return null;
+    const compact = text.replace(/\s+/g, ' ').trim();
+    if (!compact) return null;
+    return compact.substring(0, 20) + (compact.length > 20 ? '...' : '');
   }
+  globalThis.formatMenuTitle = formatMenuTitle;
 }
 
-function shouldPreserveMenuStateForTab(tab) {
-  if (!tab || typeof tab.url !== 'string') return false;
-  return shouldPreserveMenuStateForUrl(tab.url);
-}
-
-function cleanupTitleKeyword(rawTitle) {
-  if (!rawTitle) return '';
-  let cleaned = rawTitle.trim();
-  const suffixes = [
-    ' - 搜索结果',
-    ' - 知乎',
-    ' - Zhihu',
-    ' - ChatGPT',
-    ' – ChatGPT',
-    ' — ChatGPT',
-    ' - Claude',
-    ' – Claude',
-    ' — Claude'
-  ];
-  suffixes.forEach((suffix) => {
-    if (cleaned.endsWith(suffix)) {
-      cleaned = cleaned.slice(0, -suffix.length);
+if (typeof shouldPreserveMenuStateForUrl === 'undefined') {
+  function shouldPreserveMenuStateForUrl(url) {
+    if (!url) return false;
+    try {
+      const hostname = new URL(url).hostname;
+      const hosts = typeof QUICK_RESULT_HOSTS !== 'undefined' ? QUICK_RESULT_HOSTS : ['chatgpt.com', 'claude.ai'];
+      return hosts.some((host) => hostname === host || hostname.endsWith(`.${host}`));
+    } catch (_) {
+      return false;
     }
-  });
-  const prefixPattern = /^[\s]*[\(（][^\)）]*[\)）]\s*/;
-  while (prefixPattern.test(cleaned)) {
-    cleaned = cleaned.replace(prefixPattern, '').trim();
   }
-  return cleaned.trim();
+  globalThis.shouldPreserveMenuStateForUrl = shouldPreserveMenuStateForUrl;
 }
 
-function normalizeSearchText(raw) {
-  if (!raw) return '';
-  let text = raw;
-  // Decode once more if it still contains percent-encoding sequences
-  try {
-    if (/%[0-9A-Fa-f]{2}/.test(text) && decodeURIComponent(text) !== text) {
-      text = decodeURIComponent(text);
+if (typeof shouldPreserveMenuStateForTab === 'undefined') {
+  function shouldPreserveMenuStateForTab(tab) {
+    if (!tab || typeof tab.url !== 'string') return false;
+    return shouldPreserveMenuStateForUrl(tab.url);
+  }
+  globalThis.shouldPreserveMenuStateForTab = shouldPreserveMenuStateForTab;
+}
+
+if (typeof cleanupTitleKeyword === 'undefined') {
+  function cleanupTitleKeyword(rawTitle) {
+    if (!rawTitle) return '';
+    let cleaned = rawTitle.trim();
+    const suffixes = [
+      ' - 搜索结果', ' - 知乎', ' - Zhihu',
+      ' - ChatGPT', ' – ChatGPT', ' — ChatGPT',
+      ' - Claude', ' – Claude', ' — Claude'
+    ];
+    suffixes.forEach((suffix) => {
+      if (cleaned.endsWith(suffix)) {
+        cleaned = cleaned.slice(0, -suffix.length);
+      }
+    });
+    const prefixPattern = /^[\s]*[\(（][^\)）]*[\)）]\s*/;
+    while (prefixPattern.test(cleaned)) {
+      cleaned = cleaned.replace(prefixPattern, '').trim();
     }
-  } catch (_) {}
-  text = text.replace(/\s+/g, ' ').trim();
-  return text;
+    return cleaned.trim();
+  }
+  globalThis.cleanupTitleKeyword = cleanupTitleKeyword;
+}
+
+if (typeof normalizeSearchText === 'undefined') {
+  function normalizeSearchText(raw) {
+    if (!raw) return '';
+    let text = raw;
+    try {
+      if (/%[0-9A-Fa-f]{2}/.test(text) && decodeURIComponent(text) !== text) {
+        text = decodeURIComponent(text);
+      }
+    } catch (_) {}
+    text = text.replace(/\s+/g, ' ').trim();
+    return text;
+  }
+  globalThis.normalizeSearchText = normalizeSearchText;
 }
 
 const optimizedPromptMenuMap = new Map();
@@ -120,8 +131,11 @@ const MENU_ICON_SUPPORT_STORAGE_KEY = 'ccs_menu_icon_supported';
 let menuIconSupportLoaded = false;
 let menuIconSupportLoadPromise = null;
 let menuIconUpdateInProgress = false;
-const QUICK_RESULT_HOSTS = ['chatgpt.com', 'claude.ai'];
 
+// 使用 Constants.js 中的常量（如果可用）
+// QUICK_RESULT_HOSTS 已在 Constants.js 中定义
+
+// 全局缓存对象（用于跨标签页状态管理）
 const fallbackKeywordByTab = {};
 const latestTitleByTab = {};
 
@@ -228,7 +242,8 @@ const currentMenuState = {
   url: ''
 };
 
-const LOG_PREFIX = '[触触搜][MENU]';
+// 日志系统：使用 Constants.js 中的 LOG_PREFIX（如果可用）
+const LOG_PREFIX_LOCAL = typeof LOG_PREFIX !== 'undefined' ? LOG_PREFIX : '[触触搜][MENU]';
 let LOG_SEQUENCE = 0;
 
 function buildLogPayload(payload) {
@@ -239,15 +254,7 @@ function buildLogPayload(payload) {
     ? Math.round(performance.now())
     : null;
   const seq = ++LOG_SEQUENCE;
-  return Object.assign(
-    {
-      timestamp,
-      timeMs,
-      monotonicMs,
-      seq
-    },
-    payload || {}
-  );
+  return Object.assign({ timestamp, timeMs, monotonicMs, seq }, payload || {});
 }
 
 function logMenuEvent(stage, payload) {
@@ -274,83 +281,64 @@ function logMenuEvent(stage, payload) {
     }
     const summaryText = summaryParts.join(' | ');
     if (summaryText) {
-      console.info(`${LOG_PREFIX} ${stage}`, summaryText, enrichedPayload);
+      console.info(`${LOG_PREFIX_LOCAL} ${stage}`, summaryText, enrichedPayload);
     } else {
-      console.info(`${LOG_PREFIX} ${stage}`, enrichedPayload);
+      console.info(`${LOG_PREFIX_LOCAL} ${stage}`, enrichedPayload);
     }
   } catch (_) {
     // ignore logging errors
   }
 }
 
-const MENU_DEFINITIONS = {
-  'ccs-main': { text: '触触搜', icon: '🔍' },
-  'ccs-baidu': { text: '百度搜索', icon: '🐼' },
-  'ccs-google': { text: 'Google 搜索', icon: '🔎' },
-  'ccs-tongyi': { text: '通义千问', icon: '🪄' },
-  'ccs-yiyan': { text: '文心一言', icon: '🧠' },
-  'ccs-chatgpt': { text: 'ChatGPT', icon: '🤖' },
-  'ccs-claude': { text: 'Claude', icon: '🧠' },
-  'ccs-grok': { text: 'Grok', icon: '🦊' },
-  'ccs-zhihu': { text: '知乎搜索', icon: '💡' },
-  'ccs-weixin': { text: '微信搜一搜', icon: '💬' },
-  'ccs-taobao': { text: '淘宝搜索', icon: '🛒' },
-  'ccs-jd': { text: '京东搜索', icon: '🛍️' },
-  'ccs-sov2ex': { text: 'V2EX (sov2ex)', icon: '💻' },
-  'ccs-baidu-translate': { text: '百度翻译', icon: '✍️' },
-  'ccs-google-translate': { text: 'Google 翻译', icon: '🔁' },
-  'ccs-chuchusou': { text: '更多搜索引擎...', icon: '🌐' },
-  'ccs-top100-root': { text: '触触搜百问', icon: '💯' },
-  'ccs-top100-open-all': { text: '打开以下全部', icon: '🚀' },
-  'ccs-fastqa-root': { text: '速答壹拾佰', icon: '⚡' },
-  'ccs-fastqa-open-all': { text: '打开以下全部', icon: '🚀' },
-  'ccs-optimize-root': { text: '优化提示词', icon: '🧠' },
-  'ccs-copy': { text: '复制文本', icon: '📋' },
-  'ccs-base64': { text: 'Base64 编码', icon: '🔤' },
-  'ccs-md5': { text: 'MD5 哈希', icon: '🔐' },
-  'ccs-url-encode': { text: 'URL 编码', icon: '🔗' },
-  'ccs-upper': { text: '转换为大写', icon: '🔠' },
-  'ccs-lower': { text: '转换为小写', icon: '🔡' },
-  'ccs-show-popover': { text: '打开触触搜面板 (Alt+S)', icon: '🪟' }
-};
-
-const FAST_QA_QUICK_ITEMS = [
-  {
-    id: 'ccs-fastqa-chatgpt-quick',
-    engineId: 'chatgpt',
-    titleKey: 'chatgpt',
-    menuTitle: '触触搜 · 速答壹拾佰 - ChatGPT',
-    menuIcon: '🤖'
-  },
-  {
-    id: 'ccs-fastqa-claude-quick',
-    engineId: 'claude',
-    titleKey: 'claude',
-    menuTitle: '触触搜 · 速答壹拾佰 - Claude',
-    menuIcon: '🧠'
-  },
-  {
-    id: 'ccs-fastqa-grok-quick',
-    engineId: 'grok',
-    titleKey: 'grok',
-    menuTitle: '触触搜 · 速答壹拾佰 - Grok',
-    menuIcon: '🦊'
-  },
-  {
-    id: 'ccs-fastqa-yiyan-quick',
-    engineId: 'yiyan',
-    titleKey: 'yiyan',
-    menuTitle: '触触搜 · 速答壹拾佰 - 文心一言',
-    menuIcon: '🧠'
-  }
-];
-
-FAST_QA_QUICK_ITEMS.forEach((item) => {
-  MENU_DEFINITIONS[item.id] = {
-    text: item.menuTitle,
-    icon: item.menuIcon || ''
+// 菜单定义和常量：优先使用 Constants.js 中的定义
+// 如果 Constants.js 已加载，这些常量已经可用
+// 否则提供本地备用定义
+if (typeof MENU_DEFINITIONS === 'undefined') {
+  const MENU_DEFINITIONS = {
+    'ccs-main': { text: '触触搜', icon: '🔍' },
+    'ccs-baidu': { text: '百度搜索', icon: '🐼' },
+    'ccs-google': { text: 'Google 搜索', icon: '🔎' },
+    'ccs-tongyi': { text: '通义千问', icon: '🪄' },
+    'ccs-yiyan': { text: '文心一言', icon: '🧠' },
+    'ccs-chatgpt': { text: 'ChatGPT', icon: '🤖' },
+    'ccs-claude': { text: 'Claude', icon: '🧠' },
+    'ccs-grok': { text: 'Grok', icon: '🦊' },
+    'ccs-zhihu': { text: '知乎搜索', icon: '💡' },
+    'ccs-weixin': { text: '微信搜一搜', icon: '💬' },
+    'ccs-taobao': { text: '淘宝搜索', icon: '🛒' },
+    'ccs-jd': { text: '京东搜索', icon: '🛍️' },
+    'ccs-sov2ex': { text: 'V2EX (sov2ex)', icon: '💻' },
+    'ccs-baidu-translate': { text: '百度翻译', icon: '✍️' },
+    'ccs-google-translate': { text: 'Google 翻译', icon: '🔁' },
+    'ccs-chuchusou': { text: '更多搜索引擎...', icon: '🌐' },
+    'ccs-top100-root': { text: '触触搜百问', icon: '💯' },
+    'ccs-top100-open-all': { text: '打开以下全部', icon: '🚀' },
+    'ccs-fastqa-root': { text: '速答壹拾佰', icon: '⚡' },
+    'ccs-fastqa-open-all': { text: '打开以下全部', icon: '🚀' },
+    'ccs-optimize-root': { text: '优化提示词', icon: '🧠' },
+    'ccs-copy': { text: '复制文本', icon: '📋' },
+    'ccs-base64': { text: 'Base64 编码', icon: '🔤' },
+    'ccs-md5': { text: 'MD5 哈希', icon: '🔐' },
+    'ccs-url-encode': { text: 'URL 编码', icon: '🔗' },
+    'ccs-upper': { text: '转换为大写', icon: '🔠' },
+    'ccs-lower': { text: '转换为小写', icon: '🔡' },
+    'ccs-show-popover': { text: '打开触触搜面板 (Alt+S)', icon: '🪟' }
   };
-});
+  globalThis.MENU_DEFINITIONS = MENU_DEFINITIONS;
+}
+
+// FAST_QA_QUICK_ITEMS 已在 Constants.js 中定义
+// 如果需要扩展 MENU_DEFINITIONS，在这里添加
+if (typeof FAST_QA_QUICK_ITEMS !== 'undefined') {
+  FAST_QA_QUICK_ITEMS.forEach((item) => {
+    if (!MENU_DEFINITIONS[item.id]) {
+      MENU_DEFINITIONS[item.id] = {
+        text: item.menuTitle,
+        icon: item.menuIcon || ''
+      };
+    }
+  });
+}
 
 function getMenuDefinition(menuId) {
   return MENU_DEFINITIONS[menuId] || null;
@@ -376,35 +364,49 @@ function getMenuTitle(menuId, fallback) {
   return text;
 }
 
-const OPTIMIZE_CATEGORY_TITLES = {
-  'deep-research': '📚 深度研究',
-  'general-conversation': '💬 普通对话',
-  'code-writing': '💻 代码编写',
-  'content-creation': '📝 内容创作',
-  'data-analysis': '📊 数据分析',
-  'problem-solving': '🧩 问题解答',
-  'brainstorm': '💡 头脑风暴',
-  'description-polish': '✨ 优化描述'
-};
+// 以下常量已在 Constants.js 中定义，这里保留备用引用
+// OPTIMIZE_CATEGORY_TITLES, OPTIMIZE_ENGINE_TITLES, TOP_QUESTION_ENGINE_TITLES, FAST_ANSWER_ENGINE_TITLES
+if (typeof OPTIMIZE_CATEGORY_TITLES === 'undefined') {
+  const OPTIMIZE_CATEGORY_TITLES = {
+    'deep-research': '📚 深度研究',
+    'general-conversation': '💬 普通对话',
+    'code-writing': '💻 代码编写',
+    'content-creation': '📝 内容创作',
+    'data-analysis': '📊 数据分析',
+    'problem-solving': '🧩 问题解答',
+    'brainstorm': '💡 头脑风暴',
+    'description-polish': '✨ 优化描述'
+  };
+  globalThis.OPTIMIZE_CATEGORY_TITLES = OPTIMIZE_CATEGORY_TITLES;
+}
 
-const OPTIMIZE_ENGINE_TITLES = {
-  'chatgpt': '🤖 ChatGPT',
-  'claude': '🧠 Claude (推荐 Opus)'
-};
+if (typeof OPTIMIZE_ENGINE_TITLES === 'undefined') {
+  const OPTIMIZE_ENGINE_TITLES = {
+    'chatgpt': '🤖 ChatGPT',
+    'claude': '🧠 Claude (推荐 Opus)'
+  };
+  globalThis.OPTIMIZE_ENGINE_TITLES = OPTIMIZE_ENGINE_TITLES;
+}
 
-const TOP_QUESTION_ENGINE_TITLES = {
-  'chatgpt': '🤖 ChatGPT',
-  'claude': '🧠 Claude',
-  'grok': '🦊 Grok',
-  'yiyan': '🧠 文心一言'
-};
+if (typeof TOP_QUESTION_ENGINE_TITLES === 'undefined') {
+  const TOP_QUESTION_ENGINE_TITLES = {
+    'chatgpt': '🤖 ChatGPT',
+    'claude': '🧠 Claude',
+    'grok': '🦊 Grok',
+    'yiyan': '🧠 文心一言'
+  };
+  globalThis.TOP_QUESTION_ENGINE_TITLES = TOP_QUESTION_ENGINE_TITLES;
+}
 
-const FAST_ANSWER_ENGINE_TITLES = {
-  'chatgpt': '🤖 ChatGPT',
-  'claude': '🧠 Claude',
-  'grok': '🦊 Grok',
-  'yiyan': '🧠 文心一言'
-};
+if (typeof FAST_ANSWER_ENGINE_TITLES === 'undefined') {
+  const FAST_ANSWER_ENGINE_TITLES = {
+    'chatgpt': '🤖 ChatGPT',
+    'claude': '🧠 Claude',
+    'grok': '🦊 Grok',
+    'yiyan': '🧠 文心一言'
+  };
+  globalThis.FAST_ANSWER_ENGINE_TITLES = FAST_ANSWER_ENGINE_TITLES;
+}
 
 // 动态搜索菜单项 - 清空以移除各菜单项后的关键字显示
 // 关键字将统一显示在二级菜单顶部的标签中

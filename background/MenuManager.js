@@ -99,16 +99,42 @@ class MenuManager {
 
   /**
    * 加载菜单开关配置
+   * 从统一配置中提取 enabled 状态
    *
    * @returns {Promise<void>}
    */
   async loadMenuToggles() {
     try {
-      const response = await fetch(chrome.runtime.getURL('config/menuToggles.json'));
-      this.menuToggles = await response.json();
+      // 从统一配置加载（而不是已删除的 menuToggles.json）
+      const response = await fetch(chrome.runtime.getURL('config/unifiedMenuConfig.json'));
+      const config = await response.json();
+
+      // 从配置中提取 enabled 状态
+      this.menuToggles = {};
+
+      if (Array.isArray(config.groups)) {
+        for (const group of config.groups) {
+          if (Array.isArray(group.items)) {
+            for (const item of group.items) {
+              if (item.id && typeof item.enabled === 'boolean') {
+                this.menuToggles[item.id] = item.enabled;
+              }
+              // 处理子菜单
+              if (Array.isArray(item.children)) {
+                for (const child of item.children) {
+                  if (child.id && typeof child.enabled === 'boolean') {
+                    this.menuToggles[child.id] = child.enabled;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
       this._log('loadMenuToggles', { count: Object.keys(this.menuToggles).length });
     } catch (error) {
-      console.warn('[MenuManager] Failed to load menuToggles.json:', error);
+      console.warn('[MenuManager] Failed to load menu toggles from unified config:', error);
       this.menuToggles = {};
     }
   }

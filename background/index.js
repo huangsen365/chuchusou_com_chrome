@@ -17,6 +17,16 @@ importScripts(
   './MenuManager.js',
   './menuSystem.js',
 
+  // 新菜单模块（模块化重构）
+  './menu/MenuBuilder.js',
+  './menu/MenuUpdater.js',
+  './menu/MenuHandlers.js',
+
+  // 新事件模块（模块化重构）
+  './events/TabEvents.js',
+  './events/MessageEvents.js',
+  './events/MenuEvents.js',
+
   // 原有模块（兼容模式）
   './base.js',
   './config.js',
