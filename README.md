@@ -12,6 +12,7 @@
 - 🖱️ **轻触即现**：鼠标选中文本，悬浮菜单自动出现在光标旁
 - ⚡ **触手可及**：所有功能围绕选中文本展开，移动距离最短
 - 🎯 **一触即达**：无需右键，无需快捷键，轻触文本即可操作
+- 🔘 **图标菜单**：点击扩展图标，显示与右键菜单完全一致的层级菜单
 
 ### 核心功能
 - **智能触发**: 鼠标轻触选中任意网页文本，功能菜单自动浮现
@@ -25,15 +26,17 @@
   - 🔠 转换大小写
   - #️⃣ MD5哈希
 
-### 右键菜单扩展
+### 右键菜单 & Popup 菜单
 - **一站式搜索**：自动携带当前选区/页面关键词，快捷跳转到百度、Google、知乎、搜一搜、京东、淘宝、V2EX 等搜索入口。
 - **AI 快捷分类**：
   - ChatGPT（不限模型）
   - Claude（推荐 Opus）
-  - 支持“优化提示词”分类：深度研究、普通对话、代码编写、内容创作、数据分析、问题解答、头脑风暴、优化描述，随选随用。
-- **翻译与快搜**：内置百度翻译、Google 翻译、通义千问（可按需启用/禁用）、文心一言、快捷速答（ChatGPT / Claude）。
+  - Grok
+  - 支持"优化提示词"分类：深度研究、普通对话、代码编写、内容创作、数据分析、问题解答、头脑风暴、优化描述，随选随用。
+- **翻译与快搜**：内置百度翻译、Google 翻译、通义千问（可按需启用/禁用）、文心一言、快捷速答（ChatGPT / Claude / Grok）。
 - **智能标题同步**：右键菜单标题会实时显示最新的选区或页面关键词；在 ChatGPT / Claude 这类「快捷结果页」也会自动刷新，确保首次右键就拿到正确的提示语。
-- **容错机制**：当内容脚本尚未就绪时，后台会自动注入并重试，避免出现“右键无反应”的情况。
+- **Popup 菜单**：点击扩展图标即可打开与右键菜单完全一致的层级菜单，支持多级嵌套（如"优化提示词"的三级菜单），适合不喜欢右键操作的用户。
+- **容错机制**：当内容脚本尚未就绪时，后台会自动注入并重试，避免出现"右键无反应"的情况。
 
 ### 命令系统
 在输入框中输入以下命令：
@@ -100,14 +103,31 @@
 
 ```
 chuchusou_com_chrome/
-├── manifest.json          # 插件配置文件
-├── content.js            # 内容脚本（核心逻辑）
-├── content.css           # 内容样式
-├── popup/                # 弹出页面
+├── manifest.json              # Manifest V3 配置
+├── CLAUDE.md                  # 开发指南（给 Claude Code 用）
+├── background/                # Service Worker 后台脚本
+│   ├── base.js               # 菜单定义、状态管理
+│   ├── events.js             # 消息处理、事件监听
+│   ├── menuBuilder.js        # 右键菜单构建
+│   ├── menuHandlers.js       # 菜单点击处理
+│   └── config.js             # 配置加载
+├── content/                   # 内容脚本
+│   ├── content.js            # 悬浮面板核心逻辑
+│   └── content.css           # 悬浮面板样式
+├── popup/                     # Popup 菜单（点击扩展图标）
 │   ├── popup.html
+│   ├── popup.js              # 从 background 获取菜单结构
 │   ├── popup.css
-│   └── popup.js
-└── icons/                # 插件图标
+│   └── _archived/            # 旧版 popup 归档
+├── config/                    # 配置文件
+│   ├── unifiedMenuConfig.json
+│   ├── menuToggles.json      # 菜单开关配置
+│   └── menuIcons.json
+├── prompts/                   # 提示词模板
+│   ├── topQuestionsPrompts.json
+│   ├── fastAnswersPrompts.json
+│   └── optimizedPrompts.json
+└── icons/                     # 插件图标
     ├── icon16.png
     ├── icon48.png
     └── icon128.png

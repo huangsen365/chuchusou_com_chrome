@@ -926,3 +926,302 @@ async function getMenuDebugInfo(tabId) {
 
   return debugInfo;
 }
+
+/**
+ * 获取 Popup 菜单结构（与右键菜单保持一致）
+ *
+ * @returns {Promise<Object>} 包含菜单组和项目的结构
+ */
+async function getPopupMenuStructure() {
+  await loadMenuToggleConfig();
+
+  const structure = {
+    groups: []
+  };
+
+  // 1. 快速问答组 (fastQaQuick)
+  const quickEnabledItems = FAST_QA_QUICK_ITEMS.filter(item => isMenuEnabled(item.id));
+  if (quickEnabledItems.length > 0) {
+    structure.groups.push({
+      id: 'fastQaQuick',
+      separator: 'after',
+      items: quickEnabledItems.map(item => ({
+        id: item.id,
+        title: getMenuText(item.id),
+        icon: MENU_DEFINITIONS[item.id]?.icon || item.menuIcon || '',
+        type: 'fastqa-quick',
+        engineId: item.engineId
+      }))
+    });
+  }
+
+  // 2. 搜索组 (search)
+  const searchItems = [
+    { id: 'ccs-baidu', type: 'search', urlPattern: 'https://www.baidu.com/s?wd=${KEYWORD}' },
+    { id: 'ccs-google', type: 'search', urlPattern: 'https://www.google.com/search?q=${KEYWORD}' },
+    { id: 'ccs-tongyi', type: 'ai-search', urlPattern: 'https://tongyi.aliyun.com/qianwen/?q=${KEYWORD}' }
+  ].filter(item => isMenuEnabled(item.id));
+
+  if (searchItems.length > 0) {
+    structure.groups.push({
+      id: 'search',
+      separator: 'after',
+      items: searchItems.map(item => ({
+        id: item.id,
+        title: getMenuText(item.id),
+        icon: MENU_DEFINITIONS[item.id]?.icon || '',
+        type: item.type,
+        urlPattern: item.urlPattern
+      }))
+    });
+  }
+
+  // 3. AI 对话组 (ai)
+  const aiItems = [
+    { id: 'ccs-chatgpt', type: 'ai-chat', urlPattern: 'https://chatgpt.com/?q=${KEYWORD}' },
+    { id: 'ccs-claude', type: 'ai-chat', urlPattern: 'https://claude.ai/new?q=${KEYWORD}' },
+    { id: 'ccs-grok', type: 'ai-chat', urlPattern: 'https://grok.com/?q=${KEYWORD}' }
+  ].filter(item => isMenuEnabled(item.id));
+
+  if (aiItems.length > 0) {
+    structure.groups.push({
+      id: 'ai',
+      separator: 'none',
+      items: aiItems.map(item => ({
+        id: item.id,
+        title: getMenuText(item.id),
+        icon: MENU_DEFINITIONS[item.id]?.icon || '',
+        type: item.type,
+        urlPattern: item.urlPattern
+      }))
+    });
+  }
+
+  // 4. 通用组 (general)
+  const generalItems = [
+    { id: 'ccs-yiyan', type: 'ai-search', urlPattern: 'https://yiyan.baidu.com/?q=${KEYWORD}' },
+    { id: 'ccs-zhihu', type: 'search', urlPattern: 'https://www.zhihu.com/search?q=${KEYWORD}' },
+    { id: 'ccs-weixin', type: 'search', urlPattern: 'https://weixin.sogou.com/weixin?query=${KEYWORD}' },
+    { id: 'ccs-taobao', type: 'ecommerce', urlPattern: 'https://s.taobao.com/search?q=${KEYWORD}' },
+    { id: 'ccs-jd', type: 'ecommerce', urlPattern: 'https://search.jd.com/Search?keyword=${KEYWORD}' },
+    { id: 'ccs-sov2ex', type: 'search', urlPattern: 'https://www.sov2ex.com/?q=${KEYWORD}' },
+    { id: 'ccs-google-translate', type: 'translate', urlPattern: 'https://translate.google.com/?sl=auto&tl=zh-CN&text=${KEYWORD}' },
+    { id: 'ccs-chuchusou', type: 'portal', urlPattern: 'https://chuchusou.com/#/?keyword=${KEYWORD}' }
+  ].filter(item => isMenuEnabled(item.id));
+
+  if (generalItems.length > 0) {
+    structure.groups.push({
+      id: 'general',
+      separator: 'none',
+      items: generalItems.map(item => ({
+        id: item.id,
+        title: getMenuText(item.id),
+        icon: MENU_DEFINITIONS[item.id]?.icon || '',
+        type: item.type,
+        urlPattern: item.urlPattern
+      }))
+    });
+  }
+
+  // 5. 高级功能组 (advanced) - 动态加载
+  const advancedItems = [];
+
+  // 5.1 触触搜百问
+  if (isMenuEnabled('ccs-top100-root')) {
+    const top100Config = await loadTopQuestionsConfig();
+    const top100Children = [];
+
+    if (isMenuEnabled('ccs-top100-open-all')) {
+      top100Children.push({
+        id: 'ccs-top100-open-all',
+        title: getMenuText('ccs-top100-open-all'),
+        icon: MENU_DEFINITIONS['ccs-top100-open-all']?.icon || '🚀',
+        type: 'action'
+      });
+    }
+
+    if (top100Config && top100Config.engines) {
+      for (const engine of top100Config.engines) {
+        const menuId = `ccs-top100-${engine.id}`;
+        if (isMenuEnabled(menuId)) {
+          top100Children.push({
+            id: menuId,
+            title: TOP_QUESTION_ENGINE_TITLES[engine.id] || engine.label,
+            icon: engine.icon || '',
+            type: 'top100',
+            engineId: engine.id,
+            urlPattern: engine.urlPattern
+          });
+        }
+      }
+    }
+
+    if (top100Children.length > 0) {
+      advancedItems.push({
+        id: 'ccs-top100-root',
+        title: getMenuText('ccs-top100-root'),
+        icon: MENU_DEFINITIONS['ccs-top100-root']?.icon || '💯',
+        type: 'submenu',
+        children: top100Children
+      });
+    }
+  }
+
+  // 5.2 速答壹拾佰
+  if (isMenuEnabled('ccs-fastqa-root')) {
+    const fastqaConfig = await loadFastAnswersConfig();
+    const fastqaChildren = [];
+
+    if (isMenuEnabled('ccs-fastqa-open-all')) {
+      fastqaChildren.push({
+        id: 'ccs-fastqa-open-all',
+        title: getMenuText('ccs-fastqa-open-all'),
+        icon: MENU_DEFINITIONS['ccs-fastqa-open-all']?.icon || '🚀',
+        type: 'action'
+      });
+    }
+
+    if (fastqaConfig && fastqaConfig.engines) {
+      for (const engine of fastqaConfig.engines) {
+        const menuId = `ccs-fastqa-${engine.id}`;
+        if (isMenuEnabled(menuId)) {
+          fastqaChildren.push({
+            id: menuId,
+            title: FAST_ANSWER_ENGINE_TITLES[engine.id] || engine.label,
+            icon: engine.icon || '',
+            type: 'fastqa',
+            engineId: engine.id,
+            urlPattern: engine.urlPattern
+          });
+        }
+      }
+    }
+
+    if (fastqaChildren.length > 0) {
+      advancedItems.push({
+        id: 'ccs-fastqa-root',
+        title: getMenuText('ccs-fastqa-root'),
+        icon: MENU_DEFINITIONS['ccs-fastqa-root']?.icon || '⚡',
+        type: 'submenu',
+        children: fastqaChildren
+      });
+    }
+  }
+
+  // 5.3 优化提示词
+  if (isMenuEnabled('ccs-optimize-root')) {
+    const optimizeConfig = await loadOptimizedPromptConfig();
+    const optimizeChildren = [];
+
+    if (optimizeConfig && optimizeConfig.categories) {
+      for (const category of optimizeConfig.categories) {
+        const categoryId = `ccs-optimize-${category.id}`;
+        if (!isMenuEnabled(categoryId)) continue;
+
+        const categoryEngines = [];
+        for (const engine of category.engines || []) {
+          const menuId = `ccs-optimize-${category.id}-${engine.id}`;
+          if (isMenuEnabled(menuId)) {
+            categoryEngines.push({
+              id: menuId,
+              title: OPTIMIZE_ENGINE_TITLES[engine.id] || engine.label,
+              icon: engine.icon || '',
+              type: 'optimize',
+              categoryId: category.id,
+              engineId: engine.id,
+              purpose: category.purpose || category.label,
+              urlPattern: engine.urlPattern
+            });
+          }
+        }
+
+        if (categoryEngines.length > 0) {
+          optimizeChildren.push({
+            id: categoryId,
+            title: OPTIMIZE_CATEGORY_TITLES[category.id] || category.label,
+            icon: category.icon || '',
+            type: 'submenu',
+            children: categoryEngines
+          });
+        }
+      }
+    }
+
+    if (optimizeChildren.length > 0) {
+      advancedItems.push({
+        id: 'ccs-optimize-root',
+        title: getMenuText('ccs-optimize-root'),
+        icon: MENU_DEFINITIONS['ccs-optimize-root']?.icon || '🧠',
+        type: 'submenu',
+        children: optimizeChildren
+      });
+    }
+  }
+
+  if (advancedItems.length > 0) {
+    structure.groups.push({
+      id: 'advanced',
+      separator: 'before',
+      items: advancedItems
+    });
+  }
+
+  // 6. 工具组 (tool)
+  const toolItems = [
+    { id: 'ccs-copy', type: 'tool', action: 'copy' },
+    { id: 'ccs-base64', type: 'tool', action: 'base64-encode' },
+    { id: 'ccs-md5', type: 'tool', action: 'md5-hash' },
+    { id: 'ccs-url-encode', type: 'tool', action: 'url-encode' }
+  ].filter(item => isMenuEnabled(item.id));
+
+  if (toolItems.length > 0) {
+    structure.groups.push({
+      id: 'tool',
+      separator: 'before',
+      items: toolItems.map(item => ({
+        id: item.id,
+        title: getMenuText(item.id),
+        icon: MENU_DEFINITIONS[item.id]?.icon || '',
+        type: item.type,
+        action: item.action
+      }))
+    });
+  }
+
+  // 7. 文本转换组 (transform)
+  const transformItems = [
+    { id: 'ccs-upper', type: 'transform', action: 'to-uppercase' },
+    { id: 'ccs-lower', type: 'transform', action: 'to-lowercase' }
+  ].filter(item => isMenuEnabled(item.id));
+
+  if (transformItems.length > 0) {
+    structure.groups.push({
+      id: 'transform',
+      separator: 'before',
+      items: transformItems.map(item => ({
+        id: item.id,
+        title: getMenuText(item.id),
+        icon: MENU_DEFINITIONS[item.id]?.icon || '',
+        type: item.type,
+        action: item.action
+      }))
+    });
+  }
+
+  // 8. 面板控制 (panel)
+  if (isMenuEnabled('ccs-show-popover')) {
+    structure.groups.push({
+      id: 'panel',
+      separator: 'before',
+      items: [{
+        id: 'ccs-show-popover',
+        title: getMenuText('ccs-show-popover'),
+        icon: MENU_DEFINITIONS['ccs-show-popover']?.icon || '🪟',
+        type: 'action',
+        action: 'show-popover'
+      }]
+    });
+  }
+
+  return structure;
+}

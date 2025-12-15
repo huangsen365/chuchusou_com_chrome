@@ -7,187 +7,100 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div class="popup-container">
-    <header class="popup-header">
-      <h1 class="popup-title">🔍 触触搜</h1>
-      <span class="popup-version">轻触即搜 v1.1.0</span>
+  <div class="ccs-popup-menu">
+    <!-- 头部：显示当前关键词 -->
+    <header class="menu-header">
+      <div class="header-left">
+        <span class="menu-icon">🔍</span>
+        <span class="menu-title">触触搜</span>
+      </div>
+      <span class="menu-keyword" id="currentKeyword" title=""></span>
     </header>
 
-    <!-- 快速搜索区域 -->
-    <section class="quick-search-section" style="display: none;">
-      <div class="search-keyword">
-        <span class="keyword-label">📍 当前页面：</span>
-        <span class="keyword-text" title=""></span>
+    <!-- 菜单容器：动态渲染 -->
+    <div class="menu-container" id="menuContainer">
+      <div class="menu-loading">加载中...</div>
+    </div>
+
+    <!-- 设置面板（默认隐藏） -->
+    <div class="settings-panel" id="settingsPanel" style="display: none;">
+      <div class="settings-header">
+        <button class="back-to-menu" id="backToMenu">← 返回菜单</button>
       </div>
-      <div class="search-actions">
-        <button class="search-btn" data-action="baidu" title="百度搜索">
-          <span>🔍</span>
-          <span>百度</span>
-        </button>
-        <button class="search-btn" data-action="google" title="Google搜索">
-          <span>🔍</span>
-          <span>Google</span>
-        </button>
-        <button class="search-btn" data-action="chuchusou" title="更多搜索引擎">
-          <span>🌐</span>
-          <span>更多</span>
-        </button>
-        <button class="search-btn" data-action="copy" title="复制关键词">
-          <span>📝</span>
-          <span>复制</span>
-        </button>
+
+      <div class="settings-content">
+        <!-- 快捷操作 -->
+        <div class="settings-grid">
+          <button class="setting-btn" data-action="toggle">
+            <span class="setting-icon">⚡</span>
+            <span class="setting-label">启用/禁用</span>
+          </button>
+          <button class="setting-btn" data-action="blacklist">
+            <span class="setting-icon">🚫</span>
+            <span class="setting-label">黑名单管理</span>
+          </button>
+          <button class="setting-btn" data-action="debug">
+            <span class="setting-icon">🐞</span>
+            <span class="setting-label">调试日志：关</span>
+          </button>
+          <button class="setting-btn" data-action="export-menu-state">
+            <span class="setting-icon">📋</span>
+            <span class="setting-label">导出菜单状态</span>
+          </button>
+          <button class="setting-btn" data-action="shortcut-settings">
+            <span class="setting-icon">⌨️</span>
+            <span class="setting-label">快捷键设置</span>
+          </button>
+        </div>
+
+        <!-- 黑名单管理区域（默认隐藏） -->
+        <div class="blacklist-section" id="blacklistSection" style="display: none;">
+          <h3>黑名单管理</h3>
+          <div class="blacklist-info">
+            <p>已屏蔽 <span class="blacklist-count">0</span> 个网站</p>
+            <button class="clear-blacklist">清空全部</button>
+          </div>
+          <div class="blacklist-list"></div>
+          <div class="blacklist-tips">
+            恢复：<kbd>Alt+右键</kbd> / <kbd>Alt+S</kbd>
+          </div>
+        </div>
+
+        <!-- 快捷键设置区域（默认隐藏） -->
+        <div class="shortcut-settings-section" id="shortcutSection" style="display: none;">
+          <h3>快捷键设置</h3>
+          <div class="shortcut-settings">
+            <label>切换面板快捷键：</label>
+            <select class="shortcut-key-select">
+              <option value="Alt+S">Alt+S（默认）</option>
+              <option value="Ctrl+Shift+S">Ctrl+Shift+S</option>
+              <option value="Alt+Shift+S">Alt+Shift+S</option>
+              <option value="Ctrl+Alt+S">Ctrl+Alt+S</option>
+              <option value="Alt+Q">Alt+Q</option>
+              <option value="Alt+E">Alt+E</option>
+            </select>
+          </div>
+          <button class="save-shortcut">保存设置</button>
+        </div>
+
+        <!-- 菜单调试区域（默认隐藏） -->
+        <div class="menu-debug-section" id="debugSection" style="display: none;">
+          <h3>菜单状态调试</h3>
+          <div class="menu-debug-info">
+            <button class="copy-debug-info">复制到剪贴板</button>
+            <button class="close-debug-info">关闭</button>
+          </div>
+          <div class="menu-debug-content">
+            <pre class="menu-debug-text"></pre>
+          </div>
+        </div>
       </div>
-    </section>
+    </div>
 
-    <main class="popup-main">
-      <section class="changelog-section">
-        <h2>更新日志</h2>
-        <div class="command-list">
-          <div class="command-item">
-            <code>v1.1.0</code>
-            <span>快捷键与右键逻辑统一；Mini 标题显示关键词；新增“转小写”；调试开关</span>
-          </div>
-        </div>
-      </section>
-      <section class="feature-section">
-        <h2>使用说明</h2>
-        <ul class="feature-list">
-          <li>
-            <span class="feature-icon">🖱️</span>
-            <span>选中文本自动弹出，或 <kbd>Alt+右键</kbd> 触发</span>
-          </li>
-          <li>
-            <span class="feature-icon">⌨️</span>
-            <span>快捷键：<kbd>Alt+S</kbd> 切换面板（可自定义）</span>
-          </li>
-          <li>
-            <span class="feature-icon">⚡</span>
-            <span>一触即达：告别繁琐的复制粘贴</span>
-          </li>
-          <li>
-            <span class="feature-icon">🔍</span>
-            <span>快速搜索：百度、Google 一键直达</span>
-          </li>
-          <li>
-            <span class="feature-icon">⌨️</span>
-            <span>命令支持：输入 /base64、/md5 等命令</span>
-          </li>
-          <li>
-            <span class="feature-icon">🔒</span>
-            <span>隐私保护：所有操作本地完成</span>
-          </li>
-        </ul>
-      </section>
-
-      <section class="command-section">
-        <h2>支持的命令</h2>
-        <div class="command-list">
-          <div class="command-item">
-            <code>/base64 文本</code>
-            <span>Base64 编码</span>
-          </div>
-          <div class="command-item">
-            <code>/base64 -d 编码</code>
-            <span>Base64 解码</span>
-          </div>
-          <div class="command-item">
-            <code>/md5 文本</code>
-            <span>生成 MD5 哈希</span>
-          </div>
-          <div class="command-item">
-            <code>/url 文本</code>
-            <span>URL 编码</span>
-          </div>
-          <div class="command-item">
-            <code>/url decode 编码</code>
-            <span>URL 解码</span>
-          </div>
-          <div class="command-item">
-            <code>/upper 文本</code>
-            <span>转换为大写</span>
-          </div>
-          <div class="command-item">
-            <code>/lower 文本</code>
-            <span>转换为小写</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="shortcuts-section">
-        <h2>快捷操作</h2>
-        <div class="shortcuts-grid">
-          <button class="shortcut-btn" data-action="toggle">
-            <span class="shortcut-icon">⚡</span>
-            <span class="shortcut-label">启用/禁用</span>
-          </button>
-          <button class="shortcut-btn" data-action="blacklist">
-            <span class="shortcut-icon">🚫</span>
-            <span class="shortcut-label">黑名单管理</span>
-          </button>
-          <button class="shortcut-btn" data-action="debug">
-            <span class="shortcut-icon">🐞</span>
-            <span class="shortcut-label">调试日志：关</span>
-          </button>
-          <button class="shortcut-btn" data-action="export-menu-state">
-            <span class="shortcut-icon">📋</span>
-            <span class="shortcut-label">导出菜单状态</span>
-          </button>
-          <button class="shortcut-btn" data-action="shortcut-settings">
-            <span class="shortcut-icon">⌨️</span>
-            <span class="shortcut-label">快捷键设置</span>
-          </button>
-        </div>
-      </section>
-
-      <section class="shortcut-settings-section" style="display: none;">
-        <h2>快捷键设置</h2>
-        <div class="shortcut-settings">
-          <label>切换面板快捷键：</label>
-          <select class="shortcut-key-select">
-            <option value="Alt+S">Alt+S（默认）</option>
-            <option value="Ctrl+Shift+S">Ctrl+Shift+S</option>
-            <option value="Alt+Shift+S">Alt+Shift+S</option>
-            <option value="Ctrl+Alt+S">Ctrl+Alt+S</option>
-            <option value="Alt+Q">Alt+Q</option>
-            <option value="Alt+E">Alt+E</option>
-          </select>
-        </div>
-        <button class="save-shortcut">保存设置</button>
-      </section>
-
-      <section class="blacklist-section" style="display: none;">
-        <h2>黑名单管理</h2>
-        <div class="blacklist-info">
-          <p>已屏蔽 <span class="blacklist-count">0</span> 个网站</p>
-          <button class="clear-blacklist">清空全部</button>
-        </div>
-        <div class="blacklist-list"></div>
-        <div class="blacklist-tips">
-          💡 黑名单网站恢复：<kbd>Alt+右键</kbd> / <kbd>Alt+S</kbd>
-        </div>
-      </section>
-
-      <section class="menu-debug-section" style="display: none;">
-        <h2>菜单状态调试</h2>
-        <div class="menu-debug-info">
-          <p>状态信息已复制到剪贴板！</p>
-          <button class="copy-debug-info">再次复制</button>
-          <button class="close-debug-info">关闭</button>
-        </div>
-        <div class="menu-debug-content">
-          <pre class="menu-debug-text"></pre>
-        </div>
-      </section>
-    </main>
-
-    <footer class="popup-footer">
-      <p>更多功能 敬请期待...</p>
-      <div style="margin-top: 12px; text-align: center;">
-        <p style="margin: 0 0 4px 0; font-weight: 500; color: #2d3748;">触触搜</p>
-        <a href="https://chuchusou.com" target="_blank" rel="noopener noreferrer" style="color: #667eea; text-decoration: none; font-size: 13px;">
-          https://chuchusou.com
-        </a>
-      </div>
+    <!-- 底部：设置入口 -->
+    <footer class="menu-footer">
+      <button class="settings-toggle" id="settingsToggle">⚙️ 设置</button>
+      <a href="https://chuchusou.com" target="_blank" class="footer-link">chuchusou.com</a>
     </footer>
   </div>
 

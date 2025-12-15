@@ -285,6 +285,261 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
     return true; // 异步响应
   }
+
+  // 处理popup获取菜单结构请求（与右键菜单保持一致）
+  if (request.action === 'getMenuStructure') {
+    getPopupMenuStructure()
+      .then(structure => {
+        sendResponse({ success: true, structure });
+      })
+      .catch(error => {
+        console.error('[触触搜][BG] 获取菜单结构失败:', error);
+        sendResponse({ success: false, error: error?.message || String(error) });
+      });
+    return true; // 异步响应
+  }
+
+  // 处理popup菜单项点击（复用右键菜单逻辑）
+  if (request.action === 'executeMenuAction') {
+    const { menuItemId, menuType, keyword, urlPattern, actionType, engineId } = request;
+
+    (async () => {
+      try {
+        // 获取当前标签页
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const tabId = tab?.id;
+
+        // 没有关键词时的处理（某些操作不需要关键词）
+        if (!keyword && menuType !== 'action' && actionType !== 'show-popover') {
+          sendResponse({ success: false, error: 'no-keyword' });
+          return;
+        }
+
+        const encodedKeyword = keyword ? encodeURIComponent(keyword) : '';
+
+        // 根据menuType处理不同类型的菜单
+        switch (menuType) {
+          case 'search':
+          case 'ai-chat':
+          case 'ai-search':
+          case 'ecommerce':
+          case 'translate':
+          case 'portal':
+            if (urlPattern && keyword) {
+              const url = urlPattern.replace('${KEYWORD}', encodedKeyword);
+              chrome.tabs.create({ url });
+              sendResponse({ success: true });
+            } else {
+              sendResponse({ success: false, error: 'invalid-params' });
+            }
+            return;
+
+          case 'tool':
+          case 'transform':
+            if (tabId && keyword) {
+              const commandMap = {
+                'copy': 'copy',
+                'base64-encode': 'base64',
+                'md5-hash': 'md5',
+                'url-encode': 'url-encode',
+                'to-uppercase': 'upper',
+                'to-lowercase': 'lower'
+              };
+              const command = commandMap[actionType];
+              if (actionType === 'copy') {
+                const ok = await copyTextInTab(tab, keyword);
+                if (!ok) {
+                  chrome.tabs.sendMessage(tabId, {
+                    action: 'showToast',
+                    message: '复制失败，请检查页面权限'
+                  }).catch(() => {});
+                }
+              } else if (command) {
+                chrome.tabs.sendMessage(tabId, {
+                  action: 'processCommand',
+                  command: command,
+                  text: keyword
+                }).catch(() => {});
+              }
+              sendResponse({ success: true });
+            } else {
+              sendResponse({ success: false, error: 'invalid-params' });
+            }
+            return;
+
+          case 'fastqa':
+          case 'fastqa-quick':
+            if (keyword) {
+              const config = await loadFastAnswersConfig();
+              if (!config) {
+                sendResponse({ success: false, error: 'config-load-failed' });
+                return;
+              }
+              if (!fastAnswersTemplate) {
+                fastAnswersTemplate = Array.isArray(config.templateLines)
+                  ? config.templateLines.join('\\n')
+                  : (config.template || '');
+              }
+              const prompt = buildFastAnswersPrompt(keyword);
+              if (!prompt) {
+                sendResponse({ success: false, error: 'template-invalid' });
+                return;
+              }
+              const encodedPrompt = encodeURIComponent(prompt);
+              // 查找对应引擎的URL模式
+              let targetUrl = null;
+              if (engineId) {
+                const engine = (config.engines || []).find((e) => e.id === engineId);
+                if (engine && engine.urlPattern) {
+                  targetUrl = engine.urlPattern.replace('${PROMPT}', encodedPrompt);
+                }
+              }
+              if (!targetUrl && urlPattern) {
+                targetUrl = urlPattern.replace('${PROMPT}', encodedPrompt);
+              }
+              if (targetUrl) {
+                chrome.tabs.create({ url: targetUrl });
+                sendResponse({ success: true });
+              } else {
+                sendResponse({ success: false, error: 'no-engine-url' });
+              }
+            } else {
+              sendResponse({ success: false, error: 'no-keyword' });
+            }
+            return;
+
+          case 'top100':
+            if (keyword) {
+              const config = await loadTopQuestionsConfig();
+              if (!config) {
+                sendResponse({ success: false, error: 'config-load-failed' });
+                return;
+              }
+              if (!topQuestionsTemplate) {
+                topQuestionsTemplate = Array.isArray(config.templateLines)
+                  ? config.templateLines.join('\\n')
+                  : (config.template || '');
+              }
+              const prompt = buildTopQuestionsPrompt(keyword);
+              if (!prompt) {
+                sendResponse({ success: false, error: 'template-invalid' });
+                return;
+              }
+              const encodedPrompt = encodeURIComponent(prompt);
+              let targetUrl = null;
+              if (engineId) {
+                const engine = (config.engines || []).find((e) => e.id === engineId);
+                if (engine && engine.urlPattern) {
+                  targetUrl = engine.urlPattern.replace('${PROMPT}', encodedPrompt);
+                }
+              }
+              if (!targetUrl && urlPattern) {
+                targetUrl = urlPattern.replace('${PROMPT}', encodedPrompt);
+              }
+              if (targetUrl) {
+                chrome.tabs.create({ url: targetUrl });
+                sendResponse({ success: true });
+              } else {
+                sendResponse({ success: false, error: 'no-engine-url' });
+              }
+            } else {
+              sendResponse({ success: false, error: 'no-keyword' });
+            }
+            return;
+
+          case 'optimize':
+            if (keyword) {
+              const config = await loadOptimizedPromptConfig();
+              if (!config) {
+                sendResponse({ success: false, error: 'config-load-failed' });
+                return;
+              }
+              if (!optimizedPromptTemplate) {
+                optimizedPromptTemplate = Array.isArray(config.templateLines)
+                  ? config.templateLines.join('\n')
+                  : (config.template || '');
+              }
+              // 从 request 获取 purpose（优化类别）
+              const purpose = request.purpose || '';
+              const prompt = buildOptimizedPrompt(purpose, keyword);
+              if (!prompt) {
+                sendResponse({ success: false, error: 'template-invalid' });
+                return;
+              }
+              const encodedPrompt = encodeURIComponent(prompt);
+              let targetUrl = null;
+              if (urlPattern) {
+                targetUrl = urlPattern.replace('${PROMPT}', encodedPrompt);
+              }
+              if (targetUrl) {
+                chrome.tabs.create({ url: targetUrl });
+                sendResponse({ success: true });
+              } else {
+                sendResponse({ success: false, error: 'no-engine-url' });
+              }
+            } else {
+              sendResponse({ success: false, error: 'no-keyword' });
+            }
+            return;
+
+          case 'action':
+            if (actionType === 'show-popover' && tabId) {
+              chrome.tabs.sendMessage(tabId, {
+                action: 'showPopover',
+                text: keyword || ''
+              }).catch(() => {});
+              sendResponse({ success: true });
+            } else {
+              sendResponse({ success: false, error: 'unknown-action' });
+            }
+            return;
+
+          case 'submenu':
+            // 子菜单本身不执行操作
+            sendResponse({ success: false, error: 'submenu-no-action' });
+            return;
+
+          default:
+            // 尝试根据menuItemId使用现有的switch case逻辑
+            if (menuItemId && keyword) {
+              let handled = false;
+              switch (menuItemId) {
+                case 'ccs-baidu':
+                  chrome.tabs.create({ url: `https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${encodedKeyword}` });
+                  handled = true;
+                  break;
+                case 'ccs-google':
+                  chrome.tabs.create({ url: `https://www.google.com/search?q=${encodedKeyword}` });
+                  handled = true;
+                  break;
+                case 'ccs-chatgpt':
+                  chrome.tabs.create({ url: `https://chatgpt.com/?q=${encodedKeyword}` });
+                  handled = true;
+                  break;
+                case 'ccs-claude':
+                  chrome.tabs.create({ url: `https://claude.ai/new?q=${encodedKeyword}` });
+                  handled = true;
+                  break;
+                case 'ccs-grok':
+                  chrome.tabs.create({ url: `https://grok.com/?q=${encodedKeyword}` });
+                  handled = true;
+                  break;
+              }
+              if (handled) {
+                sendResponse({ success: true });
+                return;
+              }
+            }
+            sendResponse({ success: false, error: 'unhandled-type' });
+        }
+      } catch (error) {
+        console.error('[触触搜][BG] executeMenuAction 失败:', error);
+        sendResponse({ success: false, error: error?.message || String(error) });
+      }
+    })();
+    return true; // 异步响应
+  }
+
   if (request.action === 'contextMenuPreview') {
     const tabId = sender?.tab?.id ?? null;
     const incoming = typeof request.selectionText === 'string' ? request.selectionText : '';
