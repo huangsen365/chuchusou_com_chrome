@@ -489,6 +489,72 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 text: keyword || ''
               }).catch(() => {});
               sendResponse({ success: true });
+            } else if (menuItemId === 'ccs-top100-open-all' && keyword) {
+              // 打开所有触触搜百问引擎
+              const config = await loadTopQuestionsConfig();
+              if (!config) {
+                sendResponse({ success: false, error: 'config-load-failed' });
+                return;
+              }
+              if (!topQuestionsTemplate) {
+                topQuestionsTemplate = Array.isArray(config.templateLines)
+                  ? config.templateLines.join('\\n')
+                  : (config.template || '');
+              }
+              const prompt = buildTopQuestionsPrompt(keyword);
+              if (!prompt) {
+                sendResponse({ success: false, error: 'template-invalid' });
+                return;
+              }
+              const encodedPrompt = encodeURIComponent(prompt);
+              const engines = Array.isArray(config.engines) ? config.engines : [];
+              let openedCount = 0;
+              engines.forEach((engine) => {
+                if (!engine || typeof engine.urlPattern !== 'string' || !engine.urlPattern) {
+                  return;
+                }
+                const engineMenuId = `ccs-top100-${engine.id}`;
+                if (!isMenuEnabled(engineMenuId)) return;
+                const targetUrl = engine.urlPattern.replace('${PROMPT}', encodedPrompt);
+                if (targetUrl) {
+                  chrome.tabs.create({ url: targetUrl, active: openedCount === 0 });
+                  openedCount += 1;
+                }
+              });
+              sendResponse({ success: true, openedCount });
+            } else if (menuItemId === 'ccs-fastqa-open-all' && keyword) {
+              // 打开所有速答壹拾佰引擎
+              const config = await loadFastAnswersConfig();
+              if (!config) {
+                sendResponse({ success: false, error: 'config-load-failed' });
+                return;
+              }
+              if (!fastAnswersTemplate) {
+                fastAnswersTemplate = Array.isArray(config.templateLines)
+                  ? config.templateLines.join('\\n')
+                  : (config.template || '');
+              }
+              const prompt = buildFastAnswersPrompt(keyword);
+              if (!prompt) {
+                sendResponse({ success: false, error: 'template-invalid' });
+                return;
+              }
+              const encodedPrompt = encodeURIComponent(prompt);
+              const engines = Array.isArray(config.engines) ? config.engines : [];
+              let openedCount = 0;
+              engines.forEach((engine) => {
+                if (!engine || typeof engine.urlPattern !== 'string' || !engine.urlPattern) {
+                  return;
+                }
+                const engineMenuId = `ccs-fastqa-${engine.id}`;
+                if (!isMenuEnabled(engineMenuId)) return;
+                const targetUrl = engine.urlPattern.replace('${PROMPT}', encodedPrompt);
+                if (targetUrl) {
+                  chrome.tabs.create({ url: targetUrl, active: openedCount === 0 });
+                  openedCount += 1;
+                }
+              });
+              sendResponse({ success: true, openedCount });
             } else {
               sendResponse({ success: false, error: 'unknown-action' });
             }
