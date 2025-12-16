@@ -57,7 +57,7 @@
           align-items: center;
           justify-content: space-between;
           padding: 8px 16px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
           color: white;
         }
 

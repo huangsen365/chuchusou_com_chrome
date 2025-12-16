@@ -26,7 +26,7 @@ body {
 
 /* ==================== 头部 ==================== */
 .menu-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
   color: white;
   padding: 12px 14px;
   display: flex;
@@ -200,15 +200,15 @@ body {
   padding: 5px 10px;
   border-radius: 4px;
   font-size: 12px;
-  color: #667eea;
+  color: #0ea5e9;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .settings-toggle:hover {
-  background: #667eea;
+  background: #0ea5e9;
   color: white;
-  border-color: #667eea;
+  border-color: #0ea5e9;
 }
 
 .footer-link {
@@ -218,7 +218,7 @@ body {
 }
 
 .footer-link:hover {
-  color: #667eea;
+  color: #0ea5e9;
 }
 
 /* ==================== 设置面板 ==================== */
@@ -237,7 +237,7 @@ body {
 .back-to-menu {
   background: none;
   border: none;
-  color: #667eea;
+  color: #0ea5e9;
   font-size: 13px;
   cursor: pointer;
   padding: 4px 0;
@@ -272,10 +272,10 @@ body {
 }
 
 .setting-btn:hover {
-  border-color: #667eea;
-  background: #f8f9ff;
+  border-color: #0ea5e9;
+  background: #f0f9ff;
   transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.15);
+  box-shadow: 0 2px 6px rgba(14, 165, 233, 0.15);
 }
 
 .setting-icon {
@@ -401,16 +401,16 @@ body {
 .blacklist-tips {
   margin-top: 8px;
   padding: 8px;
-  background: #f8f9ff;
+  background: #f0f9ff;
   border-radius: 4px;
   font-size: 10px;
-  color: #667eea;
+  color: #0ea5e9;
   text-align: center;
 }
 
 .blacklist-tips kbd {
   background: white;
-  border: 1px solid #667eea;
+  border: 1px solid #0ea5e9;
   border-radius: 3px;
   padding: 1px 4px;
   font-family: monospace;
@@ -442,19 +442,19 @@ body {
 }
 
 .shortcut-key-select:hover {
-  border-color: #667eea;
+  border-color: #0ea5e9;
 }
 
 .shortcut-key-select:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.1);
 }
 
 .save-shortcut {
   width: 100%;
   padding: 8px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
   color: white;
   border: none;
   border-radius: 4px;
@@ -465,7 +465,7 @@ body {
 
 .save-shortcut:hover {
   transform: translateY(-1px);
-  box-shadow: 0 3px 8px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 3px 8px rgba(14, 165, 233, 0.3);
 }
 
 /* ==================== 调试面板 ==================== */
@@ -487,13 +487,13 @@ body {
 }
 
 .copy-debug-info {
-  background: #667eea;
+  background: #0ea5e9;
   color: white;
-  border-color: #667eea;
+  border-color: #0ea5e9;
 }
 
 .copy-debug-info:hover {
-  background: #5a6fd6;
+  background: #38bdf8;
 }
 
 .close-debug-info {
@@ -597,6 +597,6 @@ body {
 
 .version-number {
   font-size: 11px;
-  color: #667eea;
+  color: #0ea5e9;
   font-weight: 500;
 }

@@ -574,7 +574,7 @@
         align-items: center;
         justify-content: space-between;
         padding: 6px 8px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
         color: white;
         pointer-events: auto !important;
       }
@@ -626,7 +626,7 @@
       }
 
       .ccs-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
         color: white;
         padding: 8px 12px;
         display: flex;
@@ -776,12 +776,12 @@
       }
 
       .ccs-input:focus {
-        border-color: #667eea;
+        border-color: #0ea5e9;
       }
 
       .ccs-execute {
         padding: 6px 14px;
-        background: #667eea;
+        background: #0ea5e9;
         color: white;
         border: none;
         border-radius: 4px;
@@ -791,7 +791,7 @@
       }
 
       .ccs-execute:hover {
-        background: #5a67d8;
+        background: #0369a1;
       }
 
       .ccs-input-wrapper {
