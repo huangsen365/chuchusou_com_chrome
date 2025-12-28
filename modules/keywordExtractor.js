@@ -4,6 +4,16 @@
   // 确保全局命名空间存在
   window.CCSModules = window.CCSModules || {};
   
+  function safeDecodeParam(value) {
+    if (typeof value !== 'string' || !value) return value;
+    if (!/%[0-9A-Fa-f]{2}/.test(value)) return value;
+    try {
+      return decodeURIComponent(value);
+    } catch (_) {
+      return value;
+    }
+  }
+
   // KeywordExtractor 模块 - 搜索关键词提取和文本获取功能
   const KeywordExtractor = {
     // 从搜索引擎页面提取关键词
@@ -22,7 +32,7 @@
         if (hostname.includes('baidu.com')) {
           const wd = params.get('wd') || params.get('word') || params.get('kw');
           if (wd) {
-            const decoded = decodeURIComponent(wd);
+            const decoded = safeDecodeParam(wd);
             console.log('[触触搜] extractSearchKeyword - 百度搜索关键词:', decoded);
             return decoded;
           }
@@ -32,7 +42,7 @@
         if (hostname.includes('google.')) {
           const q = params.get('q');
           if (q) {
-            const decoded = decodeURIComponent(q);
+            const decoded = safeDecodeParam(q);
             console.log('[触触搜] extractSearchKeyword - Google搜索关键词:', decoded);
             return decoded;
           }
@@ -42,7 +52,7 @@
         if (hostname.includes('bing.com') || hostname.includes('cn.bing.com')) {
           const q = params.get('q');
           if (q) {
-            const decoded = decodeURIComponent(q);
+            const decoded = safeDecodeParam(q);
             console.log('[触触搜] extractSearchKeyword - Bing搜索关键词:', decoded);
             return decoded;
           }
@@ -52,7 +62,7 @@
         if (hostname.includes('sogou.com')) {
           const query = params.get('query') || params.get('keyword');
           if (query) {
-            const decoded = decodeURIComponent(query);
+            const decoded = safeDecodeParam(query);
             console.log('[触触搜] extractSearchKeyword - 搜狗搜索关键词:', decoded);
             return decoded;
           }
@@ -62,7 +72,7 @@
         if (hostname.includes('so.com') || hostname.includes('360.cn')) {
           const q = params.get('q');
           if (q) {
-            const decoded = decodeURIComponent(q);
+            const decoded = safeDecodeParam(q);
             console.log('[触触搜] extractSearchKeyword - 360搜索关键词:', decoded);
             return decoded;
           }
@@ -72,7 +82,7 @@
         if (hostname.includes('m.sm.cn') || hostname.includes('sm.cn')) {
           const q = params.get('q');
           if (q) {
-            const decoded = decodeURIComponent(q);
+            const decoded = safeDecodeParam(q);
             console.log('[触触搜] extractSearchKeyword - 神马搜索关键词:', decoded);
             return decoded;
           }
@@ -82,7 +92,7 @@
         if (hostname.includes('toutiao.com')) {
           const keyword = params.get('keyword');
           if (keyword) {
-            const decoded = decodeURIComponent(keyword);
+            const decoded = safeDecodeParam(keyword);
             console.log('[触触搜] extractSearchKeyword - 头条搜索关键词:', decoded);
             return decoded;
           }
@@ -92,7 +102,7 @@
         if (hostname.includes('duckduckgo.com')) {
           const q = params.get('q');
           if (q) {
-            const decoded = decodeURIComponent(q);
+            const decoded = safeDecodeParam(q);
             console.log('[触触搜] extractSearchKeyword - DuckDuckGo搜索关键词:', decoded);
             return decoded;
           }
@@ -102,7 +112,7 @@
         if (hostname.includes('yahoo.com') || hostname.includes('yahoo.co.jp')) {
           const p = params.get('p');
           if (p) {
-            const decoded = decodeURIComponent(p);
+            const decoded = safeDecodeParam(p);
             console.log('[触触搜] extractSearchKeyword - Yahoo搜索关键词:', decoded);
             return decoded;
           }
@@ -112,7 +122,7 @@
         if (hostname.includes('yandex.')) {
           const text = params.get('text');
           if (text) {
-            const decoded = decodeURIComponent(text);
+            const decoded = safeDecodeParam(text);
             console.log('[触触搜] extractSearchKeyword - Yandex搜索关键词:', decoded);
             return decoded;
           }
@@ -122,7 +132,7 @@
         if (hostname.includes('startpage.com')) {
           const query = params.get('query');
           if (query) {
-            const decoded = decodeURIComponent(query);
+            const decoded = safeDecodeParam(query);
             console.log('[触触搜] extractSearchKeyword - Startpage搜索关键词:', decoded);
             return decoded;
           }
@@ -132,7 +142,7 @@
         if (hostname.includes('zhihu.com')) {
           const q = params.get('q');
           if (q) {
-            const decoded = decodeURIComponent(q);
+            const decoded = safeDecodeParam(q);
             console.log('[触触搜] extractSearchKeyword - 知乎搜索关键词:', decoded);
             return decoded;
           }
@@ -142,7 +152,7 @@
         if (hostname.includes('weibo.com') || hostname.includes('weibo.cn')) {
           const q = params.get('q');
           if (q) {
-            const decoded = decodeURIComponent(q);
+            const decoded = safeDecodeParam(q);
             console.log('[触触搜] extractSearchKeyword - 微博搜索关键词:', decoded);
             return decoded;
           }
@@ -152,7 +162,7 @@
         if (hostname.includes('github.com')) {
           const q = params.get('q');
           if (q) {
-            const decoded = decodeURIComponent(q);
+            const decoded = safeDecodeParam(q);
             console.log('[触触搜] extractSearchKeyword - GitHub搜索关键词:', decoded);
             return decoded;
           }
@@ -162,7 +172,7 @@
         if (hostname.includes('bilibili.com')) {
           const keyword = params.get('keyword');
           if (keyword) {
-            const decoded = decodeURIComponent(keyword);
+            const decoded = safeDecodeParam(keyword);
             console.log('[触触搜] extractSearchKeyword - B站搜索关键词:', decoded);
             return decoded;
           }
@@ -172,7 +182,7 @@
         if (hostname.includes('taobao.com') || hostname.includes('tmall.com')) {
           const q = params.get('q') || params.get('keyword');
           if (q) {
-            const decoded = decodeURIComponent(q);
+            const decoded = safeDecodeParam(q);
             console.log('[触触搜] extractSearchKeyword - 淘宝/天猫搜索关键词:', decoded);
             return decoded;
           }
@@ -182,7 +192,7 @@
         if (hostname.includes('jd.com')) {
           const keyword = params.get('keyword');
           if (keyword) {
-            const decoded = decodeURIComponent(keyword);
+            const decoded = safeDecodeParam(keyword);
             console.log('[触触搜] extractSearchKeyword - 京东搜索关键词:', decoded);
             return decoded;
           }

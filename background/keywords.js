@@ -21,6 +21,16 @@ function isGenericHostKeyword(hostname, keyword) {
   return false;
 }
 
+function safeDecodeParam(value) {
+  if (typeof value !== 'string' || !value) return value;
+  if (!/%[0-9A-Fa-f]{2}/.test(value)) return value;
+  try {
+    return decodeURIComponent(value);
+  } catch (_) {
+    return value;
+  }
+}
+
 async function extractSearchKeywords(url, tab) {
   try {
     const urlObj = new URL(url);
@@ -32,7 +42,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('baidu.com')) {
       const wd = searchParams.get('wd') || searchParams.get('word') || searchParams.get('kw');
       if (wd) {
-        const kw = decodeURIComponent(wd);
+        const kw = safeDecodeParam(wd);
         BG_DBG('[触触搜][BG][DEBUG] matched baidu wd:', kw);
         return kw;
       }
@@ -42,7 +52,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('chatgpt.com')) {
       const q = searchParams.get('q');
       if (q) {
-        const kw = decodeURIComponent(q);
+        const kw = safeDecodeParam(q);
         if (kw && !isGenericHostKeyword(hostname, kw)) {
           BG_DBG('[触触搜][BG][DEBUG] matched chatgpt q:', kw);
           return kw;
@@ -54,7 +64,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('claude.ai')) {
       const q = searchParams.get('q') || searchParams.get('prompt');
       if (q) {
-        const kw = decodeURIComponent(q);
+        const kw = safeDecodeParam(q);
         if (kw && !isGenericHostKeyword(hostname, kw)) {
           BG_DBG('[触触搜][BG][DEBUG] matched claude q:', kw);
           return kw;
@@ -66,7 +76,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('google.')) {
       const q = searchParams.get('q');
       if (q) {
-        const kw = decodeURIComponent(q);
+        const kw = safeDecodeParam(q);
         BG_DBG('[触触搜][BG][DEBUG] matched google q:', kw);
         return kw;
       }
@@ -76,7 +86,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('bing.com') || hostname.includes('cn.bing.com')) {
       const q = searchParams.get('q');
       if (q) {
-        const kw = decodeURIComponent(q);
+        const kw = safeDecodeParam(q);
         BG_DBG('[触触搜][BG][DEBUG] matched bing q:', kw);
         return kw;
       }
@@ -86,7 +96,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('sogou.com')) {
       const query = searchParams.get('query') || searchParams.get('keyword');
       if (query) {
-        const kw = decodeURIComponent(query);
+        const kw = safeDecodeParam(query);
         BG_DBG('[触触搜][BG][DEBUG] matched sogou query:', kw);
         return kw;
       }
@@ -96,7 +106,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('so.com') || hostname.includes('360.cn')) {
       const q = searchParams.get('q');
       if (q) {
-        const kw = decodeURIComponent(q);
+        const kw = safeDecodeParam(q);
         BG_DBG('[触触搜][BG][DEBUG] matched 360 q:', kw);
         return kw;
       }
@@ -106,7 +116,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('m.sm.cn') || hostname.includes('sm.cn')) {
       const q = searchParams.get('q');
       if (q) {
-        const kw = decodeURIComponent(q);
+        const kw = safeDecodeParam(q);
         BG_DBG('[触触搜][BG][DEBUG] matched sm q:', kw);
         return kw;
       }
@@ -116,7 +126,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('toutiao.com')) {
       const keyword = searchParams.get('keyword');
       if (keyword) {
-        const kw = decodeURIComponent(keyword);
+        const kw = safeDecodeParam(keyword);
         BG_DBG('[触触搜][BG][DEBUG] matched toutiao keyword:', kw);
         return kw;
       }
@@ -126,7 +136,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('duckduckgo.com')) {
       const q = searchParams.get('q');
       if (q) {
-        const kw = decodeURIComponent(q);
+        const kw = safeDecodeParam(q);
         BG_DBG('[触触搜][BG][DEBUG] matched ddg q:', kw);
         return kw;
       }
@@ -136,7 +146,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('yahoo.com') || hostname.includes('yahoo.co.jp')) {
       const p = searchParams.get('p');
       if (p) {
-        const kw = decodeURIComponent(p);
+        const kw = safeDecodeParam(p);
         BG_DBG('[触触搜][BG][DEBUG] matched yahoo p:', kw);
         return kw;
       }
@@ -146,7 +156,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('yandex.')) {
       const text = searchParams.get('text');
       if (text) {
-        const kw = decodeURIComponent(text);
+        const kw = safeDecodeParam(text);
         BG_DBG('[触触搜][BG][DEBUG] matched yandex text:', kw);
         return kw;
       }
@@ -156,7 +166,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('startpage.com')) {
       const query = searchParams.get('query');
       if (query) {
-        const kw = decodeURIComponent(query);
+        const kw = safeDecodeParam(query);
         BG_DBG('[触触搜][BG][DEBUG] matched startpage query:', kw);
         return kw;
       }
@@ -166,7 +176,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('zhihu.com')) {
       const q = searchParams.get('q');
       if (q) {
-        const kw = decodeURIComponent(q);
+        const kw = safeDecodeParam(q);
         BG_DBG('[触触搜][BG][DEBUG] matched zhihu q:', kw);
         return kw;
       }
@@ -176,7 +186,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('weibo.com') || hostname.includes('weibo.cn')) {
       const q = searchParams.get('q');
       if (q) {
-        const kw = decodeURIComponent(q);
+        const kw = safeDecodeParam(q);
         BG_DBG('[触触搜][BG][DEBUG] matched weibo q:', kw);
         return kw;
       }
@@ -186,7 +196,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('github.com')) {
       const q = searchParams.get('q');
       if (q) {
-        const kw = decodeURIComponent(q);
+        const kw = safeDecodeParam(q);
         BG_DBG('[触触搜][BG][DEBUG] matched github q:', kw);
         return kw;
       }
@@ -196,7 +206,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('bilibili.com')) {
       const keyword = searchParams.get('keyword');
       if (keyword) {
-        const kw = decodeURIComponent(keyword);
+        const kw = safeDecodeParam(keyword);
         BG_DBG('[触触搜][BG][DEBUG] matched bilibili keyword:', kw);
         return kw;
       }
@@ -206,7 +216,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('taobao.com') || hostname.includes('tmall.com')) {
       const q = searchParams.get('q') || searchParams.get('keyword');
       if (q) {
-        const kw = decodeURIComponent(q);
+        const kw = safeDecodeParam(q);
         BG_DBG('[触触搜][BG][DEBUG] matched taobao/tmall q:', kw);
         return kw;
       }
@@ -216,7 +226,7 @@ async function extractSearchKeywords(url, tab) {
     if (hostname.includes('jd.com')) {
       const keyword = searchParams.get('keyword');
       if (keyword) {
-        const kw = decodeURIComponent(keyword);
+        const kw = safeDecodeParam(keyword);
         BG_DBG('[触触搜][BG][DEBUG] matched jd keyword:', kw);
         return kw;
       }

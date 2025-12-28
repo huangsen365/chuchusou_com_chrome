@@ -4,6 +4,16 @@
   // 确保全局命名空间存在
   window.CCSModules = window.CCSModules || {};
   
+  function safeDecodeParam(value) {
+    if (typeof value !== 'string' || !value) return value;
+    if (!/%[0-9A-Fa-f]{2}/.test(value)) return value;
+    try {
+      return decodeURIComponent(value);
+    } catch (_) {
+      return value;
+    }
+  }
+
   // Selection 模块 - 文本选择管理
   const Selection = {
     // 状态
@@ -73,73 +83,73 @@
       // Google
       if (hostname.includes('google.com')) {
         const q = params.get('q');
-        if (q) return decodeURIComponent(q);
+        if (q) return safeDecodeParam(q);
       }
       
       // 百度
       if (hostname.includes('baidu.com')) {
         const wd = params.get('wd') || params.get('word');
-        if (wd) return decodeURIComponent(wd);
+        if (wd) return safeDecodeParam(wd);
       }
       
       // Bing
       if (hostname.includes('bing.com')) {
         const q = params.get('q');
-        if (q) return decodeURIComponent(q);
+        if (q) return safeDecodeParam(q);
       }
       
       // DuckDuckGo
       if (hostname.includes('duckduckgo.com')) {
         const q = params.get('q');
-        if (q) return decodeURIComponent(q);
+        if (q) return safeDecodeParam(q);
       }
       
       // 搜狗
       if (hostname.includes('sogou.com')) {
         const query = params.get('query') || params.get('keyword');
-        if (query) return decodeURIComponent(query);
+        if (query) return safeDecodeParam(query);
       }
       
       // 360搜索
       if (hostname.includes('so.com')) {
         const q = params.get('q');
-        if (q) return decodeURIComponent(q);
+        if (q) return safeDecodeParam(q);
       }
       
       // B站
       if (hostname.includes('bilibili.com')) {
         const keyword = params.get('keyword');
-        if (keyword) return decodeURIComponent(keyword);
+        if (keyword) return safeDecodeParam(keyword);
       }
       
       // 淘宝/天猫
       if (hostname.includes('taobao.com') || hostname.includes('tmall.com')) {
         const q = params.get('q');
-        if (q) return decodeURIComponent(q);
+        if (q) return safeDecodeParam(q);
       }
       
       // 京东
       if (hostname.includes('jd.com')) {
         const keyword = params.get('keyword');
-        if (keyword) return decodeURIComponent(keyword);
+        if (keyword) return safeDecodeParam(keyword);
       }
       
       // 知乎
       if (hostname.includes('zhihu.com')) {
         const q = params.get('q');
-        if (q) return decodeURIComponent(q);
+        if (q) return safeDecodeParam(q);
       }
       
       // GitHub
       if (hostname.includes('github.com')) {
         const q = params.get('q');
-        if (q) return decodeURIComponent(q);
+        if (q) return safeDecodeParam(q);
       }
       
       // YouTube
       if (hostname.includes('youtube.com')) {
         const search_query = params.get('search_query');
-        if (search_query) return decodeURIComponent(search_query);
+        if (search_query) return safeDecodeParam(search_query);
       }
       
       // 通用：尝试常见的查询参数
@@ -147,7 +157,7 @@
       for (const param of commonParams) {
         const value = params.get(param);
         if (value) {
-          return decodeURIComponent(value);
+          return safeDecodeParam(value);
         }
       }
       
