@@ -8,6 +8,7 @@
 class SettingsManager {
   constructor(options = {}) {
     this.onToast = options.onToast || ((msg) => console.log(msg));
+    this.promptLibraryManager = null;
   }
 
   /**
@@ -18,7 +19,21 @@ class SettingsManager {
     this._initDebugToggle();
     this._initBlacklist();
     this._initShortcutSettings();
+    this._initPromptLibrary();
     this._bindSettingButtons();
+  }
+
+  /**
+   * 初始化提示词库
+   * @private
+   */
+  _initPromptLibrary() {
+    if (window.CCSPopup && window.CCSPopup.PromptLibraryManager) {
+      this.promptLibraryManager = new window.CCSPopup.PromptLibraryManager({
+        onToast: this.onToast
+      });
+      this.promptLibraryManager.init();
+    }
   }
 
   /**
@@ -327,6 +342,9 @@ class SettingsManager {
       case 'shortcut-settings':
         this.toggleSection('shortcutSection');
         break;
+      case 'prompt-library':
+        this.toggleSection('promptLibrarySection');
+        break;
     }
   }
 
@@ -334,7 +352,7 @@ class SettingsManager {
    * 切换设置区域显示
    */
   toggleSection(sectionId) {
-    const sections = ['blacklistSection', 'shortcutSection', 'debugSection'];
+    const sections = ['blacklistSection', 'shortcutSection', 'debugSection', 'promptLibrarySection'];
     const targetSection = document.getElementById(sectionId);
 
     if (!targetSection) return;
@@ -352,6 +370,9 @@ class SettingsManager {
       targetSection.style.display = 'block';
       if (sectionId === 'blacklistSection') {
         this.loadBlacklist();
+      }
+      if (sectionId === 'promptLibrarySection' && this.promptLibraryManager) {
+        this.promptLibraryManager.renderList();
       }
     }
   }

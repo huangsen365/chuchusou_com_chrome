@@ -600,3 +600,265 @@ body {
   color: #0ea5e9;
   font-weight: 500;
 }
+
+/* ==================== 提示词库 ==================== */
+.prompt-library-section {
+  background: white;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.prompt-library-section h3 {
+  font-size: 13px;
+  color: #34495e;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.prompt-library-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.prompt-library-header p {
+  font-size: 12px;
+  color: #34495e;
+  margin: 0;
+}
+
+.prompt-count {
+  font-weight: bold;
+  color: #0ea5e9;
+}
+
+.add-prompt-btn {
+  padding: 4px 10px;
+  background: #0ea5e9;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.add-prompt-btn:hover {
+  background: #38bdf8;
+}
+
+.prompt-list {
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid #e8ecf0;
+  border-radius: 6px;
+}
+
+.prompt-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e8ecf0;
+  transition: background 0.2s;
+}
+
+.prompt-item:last-child {
+  border-bottom: none;
+}
+
+.prompt-item:hover {
+  background: #f0f9ff;
+}
+
+.prompt-main {
+  flex: 1;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.prompt-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.prompt-name {
+  font-size: 12px;
+  color: #2c3e50;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prompt-builtin-badge {
+  font-size: 9px;
+  background: #e0f2fe;
+  color: #0284c7;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: normal;
+}
+
+.prompt-preview {
+  font-size: 10px;
+  color: #95a5a6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.prompt-edit,
+.prompt-delete {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  font-size: 12px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.prompt-edit:hover,
+.prompt-delete:hover {
+  opacity: 1;
+}
+
+.prompt-empty {
+  text-align: center;
+  padding: 15px;
+  color: #95a5a6;
+  font-size: 11px;
+}
+
+.prompt-library-tips {
+  margin-top: 8px;
+  padding: 8px;
+  background: #f0f9ff;
+  border-radius: 4px;
+  font-size: 10px;
+  color: #0ea5e9;
+  text-align: center;
+}
+
+/* ==================== 提示词模态框 ==================== */
+.prompt-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.prompt-modal-content {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  width: 252px;
+  max-height: 400px;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.prompt-modal-content h4 {
+  font-size: 14px;
+  color: #2c3e50;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.prompt-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.prompt-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #4a5568;
+}
+
+.prompt-form input,
+.prompt-form textarea {
+  padding: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.prompt-form input:focus,
+.prompt-form textarea:focus {
+  outline: none;
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.1);
+}
+
+.prompt-form textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.prompt-char-count {
+  font-size: 10px;
+  color: #95a5a6;
+  text-align: right;
+}
+
+.prompt-modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.prompt-modal-cancel,
+.prompt-modal-save {
+  flex: 1;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.prompt-modal-cancel {
+  background: white;
+  border: 1px solid #e2e8f0;
+  color: #4a5568;
+}
+
+.prompt-modal-cancel:hover {
+  background: #f8f9fa;
+}
+
+.prompt-modal-save {
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+  border: none;
+  color: white;
+}
+
+.prompt-modal-save:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(14, 165, 233, 0.3);
+}

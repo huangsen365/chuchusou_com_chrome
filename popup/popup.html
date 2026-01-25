@@ -51,6 +51,10 @@
             <span class="setting-icon">⌨️</span>
             <span class="setting-label">快捷键设置</span>
           </button>
+          <button class="setting-btn" data-action="prompt-library">
+            <span class="setting-icon">📚</span>
+            <span class="setting-label">提示词库</span>
+          </button>
         </div>
 
         <!-- 黑名单管理区域（默认隐藏） -->
@@ -83,6 +87,19 @@
           <button class="save-shortcut">保存设置</button>
         </div>
 
+        <!-- 提示词库区域（默认隐藏） -->
+        <div class="prompt-library-section" id="promptLibrarySection" style="display: none;">
+          <h3>提示词库</h3>
+          <div class="prompt-library-header">
+            <p>已保存 <span class="prompt-count">0</span> 个提示词</p>
+            <button class="add-prompt-btn">+ 新建</button>
+          </div>
+          <div class="prompt-list"></div>
+          <div class="prompt-library-tips">
+            点击提示词复制到剪贴板，跨设备自动同步
+          </div>
+        </div>
+
         <!-- 菜单调试区域（默认隐藏） -->
         <div class="menu-debug-section" id="debugSection" style="display: none;">
           <h3>菜单状态调试</h3>
@@ -110,9 +127,32 @@
     </footer>
   </div>
 
+  <!-- 提示词新建/编辑模态框 -->
+  <div class="prompt-modal" id="promptModal" style="display: none;">
+    <div class="prompt-modal-content">
+      <h4 id="promptModalTitle">新建提示词</h4>
+      <div class="prompt-form">
+        <label>
+          名称
+          <input type="text" id="promptNameInput" maxlength="50" placeholder="提示词名称">
+        </label>
+        <label>
+          内容
+          <textarea id="promptContentInput" maxlength="2000" rows="5" placeholder="提示词内容"></textarea>
+          <span class="prompt-char-count">0/2000</span>
+        </label>
+      </div>
+      <div class="prompt-modal-actions">
+        <button class="prompt-modal-cancel">取消</button>
+        <button class="prompt-modal-save">保存</button>
+      </div>
+    </div>
+  </div>
+
   <script src="modules/ToastHelper.js"></script>
   <script src="modules/MenuRenderer.js"></script>
   <script src="modules/SettingsManager.js"></script>
+  <script src="modules/PromptLibraryManager.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

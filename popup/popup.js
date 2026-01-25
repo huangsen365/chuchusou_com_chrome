@@ -9,6 +9,7 @@ class PopupMenuRenderer {
     this.keyword = { text: '', raw: '' };
     this.menuToggleConfig = null;
     this.currentMode = 'menu'; // 'menu' or 'settings'
+    this.promptLibraryManager = null;
   }
 
   async init() {
@@ -309,6 +310,8 @@ class PopupMenuRenderer {
     document.getElementById('blacklistSection').style.display = 'none';
     document.getElementById('shortcutSection').style.display = 'none';
     document.getElementById('debugSection').style.display = 'none';
+    const promptLibrarySection = document.getElementById('promptLibrarySection');
+    if (promptLibrarySection) promptLibrarySection.style.display = 'none';
   }
 
   showError(message) {
@@ -353,6 +356,18 @@ class PopupMenuRenderer {
 
     // 初始化快捷键设置
     this.initShortcutSettings();
+
+    // 初始化提示词库
+    this.initPromptLibrary();
+  }
+
+  initPromptLibrary() {
+    if (window.CCSPopup && window.CCSPopup.PromptLibraryManager) {
+      this.promptLibraryManager = new window.CCSPopup.PromptLibraryManager({
+        onToast: (msg) => this.showToast(msg)
+      });
+      this.promptLibraryManager.init();
+    }
   }
 
   handleSettingAction(action) {
@@ -371,6 +386,9 @@ class PopupMenuRenderer {
         break;
       case 'shortcut-settings':
         this.toggleShortcutSettings();
+        break;
+      case 'prompt-library':
+        this.togglePromptLibrarySection();
         break;
     }
   }
@@ -467,11 +485,13 @@ class PopupMenuRenderer {
     const blacklistSection = document.getElementById('blacklistSection');
     const shortcutSection = document.getElementById('shortcutSection');
     const debugSection = document.getElementById('debugSection');
+    const promptLibrarySection = document.getElementById('promptLibrarySection');
 
     if (blacklistSection.style.display === 'none') {
       blacklistSection.style.display = 'block';
       shortcutSection.style.display = 'none';
       debugSection.style.display = 'none';
+      if (promptLibrarySection) promptLibrarySection.style.display = 'none';
       this.loadBlacklist();
     } else {
       blacklistSection.style.display = 'none';
@@ -584,13 +604,37 @@ class PopupMenuRenderer {
     const shortcutSection = document.getElementById('shortcutSection');
     const blacklistSection = document.getElementById('blacklistSection');
     const debugSection = document.getElementById('debugSection');
+    const promptLibrarySection = document.getElementById('promptLibrarySection');
 
     if (shortcutSection.style.display === 'none') {
       shortcutSection.style.display = 'block';
       blacklistSection.style.display = 'none';
       debugSection.style.display = 'none';
+      if (promptLibrarySection) promptLibrarySection.style.display = 'none';
     } else {
       shortcutSection.style.display = 'none';
+    }
+  }
+
+  togglePromptLibrarySection() {
+    const promptLibrarySection = document.getElementById('promptLibrarySection');
+    const shortcutSection = document.getElementById('shortcutSection');
+    const blacklistSection = document.getElementById('blacklistSection');
+    const debugSection = document.getElementById('debugSection');
+
+    if (!promptLibrarySection) return;
+
+    if (promptLibrarySection.style.display === 'none') {
+      promptLibrarySection.style.display = 'block';
+      shortcutSection.style.display = 'none';
+      blacklistSection.style.display = 'none';
+      debugSection.style.display = 'none';
+      // Initialize and render prompt library
+      if (this.promptLibraryManager) {
+        this.promptLibraryManager.renderList();
+      }
+    } else {
+      promptLibrarySection.style.display = 'none';
     }
   }
 
@@ -661,6 +705,7 @@ class PopupMenuRenderer {
     const textEl = document.querySelector('.menu-debug-text');
     const blacklistSection = document.getElementById('blacklistSection');
     const shortcutSection = document.getElementById('shortcutSection');
+    const promptLibrarySection = document.getElementById('promptLibrarySection');
 
     if (!debugSection || !textEl) return;
 
@@ -669,6 +714,7 @@ class PopupMenuRenderer {
 
     blacklistSection.style.display = 'none';
     shortcutSection.style.display = 'none';
+    if (promptLibrarySection) promptLibrarySection.style.display = 'none';
     debugSection.style.display = 'block';
 
     navigator.clipboard.writeText(formatted).then(() => {
