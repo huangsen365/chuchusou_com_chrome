@@ -705,7 +705,7 @@ class MenuManager {
   _handleMenuShown(info, tab) {
     // 获取核心参数
     const param = this.getCoreParam(info, tab);
-    const display = this.formatDisplayText(param);
+    const _display = this.formatDisplayText(param);
 
     // 更新需要动态标题的菜单项
     // TODO: 实现动态标题更新逻辑

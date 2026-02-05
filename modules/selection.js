@@ -76,7 +76,6 @@
 
     // 从URL提取搜索关键词
     extractSearchKeywordFromUrl() {
-      const url = window.location.href;
       const hostname = window.location.hostname;
       const params = new URLSearchParams(window.location.search);
       

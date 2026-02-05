@@ -341,11 +341,12 @@ globalThis.GENERIC_HOST_KEYWORDS = GENERIC_HOST_KEYWORDS;
 // 调试标志（getter/setter 以便动态更新）
 Object.defineProperty(globalThis, 'BG_DEBUG', {
   get: () => BG_DEBUG,
-  set: (v) => { BG_DEBUG = v; BG_DBG = v; }
+  set: (v) => { BG_DEBUG = !!v; }
 });
 Object.defineProperty(globalThis, 'BG_DBG', {
   get: () => BG_DBG,
-  set: (v) => { BG_DBG = v; BG_DEBUG = v; }
+  // Keep backward compatibility: assigning truthy/falsy toggles debug mode.
+  set: (v) => { BG_DEBUG = !!v; }
 });
 
 // 菜单图标支持

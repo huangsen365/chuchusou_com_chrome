@@ -51,8 +51,6 @@ function logPerformance(stage, duration) {
  * @returns {Promise<void>}
  */
 async function initializeExtension() {
-  const startTime = Date.now();
-
   try {
     console.log('[Init] 🚀 触触搜扩展初始化开始...');
     console.log('[Init] 模式:', INIT_CONFIG.useNewSystem ? '新系统' : '兼容模式');

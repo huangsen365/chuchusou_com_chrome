@@ -173,7 +173,7 @@
       // 检查设置
       const Settings = window.CCSModules?.Settings;
       if (Settings && Settings.current) {
-        const { mode, isBlacklisted, barClosed } = Settings.current;
+        const { mode, isBlacklisted } = Settings.current;
         
         // 检查是否应该响应
         if (mode === 'disabled') {

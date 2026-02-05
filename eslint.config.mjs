@@ -247,11 +247,20 @@ export default [
     },
     rules: {
       "no-undef": "error",
-      "no-unused-vars": ["warn", { "vars": "all", "args": "none", "varsIgnorePattern": "^_" }],
-      "no-redeclare": "error",
+      // Most files are classic scripts that intentionally expose top-level symbols
+      // for use across files via global scope.
+      "no-unused-vars": ["warn", {
+        "vars": "local",
+        "args": "none",
+        "caughtErrors": "none",
+        "varsIgnorePattern": "^_"
+      }],
+      // The extension intentionally shares many globals across classic scripts.
+      // Keep duplicate-local checks while ignoring "redeclare global" noise.
+      "no-redeclare": ["error", { "builtinGlobals": false }],
       "no-dupe-keys": "error",
       "no-duplicate-case": "error",
-      "no-empty": "warn",
+      "no-empty": ["warn", { "allowEmptyCatch": true }],
       "no-extra-semi": "warn",
       "no-unreachable": "error",
       "valid-typeof": "error",
@@ -261,6 +270,18 @@ export default [
       "no-import-assign": "error",
       "no-self-assign": "error",
       "use-isnan": "error",
+    }
+  },
+  {
+    files: ["scripts/**/*.js"],
+    languageOptions: {
+      globals: {
+        require: "readonly",
+        module: "readonly",
+        process: "readonly",
+        __dirname: "readonly",
+        __filename: "readonly",
+      }
     }
   }
 ];

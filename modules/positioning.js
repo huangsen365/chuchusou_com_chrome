@@ -178,7 +178,6 @@
       // 如果有选区，基于选区添加候选位置
       if (selectionRect) {
         const selCenterX = (selectionRect.left + selectionRect.right) / 2 + scrollX;
-        const selCenterY = (selectionRect.top + selectionRect.bottom) / 2 + scrollY;
         
         // 选区下方（首选）
         candidatePositions.unshift({
