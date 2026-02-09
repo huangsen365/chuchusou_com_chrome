@@ -17,6 +17,15 @@
       <span class="menu-keyword" id="currentKeyword" title=""></span>
     </header>
 
+    <!-- 置顶快捷操作 -->
+    <div class="quick-actions" id="quickActions" style="display: none;">
+      <button class="quick-action-btn" id="smartReplyBtn">
+        <span class="quick-action-icon">💬</span>
+        <span class="quick-action-label">Smart Reply</span>
+        <span class="quick-action-arrow">↗</span>
+      </button>
+    </div>
+
     <!-- 菜单容器：动态渲染 -->
     <div class="menu-container" id="menuContainer">
       <div class="menu-loading">加载中...</div>
@@ -123,6 +132,7 @@
     <!-- 底部：设置入口 -->
     <footer class="menu-footer">
       <button class="settings-toggle" id="settingsToggle">⚙️ 设置</button>
+      <button class="panel-toggle" id="openSidePanel">📌 面板</button>
       <a href="https://chuchusou.com" target="_blank" class="footer-link">chuchusou.com</a>
     </footer>
   </div>

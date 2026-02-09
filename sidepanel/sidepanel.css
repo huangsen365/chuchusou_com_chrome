@@ -1,0 +1,189 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: #ffffff;
+  color: #2c3e50;
+}
+
+/* ==================== Header ==================== */
+.sp-header {
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+  color: white;
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.sp-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sp-icon {
+  font-size: 20px;
+}
+
+.sp-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.sp-keyword {
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 3px 10px;
+  border-radius: 10px;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-keyword:empty {
+  display: none;
+}
+
+/* ==================== Pinned Quick Actions ==================== */
+.sp-pinned {
+  padding: 8px 12px;
+  background: #fffbeb;
+  border-bottom: 1px solid #fde68a;
+}
+
+.sp-pinned-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #1d9bf0 0%, #0c7abf 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.sp-pinned-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(29, 155, 240, 0.4);
+}
+
+.sp-pinned-btn:active {
+  transform: translateY(0);
+}
+
+.sp-pinned-icon {
+  font-size: 18px;
+}
+
+.sp-pinned-label {
+  flex: 1;
+  text-align: left;
+}
+
+.sp-pinned-arrow {
+  font-size: 16px;
+  opacity: 0.8;
+}
+
+/* ==================== Menu Items ==================== */
+.sp-menu {
+  padding: 6px 0;
+}
+
+.sp-menu-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+  user-select: none;
+}
+
+.sp-menu-item:hover {
+  background: #f0f4ff;
+}
+
+.sp-menu-item:active {
+  background: #e3e8ff;
+}
+
+.sp-menu-item .sp-item-icon {
+  font-size: 18px;
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.sp-menu-item .sp-item-title {
+  flex: 1;
+  font-size: 14px;
+  color: #2c3e50;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==================== Separator ==================== */
+.sp-separator {
+  height: 1px;
+  background: #e8ecf0;
+  margin: 4px 14px;
+}
+
+/* ==================== States ==================== */
+.sp-loading {
+  text-align: center;
+  padding: 40px 20px;
+  color: #95a5a6;
+  font-size: 14px;
+}
+
+.sp-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: #95a5a6;
+  font-size: 13px;
+}
+
+/* ==================== Toast ==================== */
+.sp-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  z-index: 1000;
+  animation: spToastIn 0.3s ease-out;
+}
+
+.sp-toast.fade-out {
+  animation: spToastOut 0.3s ease-out forwards;
+}
+
+@keyframes spToastIn {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@keyframes spToastOut {
+  from { opacity: 1; transform: translate(-50%, 0); }
+  to { opacity: 0; transform: translate(-50%, -10px); }
+}

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>触触搜 Quick Panel</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <header class="sp-header">
+    <div class="sp-header-left">
+      <span class="sp-icon">🔍</span>
+      <span class="sp-title">触触搜</span>
+    </div>
+    <span class="sp-keyword" id="spKeyword"></span>
+  </header>
+
+  <!-- Pinned quick actions -->
+  <div class="sp-pinned" id="spPinned" style="display: none;">
+    <button class="sp-pinned-btn" id="spSmartReplyBtn">
+      <span class="sp-pinned-icon">💬</span>
+      <span class="sp-pinned-label">Smart Reply</span>
+      <span class="sp-pinned-arrow">↗</span>
+    </button>
+  </div>
+
+  <!-- Flat first-level menu items -->
+  <div class="sp-menu" id="spMenu">
+    <div class="sp-loading">加载中...</div>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

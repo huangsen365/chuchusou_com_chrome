@@ -27,6 +27,7 @@ class PopupMenuRenderer {
       this.bindEvents();
       this.initSettings();
       this.loadVersion();
+      this.initQuickActions();
     } catch (error) {
       console.error('[触触搜] Popup 初始化失败:', error);
       this.showError('加载失败，请重试');
@@ -39,6 +40,25 @@ class PopupMenuRenderer {
     if (versionEl && manifest.version) {
       versionEl.textContent = `v${manifest.version}`;
     }
+  }
+
+  initQuickActions() {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs[0]) return;
+      const url = tabs[0].url || '';
+      // Match x.com or twitter.com post URLs
+      const xPostPattern = /^https?:\/\/(x\.com|twitter\.com)\/[^/]+\/status\/\d+/;
+      if (xPostPattern.test(url)) {
+        const quickActions = document.getElementById('quickActions');
+        const btn = document.getElementById('smartReplyBtn');
+        quickActions.style.display = 'block';
+        btn.addEventListener('click', () => {
+          const replyUrl = `http://192.168.0.216:3000/reply?url=${encodeURIComponent(url)}`;
+          chrome.tabs.update(undefined, { url: replyUrl });
+          window.close();
+        });
+      }
+    });
   }
 
   async loadMenuConfig() {
@@ -292,6 +312,53 @@ class PopupMenuRenderer {
     // 返回菜单按钮
     const backToMenu = document.getElementById('backToMenu');
     backToMenu.addEventListener('click', () => this.showMenu());
+
+    // 打开侧边面板
+    const openSidePanel = document.getElementById('openSidePanel');
+    if (openSidePanel) {
+      openSidePanel.addEventListener('click', () => {
+        this.openSidePanel();
+      });
+    }
+  }
+
+  async openSidePanel() {
+    if (!chrome.sidePanel || !chrome.sidePanel.open) {
+      this.showToast('当前浏览器不支持侧边栏');
+      return;
+    }
+
+    try {
+      // Keep this call directly in click flow to preserve user gesture.
+      await chrome.sidePanel.open({
+        windowId: chrome.windows.WINDOW_ID_CURRENT
+      });
+      window.close();
+      return;
+    } catch (windowError) {
+      console.warn('[触触搜] Open side panel by window failed:', windowError);
+    }
+
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab || !tab.id) {
+        throw new Error('No active tab for side panel fallback');
+      }
+
+      if (chrome.sidePanel.setOptions) {
+        await chrome.sidePanel.setOptions({
+          tabId: tab.id,
+          path: 'sidepanel/sidepanel.html',
+          enabled: true
+        });
+      }
+
+      await chrome.sidePanel.open({ tabId: tab.id });
+      window.close();
+    } catch (error) {
+      console.error('[触触搜] Open side panel failed:', error);
+      this.showToast('打开侧边栏失败，请重试');
+    }
   }
 
   showSettings() {
