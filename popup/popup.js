@@ -53,7 +53,7 @@ class PopupMenuRenderer {
         const btn = document.getElementById('smartReplyBtn');
         quickActions.style.display = 'block';
         btn.addEventListener('click', () => {
-          const replyUrl = `http://192.168.0.216:3000/reply?url=${encodeURIComponent(url)}`;
+          const replyUrl = `http://3000-216.nginx.lan/reply?url=${encodeURIComponent(url)}`;
           chrome.tabs.update(undefined, { url: replyUrl });
           window.close();
         });
