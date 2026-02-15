@@ -43,16 +43,25 @@ class PopupMenuRenderer {
   }
 
   initQuickActions() {
+    const smartPostBtn = document.getElementById('smartPostBtn');
+    const smartReplyBtn = document.getElementById('smartReplyBtn');
+
+    // Smart Post: always available, uses current keyword
+    smartPostBtn.addEventListener('click', () => {
+      const keyword = this.keyword.raw || this.keyword.text;
+      const draftUrl = `http://3000-216.nginx.lan/draft?text=${encodeURIComponent(keyword)}`;
+      chrome.tabs.update(undefined, { url: draftUrl });
+      window.close();
+    });
+
+    // Smart Reply: only on X/Twitter post URLs
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (!tabs[0]) return;
       const url = tabs[0].url || '';
-      // Match x.com or twitter.com post URLs
       const xPostPattern = /^https?:\/\/(x\.com|twitter\.com)\/[^/]+\/status\/\d+/;
       if (xPostPattern.test(url)) {
-        const quickActions = document.getElementById('quickActions');
-        const btn = document.getElementById('smartReplyBtn');
-        quickActions.style.display = 'block';
-        btn.addEventListener('click', () => {
+        smartReplyBtn.style.display = 'flex';
+        smartReplyBtn.addEventListener('click', () => {
           const replyUrl = `http://3000-216.nginx.lan/reply?url=${encodeURIComponent(url)}`;
           chrome.tabs.update(undefined, { url: replyUrl });
           window.close();

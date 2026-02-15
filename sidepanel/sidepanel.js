@@ -34,6 +34,17 @@ class SidePanelRenderer {
           this.refresh();
         }
       });
+
+      // Listen for real-time keyword updates from background
+      chrome.runtime.onMessage.addListener((message) => {
+        if (message.action === 'keywordUpdated' && message.keyword) {
+          this.keyword = {
+            text: message.keyword.text || '',
+            raw: message.keyword.raw || message.keyword.text || ''
+          };
+          this.renderKeyword();
+        }
+      });
     } catch (error) {
       console.error('[触触搜] Side panel init failed:', error);
       document.getElementById('spMenu').innerHTML =
@@ -109,23 +120,31 @@ class SidePanelRenderer {
   }
 
   renderPinned() {
-    const container = document.getElementById('spPinned');
-    const btn = document.getElementById('spSmartReplyBtn');
     const url = this.currentTabUrl;
-
     const xPostPattern = /^https?:\/\/(x\.com|twitter\.com)\/[^/]+\/status\/\d+/;
 
+    // Smart Post: always visible
+    const oldPostBtn = document.getElementById('spSmartPostBtn');
+    const newPostBtn = oldPostBtn.cloneNode(true);
+    oldPostBtn.parentNode.replaceChild(newPostBtn, oldPostBtn);
+    newPostBtn.addEventListener('click', () => {
+      const keyword = this.keyword.raw || this.keyword.text;
+      const draftUrl = `http://3000-216.nginx.lan/draft?text=${encodeURIComponent(keyword)}`;
+      chrome.tabs.update(undefined, { url: draftUrl });
+    });
+
+    // Smart Reply: conditional on X post URL
+    const oldReplyBtn = document.getElementById('spSmartReplyBtn');
+    const newReplyBtn = oldReplyBtn.cloneNode(true);
+    oldReplyBtn.parentNode.replaceChild(newReplyBtn, oldReplyBtn);
     if (xPostPattern.test(url)) {
-      container.style.display = 'block';
-      // Clone to remove old listeners
-      const newBtn = btn.cloneNode(true);
-      btn.parentNode.replaceChild(newBtn, btn);
-      newBtn.addEventListener('click', () => {
+      newReplyBtn.style.display = 'flex';
+      newReplyBtn.addEventListener('click', () => {
         const replyUrl = `http://3000-216.nginx.lan/reply?url=${encodeURIComponent(url)}`;
         chrome.tabs.update(undefined, { url: replyUrl });
       });
     } else {
-      container.style.display = 'none';
+      newReplyBtn.style.display = 'none';
     }
   }
 

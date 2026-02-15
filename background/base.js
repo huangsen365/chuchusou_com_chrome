@@ -681,6 +681,12 @@ async function setMenuState(rawText, normalizedText, meta) {
       });
     }, 50);
   }
+
+  // Broadcast keyword change to extension pages (sidepanel)
+  chrome.runtime.sendMessage({
+    action: 'keywordUpdated',
+    keyword: { text: normalized || raw, raw: raw }
+  }).catch(() => {});
 }
 
 function applyMenuTitle(normalizedText, rawText = '', meta) {
