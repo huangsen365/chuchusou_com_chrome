@@ -197,9 +197,15 @@
     if (event.key === 'Shift' || event.shiftKey) {
       state.isUserSelecting = true;
     }
+    // Ctrl+A / Cmd+A (select all)
+    if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
+      state.isUserSelecting = true;
+    }
   });
   document.addEventListener('keyup', (event) => {
-    const shouldUpdate = (event.key === 'Escape' || event.key === 'Enter' || event.key === 'Shift' || state.isUserSelecting);
+    // Always sync if there's a non-empty selection after keyup
+    const currentSel = readCurrentSelection();
+    const shouldUpdate = currentSel || event.key === 'Escape' || event.key === 'Enter' || event.key === 'Shift' || state.isUserSelecting;
     if (shouldUpdate) {
       updateSelection('keyup');
     }
