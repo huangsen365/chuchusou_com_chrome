@@ -45,6 +45,11 @@
           "id": "claude",
           "label": "Claude (推荐 Opus)",
           "urlPattern": "https://claude.ai/new?q=${PROMPT}"
+        },
+        {
+          "id": "google-ai",
+          "label": "Google AI 模式",
+          "urlPattern": "https://www.google.com/search?udm=50&q=${PROMPT}"
         }
       ]
     },
@@ -62,6 +67,11 @@
           "id": "claude",
           "label": "Claude (推荐 Opus)",
           "urlPattern": "https://claude.ai/new?q=${PROMPT}"
+        },
+        {
+          "id": "google-ai",
+          "label": "Google AI 模式",
+          "urlPattern": "https://www.google.com/search?udm=50&q=${PROMPT}"
         }
       ]
     },
@@ -79,6 +89,11 @@
           "id": "claude",
           "label": "Claude (推荐 Opus)",
           "urlPattern": "https://claude.ai/new?q=${PROMPT}"
+        },
+        {
+          "id": "google-ai",
+          "label": "Google AI 模式",
+          "urlPattern": "https://www.google.com/search?udm=50&q=${PROMPT}"
         }
       ]
     },
@@ -96,6 +111,11 @@
           "id": "claude",
           "label": "Claude (推荐 Opus)",
           "urlPattern": "https://claude.ai/new?q=${PROMPT}"
+        },
+        {
+          "id": "google-ai",
+          "label": "Google AI 模式",
+          "urlPattern": "https://www.google.com/search?udm=50&q=${PROMPT}"
         }
       ]
     },
@@ -113,6 +133,11 @@
           "id": "claude",
           "label": "Claude (推荐 Opus)",
           "urlPattern": "https://claude.ai/new?q=${PROMPT}"
+        },
+        {
+          "id": "google-ai",
+          "label": "Google AI 模式",
+          "urlPattern": "https://www.google.com/search?udm=50&q=${PROMPT}"
         }
       ]
     },
@@ -130,6 +155,11 @@
           "id": "claude",
           "label": "Claude (推荐 Opus)",
           "urlPattern": "https://claude.ai/new?q=${PROMPT}"
+        },
+        {
+          "id": "google-ai",
+          "label": "Google AI 模式",
+          "urlPattern": "https://www.google.com/search?udm=50&q=${PROMPT}"
         }
       ]
     },
@@ -147,6 +177,11 @@
           "id": "claude",
           "label": "Claude (推荐 Opus)",
           "urlPattern": "https://claude.ai/new?q=${PROMPT}"
+        },
+        {
+          "id": "google-ai",
+          "label": "Google AI 模式",
+          "urlPattern": "https://www.google.com/search?udm=50&q=${PROMPT}"
         }
       ]
     },
@@ -164,6 +199,11 @@
           "id": "claude",
           "label": "Claude (推荐 Opus)",
           "urlPattern": "https://claude.ai/new?q=${PROMPT}"
+        },
+        {
+          "id": "google-ai",
+          "label": "Google AI 模式",
+          "urlPattern": "https://www.google.com/search?udm=50&q=${PROMPT}"
         }
       ]
     }

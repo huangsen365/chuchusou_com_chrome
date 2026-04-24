@@ -36,25 +36,33 @@
       "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}",
       "searchUrlPattern": "https://yiyan.baidu.com/?q=${KEYWORD}",
       "description": "百度文心一言"
+    },
+    "google-ai": {
+      "id": "google-ai",
+      "label": "Google AI 模式",
+      "icon": "✨",
+      "urlPattern": "https://www.google.com/search?udm=50&q=${PROMPT}",
+      "searchUrlPattern": "https://www.google.com/search?udm=50&q=${KEYWORD}",
+      "description": "Google AI Mode（搜索形态，长 prompt 可能被截断）"
     }
   },
 
   "presets": {
     "topQuestions": {
       "description": "触触搜百问引擎列表",
-      "engines": ["chatgpt", "claude", "grok", "yiyan"]
+      "engines": ["chatgpt", "claude", "grok", "yiyan", "google-ai"]
     },
     "fastAnswers": {
       "description": "速答壹拾佰引擎列表",
-      "engines": ["chatgpt", "claude", "grok", "yiyan"]
+      "engines": ["chatgpt", "claude", "grok", "yiyan", "google-ai"]
     },
     "optimizePrompts": {
       "description": "优化提示词引擎列表",
-      "engines": ["chatgpt", "claude"]
+      "engines": ["chatgpt", "claude", "google-ai"]
     },
     "fastQaQuick": {
       "description": "速答快捷菜单引擎列表",
-      "engines": ["chatgpt", "claude", "grok", "yiyan"]
+      "engines": ["chatgpt", "claude", "grok", "yiyan", "google-ai"]
     }
   }
 }

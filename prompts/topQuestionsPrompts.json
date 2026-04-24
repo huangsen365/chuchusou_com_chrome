@@ -61,6 +61,11 @@
       "id": "yiyan",
       "label": "文心一言",
       "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}"
+    },
+    {
+      "id": "google-ai",
+      "label": "Google AI 模式",
+      "urlPattern": "https://www.google.com/search?udm=50&q=${PROMPT}"
     }
   ]
 }

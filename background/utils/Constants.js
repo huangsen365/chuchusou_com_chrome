@@ -42,6 +42,7 @@ const MENU_DEFINITIONS = {
   'ccs-chatgpt': { text: 'ChatGPT', icon: '🤖' },
   'ccs-claude': { text: 'Claude', icon: '🧠' },
   'ccs-grok': { text: 'Grok', icon: '🦊' },
+  'ccs-google-ai-chat': { text: 'Google AI 模式', icon: '✨' },
   'ccs-zhihu': { text: '知乎搜索', icon: '💡' },
   'ccs-weixin': { text: '微信搜一搜', icon: '💬' },
   'ccs-taobao': { text: '淘宝搜索', icon: '🛒' },
@@ -95,6 +96,13 @@ const FAST_QA_QUICK_ITEMS = [
     titleKey: 'yiyan',
     menuTitle: '触触搜 · 速答壹拾佰 - 文心一言',
     menuIcon: '🧠'
+  },
+  {
+    id: 'ccs-fastqa-google-ai-quick',
+    engineId: 'google-ai',
+    titleKey: 'google-ai',
+    menuTitle: '触触搜 · 速答壹拾佰 - Google AI 模式',
+    menuIcon: '✨'
   }
 ];
 
@@ -127,7 +135,8 @@ const OPTIMIZE_CATEGORY_TITLES = {
  */
 const OPTIMIZE_ENGINE_TITLES = {
   'chatgpt': '🤖 ChatGPT',
-  'claude': '🧠 Claude (推荐 Opus)'
+  'claude': '🧠 Claude (推荐 Opus)',
+  'google-ai': '✨ Google AI 模式'
 };
 
 /**
@@ -137,7 +146,8 @@ const TOP_QUESTION_ENGINE_TITLES = {
   'chatgpt': '🤖 ChatGPT',
   'claude': '🧠 Claude',
   'grok': '🦊 Grok',
-  'yiyan': '🧠 文心一言'
+  'yiyan': '🧠 文心一言',
+  'google-ai': '✨ Google AI 模式'
 };
 
 /**
@@ -147,7 +157,8 @@ const FAST_ANSWER_ENGINE_TITLES = {
   'chatgpt': '🤖 ChatGPT',
   'claude': '🧠 Claude',
   'grok': '🦊 Grok',
-  'yiyan': '🧠 文心一言'
+  'yiyan': '🧠 文心一言',
+  'google-ai': '✨ Google AI 模式'
 };
 
 // ==================== 动态菜单项 ====================

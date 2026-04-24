@@ -12,7 +12,8 @@ const MENU_GROUPS = Object.freeze({
   ai: [
     { id: 'ccs-chatgpt' },
     { id: 'ccs-claude' },
-    { id: 'ccs-grok' }
+    { id: 'ccs-grok' },
+    { id: 'ccs-google-ai-chat' }
   ],
   general: [
     { id: 'ccs-yiyan' },

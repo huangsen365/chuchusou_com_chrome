@@ -81,6 +81,18 @@
           "contexts": ["selection", "page", "editable"],
           "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}",
           "enabled": true
+        },
+        {
+          "id": "ccs-fastqa-google-ai-quick",
+          "type": "fastqa-quick",
+          "title": "触触搜 · 速答壹拾佰 - Google AI 模式",
+          "icon": "✨",
+          "engineId": "google-ai",
+          "titleKey": "google-ai",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page", "editable"],
+          "urlPattern": "https://www.google.com/search?udm=50&q=${PROMPT}",
+          "enabled": true
         }
       ]
     },
@@ -162,6 +174,16 @@
           "dynamicTitle": true,
           "contexts": ["selection", "page"],
           "urlPattern": "https://grok.com/?q=${KEYWORD}",
+          "enabled": true
+        },
+        {
+          "id": "ccs-google-ai-chat",
+          "type": "ai-chat",
+          "title": "Google AI 模式",
+          "icon": "✨",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://www.google.com/search?udm=50&q=${KEYWORD}",
           "enabled": true
         }
       ]
