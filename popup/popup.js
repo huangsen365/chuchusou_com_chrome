@@ -43,6 +43,10 @@ class PopupMenuRenderer {
   }
 
   initQuickActions() {
+    // [暂时停用] Smart Post / Smart Reply 入口已注释（见 popup.html）。
+    // 如需恢复：删除下一行 return，并恢复 popup.html 中的 quick-actions 注释块。
+    return;
+    // eslint-disable-next-line no-unreachable
     const smartPostBtn = document.getElementById('smartPostBtn');
     const smartReplyBtn = document.getElementById('smartReplyBtn');
 

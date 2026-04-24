@@ -120,6 +120,10 @@ class SidePanelRenderer {
   }
 
   renderPinned() {
+    // [暂时停用] Smart Post / Smart Reply 入口已注释（见 sidepanel.html）。
+    // 如需恢复：删除下一行 return，并恢复 sidepanel.html 中的 sp-pinned 注释块。
+    return;
+    // eslint-disable-next-line no-unreachable
     const url = this.currentTabUrl;
     const xPostPattern = /^https?:\/\/(x\.com|twitter\.com)\/[^/]+\/status\/\d+/;
 
