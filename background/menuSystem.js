@@ -79,6 +79,17 @@ async function initMenuSystem(options = {}) {
     // 3. 加载系统配置
     systemConfig = await loadUnifiedConfig();
 
+    // 4. 将 config 中的 URL 模板装载到 URLBuilder
+    //    新老两种模式都装载，让兼容模式的业务代码也能通过
+    //    urlBuilder.build() 统一构建 URL（SSoT：只需改 unifiedMenuConfig.json）
+    try {
+      const count = urlBuilder.loadFromConfig(systemConfig);
+      console.log('[MenuSystem] URLBuilder loaded', count, 'templates from config');
+    } catch (err) {
+      // 装载失败不影响启动——业务代码会自动回退到硬编码路径
+      console.warn('[MenuSystem] URLBuilder.loadFromConfig failed (非致命):', err?.message);
+    }
+
     if (useNewSystem) {
       // 使用新的菜单系统
       menuManager = new MenuManager({
