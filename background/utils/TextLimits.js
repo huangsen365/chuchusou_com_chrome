@@ -13,6 +13,17 @@
  * - 纯加法：外部不调用则零影响；调用方视情况决定是否启用
  */
 
+// ============================================================================
+// 【全局开关】长度保护总闸 —— 2026-04 用户决策：暂时全部让开，用户多长就传多长
+// ----------------------------------------------------------------------------
+// true  = 启用长度保护（截断 + toast + URL 硬上限兜底）
+// false = 完全让开（applyTextLimit 原文直通、enforceFinalUrlCap 原 URL 直通）
+//
+// 所有原有代码（LIMITS / smartTruncate / toast / URL 兜底）全部保留，
+// 只是通过两个函数顶部的 early return 让它走不到。哪天想回滚只需改回 true。
+// ============================================================================
+const TEXT_LIMITS_ENABLED = false;
+
 // 用户选中原文的"软提示阈值"——超出就提示，但未必截断
 const SOFT_WARN_THRESHOLD = 1500;
 
@@ -83,6 +94,14 @@ function smartTruncate(text, maxChars) {
  */
 function applyTextLimit(menuId, rawText, options = {}) {
   const src = typeof rawText === 'string' ? rawText : '';
+
+  // 【总闸关闭】—— 原文直通，零干涉、不截断、不发 toast
+  // 下面的完整实现全部保留（LIMITS / smartTruncate / toast 分支）只是走不到。
+  // 哪天想恢复长度保护，把 TEXT_LIMITS_ENABLED 改回 true 即可。
+  if (!TEXT_LIMITS_ENABLED) {
+    return { text: src, truncated: false, original: src.length, limit: Infinity };
+  }
+
   const original = src.length;
   const limit = getLimitForMenu(menuId);
   const needTruncate = original > limit;
@@ -115,6 +134,10 @@ function applyTextLimit(menuId, rawText, options = {}) {
  */
 function enforceFinalUrlCap(url) {
   if (typeof url !== 'string') return url;
+
+  // 【总闸关闭】—— 原 URL 直通，不做硬上限兜底截断
+  if (!TEXT_LIMITS_ENABLED) return url;
+
   if (url.length <= FINAL_URL_HARD_CAP) return url;
   // 简单策略：按硬上限截断。大多数情况下第一层 applyTextLimit 已经截了，这里只是兜底
   return url.slice(0, FINAL_URL_HARD_CAP);
