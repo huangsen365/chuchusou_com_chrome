@@ -250,6 +250,39 @@ let BG_DEBUG = false;
  */
 const BG_DBG = (...args) => { if (BG_DEBUG) console.log(...args); };
 
+// ==================== URL 打开工具 ====================
+
+/**
+ * 尝试通过 URLBuilder 打开菜单对应的 URL。
+ *
+ * 这是"SSoT URL 构建"的统一入口：URL 模板集中在
+ * `config/unifiedMenuConfig.json`，由 menuSystem.js 启动时装载到 URLBuilder。
+ *
+ * 成功返回 true 并已打开新标签，调用方可直接 return。
+ * 未命中/失败返回 false，调用方应继续走历史 fallback。
+ *
+ * @param {string} menuItemId 菜单 ID（如 'ccs-google'）
+ * @param {string} rawKeyword 关键字（原始或规范化均可，未编码）
+ * @returns {boolean} 是否已由 URLBuilder 打开
+ */
+function tryOpenMenuUrl(menuItemId, rawKeyword) {
+  if (!menuItemId || !rawKeyword) return false;
+  try {
+    const ub = (typeof MenuSystem !== 'undefined' && MenuSystem.getURLBuilder)
+      ? MenuSystem.getURLBuilder()
+      : null;
+    if (!ub || !ub.has(menuItemId)) return false;
+    const url = ub.build(menuItemId, { raw: rawKeyword, normalized: rawKeyword });
+    if (!url) return false;
+    chrome.tabs.create({ url });
+    return true;
+  } catch (err) {
+    if (typeof BG_DBG === 'function') BG_DBG('[tryOpenMenuUrl] error', menuItemId, err);
+    return false;
+  }
+}
+globalThis.tryOpenMenuUrl = tryOpenMenuUrl;
+
 // 异步初始化调试标志
 chrome.storage.local.get([STORAGE_KEYS.DEBUG], (result) => {
   BG_DEBUG = !!result[STORAGE_KEYS.DEBUG];

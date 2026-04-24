@@ -496,29 +496,17 @@ class MessageEventHandler {
       return;
     }
 
-    // 优先走 URLBuilder（SSoT：URL 模板集中在 config/unifiedMenuConfig.json）
-    // URLBuilder 由 menuSystem.js 在启动时统一 loadFromConfig
-    try {
-      const ub = (typeof MenuSystem !== 'undefined' && MenuSystem.getURLBuilder)
-        ? MenuSystem.getURLBuilder()
-        : null;
-      if (ub && ub.has(menuItemId)) {
-        // URLBuilder 内部会 encode，所以传 raw keyword
-        const rawKeyword = decodeURIComponent(encodedKeyword);
-        const url = ub.build(menuItemId, { raw: rawKeyword, normalized: rawKeyword });
-        if (url) {
-          chrome.tabs.create({ url });
-          sendResponse?.({ success: true });
-          return;
-        }
-      }
-    } catch (err) {
-      this._log('urlBuilder-fallback', { menuItemId, error: err?.message });
-      // 继续走 fallback，不中断
+    const rawKeyword = (() => {
+      try { return decodeURIComponent(encodedKeyword); } catch { return encodedKeyword; }
+    })();
+
+    // 优先走 URLBuilder 统一入口（SSoT：模板集中在 config/unifiedMenuConfig.json）
+    if (typeof tryOpenMenuUrl === 'function' && tryOpenMenuUrl(menuItemId, rawKeyword)) {
+      sendResponse?.({ success: true });
+      return;
     }
 
     // Fallback：保留历史硬编码路径作为安全网
-    // 一旦 URLBuilder 稳定运行一段时间，可将此 urlMap 删除（见 TODO）
     // TODO(refactor): 待 URLBuilder 覆盖验证充分后，移除下方 fallback urlMap
     const urlMap = {
       'ccs-baidu': `https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${encodedKeyword}`,

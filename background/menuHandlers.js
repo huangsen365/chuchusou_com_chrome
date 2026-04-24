@@ -370,6 +370,15 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     return;
   }
   
+  // === SSoT 快速通道 ===
+  // URL 类型菜单优先走 URLBuilder（从 config 自动装载），命中则直接返回。
+  // 未命中时继续走下方 switch-case 作为安全网（保留历史行为）。
+  if (finalNormalized && typeof tryOpenMenuUrl === 'function') {
+    if (tryOpenMenuUrl(info.menuItemId, finalNormalized)) {
+      return;
+    }
+  }
+
   switch (info.menuItemId) {
     case 'ccs-baidu':
       if (finalNormalized) {

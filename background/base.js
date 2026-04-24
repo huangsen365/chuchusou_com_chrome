@@ -270,56 +270,10 @@ function logMenuEvent(stage, payload) {
   }
 }
 
-// 菜单定义和常量：优先使用 Constants.js 中的定义
-// 如果 Constants.js 已加载，这些常量已经可用
-// 否则提供本地备用定义
-if (typeof MENU_DEFINITIONS === 'undefined') {
-  const MENU_DEFINITIONS = {
-    'ccs-main': { text: '触触搜', icon: '🔍' },
-    'ccs-baidu': { text: '百度搜索', icon: '🐼' },
-    'ccs-google': { text: 'Google 搜索', icon: '🔎' },
-    'ccs-google-ai': { text: 'Google AI 模式', icon: '✨' },
-    'ccs-tongyi': { text: '通义千问', icon: '🪄' },
-    'ccs-yiyan': { text: '文心一言', icon: '🧠' },
-    'ccs-chatgpt': { text: 'ChatGPT', icon: '🤖' },
-    'ccs-claude': { text: 'Claude', icon: '🧠' },
-    'ccs-grok': { text: 'Grok', icon: '🦊' },
-    'ccs-zhihu': { text: '知乎搜索', icon: '💡' },
-    'ccs-weixin': { text: '微信搜一搜', icon: '💬' },
-    'ccs-taobao': { text: '淘宝搜索', icon: '🛒' },
-    'ccs-jd': { text: '京东搜索', icon: '🛍️' },
-    'ccs-sov2ex': { text: 'V2EX (sov2ex)', icon: '💻' },
-    'ccs-baidu-translate': { text: '百度翻译', icon: '✍️' },
-    'ccs-google-translate': { text: 'Google 翻译', icon: '🔁' },
-    'ccs-chuchusou': { text: '更多搜索引擎...', icon: '🌐' },
-    'ccs-top100-root': { text: '触触搜百问', icon: '💯' },
-    'ccs-top100-open-all': { text: '打开以下全部', icon: '🚀' },
-    'ccs-fastqa-root': { text: '速答壹拾佰', icon: '⚡' },
-    'ccs-fastqa-open-all': { text: '打开以下全部', icon: '🚀' },
-    'ccs-optimize-root': { text: '优化提示词', icon: '🧠' },
-    'ccs-copy': { text: '复制文本', icon: '📋' },
-    'ccs-base64': { text: 'Base64 编码', icon: '🔤' },
-    'ccs-md5': { text: 'MD5 哈希', icon: '🔐' },
-    'ccs-url-encode': { text: 'URL 编码', icon: '🔗' },
-    'ccs-upper': { text: '转换为大写', icon: '🔠' },
-    'ccs-lower': { text: '转换为小写', icon: '🔡' },
-    'ccs-show-popover': { text: '打开触触搜面板 (Alt+S)', icon: '🪟' }
-  };
-  globalThis.MENU_DEFINITIONS = MENU_DEFINITIONS;
-}
-
-// FAST_QA_QUICK_ITEMS 已在 Constants.js 中定义
-// 如果需要扩展 MENU_DEFINITIONS，在这里添加
-if (typeof FAST_QA_QUICK_ITEMS !== 'undefined') {
-  FAST_QA_QUICK_ITEMS.forEach((item) => {
-    if (!MENU_DEFINITIONS[item.id]) {
-      MENU_DEFINITIONS[item.id] = {
-        text: item.menuTitle,
-        icon: item.menuIcon || ''
-      };
-    }
-  });
-}
+// 菜单定义和常量：完全由 Constants.js 提供（该文件在本文件之前加载）
+// 注：此前在此处有一份 MENU_DEFINITIONS 副本（被 `typeof MENU_DEFINITIONS === 'undefined'` 守卫包裹），
+// 因 Constants.js 已定义同名常量，该副本实际为不可达死代码，现已移除。
+// FAST_QA_QUICK_ITEMS 也在 Constants.js 中完成 MENU_DEFINITIONS 的动态扩展。
 
 function getMenuDefinition(menuId) {
   return MENU_DEFINITIONS[menuId] || null;

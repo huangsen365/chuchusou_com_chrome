@@ -569,6 +569,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             // 尝试根据menuItemId使用现有的switch case逻辑
             if (menuItemId && keyword) {
               let handled = false;
+
+              // === SSoT 快速通道 ===
+              // URLBuilder 命中则直接打开，跳过下方硬编码 switch（保留作安全网）
+              if (typeof tryOpenMenuUrl === 'function' && tryOpenMenuUrl(menuItemId, keyword)) {
+                sendResponse({ success: true });
+                return;
+              }
+
               switch (menuItemId) {
                 case 'ccs-baidu':
                   chrome.tabs.create({ url: `https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${encodedKeyword}` });

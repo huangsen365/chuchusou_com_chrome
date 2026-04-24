@@ -273,11 +273,22 @@ Popup 菜单和右键菜单必须保持一致：
 
 ### 添加新菜单项
 
-1. 在 `utils/Constants.js` 的 `MENU_DEFINITIONS` 添加定义
-2. 在 `menuBuilder.js` 相应位置添加
-3. 在 `getPopupMenuStructure()` 相应位置添加
-4. 在 `events.js` 的消息处理添加逻辑
-5. 在 `config/unifiedMenuConfig.json` 添加开关（可选）
+**普通搜索/AI 类菜单项（有 URL 的）**
+
+推荐路径（SSoT）：只需改 1 处——
+1. 在 `config/unifiedMenuConfig.json` 对应分组 `items` 里新增一项（含 `id` / `type` / `title` / `icon` / `urlPattern` / `enabled`）。
+   - 启动时 `URLBuilder.loadFromConfig()` 会自动注册 URL 模板
+   - 运行时各老路径（`menuHandlers.js` / `events.js` / `MessageEvents.js`）已接入 `tryOpenMenuUrl()` 快速通道，命中后跳过硬编码
+
+老路径（渐进移除中）：在 `utils/Constants.js` 的 `MENU_DEFINITIONS` 加 `{ text, icon }`、在 `background/menuBuilder.js` 的分组数组里登记 id、在 `background/base.js` 的 `getPopupMenuStructure()` 相应 `searchItems` / `toolItems` 里加。工具/复制/编码类（非 URL）菜单仍走老 switch-case。
+
+**工具/命令类菜单项（`ccs-copy`、`ccs-base64` 等）**
+
+这类没有 URL 模板，仍需走老路径：
+1. `utils/Constants.js` `MENU_DEFINITIONS` 登记 title/icon
+2. `background/menuBuilder.js` 加入分组
+3. `background/menuHandlers.js` / `background/events.js` switch-case 里加处理分支
+4. `config/unifiedMenuConfig.json` 登记（用于 popup/sidepanel 展示）
 
 ### 调试
 
