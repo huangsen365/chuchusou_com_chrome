@@ -116,6 +116,14 @@ class PopupMenuRenderer {
       // 跳过 panel 组（设置入口已在底部）
       if (group.id === 'panel') return;
 
+      // 分隔线策略：字段驱动
+      //   group.separator === 'before' → 在该 group 之前插一条
+      //   group.separator === 'after'  → 在该 group 之后插一条
+      //   未标 / 'none'                → 不插（注意：相邻 group 可能用 before/after 补上）
+      //
+      // ⚠️ 新增 group 时记得同步挂 separator 字段（base.js 的 getPopupMenuStructure 里）
+      //    否则与 sidebar / 右键菜单 group 边界分隔线不一致。
+
       // separator before
       if (group.separator === 'before' && index > 0) {
         container.appendChild(this.createSeparator());

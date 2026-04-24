@@ -895,7 +895,7 @@ async function getPopupMenuStructure() {
   if (aiItems.length > 0) {
     structure.groups.push({
       id: 'ai',
-      separator: 'none',
+      separator: 'after',
       items: aiItems.map(item => ({
         id: item.id,
         title: getMenuText(item.id),

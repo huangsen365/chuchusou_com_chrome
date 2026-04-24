@@ -2,6 +2,12 @@
  * 触触搜 Popup - 菜单式样式
  */
 
+/* 共享设计 token（与 sidepanel.css 保持同步） */
+:root {
+  --ccs-separator-color: #e8ecf0;
+  --ccs-separator-margin: 4px 14px;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -179,8 +185,8 @@ body {
 /* ==================== 分隔线 ==================== */
 .menu-separator {
   height: 1px;
-  background: #e8ecf0;
-  margin: 4px 12px;
+  background: var(--ccs-separator-color);
+  margin: var(--ccs-separator-margin);
 }
 
 /* ==================== 底部 ==================== */

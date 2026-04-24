@@ -496,6 +496,16 @@ async function createContextMenus() {
       failureStage: 'ai-menu-create-failed'
     });
 
+    // ai → general 边界分隔线（与 sidebar 行为对齐）
+    await createMenuItem({
+      id: 'ccs-separator-general',
+      parentId: 'ccs-main',
+      type: 'separator',
+      contexts: MENU_CONTEXTS_DEFAULT
+    }, {
+      failureLogStage: 'create-separator-general-failed'
+    });
+
     await createMenuItemsGroup({
       parentId: 'ccs-main',
       menuItems: MENU_GROUPS.general,
@@ -569,15 +579,6 @@ async function createContextMenus() {
         failureLogStage: 'top100-label-separator-create-failed'
       });
 
-      await createMenuItem({
-        id: 'ccs-top100-separator',
-        parentId: 'ccs-top100-root',
-        type: 'separator',
-        contexts: MENU_CONTEXTS_DEFAULT
-      }, {
-        failureLogStage: 'top100-separator-create-failed'
-      });
-
       asyncTasks.push(populateTopQuestionsMenus({ buildId }));
     }
 
@@ -634,15 +635,6 @@ async function createContextMenus() {
         contexts: MENU_CONTEXTS_DEFAULT
       }, {
         failureLogStage: 'fastqa-label-separator-create-failed'
-      });
-
-      await createMenuItem({
-        id: 'ccs-fastqa-separator',
-        parentId: 'ccs-fastqa-root',
-        type: 'separator',
-        contexts: MENU_CONTEXTS_DEFAULT
-      }, {
-        failureLogStage: 'fastqa-separator-create-failed'
       });
     }
 

@@ -1,3 +1,9 @@
+/* 共享设计 token（与 popup/popup.css 保持同步） */
+:root {
+  --ccs-separator-color: #e8ecf0;
+  --ccs-separator-margin: 4px 14px;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -94,8 +100,8 @@ body {
 /* ==================== Separator ==================== */
 .sp-separator {
   height: 1px;
-  background: #e8ecf0;
-  margin: 4px 14px;
+  background: var(--ccs-separator-color);
+  margin: var(--ccs-separator-margin);
 }
 
 /* ==================== States ==================== */
