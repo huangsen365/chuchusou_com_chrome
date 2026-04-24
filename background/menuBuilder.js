@@ -6,6 +6,7 @@ const MENU_GROUPS = Object.freeze({
   search: [
     { id: 'ccs-baidu' },
     { id: 'ccs-google' },
+    { id: 'ccs-google-ai' },
     { id: 'ccs-tongyi' }
   ],
   ai: [

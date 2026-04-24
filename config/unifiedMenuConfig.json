@@ -109,6 +109,15 @@
           "enabled": true
         },
         {
+          "id": "ccs-google-ai",
+          "type": "search",
+          "title": "Google AI 模式",
+          "icon": "✨",
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://www.google.com/search?udm=50&q=${KEYWORD}",
+          "enabled": true
+        },
+        {
           "id": "ccs-tongyi",
           "type": "ai-search",
           "title": "通义千问",

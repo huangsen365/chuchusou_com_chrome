@@ -278,6 +278,7 @@ if (typeof MENU_DEFINITIONS === 'undefined') {
     'ccs-main': { text: '触触搜', icon: '🔍' },
     'ccs-baidu': { text: '百度搜索', icon: '🐼' },
     'ccs-google': { text: 'Google 搜索', icon: '🔎' },
+    'ccs-google-ai': { text: 'Google AI 模式', icon: '✨' },
     'ccs-tongyi': { text: '通义千问', icon: '🪄' },
     'ccs-yiyan': { text: '文心一言', icon: '🧠' },
     'ccs-chatgpt': { text: 'ChatGPT', icon: '🤖' },
@@ -940,6 +941,7 @@ async function getPopupMenuStructure() {
   const searchItems = [
     { id: 'ccs-baidu', type: 'search', urlPattern: 'https://www.baidu.com/s?wd=${KEYWORD}' },
     { id: 'ccs-google', type: 'search', urlPattern: 'https://www.google.com/search?q=${KEYWORD}' },
+    { id: 'ccs-google-ai', type: 'search', urlPattern: 'https://www.google.com/search?udm=50&q=${KEYWORD}' },
     { id: 'ccs-tongyi', type: 'ai-search', urlPattern: 'https://tongyi.aliyun.com/qianwen/?q=${KEYWORD}' }
   ].filter(item => isMenuEnabled(item.id));
 
