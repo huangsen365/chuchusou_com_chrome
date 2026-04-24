@@ -43,9 +43,7 @@ const TASK_DEFINITIONS = {
     promptsFile: 'prompts/fastAnswersPrompts.json',
     templateVariable: 'input',
     hasCategories: false,
-    showOpenAll: true,
-    // 引擎标题映射键（对应 Constants.js 里的三个 ENGINE_TITLES 常量）
-    engineTitlesKey: 'FAST_ANSWER_ENGINE_TITLES'
+    showOpenAll: true
   },
   top100: {
     id: 'top100',
@@ -56,8 +54,7 @@ const TASK_DEFINITIONS = {
     promptsFile: 'prompts/topQuestionsPrompts.json',
     templateVariable: 'input',
     hasCategories: false,
-    showOpenAll: true,
-    engineTitlesKey: 'TOP_QUESTION_ENGINE_TITLES'
+    showOpenAll: true
   },
   optimize: {
     id: 'optimize',
@@ -70,7 +67,6 @@ const TASK_DEFINITIONS = {
     hasCategories: true,             // 二维：category × engine
     showOpenAll: true,                // 给 optimize 也加上（每个 category 级 open-all）
     categoryVariable: 'purpose',      // category 会注入到 prompt 的 ${purpose}
-    engineTitlesKey: 'OPTIMIZE_ENGINE_TITLES',
     categoryTitlesKey: 'OPTIMIZE_CATEGORY_TITLES'
   }
 };

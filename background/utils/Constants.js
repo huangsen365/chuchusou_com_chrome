@@ -130,15 +130,9 @@ const OPTIMIZE_CATEGORY_TITLES = {
 };
 
 /**
- * ⚠️ DEPRECATED — 引擎标题请统一用 config/engines.json 的 icon+label，通过
- *   globalThis.getEngineTitle(engineId, fallbackLabel) 读取（background/config.js）
- *
- * 以下三张表保留为空对象，仅作兼容入口防御外部引用；所有生产代码已改走 SSoT。
- * 新增 / 修改引擎标题请改 config/engines.json，不要回填这里。
+ * 引擎标题 SSoT：config/engines.json（通过 globalThis.getEngineTitle(engineId, fallbackLabel) 读取）
+ * 原 OPTIMIZE_ENGINE_TITLES / TOP_QUESTION_ENGINE_TITLES / FAST_ANSWER_ENGINE_TITLES 三张表已删除。
  */
-const OPTIMIZE_ENGINE_TITLES = {};
-const TOP_QUESTION_ENGINE_TITLES = {};
-const FAST_ANSWER_ENGINE_TITLES = {};
 
 // ==================== 动态菜单项 ====================
 
@@ -361,9 +355,6 @@ globalThis.QUICK_RESULT_HOSTS = QUICK_RESULT_HOSTS;
 globalThis.MENU_DEFINITIONS = MENU_DEFINITIONS;
 globalThis.FAST_QA_QUICK_ITEMS = FAST_QA_QUICK_ITEMS;
 globalThis.OPTIMIZE_CATEGORY_TITLES = OPTIMIZE_CATEGORY_TITLES;
-globalThis.OPTIMIZE_ENGINE_TITLES = OPTIMIZE_ENGINE_TITLES;
-globalThis.TOP_QUESTION_ENGINE_TITLES = TOP_QUESTION_ENGINE_TITLES;
-globalThis.FAST_ANSWER_ENGINE_TITLES = FAST_ANSWER_ENGINE_TITLES;
 globalThis.DYNAMIC_SEARCH_MENU_ITEMS = DYNAMIC_SEARCH_MENU_ITEMS;
 globalThis.FAST_QA_MENU_ITEMS = FAST_QA_MENU_ITEMS;
 globalThis.MENU_TITLE_MAX_LENGTH = MENU_TITLE_MAX_LENGTH;
