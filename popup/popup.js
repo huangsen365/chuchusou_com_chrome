@@ -27,7 +27,6 @@ class PopupMenuRenderer {
       this.bindEvents();
       this.initSettings();
       this.loadVersion();
-      this.initQuickActions();
     } catch (error) {
       console.error('[触触搜] Popup 初始化失败:', error);
       this.showError('加载失败，请重试');
@@ -40,38 +39,6 @@ class PopupMenuRenderer {
     if (versionEl && manifest.version) {
       versionEl.textContent = `v${manifest.version}`;
     }
-  }
-
-  initQuickActions() {
-    // [暂时停用] Smart Post / Smart Reply 入口已注释（见 popup.html）。
-    // 如需恢复：删除下一行 return，并恢复 popup.html 中的 quick-actions 注释块。
-    return;
-    // eslint-disable-next-line no-unreachable
-    const smartPostBtn = document.getElementById('smartPostBtn');
-    const smartReplyBtn = document.getElementById('smartReplyBtn');
-
-    // Smart Post: always available, uses current keyword
-    smartPostBtn.addEventListener('click', () => {
-      const keyword = this.keyword.raw || this.keyword.text;
-      const draftUrl = `http://3000-216.nginx.lan/draft?text=${encodeURIComponent(keyword)}`;
-      chrome.tabs.update(undefined, { url: draftUrl });
-      window.close();
-    });
-
-    // Smart Reply: only on X/Twitter post URLs
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (!tabs[0]) return;
-      const url = tabs[0].url || '';
-      const xPostPattern = /^https?:\/\/(x\.com|twitter\.com)\/[^/]+\/status\/\d+/;
-      if (xPostPattern.test(url)) {
-        smartReplyBtn.style.display = 'flex';
-        smartReplyBtn.addEventListener('click', () => {
-          const replyUrl = `http://3000-216.nginx.lan/reply?url=${encodeURIComponent(url)}`;
-          chrome.tabs.update(undefined, { url: replyUrl });
-          window.close();
-        });
-      }
-    });
   }
 
   async loadMenuConfig() {

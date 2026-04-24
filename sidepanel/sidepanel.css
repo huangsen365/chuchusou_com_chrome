@@ -53,63 +53,6 @@ body {
   display: none;
 }
 
-/* ==================== Pinned Quick Actions ==================== */
-.sp-pinned {
-  padding: 8px 12px;
-  background: #fffbeb;
-  border-bottom: 1px solid #fde68a;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.sp-pinned-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: linear-gradient(135deg, #1d9bf0 0%, #0c7abf 100%);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.sp-pinned-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(29, 155, 240, 0.4);
-}
-
-.sp-pinned-btn:active {
-  transform: translateY(0);
-}
-
-.sp-pinned-icon {
-  font-size: 18px;
-}
-
-.sp-pinned-label {
-  flex: 1;
-  text-align: left;
-}
-
-.sp-pinned-arrow {
-  font-size: 16px;
-  opacity: 0.8;
-}
-
-.sp-pinned-btn.sp-smart-post-btn {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-}
-
-.sp-pinned-btn.sp-smart-post-btn:hover {
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
-}
-
 /* ==================== Menu Items ==================== */
 .sp-menu {
   padding: 6px 0;

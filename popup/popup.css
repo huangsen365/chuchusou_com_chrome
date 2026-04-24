@@ -61,64 +61,6 @@ body {
   white-space: nowrap;
 }
 
-/* ==================== 置顶快捷操作 ==================== */
-.quick-actions {
-  padding: 6px 10px;
-  background: #fffbeb;
-  border-bottom: 1px solid #fde68a;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.quick-action-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: linear-gradient(135deg, #1d9bf0 0%, #0c7abf 100%);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.quick-action-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 3px 8px rgba(29, 155, 240, 0.4);
-}
-
-.quick-action-btn:active {
-  transform: translateY(0);
-}
-
-.quick-action-icon {
-  font-size: 16px;
-}
-
-.quick-action-label {
-  flex: 1;
-  text-align: left;
-}
-
-.quick-action-arrow {
-  font-size: 14px;
-  opacity: 0.8;
-}
-
-.quick-action-btn.smart-post-btn {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-}
-
-.quick-action-btn.smart-post-btn:hover {
-  box-shadow: 0 3px 8px rgba(16, 185, 129, 0.4);
-}
-
 /* ==================== 菜单容器 ==================== */
 .menu-container {
   flex: 1;

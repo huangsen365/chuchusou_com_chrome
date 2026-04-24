@@ -24,7 +24,6 @@ class SidePanelRenderer {
       this.keyword = await this.getCurrentKeyword(tabInfo);
 
       this.renderKeyword();
-      this.renderPinned();
       this.renderMenu();
 
       // Listen for tab changes to update pinned actions
@@ -58,7 +57,6 @@ class SidePanelRenderer {
       this.currentTabUrl = tabInfo.url || '';
       this.keyword = await this.getCurrentKeyword(tabInfo);
       this.renderKeyword();
-      this.renderPinned();
     } catch (e) {
       // Ignore refresh errors
     }
@@ -116,39 +114,6 @@ class SidePanelRenderer {
       el.title = this.keyword.raw;
     } else {
       el.textContent = '';
-    }
-  }
-
-  renderPinned() {
-    // [暂时停用] Smart Post / Smart Reply 入口已注释（见 sidepanel.html）。
-    // 如需恢复：删除下一行 return，并恢复 sidepanel.html 中的 sp-pinned 注释块。
-    return;
-    // eslint-disable-next-line no-unreachable
-    const url = this.currentTabUrl;
-    const xPostPattern = /^https?:\/\/(x\.com|twitter\.com)\/[^/]+\/status\/\d+/;
-
-    // Smart Post: always visible
-    const oldPostBtn = document.getElementById('spSmartPostBtn');
-    const newPostBtn = oldPostBtn.cloneNode(true);
-    oldPostBtn.parentNode.replaceChild(newPostBtn, oldPostBtn);
-    newPostBtn.addEventListener('click', () => {
-      const keyword = this.keyword.raw || this.keyword.text;
-      const draftUrl = `http://3000-216.nginx.lan/draft?text=${encodeURIComponent(keyword)}`;
-      chrome.tabs.update(undefined, { url: draftUrl });
-    });
-
-    // Smart Reply: conditional on X post URL
-    const oldReplyBtn = document.getElementById('spSmartReplyBtn');
-    const newReplyBtn = oldReplyBtn.cloneNode(true);
-    oldReplyBtn.parentNode.replaceChild(newReplyBtn, oldReplyBtn);
-    if (xPostPattern.test(url)) {
-      newReplyBtn.style.display = 'flex';
-      newReplyBtn.addEventListener('click', () => {
-        const replyUrl = `http://3000-216.nginx.lan/reply?url=${encodeURIComponent(url)}`;
-        chrome.tabs.update(undefined, { url: replyUrl });
-      });
-    } else {
-      newReplyBtn.style.display = 'none';
     }
   }
 
