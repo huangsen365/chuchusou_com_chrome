@@ -54,6 +54,7 @@ const MENU_DEFINITIONS = {
   'ccs-fastqa-root': { text: '速答壹拾佰', icon: '⚡' },
   'ccs-fastqa-open-all': { text: '打开以下全部', icon: '🚀' },
   'ccs-optimize-root': { text: '优化提示词', icon: '🧠' },
+  'ccs-optimize-open-all': { text: '打开以下全部', icon: '🚀' },
   'ccs-copy': { text: '复制文本', icon: '📋' },
   'ccs-base64': { text: 'Base64 编码', icon: '🔤' },
   'ccs-md5': { text: 'MD5 哈希', icon: '🔐' },

@@ -248,6 +248,27 @@ async function populateOptimizedMenus({ buildId }) {
         failureLogStage: 'optimize-category-create-failed'
       });
 
+      // 每个 category 下加一条"打开以下全部"（与速答/百问保持一致）
+      const catOpenAllId = `${categoryId}-open-all`;
+      if (isMenuEnabled(catOpenAllId)) {
+        await createMenuItem({
+          id: catOpenAllId,
+          parentId: categoryId,
+          title: '🚀 打开以下全部',
+          contexts: MENU_CONTEXTS_DEFAULT
+        }, {
+          failureLogStage: 'optimize-category-open-all-create-failed'
+        });
+        await createMenuItem({
+          id: `${catOpenAllId}-separator`,
+          parentId: categoryId,
+          type: 'separator',
+          contexts: MENU_CONTEXTS_DEFAULT
+        }, {
+          failureLogStage: 'optimize-category-open-all-separator-create-failed'
+        });
+      }
+
       // Add label with keyword at top of category submenu
       const labelId = `${categoryId}-label`;
       const labelResult = await createMenuItem({

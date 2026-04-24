@@ -189,16 +189,18 @@ class MessageEventHandler {
         }
 
         case 'optimize': {
-          // menuItemId 形如 ccs-optimize-<category>-<engine>，可从中拆出
+          // menuItemId 形如 ccs-optimize-<category>-<engine>，或 ccs-optimize-<category>-open-all
           if (typeof runAITask === 'function' && menuItemId) {
             const parsed = (typeof AITaskRegistry !== 'undefined')
               ? AITaskRegistry.resolveMenuId(menuItemId) : null;
-            if (parsed && parsed.taskId === 'optimize' && parsed.categoryId && parsed.engineId) {
+            if (parsed && parsed.taskId === 'optimize' && parsed.categoryId &&
+                (parsed.engineId || parsed.openAll)) {
               const r = await runAITask({
                 taskId: 'optimize',
                 keyword: effectiveKeyword,
                 engineId: parsed.engineId,
                 categoryId: parsed.categoryId,
+                openAll: parsed.openAll,
                 tabId
               });
               if (r.success) { sendResponse?.({ success: true }); break; }

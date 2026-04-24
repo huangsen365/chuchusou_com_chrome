@@ -1055,6 +1055,19 @@ async function getPopupMenuStructure() {
         if (!isMenuEnabled(categoryId)) continue;
 
         const categoryEngines = [];
+        // popup/sidepanel: 每个 category 顶部插入"打开以下全部"
+        const catOpenAllId = `ccs-optimize-${category.id}-open-all`;
+        if (isMenuEnabled(catOpenAllId)) {
+          categoryEngines.push({
+            id: catOpenAllId,
+            title: '🚀 打开以下全部',
+            icon: '',
+            type: 'optimize',
+            categoryId: category.id,
+            openAll: true,
+            purpose: category.purpose || category.label
+          });
+        }
         for (const engine of category.engines || []) {
           const menuId = `ccs-optimize-${category.id}-${engine.id}`;
           if (isMenuEnabled(menuId)) {
