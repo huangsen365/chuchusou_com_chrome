@@ -323,6 +323,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
         const encodedKeyword = effectiveKeyword ? encodeURIComponent(effectiveKeyword) : '';
 
+        // === SSoT: AI 任务统一快速通道 ===
+        // 速答/百问/优化都走 runAITask；命中即返回，否则回落老 case。
+        if (['fastqa','fastqa-quick','top100','optimize'].includes(menuType) &&
+            typeof runAITask === 'function' && effectiveKeyword) {
+          const taskId = (menuType === 'optimize') ? 'optimize'
+            : (menuType === 'top100') ? 'top100' : 'fastqa';
+          let categoryId;
+          let eid = engineId;
+          if (taskId === 'optimize' && menuItemId && typeof AITaskRegistry !== 'undefined') {
+            const parsed = AITaskRegistry.resolveMenuId(menuItemId);
+            if (parsed) { categoryId = parsed.categoryId; eid = parsed.engineId || eid; }
+          }
+          try {
+            const r = await runAITask({
+              taskId, keyword: effectiveKeyword, engineId: eid,
+              categoryId, tabId: sender?.tab?.id
+            });
+            if (r.success) { sendResponse({ success: true }); return; }
+          } catch (err) { /* 继续 fallback */ }
+        }
+
         // 根据menuType处理不同类型的菜单
         switch (menuType) {
           case 'search':

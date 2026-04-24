@@ -1,0 +1,143 @@
+/**
+ * AI 任务处理器 (AITaskHandler)
+ *
+ * 替代原来分散在三处的 _handleFastQaAction / _handleTop100Action /
+ * _handleOptimizeAction 的核心逻辑，统一成一个 handle(taskId, options) 接口。
+ *
+ * 处理流程：
+ *   1. 加载任务定义（AITaskRegistry）
+ *   2. 应用字数保护（TextLimits）
+ *   3. 构造 prompt
+ *   4. 取目标引擎 URL 模板
+ *   5. 替换 ${PROMPT} → 打开 tab
+ *   6. 若 openAll，则对任务下所有已启用引擎循环执行
+ *
+ * 所有错误都吞掉并返回 { success: false, error, reason }，调用方可自行决定是否
+ * 回落到老逻辑。
+ */
+
+/**
+ * 执行一个 AI 任务。
+ *
+ * @param {Object} options
+ * @param {string} options.taskId      - 'fastqa' | 'top100' | 'optimize'
+ * @param {string} options.keyword     - 用户选中文字（原始，未编码）
+ * @param {string} [options.engineId]  - 目标引擎 id；若为 openAll 可省略
+ * @param {string} [options.categoryId]- 二维任务（optimize）的分类 id
+ * @param {boolean}[options.openAll]   - 是否"打开以下全部"
+ * @param {number} [options.tabId]     - 用于 toast 提示
+ * @returns {Promise<{success:boolean, error?:string, opened?:number}>}
+ */
+async function runAITask(options = {}) {
+  const { taskId, keyword, engineId, categoryId, openAll, tabId } = options;
+
+  if (!taskId || typeof AITaskRegistry === 'undefined') {
+    return { success: false, error: 'registry-unavailable' };
+  }
+  if (!keyword) {
+    return { success: false, error: 'no-keyword' };
+  }
+
+  const task = await AITaskRegistry.loadTask(taskId);
+  if (!task) return { success: false, error: 'task-not-found' };
+
+  // 二维任务必须给 categoryId
+  if (task.hasCategories && !categoryId) {
+    return { success: false, error: 'missing-category' };
+  }
+
+  // 字数保护：以 menuId 为维度决定上限。menuId 用来让 TextLimits 判定引擎类型。
+  // 这里的 menuId 取具体叶子（或其中一个引擎，如 openAll 情况）
+  let sampleMenuId;
+  if (openAll) {
+    // 对 openAll 用 category/task 的代表 id
+    sampleMenuId = task.hasCategories
+      ? `${task.menuIdPrefix}-${categoryId}-open-all`
+      : `${task.menuIdPrefix}-open-all`;
+  } else {
+    sampleMenuId = task.hasCategories
+      ? `${task.menuIdPrefix}-${categoryId}-${engineId}`
+      : `${task.menuIdPrefix}-${engineId}`;
+  }
+
+  let effectiveKeyword = keyword;
+  if (typeof applyTextLimit === 'function') {
+    const limited = applyTextLimit(sampleMenuId, keyword, { tabId });
+    effectiveKeyword = limited.text;
+  }
+
+  const prompt = await AITaskRegistry.buildTaskPrompt(taskId, effectiveKeyword, { categoryId });
+  if (!prompt) return { success: false, error: 'template-invalid' };
+  const encodedPrompt = encodeURIComponent(prompt);
+
+  // 分支：openAll vs 单一引擎
+  if (openAll) {
+    const engines = await AITaskRegistry.listTaskEngines(taskId, { categoryId });
+    if (!engines.length) return { success: false, error: 'no-enabled-engines' };
+    let opened = 0;
+    for (const e of engines) {
+      if (!e.urlPattern) continue;
+      let url = e.urlPattern.split('${PROMPT}').join(encodedPrompt);
+      if (typeof enforceFinalUrlCap === 'function') url = enforceFinalUrlCap(url);
+      try {
+        chrome.tabs.create({ url, active: opened === 0 });
+        opened++;
+      } catch (_) { /* ignore */ }
+    }
+    return { success: true, opened };
+  }
+
+  // 单一引擎
+  if (!engineId) return { success: false, error: 'missing-engine' };
+  const urlPattern = await AITaskRegistry.getTaskEngineUrl(taskId, engineId, { categoryId });
+  if (!urlPattern) return { success: false, error: 'engine-url-not-found' };
+  let url = urlPattern.split('${PROMPT}').join(encodedPrompt);
+  if (typeof enforceFinalUrlCap === 'function') url = enforceFinalUrlCap(url);
+  chrome.tabs.create({ url });
+  return { success: true, opened: 1 };
+}
+
+/**
+ * 根据 menuItemId 自动识别并执行（给 menuHandlers.js 的右键菜单点击用）。
+ * 如果 menuId 不属于任何任务，返回 { success: false, error: 'not-ai-task' }，
+ * 调用方应走老逻辑 fallback。
+ *
+ * @param {string} menuItemId
+ * @param {string} keyword
+ * @param {Object} [options]
+ * @param {number} [options.tabId]
+ * @returns {Promise<{success:boolean, error?:string, opened?:number, matched:boolean}>}
+ */
+async function runAITaskByMenuId(menuItemId, keyword, options = {}) {
+  if (typeof AITaskRegistry === 'undefined') {
+    return { success: false, matched: false, error: 'registry-unavailable' };
+  }
+  const parsed = AITaskRegistry.resolveMenuId(menuItemId);
+  if (!parsed) return { success: false, matched: false, error: 'not-ai-task' };
+
+  // root 节点本身不执行
+  if (parsed.root) return { success: false, matched: true, error: 'root-no-action' };
+
+  // 只有 category（即 submenu 节点）不执行
+  if (parsed.categoryId && !parsed.engineId && !parsed.openAll) {
+    return { success: false, matched: true, error: 'category-no-action' };
+  }
+
+  const res = await runAITask({
+    taskId: parsed.taskId,
+    keyword,
+    engineId: parsed.engineId,
+    categoryId: parsed.categoryId,
+    openAll: parsed.openAll,
+    tabId: options.tabId
+  });
+  return { ...res, matched: true };
+}
+
+// 导出
+globalThis.AITaskHandler = {
+  runAITask,
+  runAITaskByMenuId
+};
+globalThis.runAITask = runAITask;
+globalThis.runAITaskByMenuId = runAITaskByMenuId;

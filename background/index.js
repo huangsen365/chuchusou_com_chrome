@@ -27,6 +27,12 @@ importScripts(
   './keywords.js',      // 关键词提取
   './keywordResolver.js', // 关键词解析
   './base.js',          // 核心业务函数（最多依赖）
+
+  // ==================== 第3.5层：AI 任务统一抽象 ====================
+  // 把速答/百问/优化抽象成 AITask；依赖 Constants / TextLimits / isMenuEnabled
+  './tasks/AITaskRegistry.js',
+  './tasks/AITaskHandler.js',
+
   './menuBuilder.js',   // 菜单构建
   './menuHandlers.js',  // 菜单处理
   './events.js',        // 事件处理

@@ -159,17 +159,54 @@ class MessageEventHandler {
           break;
 
         case 'fastqa':
-        case 'fastqa-quick':
+        case 'fastqa-quick': {
+          // SSoT：优先用 AITaskHandler；失败回落到老逻辑
+          if (typeof runAITask === 'function') {
+            const r = await runAITask({
+              taskId: 'fastqa',
+              keyword: effectiveKeyword,
+              engineId,
+              tabId
+            });
+            if (r.success) { sendResponse?.({ success: true }); break; }
+          }
           await this._handleFastQaAction(effectiveKeyword, engineId, urlPattern, sendResponse);
           break;
+        }
 
-        case 'top100':
+        case 'top100': {
+          if (typeof runAITask === 'function') {
+            const r = await runAITask({
+              taskId: 'top100',
+              keyword: effectiveKeyword,
+              engineId,
+              tabId
+            });
+            if (r.success) { sendResponse?.({ success: true }); break; }
+          }
           await this._handleTop100Action(effectiveKeyword, engineId, urlPattern, sendResponse);
           break;
+        }
 
-        case 'optimize':
+        case 'optimize': {
+          // menuItemId 形如 ccs-optimize-<category>-<engine>，可从中拆出
+          if (typeof runAITask === 'function' && menuItemId) {
+            const parsed = (typeof AITaskRegistry !== 'undefined')
+              ? AITaskRegistry.resolveMenuId(menuItemId) : null;
+            if (parsed && parsed.taskId === 'optimize' && parsed.categoryId && parsed.engineId) {
+              const r = await runAITask({
+                taskId: 'optimize',
+                keyword: effectiveKeyword,
+                engineId: parsed.engineId,
+                categoryId: parsed.categoryId,
+                tabId
+              });
+              if (r.success) { sendResponse?.({ success: true }); break; }
+            }
+          }
           await this._handleOptimizeAction(effectiveKeyword, purpose, urlPattern, sendResponse);
           break;
+        }
 
         case 'action':
           if (actionType === 'show-popover' && tabId) {

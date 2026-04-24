@@ -168,6 +168,24 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     return;
   }
 
+  // === SSoT: AI 任务统一快速通道 ===
+  // 速答 / 百问 / 优化 三类任务全部走 runAITaskByMenuId。
+  // 未命中（或执行失败）回落到下方的 top100/fastqa/optimize 逻辑块作为安全网。
+  if (typeof runAITaskByMenuId === 'function' && info.menuItemId) {
+    const rawKeyword = finalRaw || finalNormalized;
+    if (rawKeyword) {
+      try {
+        const r = await runAITaskByMenuId(info.menuItemId, rawKeyword, { tabId: tab?.id });
+        if (r.matched && r.success) {
+          return; // 已由 AITaskHandler 打开
+        }
+      } catch (err) {
+        BG_DBG('[menuHandlers] runAITaskByMenuId error', err?.message);
+        // 继续走 fallback
+      }
+    }
+  }
+
   if (isTopQuestionsOpenAll || isTopQuestionsEngine) {
     let effectiveInput = finalRaw || finalNormalized;
     if (!effectiveInput) {
