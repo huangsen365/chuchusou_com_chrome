@@ -167,7 +167,7 @@ async function populateTopQuestionsMenus({ buildId }) {
       const menuId = `ccs-top100-${engine.id}`;
       if (!isMenuEnabled(menuId)) continue;
       if (isStaleBuild(buildId)) return;
-      const engineTitle = TOP_QUESTION_ENGINE_TITLES[engine.id] || engine.label;
+      const engineTitle = getEngineTitle(engine.id, engine.label);
       await createMenuItem({
         id: menuId,
         parentId: 'ccs-top100-root',
@@ -203,7 +203,7 @@ async function populateFastAnswersMenus({ buildId, fastQaRootEnabled, quickEnabl
       const urlPattern = engine.urlPattern || '';
       if (fastQaRootEnabled && isMenuEnabled(menuId)) {
         if (isStaleBuild(buildId)) return;
-        const engineTitle = FAST_ANSWER_ENGINE_TITLES[engine.id] || engine.label;
+        const engineTitle = getEngineTitle(engine.id, engine.label);
         await createMenuItem({
           id: menuId,
           parentId: 'ccs-fastqa-root',
@@ -329,7 +329,7 @@ async function populateOptimizedMenus({ buildId }) {
         const menuId = `ccs-optimize-${category.id}-${engine.id}`;
         if (!isMenuEnabled(menuId)) continue;
         if (isStaleBuild(buildId)) return;
-        const engineTitle = OPTIMIZE_ENGINE_TITLES[engine.id] || engine.label;
+        const engineTitle = getEngineTitle(engine.id, engine.label);
         await createMenuItem({
           id: menuId,
           parentId: categoryId,

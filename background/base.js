@@ -300,7 +300,7 @@ function getMenuTitle(menuId, fallback) {
 }
 
 // 以下常量已在 Constants.js 中定义，这里保留备用引用
-// OPTIMIZE_CATEGORY_TITLES, OPTIMIZE_ENGINE_TITLES, TOP_QUESTION_ENGINE_TITLES, FAST_ANSWER_ENGINE_TITLES
+// OPTIMIZE_CATEGORY_TITLES (ENGINE_TITLES 系列已迁移至 config/engines.json + getEngineTitle SSoT)
 if (typeof OPTIMIZE_CATEGORY_TITLES === 'undefined') {
   const OPTIMIZE_CATEGORY_TITLES = {
     'deep-research': '📚 深度研究',
@@ -313,34 +313,6 @@ if (typeof OPTIMIZE_CATEGORY_TITLES === 'undefined') {
     'description-polish': '✨ 优化描述'
   };
   globalThis.OPTIMIZE_CATEGORY_TITLES = OPTIMIZE_CATEGORY_TITLES;
-}
-
-if (typeof OPTIMIZE_ENGINE_TITLES === 'undefined') {
-  const OPTIMIZE_ENGINE_TITLES = {
-    'chatgpt': '🤖 ChatGPT',
-    'claude': '🧠 Claude (推荐 Opus)'
-  };
-  globalThis.OPTIMIZE_ENGINE_TITLES = OPTIMIZE_ENGINE_TITLES;
-}
-
-if (typeof TOP_QUESTION_ENGINE_TITLES === 'undefined') {
-  const TOP_QUESTION_ENGINE_TITLES = {
-    'chatgpt': '🤖 ChatGPT',
-    'claude': '🧠 Claude',
-    'grok': '🦊 Grok',
-    'yiyan': '🧠 文心一言'
-  };
-  globalThis.TOP_QUESTION_ENGINE_TITLES = TOP_QUESTION_ENGINE_TITLES;
-}
-
-if (typeof FAST_ANSWER_ENGINE_TITLES === 'undefined') {
-  const FAST_ANSWER_ENGINE_TITLES = {
-    'chatgpt': '🤖 ChatGPT',
-    'claude': '🧠 Claude',
-    'grok': '🦊 Grok',
-    'yiyan': '🧠 文心一言'
-  };
-  globalThis.FAST_ANSWER_ENGINE_TITLES = FAST_ANSWER_ENGINE_TITLES;
 }
 
 // DYNAMIC_SEARCH_MENU_ITEMS 和 FAST_QA_MENU_ITEMS 已在 Constants.js 中定义
@@ -982,7 +954,7 @@ async function getPopupMenuStructure() {
         if (isMenuEnabled(menuId)) {
           top100Children.push({
             id: menuId,
-            title: TOP_QUESTION_ENGINE_TITLES[engine.id] || engine.label,
+            title: getEngineTitle(engine.id, engine.label),
             icon: engine.icon || '',
             type: 'top100',
             engineId: engine.id,
@@ -1023,7 +995,7 @@ async function getPopupMenuStructure() {
         if (isMenuEnabled(menuId)) {
           fastqaChildren.push({
             id: menuId,
-            title: FAST_ANSWER_ENGINE_TITLES[engine.id] || engine.label,
+            title: getEngineTitle(engine.id, engine.label),
             icon: engine.icon || '',
             type: 'fastqa',
             engineId: engine.id,
@@ -1073,7 +1045,7 @@ async function getPopupMenuStructure() {
           if (isMenuEnabled(menuId)) {
             categoryEngines.push({
               id: menuId,
-              title: OPTIMIZE_ENGINE_TITLES[engine.id] || engine.label,
+              title: getEngineTitle(engine.id, engine.label),
               icon: engine.icon || '',
               type: 'optimize',
               categoryId: category.id,

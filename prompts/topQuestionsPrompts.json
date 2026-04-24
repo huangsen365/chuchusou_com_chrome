@@ -49,7 +49,7 @@
     },
     {
       "id": "claude",
-      "label": "Claude（推荐 Opus）",
+      "label": "Claude",
       "urlPattern": "https://claude.ai/new?q=${PROMPT}"
     },
     {

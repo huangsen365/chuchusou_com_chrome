@@ -130,37 +130,15 @@ const OPTIMIZE_CATEGORY_TITLES = {
 };
 
 /**
- * 优化提示词 - 引擎标题
+ * ⚠️ DEPRECATED — 引擎标题请统一用 config/engines.json 的 icon+label，通过
+ *   globalThis.getEngineTitle(engineId, fallbackLabel) 读取（background/config.js）
+ *
+ * 以下三张表保留为空对象，仅作兼容入口防御外部引用；所有生产代码已改走 SSoT。
+ * 新增 / 修改引擎标题请改 config/engines.json，不要回填这里。
  */
-const OPTIMIZE_ENGINE_TITLES = {
-  'chatgpt': '🤖 ChatGPT',
-  'claude': '🧠 Claude (推荐 Opus)',
-  'grok': '🦊 Grok',
-  'yiyan': '🧠 文心一言',
-  'google-ai': '✨ Google AI 模式'
-};
-
-/**
- * 触触搜百问 - 引擎标题
- */
-const TOP_QUESTION_ENGINE_TITLES = {
-  'chatgpt': '🤖 ChatGPT',
-  'claude': '🧠 Claude',
-  'grok': '🦊 Grok',
-  'yiyan': '🧠 文心一言',
-  'google-ai': '✨ Google AI 模式'
-};
-
-/**
- * 速答壹拾佰 - 引擎标题
- */
-const FAST_ANSWER_ENGINE_TITLES = {
-  'chatgpt': '🤖 ChatGPT',
-  'claude': '🧠 Claude',
-  'grok': '🦊 Grok',
-  'yiyan': '🧠 文心一言',
-  'google-ai': '✨ Google AI 模式'
-};
+const OPTIMIZE_ENGINE_TITLES = {};
+const TOP_QUESTION_ENGINE_TITLES = {};
+const FAST_ANSWER_ENGINE_TITLES = {};
 
 // ==================== 动态菜单项 ====================
 

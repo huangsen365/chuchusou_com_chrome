@@ -179,6 +179,22 @@ function getEngine(engineId) {
   return enginesConfig.engines[engineId] || null;
 }
 
+/**
+ * 引擎菜单标题统一 SSoT — 从 config/engines.json 生成 "${icon} ${label}"。
+ * 所有 AI 任务（速答/百问/优化）的引擎子菜单标题、popup/sidepanel 都用这个，
+ * 不再各自维护 ENGINE_TITLES 表。
+ * 回退顺序：engines.json -> fallbackLabel -> id 原样。
+ */
+function getEngineTitle(engineId, fallbackLabel) {
+  const engine = getEngine(engineId);
+  if (engine) {
+    const icon = engine.icon || '';
+    const label = engine.label || fallbackLabel || engineId;
+    return icon ? `${icon} ${label}` : label;
+  }
+  return fallbackLabel || engineId;
+}
+
 function getEngineUrlPattern(engineId, type = 'prompt') {
   const engine = getEngine(engineId);
   if (!engine) return null;
@@ -234,6 +250,7 @@ globalThis.loadMenuToggleConfig = loadMenuToggleConfig;
 globalThis.isMenuEnabled = isMenuEnabled;
 globalThis.loadEnginesConfig = loadEnginesConfig;
 globalThis.getEngine = getEngine;
+globalThis.getEngineTitle = getEngineTitle;
 globalThis.getEngineUrlPattern = getEngineUrlPattern;
 globalThis.populateOptimizedMenuMap = populateOptimizedMenuMap;
 globalThis.loadMenuIconConfig = loadMenuIconConfig;
