@@ -65,7 +65,7 @@
     {
       "id": "google-ai",
       "label": "Google AI 模式",
-      "urlPattern": "https://www.google.com/search?udm=50&q=${PROMPT}"
+      "urlPattern": "https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${PROMPT}"
     }
   ]
 }

@@ -614,7 +614,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                   handled = true;
                   break;
                 case 'ccs-google-ai-chat':
-                  chrome.tabs.create({ url: `https://www.google.com/search?udm=50&q=${encodedKeyword}` });
+                  chrome.tabs.create({ url: `https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${encodedKeyword}` });
                   handled = true;
                   break;
                 case 'ccs-chatgpt':

@@ -39,8 +39,8 @@
       "id": "google-ai",
       "label": "Google AI 模式",
       "icon": "✨",
-      "urlPattern": "https://www.google.com/search?udm=50&q=${PROMPT}",
-      "searchUrlPattern": "https://www.google.com/search?udm=50&q=${KEYWORD}",
+      "urlPattern": "https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${PROMPT}",
+      "searchUrlPattern": "https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${KEYWORD}",
       "description": "Google AI Mode（搜索形态，长 prompt 可能被截断）"
     }
   },

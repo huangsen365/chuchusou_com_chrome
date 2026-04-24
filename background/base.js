@@ -889,7 +889,7 @@ async function getPopupMenuStructure() {
     { id: 'ccs-claude', type: 'ai-chat', urlPattern: 'https://claude.ai/new?q=${KEYWORD}' },
     { id: 'ccs-grok', type: 'ai-chat', urlPattern: 'https://grok.com/?q=${KEYWORD}' },
     { id: 'ccs-yiyan', type: 'ai-search', urlPattern: 'https://yiyan.baidu.com/?q=${KEYWORD}' },
-    { id: 'ccs-google-ai-chat', type: 'ai-chat', urlPattern: 'https://www.google.com/search?udm=50&q=${KEYWORD}' }
+    { id: 'ccs-google-ai-chat', type: 'ai-chat', urlPattern: 'https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${KEYWORD}' }
   ].filter(item => isMenuEnabled(item.id));
 
   if (aiItems.length > 0) {

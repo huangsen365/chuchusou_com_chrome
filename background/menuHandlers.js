@@ -433,7 +433,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     case 'ccs-google-ai-chat':
       if (finalNormalized) {
         chrome.tabs.create({
-          url: `https://www.google.com/search?udm=50&q=${encodeURIComponent(finalNormalized)}`
+          url: `https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${encodeURIComponent(finalNormalized)}`
         });
       }
       break;

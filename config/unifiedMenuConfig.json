@@ -91,7 +91,7 @@
           "titleKey": "google-ai",
           "dynamicTitle": true,
           "contexts": ["selection", "page", "editable"],
-          "urlPattern": "https://www.google.com/search?udm=50&q=${PROMPT}",
+          "urlPattern": "https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${PROMPT}",
           "enabled": true
         }
       ]
@@ -175,7 +175,7 @@
           "icon": "✨",
           "dynamicTitle": true,
           "contexts": ["selection", "page"],
-          "urlPattern": "https://www.google.com/search?udm=50&q=${KEYWORD}",
+          "urlPattern": "https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${KEYWORD}",
           "enabled": true
         }
       ]

@@ -562,7 +562,7 @@ class MessageEventHandler {
     const urlMap = {
       'ccs-baidu': `https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${encodedKeyword}`,
       'ccs-google': `https://www.google.com/search?q=${encodedKeyword}`,
-      'ccs-google-ai-chat': `https://www.google.com/search?udm=50&q=${encodedKeyword}`,
+      'ccs-google-ai-chat': `https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${encodedKeyword}`,
       'ccs-chatgpt': `https://chatgpt.com/?q=${encodedKeyword}`,
       'ccs-claude': `https://claude.ai/new?q=${encodedKeyword}`,
       'ccs-grok': `https://grok.com/?q=${encodedKeyword}`
