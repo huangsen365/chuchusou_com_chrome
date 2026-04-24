@@ -2,7 +2,22 @@
 
 ## 项目概述
 
-触触搜是一个 Chrome 扩展，提供文本选择后的快速搜索和处理功能。支持悬浮面板、右键菜单和 Popup 菜单三种交互方式。
+触触搜是一个 Chrome 扩展，提供文本选择后的快速搜索和处理功能。支持悬浮面板、右键菜单、Popup 菜单、Side Panel 四种交互方式。
+
+## 当前状态快照（2026-04）
+
+⚠️ **改代码前先读这段**，避免走冤枉路：
+
+- **生产跑老流水线**：`background/{base.js, events.js, menuBuilder.js, menuHandlers.js}` 是主心脏。`INIT_CONFIG.useNewSystem = false`（写在 `background/init.js`），永远走兼容模式。
+- **新架构已下线但未删除**：`MenuManager / menu/* / events/*` 共 7 个文件已搬到 `legacy/_unactivated/`，**不要**在 `background/` 里找它们。详见 `docs/TECH_DEBT_AUDIT.md`。
+- **三个 SSoT 强制遵守**：
+  - URL 模板 → `config/unifiedMenuConfig.json`（通过 `URLBuilder.loadFromConfig()` 装载，启动时即使兼容模式也装）
+  - 引擎标题 → `config/engines.json`（通过 `globalThis.getEngineTitle(engineId, fallback)` 读取）
+  - AI 任务定义 → `background/tasks/AITaskRegistry.js` 的 `TASK_DEFINITIONS`（速答/百问/优化统一走 `runAITaskByMenuId`）
+- **添加新菜单**：改 `unifiedMenuConfig.json`；**添加新 AI 任务**：改 `TASK_DEFINITIONS` + 对应 prompts json。
+- **字数保护总闸关闭**：`background/utils/TextLimits.js` 的 `TEXT_LIMITS_ENABLED = false`，两个主函数都 early return。所有截断/smartTruncate/toast/URL 硬上限代码保留作兜底，改一行即可恢复。
+- **Smart Post / Smart Reply 已彻底删除**：popup 和 sidepanel 里都不存在。
+- **老 switch-case fallback 要保留**：两处入口（`menuHandlers.js` / `events.js`）都在 SSoT 快速通道后加了 switch-case 作安全网，**不要擅自删**。
 
 ## 核心架构
 
@@ -14,24 +29,22 @@ chuchusou_com_chrome/
 ├── background/                # Service Worker 后台脚本
 │   ├── index.js              # 入口点（importScripts）
 │   ├── utils/                # 工具模块
-│   │   ├── Constants.js      # 常量定义（MENU_DEFINITIONS等）
-│   │   └── TextUtils.js      # 文本处理函数
-│   ├── menu/                 # 菜单模块（新架构）
-│   │   ├── MenuBuilder.js    # 菜单构建工具类
-│   │   ├── MenuUpdater.js    # 动态标题更新
-│   │   └── MenuHandlers.js   # 点击处理逻辑
-│   ├── events/               # 事件模块（新架构）
-│   │   ├── TabEvents.js      # 标签页事件处理
-│   │   ├── MessageEvents.js  # 消息事件处理
-│   │   └── MenuEvents.js     # 菜单事件处理
+│   │   ├── Constants.js      # 常量定义（MENU_DEFINITIONS / OPTIMIZE_CATEGORY_TITLES 等）
+│   │   ├── TextUtils.js      # 文本处理函数
+│   │   └── TextLimits.js     # 字数保护（总闸 TEXT_LIMITS_ENABLED，当前关闭）
+│   ├── tasks/                # AI 任务统一抽象（速答/百问/优化）
+│   │   ├── AITaskRegistry.js # TASK_DEFINITIONS 声明式注册表
+│   │   └── AITaskHandler.js  # runAITaskByMenuId 统一入口
 │   ├── StateManager.js       # 状态管理器
 │   ├── MenuRegistry.js       # 菜单注册表
+│   ├── URLBuilder.js         # URL 模板构建器（SSoT: unifiedMenuConfig.json）
+│   ├── menuSystem.js         # 菜单系统外壳（new MenuManager 分支在 useNewSystem=true 时启用，当前未启用）
 │   ├── KeywordSyncManager.js # 关键字同步管理
-│   ├── base.js               # 核心状态与函数（逐步迁移中）
-│   ├── events.js             # 事件监听（兼容模式）
-│   ├── menuBuilder.js        # 右键菜单构建（兼容模式）
-│   ├── menuHandlers.js       # 菜单处理（兼容模式）
-│   ├── config.js             # 配置加载
+│   ├── base.js               # 核心业务函数 + 老菜单流（生产主流）
+│   ├── events.js             # 事件监听（生产主流）
+│   ├── menuBuilder.js        # 右键菜单构建（生产主流）
+│   ├── menuHandlers.js       # 菜单处理（生产主流）
+│   ├── config.js             # 配置加载 + getEngineTitle() SSoT
 │   └── keywordResolver.js    # 关键字解析
 ├── content/                   # 内容脚本模块
 │   ├── SelectionManager.js   # 选区管理器
@@ -42,19 +55,24 @@ chuchusou_com_chrome/
 ├── content.css                # 悬浮面板样式
 ├── popup/                     # Popup 菜单
 │   ├── popup.html
-│   ├── popup.js              # 主脚本
+│   ├── popup.js
 │   ├── popup.css
-│   └── modules/              # Popup 模块
-│       ├── MenuRenderer.js   # 菜单渲染器
-│       ├── SettingsManager.js# 设置管理器
-│       └── ToastHelper.js    # Toast 助手
+│   └── modules/              # Popup 模块（MenuRenderer / SettingsManager / ToastHelper）
+├── sidepanel/                 # Side Panel（侧边栏）
+│   ├── sidepanel.html
+│   ├── sidepanel.js
+│   └── sidepanel.css
 ├── config/                    # 配置文件
-│   ├── unifiedMenuConfig.json # 统一菜单配置
-│   └── engines.json          # 引擎配置
+│   ├── unifiedMenuConfig.json # 统一菜单 URL 模板 SSoT
+│   └── engines.json          # 引擎标题 SSoT（icon + label）
 ├── prompts/                   # 提示词模板
 │   ├── topQuestionsPrompts.json
 │   ├── fastAnswersPrompts.json
 │   └── optimizedPrompts.json
+├── legacy/_unactivated/       # 🧟 未激活新架构存档（MenuManager / menu/* / events/*，零真实调用）
+├── docs/
+│   ├── TECH_DEBT_AUDIT.md    # 技术债审计（2026-04）
+│   └── archive/              # 历史设计文档
 └── icons/                     # 扩展图标
 ```
 
@@ -62,32 +80,32 @@ chuchusou_com_chrome/
 
 #### Background (Service Worker)
 ```javascript
-// background/index.js
+// background/index.js（当前实际顺序，详见文件）
 importScripts(
-  // 工具模块（最先）
+  // 第1层：工具
   './utils/Constants.js',
   './utils/TextUtils.js',
+  './utils/TextLimits.js',
   './Logger.js',
-  // 新架构核心
+  // 第2层：核心管理器
   './MenuRegistry.js',
   './KeywordSyncManager.js',
   './menuIds.js',
   './StateManager.js',
   './URLBuilder.js',
-  './MenuManager.js',
+  // './MenuManager.js',   // 僵尸，已搬 legacy/_unactivated/
   './menuSystem.js',
-  // 新菜单模块
-  './menu/MenuBuilder.js',
-  './menu/MenuUpdater.js',
-  './menu/MenuHandlers.js',
-  // 新事件模块
-  './events/TabEvents.js',
-  './events/MessageEvents.js',
-  './events/MenuEvents.js',
-  // 兼容模式模块
+  // 第3层：老业务（生产主流）
+  './config.js', './icons.js', './keywords.js', './keywordResolver.js',
   './base.js',
-  './config.js',
-  ...
+  // 第3.5层：AI 任务统一抽象
+  './tasks/AITaskRegistry.js', './tasks/AITaskHandler.js',
+  './menuBuilder.js', './menuHandlers.js', './events.js',
+  // 第4层：新架构 —— 全部已搬 legacy/_unactivated/，注释保留作恢复指引
+  // './menu/MenuBuilder.js', './menu/MenuUpdater.js', './menu/MenuHandlers.js',
+  // './events/TabEvents.js', './events/MessageEvents.js', './events/MenuEvents.js',
+  // 第5层：初始化
+  './init.js'
 );
 ```
 
