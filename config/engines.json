@@ -22,7 +22,6 @@
     "grok": {
       "id": "grok",
       "label": "Grok",
-      "labelAlt": "Grok (xAI)",
       "icon": "🦊",
       "urlPattern": "https://grok.com/?q=${PROMPT}",
       "searchUrlPattern": "https://grok.com/?q=${KEYWORD}",

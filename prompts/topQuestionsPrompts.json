@@ -54,7 +54,7 @@
     },
     {
       "id": "grok",
-      "label": "Grok（xAI）",
+      "label": "Grok",
       "urlPattern": "https://grok.com/?q=${PROMPT}"
     },
     {
