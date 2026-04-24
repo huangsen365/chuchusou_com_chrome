@@ -135,6 +135,8 @@ const OPTIMIZE_CATEGORY_TITLES = {
 const OPTIMIZE_ENGINE_TITLES = {
   'chatgpt': '🤖 ChatGPT',
   'claude': '🧠 Claude (推荐 Opus)',
+  'grok': '🦊 Grok',
+  'yiyan': '🧠 文心一言',
   'google-ai': '✨ Google AI 模式'
 };
 
