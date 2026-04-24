@@ -5,18 +5,16 @@ const MENU_GROUPS = Object.freeze({
   fastQaQuick: FAST_QA_QUICK_ITEMS.map((item) => item.id),
   search: [
     { id: 'ccs-baidu' },
-    { id: 'ccs-google' },
-    { id: 'ccs-google-ai' },
-    { id: 'ccs-tongyi' }
+    { id: 'ccs-google' }
   ],
   ai: [
     { id: 'ccs-chatgpt' },
     { id: 'ccs-claude' },
     { id: 'ccs-grok' },
+    { id: 'ccs-yiyan' },
     { id: 'ccs-google-ai-chat' }
   ],
   general: [
-    { id: 'ccs-yiyan' },
     { id: 'ccs-zhihu' },
     { id: 'ccs-weixin' },
     { id: 'ccs-taobao' },

@@ -36,8 +36,6 @@ const MENU_DEFINITIONS = {
   'ccs-main': { text: '触触搜', icon: '🔍' },
   'ccs-baidu': { text: '百度搜索', icon: '🐼' },
   'ccs-google': { text: 'Google 搜索', icon: '🔎' },
-  'ccs-google-ai': { text: 'Google AI 模式', icon: '✨' },
-  'ccs-tongyi': { text: '通义千问', icon: '🪄' },
   'ccs-yiyan': { text: '文心一言', icon: '🧠' },
   'ccs-chatgpt': { text: 'ChatGPT', icon: '🤖' },
   'ccs-claude': { text: 'Claude', icon: '🧠' },

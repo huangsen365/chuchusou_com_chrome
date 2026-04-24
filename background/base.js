@@ -894,9 +894,7 @@ async function getPopupMenuStructure() {
   // 2. 搜索组 (search)
   const searchItems = [
     { id: 'ccs-baidu', type: 'search', urlPattern: 'https://www.baidu.com/s?wd=${KEYWORD}' },
-    { id: 'ccs-google', type: 'search', urlPattern: 'https://www.google.com/search?q=${KEYWORD}' },
-    { id: 'ccs-google-ai', type: 'search', urlPattern: 'https://www.google.com/search?udm=50&q=${KEYWORD}' },
-    { id: 'ccs-tongyi', type: 'ai-search', urlPattern: 'https://tongyi.aliyun.com/qianwen/?q=${KEYWORD}' }
+    { id: 'ccs-google', type: 'search', urlPattern: 'https://www.google.com/search?q=${KEYWORD}' }
   ].filter(item => isMenuEnabled(item.id));
 
   if (searchItems.length > 0) {
@@ -918,6 +916,7 @@ async function getPopupMenuStructure() {
     { id: 'ccs-chatgpt', type: 'ai-chat', urlPattern: 'https://chatgpt.com/?q=${KEYWORD}' },
     { id: 'ccs-claude', type: 'ai-chat', urlPattern: 'https://claude.ai/new?q=${KEYWORD}' },
     { id: 'ccs-grok', type: 'ai-chat', urlPattern: 'https://grok.com/?q=${KEYWORD}' },
+    { id: 'ccs-yiyan', type: 'ai-search', urlPattern: 'https://yiyan.baidu.com/?q=${KEYWORD}' },
     { id: 'ccs-google-ai-chat', type: 'ai-chat', urlPattern: 'https://www.google.com/search?udm=50&q=${KEYWORD}' }
   ].filter(item => isMenuEnabled(item.id));
 
@@ -937,7 +936,6 @@ async function getPopupMenuStructure() {
 
   // 4. 通用组 (general)
   const generalItems = [
-    { id: 'ccs-yiyan', type: 'ai-search', urlPattern: 'https://yiyan.baidu.com/?q=${KEYWORD}' },
     { id: 'ccs-zhihu', type: 'search', urlPattern: 'https://www.zhihu.com/search?q=${KEYWORD}' },
     { id: 'ccs-weixin', type: 'search', urlPattern: 'https://weixin.sogou.com/weixin?query=${KEYWORD}' },
     { id: 'ccs-taobao', type: 'ecommerce', urlPattern: 'https://s.taobao.com/search?q=${KEYWORD}' },

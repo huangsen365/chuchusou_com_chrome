@@ -25,13 +25,13 @@ const MENU_IDS = Object.freeze({
   // 搜索引擎组
   BAIDU: 'ccs-baidu',
   GOOGLE: 'ccs-google',
-  TONGYI: 'ccs-tongyi',
-  YIYAN: 'ccs-yiyan',
 
   // AI 对话组
   CHATGPT: 'ccs-chatgpt',
   CLAUDE: 'ccs-claude',
   GROK: 'ccs-grok',
+  YIYAN: 'ccs-yiyan',
+  GOOGLE_AI_CHAT: 'ccs-google-ai-chat',
 
   // 通用搜索组
   ZHIHU: 'ccs-zhihu',

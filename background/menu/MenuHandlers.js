@@ -28,7 +28,6 @@ class MenuHandlers {
     // 搜索引擎
     this.urlPatterns.set('ccs-baidu', 'https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${KEYWORD}');
     this.urlPatterns.set('ccs-google', 'https://www.google.com/search?q=${KEYWORD}');
-    this.urlPatterns.set('ccs-tongyi', 'https://www.tongyi.com/?q=${KEYWORD}');
     this.urlPatterns.set('ccs-zhihu', 'https://www.zhihu.com/search?q=${KEYWORD}');
     this.urlPatterns.set('ccs-weixin', 'https://search.weixin.qq.com/cgi-bin/newsearchweb/userclientjump?path=page/search/christmas_jump&query=${KEYWORD}');
     this.urlPatterns.set('ccs-taobao', 'https://s.taobao.com/search?q=${KEYWORD}');

@@ -412,26 +412,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       }
       break;
 
-    case 'ccs-google-ai':
-      if (finalNormalized) {
-        chrome.tabs.create({
-          url: `https://www.google.com/search?udm=50&q=${encodeURIComponent(finalNormalized)}`
-        });
-      }
-      break;
-
     case 'ccs-google-ai-chat':
       if (finalNormalized) {
         chrome.tabs.create({
           url: `https://www.google.com/search?udm=50&q=${encodeURIComponent(finalNormalized)}`
-        });
-      }
-      break;
-
-    case 'ccs-tongyi':
-      if (finalNormalized) {
-        chrome.tabs.create({
-          url: `https://www.tongyi.com/?q=${encodeURIComponent(finalNormalized)}`
         });
       }
       break;

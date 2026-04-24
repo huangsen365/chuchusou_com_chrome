@@ -24,8 +24,7 @@ const MenuGroups = Object.freeze({
     : [],
   search: [
     { id: 'ccs-baidu' },
-    { id: 'ccs-google' },
-    { id: 'ccs-tongyi' }
+    { id: 'ccs-google' }
   ],
   ai: [
     { id: 'ccs-chatgpt' },

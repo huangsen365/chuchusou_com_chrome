@@ -119,24 +119,6 @@
           "contexts": ["selection", "page"],
           "urlPattern": "https://www.google.com/search?q=${KEYWORD}",
           "enabled": true
-        },
-        {
-          "id": "ccs-google-ai",
-          "type": "search",
-          "title": "Google AI 模式",
-          "icon": "✨",
-          "contexts": ["selection", "page"],
-          "urlPattern": "https://www.google.com/search?udm=50&q=${KEYWORD}",
-          "enabled": true
-        },
-        {
-          "id": "ccs-tongyi",
-          "type": "ai-search",
-          "title": "通义千问",
-          "icon": "🪄",
-          "contexts": ["selection", "page"],
-          "urlPattern": "https://tongyi.aliyun.com/qianwen/?q=${KEYWORD}",
-          "enabled": false
         }
       ]
     },
@@ -177,6 +159,16 @@
           "enabled": true
         },
         {
+          "id": "ccs-yiyan",
+          "type": "ai-search",
+          "title": "文心一言",
+          "icon": "🧠",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://yiyan.baidu.com/?q=${KEYWORD}",
+          "enabled": true
+        },
+        {
           "id": "ccs-google-ai-chat",
           "type": "ai-chat",
           "title": "Google AI 模式",
@@ -194,15 +186,6 @@
       "position": "middle",
       "separator": "before",
       "items": [
-        {
-          "id": "ccs-yiyan",
-          "type": "ai-search",
-          "title": "文心一言",
-          "icon": "🧠",
-          "contexts": ["selection", "page"],
-          "urlPattern": "https://yiyan.baidu.com/?q=${KEYWORD}",
-          "enabled": true
-        },
         {
           "id": "ccs-zhihu",
           "type": "search",
