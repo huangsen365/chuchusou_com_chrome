@@ -169,13 +169,18 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 
   if (isTopQuestionsOpenAll || isTopQuestionsEngine) {
-    const effectiveInput = finalRaw || finalNormalized;
+    let effectiveInput = finalRaw || finalNormalized;
     if (!effectiveInput) {
       chrome.tabs.sendMessage(tab.id, {
         action: 'showToast',
         message: '没有选中文本，无法生成问题列表'
       }).catch(() => {});
       return;
+    }
+    // 字数保护：按目标引擎截断 + toast 提示
+    if (typeof applyTextLimit === 'function') {
+      const limited = applyTextLimit(info.menuItemId, effectiveInput, { tabId: tab?.id });
+      effectiveInput = limited.text;
     }
     loadTopQuestionsConfig().then((config) => {
       if (!config) {
@@ -245,13 +250,18 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   if (isFastAnswersOpenAll || isFastAnswersMenu) {
     logMenuEvent('fastqa-click', { menuItemId: info.menuItemId, isOpenAll: isFastAnswersOpenAll });
-    const effectiveInput = finalRaw || finalNormalized;
+    let effectiveInput = finalRaw || finalNormalized;
     if (!effectiveInput) {
       chrome.tabs.sendMessage(tab.id, {
         action: 'showToast',
         message: '没有选中文本，无法生成速答内容'
       }).catch(() => {});
       return;
+    }
+    // 字数保护：按目标引擎截断 + toast 提示
+    if (typeof applyTextLimit === 'function') {
+      const limited = applyTextLimit(info.menuItemId, effectiveInput, { tabId: tab?.id });
+      effectiveInput = limited.text;
     }
     loadFastAnswersConfig().then((config) => {
       if (!config) {
@@ -350,7 +360,12 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         }).catch(() => {});
         return;
       }
-      const prompt = buildOptimizedPrompt(menuTarget.purpose, finalRaw || finalNormalized || '');
+      const baseInput = finalRaw || finalNormalized || '';
+      // 字数保护：按目标引擎截断 + toast 提示
+      const effectiveInput = (typeof applyTextLimit === 'function')
+        ? applyTextLimit(info.menuItemId, baseInput, { tabId: tab?.id }).text
+        : baseInput;
+      const prompt = buildOptimizedPrompt(menuTarget.purpose, effectiveInput);
       if (!prompt) {
         chrome.tabs.sendMessage(tab.id, {
           action: 'showToast',
@@ -359,7 +374,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         return;
       }
       const encodedPrompt = encodeURIComponent(prompt);
-      const url = menuTarget.urlPattern.split('${PROMPT}').join(encodedPrompt);
+      let url = menuTarget.urlPattern.split('${PROMPT}').join(encodedPrompt);
+      if (typeof enforceFinalUrlCap === 'function') url = enforceFinalUrlCap(url);
       chrome.tabs.create({ url });
     }).catch(() => {
       chrome.tabs.sendMessage(tab.id, {
@@ -374,7 +390,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   // URL 类型菜单优先走 URLBuilder（从 config 自动装载），命中则直接返回。
   // 未命中时继续走下方 switch-case 作为安全网（保留历史行为）。
   if (finalNormalized && typeof tryOpenMenuUrl === 'function') {
-    if (tryOpenMenuUrl(info.menuItemId, finalNormalized)) {
+    if (tryOpenMenuUrl(info.menuItemId, finalNormalized, { tabId: tab?.id })) {
       return;
     }
   }

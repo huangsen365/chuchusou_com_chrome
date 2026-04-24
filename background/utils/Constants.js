@@ -274,17 +274,28 @@ const BG_DBG = (...args) => { if (BG_DEBUG) console.log(...args); };
  *
  * @param {string} menuItemId 菜单 ID（如 'ccs-google'）
  * @param {string} rawKeyword 关键字（原始或规范化均可，未编码）
+ * @param {Object} [options]
+ * @param {number} [options.tabId] 用于 toast 提示的目标 tab（可选）
  * @returns {boolean} 是否已由 URLBuilder 打开
  */
-function tryOpenMenuUrl(menuItemId, rawKeyword) {
+function tryOpenMenuUrl(menuItemId, rawKeyword, options = {}) {
   if (!menuItemId || !rawKeyword) return false;
   try {
     const ub = (typeof MenuSystem !== 'undefined' && MenuSystem.getURLBuilder)
       ? MenuSystem.getURLBuilder()
       : null;
     if (!ub || !ub.has(menuItemId)) return false;
-    const url = ub.build(menuItemId, { raw: rawKeyword, normalized: rawKeyword });
+
+    // 字数保护：按目标引擎类型做截断 + 温馨提示
+    let effectiveKeyword = rawKeyword;
+    if (typeof applyTextLimit === 'function') {
+      const result = applyTextLimit(menuItemId, rawKeyword, { tabId: options.tabId });
+      effectiveKeyword = result.text;
+    }
+
+    let url = ub.build(menuItemId, { raw: effectiveKeyword, normalized: effectiveKeyword });
     if (!url) return false;
+    if (typeof enforceFinalUrlCap === 'function') url = enforceFinalUrlCap(url);
     chrome.tabs.create({ url });
     return true;
   } catch (err) {

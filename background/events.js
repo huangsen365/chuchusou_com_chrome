@@ -315,7 +315,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           return;
         }
 
-        const encodedKeyword = keyword ? encodeURIComponent(keyword) : '';
+        // 字数保护：按目标引擎截断用户原文 + toast 提示
+        let effectiveKeyword = keyword || '';
+        if (effectiveKeyword && typeof applyTextLimit === 'function' && menuItemId) {
+          const limited = applyTextLimit(menuItemId, effectiveKeyword, { tabId: sender?.tab?.id });
+          effectiveKeyword = limited.text;
+        }
+        const encodedKeyword = effectiveKeyword ? encodeURIComponent(effectiveKeyword) : '';
 
         // 根据menuType处理不同类型的菜单
         switch (menuType) {
@@ -572,7 +578,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
               // === SSoT 快速通道 ===
               // URLBuilder 命中则直接打开，跳过下方硬编码 switch（保留作安全网）
-              if (typeof tryOpenMenuUrl === 'function' && tryOpenMenuUrl(menuItemId, keyword)) {
+              if (typeof tryOpenMenuUrl === 'function' && tryOpenMenuUrl(menuItemId, keyword, { tabId: sender?.tab?.id })) {
                 sendResponse({ success: true });
                 return;
               }

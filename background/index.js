@@ -3,6 +3,7 @@ importScripts(
   // 常量和工具函数（最先加载）
   './utils/Constants.js',
   './utils/TextUtils.js',
+  './utils/TextLimits.js',
 
   // 日志系统
   './Logger.js',

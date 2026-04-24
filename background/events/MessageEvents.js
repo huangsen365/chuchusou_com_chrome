@@ -120,13 +120,20 @@ class MessageEventHandler {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const tabId = tab?.id;
+      this._lastTabId = tabId; // 供 _handleDefaultMenuAction 的 toast 使用
 
       if (!keyword && menuType !== 'action' && actionType !== 'show-popover') {
         sendResponse?.({ success: false, error: 'no-keyword' });
         return;
       }
 
-      const encodedKeyword = keyword ? encodeURIComponent(keyword) : '';
+      // 字数保护：将用户原文按目标引擎截断，同时通过 toast 提示
+      let effectiveKeyword = keyword || '';
+      if (effectiveKeyword && typeof applyTextLimit === 'function' && menuItemId) {
+        const limited = applyTextLimit(menuItemId, effectiveKeyword, { tabId });
+        effectiveKeyword = limited.text;
+      }
+      const encodedKeyword = effectiveKeyword ? encodeURIComponent(effectiveKeyword) : '';
 
       switch (menuType) {
         case 'search':
@@ -135,8 +142,9 @@ class MessageEventHandler {
         case 'ecommerce':
         case 'translate':
         case 'portal':
-          if (urlPattern && keyword) {
-            const url = urlPattern.replace('${KEYWORD}', encodedKeyword);
+          if (urlPattern && effectiveKeyword) {
+            let url = urlPattern.replace('${KEYWORD}', encodedKeyword);
+            if (typeof enforceFinalUrlCap === 'function') url = enforceFinalUrlCap(url);
             chrome.tabs.create({ url });
             sendResponse?.({ success: true });
           } else {
@@ -146,20 +154,21 @@ class MessageEventHandler {
 
         case 'tool':
         case 'transform':
+          // 工具类（复制/编码/大小写）传原始 keyword，不应截断
           await this._handleToolAction(tabId, tab, keyword, actionType, sendResponse);
           break;
 
         case 'fastqa':
         case 'fastqa-quick':
-          await this._handleFastQaAction(keyword, engineId, urlPattern, sendResponse);
+          await this._handleFastQaAction(effectiveKeyword, engineId, urlPattern, sendResponse);
           break;
 
         case 'top100':
-          await this._handleTop100Action(keyword, engineId, urlPattern, sendResponse);
+          await this._handleTop100Action(effectiveKeyword, engineId, urlPattern, sendResponse);
           break;
 
         case 'optimize':
-          await this._handleOptimizeAction(keyword, purpose, urlPattern, sendResponse);
+          await this._handleOptimizeAction(effectiveKeyword, purpose, urlPattern, sendResponse);
           break;
 
         case 'action':
@@ -386,6 +395,7 @@ class MessageEventHandler {
     }
 
     if (targetUrl) {
+      if (typeof enforceFinalUrlCap === 'function') targetUrl = enforceFinalUrlCap(targetUrl);
       chrome.tabs.create({ url: targetUrl });
       sendResponse?.({ success: true });
     } else {
@@ -436,6 +446,7 @@ class MessageEventHandler {
     }
 
     if (targetUrl) {
+      if (typeof enforceFinalUrlCap === 'function') targetUrl = enforceFinalUrlCap(targetUrl);
       chrome.tabs.create({ url: targetUrl });
       sendResponse?.({ success: true });
     } else {
@@ -479,6 +490,7 @@ class MessageEventHandler {
     }
 
     if (targetUrl) {
+      if (typeof enforceFinalUrlCap === 'function') targetUrl = enforceFinalUrlCap(targetUrl);
       chrome.tabs.create({ url: targetUrl });
       sendResponse?.({ success: true });
     } else {
@@ -501,7 +513,7 @@ class MessageEventHandler {
     })();
 
     // 优先走 URLBuilder 统一入口（SSoT：模板集中在 config/unifiedMenuConfig.json）
-    if (typeof tryOpenMenuUrl === 'function' && tryOpenMenuUrl(menuItemId, rawKeyword)) {
+    if (typeof tryOpenMenuUrl === 'function' && tryOpenMenuUrl(menuItemId, rawKeyword, { tabId: this._lastTabId })) {
       sendResponse?.({ success: true });
       return;
     }

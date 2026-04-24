@@ -290,6 +290,24 @@ Popup 菜单和右键菜单必须保持一致：
 3. `background/menuHandlers.js` / `background/events.js` switch-case 里加处理分支
 4. `config/unifiedMenuConfig.json` 登记（用于 popup/sidepanel 展示）
 
+### 字数保护（TextLimits）
+
+为防止用户选中过长文字导致 URL 超限（Google/Google AI 模式 ~2048 字符上限），
+`background/utils/TextLimits.js` 统一处理：
+
+- **软提示阈值**：选中原文 > 1500 字符触发 toast 温馨提示
+- **硬截断上限**（按 menuId 自动分档）
+  - Google AI 模式 (udm=50): 1200 字符
+  - AI 对话（ChatGPT/Claude/Grok/文心）: 6000 字符
+  - 普通搜索/电商/翻译: 1500 字符
+- **最终 URL 兜底**：构造后的 URL 若仍 > 1900 字符，强制截断
+
+挂钩点（均已接入，修改上限请改 `TextLimits.js` LIMITS 常量）：
+- `tryOpenMenuUrl()` - SSoT 快速通道
+- `handleExecuteMenuAction()` - popup/sidepanel 主路径
+- `menuHandlers.js` 的 top100 / fastqa / optimize 分支
+- `events.js` 的 executeMenuAction 老消息路径
+
 ### 调试
 
 - 开启调试：设置 → 调试日志：开
