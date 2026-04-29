@@ -1,5 +1,23 @@
 # 更新日志
 
+## v1.2.0 (2026-04-29)
+
+### ✨ 新功能
+
+- **封面生成器**：右键菜单 / Popup / 侧边栏三端同步出现"🎨 封面生成器"，首批两种风格（小红书封面、椰树牌风格）×ChatGPT Images 2.0；提示词集中在 `prompts/coverPrompts.json`，扩展新风格只需改一个文件。
+- **侧边栏置顶快捷动作**：侧边栏顶部固定可点击的快捷动作卡片，默认"封面生成器·小红书封面"；"✏️" 修改按钮展开 radio 切换风格，保存到 `chrome.storage.local` 跨会话持久化。
+
+### 🔧 改进
+
+- **速答模板两步流程**：第一步只出短篇（80 字以内带标题感）+ 中篇；末尾追加 A/B 两选项 —— A 续写长篇正文（无"长篇回答"字样、无追问），B 把短/中篇润色为更自然真实的表达（去掉"说真的""其实"等口头禅，"他"统一替换为"TA"）。
+- **Popup 入口文案对齐**：底部 "📌 面板" → "📑 打开侧边栏"，图标和文案更直白。
+
+### 🛠 技术改动
+
+- 新引擎 `chatgpt-images` 登记到 `config/engines.json` SSoT。
+- `AITaskRegistry` 注册 `cover` 任务，`KNOWN_ENGINE_IDS` 同步加 `chatgpt-images`，避免菜单点击解析静默失败。
+- 修复 `build.sh` 严重缺文件 bug —— 之前打出来的 zip 缺 `background/` / `sidepanel/` / `config/` / `prompts/` / `content/` / `modules/` / `dockbar.js`，装上 service worker 直接挂；新版按 manifest 实际引用的文件清单复制，输出到上一层目录。
+
 ## Unreleased
 
 ### 改进
