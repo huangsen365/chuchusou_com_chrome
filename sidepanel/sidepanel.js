@@ -86,6 +86,7 @@ class PinnedAction {
       this.renderer.showToast('该风格暂无可用引擎');
       return;
     }
+    await this.renderer.refresh();
     const keyword = this.renderer.keyword.raw || this.renderer.keyword.text;
     const menuItemId = `ccs-cover-${cat.id}-${engine.id}`;
     try {
@@ -250,7 +251,8 @@ class SidePanelRenderer {
         action: 'getSearchText',
         tabId: tabInfo.id,
         url: tabInfo.url,
-        title: tabInfo.title
+        title: tabInfo.title,
+        forceFresh: true
       }, (response) => {
         if (chrome.runtime.lastError) {
           resolve({ text: '', raw: '' });
@@ -346,6 +348,7 @@ class SidePanelRenderer {
   }
 
   async handleClick(item) {
+    await this.refresh();
     const keyword = this.keyword.raw || this.keyword.text;
 
     try {

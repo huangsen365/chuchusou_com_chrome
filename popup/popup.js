@@ -70,7 +70,8 @@ class PopupMenuRenderer {
           action: 'getSearchText',
           tabId: tabs[0].id,
           url: tabs[0].url,
-          title: tabs[0].title
+          title: tabs[0].title,
+          forceFresh: true
         }, (response) => {
           if (chrome.runtime.lastError) {
             resolve({ text: '', raw: '' });
