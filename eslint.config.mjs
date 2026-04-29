@@ -149,8 +149,28 @@ export default [
         loadEnginesConfig: "writable",
         getEngine: "writable",
         getEngineUrlPattern: "writable",
+        getEngineTitle: "writable",
         populateOptimizedMenuMap: "writable",
+        populateCoverMenuMap: "writable",
+        loadCoverPromptConfig: "writable",
+        buildCoverPrompt: "writable",
+        coverPromptTemplate: "writable",
+        coverPromptConfig: "writable",
+        COVER_CATEGORY_TITLES: "writable",
         loadMenuIconConfig: "writable",
+
+        // utils/TextLimits.js exports
+        applyTextLimit: "writable",
+        enforceFinalUrlCap: "writable",
+        TEXT_LIMITS_ENABLED: "readonly",
+
+        // utils/Constants.js exports (URLBuilder SSoT shortcut)
+        tryOpenMenuUrl: "writable",
+
+        // tasks/AITaskHandler.js + AITaskRegistry.js exports
+        AITaskRegistry: "writable",
+        runAITask: "writable",
+        runAITaskByMenuId: "writable",
 
         // base.js exports
         updateLatestTabTitle: "writable",
