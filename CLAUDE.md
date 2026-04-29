@@ -18,6 +18,7 @@
 - **字数保护总闸关闭**：`background/utils/TextLimits.js` 的 `TEXT_LIMITS_ENABLED = false`，两个主函数都 early return。所有截断/smartTruncate/toast/URL 硬上限代码保留作兜底，改一行即可恢复。
 - **Smart Post / Smart Reply 已彻底删除**：popup 和 sidepanel 里都不存在。
 - **老 switch-case fallback 要保留**：两处入口（`menuHandlers.js` / `events.js`）都在 SSoT 快速通道后加了 switch-case 作安全网，**不要擅自删**。
+- **发版必走 `/release` skill**：版本号 bump（manifest / package / package-lock 三处必须同步）、CHANGELOG / releases/vX.Y.Z.md、`./build.sh`、commit / tag / push 都已编排在 `.claude/skills/release/SKILL.md`。**不要凭记忆手动发版**——历史上 `package.json` 长期停留 1.0.0、CI 红 5 个 commit 才发现都是手动流程漏步骤导致。
 
 ## 核心架构
 
@@ -425,3 +426,24 @@ node scripts/analyze-errors.js
 # 语法检查所有 background 脚本
 for f in background/*.js background/**/*.js; do node --check "$f"; done
 ```
+
+## 发布流程
+
+**用 `/release` skill 走标准流程**（定义在 `.claude/skills/release/SKILL.md`）：
+
+1. 读 manifest.json + `git log <last_tag>..HEAD` 决策 semver 等级（patch/minor/major）
+2. 同步 bump 三处版本字段：`manifest.json` / `package.json` / `package-lock.json`（顶层 + `packages.""` 两处）
+3. CHANGELOG.md 顶部插新版块（修复 / 改进 / 技术改动）
+4. `releases/vX.Y.Z.md` 按 `releases/v1.2.0.md` 格式写发布说明
+5. `npm test` + JSON 合法性检查
+6. `./build.sh` 出 zip → 自动落到 `../chuchusou_chrome_extension_vX.Y.Z.zip`
+7. 验收 zip：文件数 / 大小 / 顶层目录齐全（曾出过漏复制 `background/` 等关键目录的事故）
+8. 本地装一下试 → commit → 打 tag → push（push 前必须问用户）
+
+**关键原则**：
+- 用户口头说"minor 版本/小版本" **多半是指 PATCH**，不要直接套 semver MINOR；先报你的判断给用户拍板
+- 三处 version 字段必须**同步** —— 历史上 `package.json` 长期停留在 `1.0.0`，与 `manifest.json` 严重脱节
+- v1.2.0 没打 tag → `git log v1.2.0..HEAD` 取不到差量；从今往后每个 release 都打 annotated tag
+- ZIP 上架后**只能发新版覆盖**，不能回滚 → 没本地装过的版本不要 push tag、不要上传商店
+
+skill 内部已经把每一步的命令、决策点、历史教训都列清楚了，**不要凭记忆手动发版**。
