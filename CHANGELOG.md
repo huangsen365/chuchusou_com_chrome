@@ -1,5 +1,21 @@
 # 更新日志
 
+## v1.2.1 (2026-04-30)
+
+### 🐛 修复
+
+- **边栏关键字总是滞后/为空**：sidepanel 不能注入 content script，原本只能吃缓存和 URL/title 兜底，现在改为通过 `chrome.scripting.executeScript` 主动到 active tab 拉 `window.getSelection()`，和右键菜单走同一条路径。Popup 同样开启 `forceFresh`。
+- **点击边栏菜单项时 keyword 仍可能是旧值**：`handleClick` 和 `pinned.execute()` 在分发前 `await refresh()` 重新拉一次选区，避免开着边栏改选区后用旧 keyword。
+
+### 🔧 改进
+
+- **封面生成器提示词**：模板改为「内容 / 风格 / 注意」三段式（之前是 `--要使用XX` 命令式），ChatGPT Images 解析更稳。
+- **速答中篇回答补上排版要求**：与长篇对齐 ——「合理分段，段间空行，提升阅读体验」。
+
+### 🛠 技术改动
+
+- 修长期红的 CI lint：`eslint.config.mjs` 补登 v1.2.0 加进来但漏注册的 11 个 SW 全局（`getEngineTitle` / `runAITaskByMenuId` / `applyTextLimit` / `tryOpenMenuUrl` 等）。
+
 ## v1.2.0 (2026-04-29)
 
 ### ✨ 新功能
