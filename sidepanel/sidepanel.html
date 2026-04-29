@@ -15,6 +15,28 @@
     <span class="sp-keyword" id="spKeyword"></span>
   </header>
 
+  <!-- 置顶快捷动作（默认：封面生成器 · 小红书封面） -->
+  <section class="sp-pin" id="spPin" hidden>
+    <button class="sp-pin-action" id="spPinAction" type="button">
+      <span class="sp-pin-icon" id="spPinIcon">📌</span>
+      <span class="sp-pin-text">
+        <span class="sp-pin-task" id="spPinTask">封面生成器</span>
+        <span class="sp-pin-style" id="spPinStyle"></span>
+      </span>
+    </button>
+    <button class="sp-pin-edit" id="spPinEdit" type="button" title="修改置顶风格" aria-label="修改置顶风格">✏️</button>
+  </section>
+
+  <!-- 置顶选择器（默认隐藏，点编辑按钮展开） -->
+  <div class="sp-pin-picker" id="spPinPicker" hidden>
+    <h3 class="sp-pin-picker-title">选择置顶风格</h3>
+    <div class="sp-pin-options" id="spPinOptions"></div>
+    <div class="sp-pin-picker-actions">
+      <button class="sp-pin-cancel" id="spPinCancel" type="button">取消</button>
+      <button class="sp-pin-save" id="spPinSave" type="button">保存</button>
+    </div>
+  </div>
+
   <!-- Flat first-level menu items -->
   <div class="sp-menu" id="spMenu">
     <div class="sp-loading">加载中...</div>
