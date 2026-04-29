@@ -1079,6 +1079,41 @@ async function getPopupMenuStructure() {
     }
   }
 
+  // 5.4 封面生成器（扁平：风格直接做叶子，跳过引擎子菜单——单引擎场景下省 1 次点击）
+  if (isMenuEnabled('ccs-cover-root')) {
+    const coverConfig = await loadCoverPromptConfig();
+    const coverChildren = [];
+
+    if (coverConfig && coverConfig.categories) {
+      for (const category of coverConfig.categories) {
+        const engine = (category.engines || [])[0];
+        if (!engine) continue;
+        const leafId = `ccs-cover-${category.id}-${engine.id}`;
+        if (!isMenuEnabled(leafId)) continue;
+        coverChildren.push({
+          id: leafId,
+          title: COVER_CATEGORY_TITLES[category.id] || category.label,
+          icon: '',
+          type: 'cover',
+          categoryId: category.id,
+          engineId: engine.id,
+          purpose: category.purpose || category.label,
+          urlPattern: engine.urlPattern
+        });
+      }
+    }
+
+    if (coverChildren.length > 0) {
+      advancedItems.push({
+        id: 'ccs-cover-root',
+        title: getMenuText('ccs-cover-root'),
+        icon: MENU_DEFINITIONS['ccs-cover-root']?.icon || '🎨',
+        type: 'submenu',
+        children: coverChildren
+      });
+    }
+  }
+
   if (advancedItems.length > 0) {
     structure.groups.push({
       id: 'advanced',

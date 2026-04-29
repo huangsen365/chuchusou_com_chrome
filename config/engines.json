@@ -42,6 +42,14 @@
       "urlPattern": "https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${PROMPT}",
       "searchUrlPattern": "https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${KEYWORD}",
       "description": "Google AI Mode（搜索形态，长 prompt 可能被截断）"
+    },
+    "chatgpt-images": {
+      "id": "chatgpt-images",
+      "label": "ChatGPT Images 2.0",
+      "icon": "🎨",
+      "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}",
+      "searchUrlPattern": "https://chatgpt.com/?prompt=${KEYWORD}",
+      "description": "OpenAI ChatGPT Images 2.0（封面/图像生成）"
     }
   },
 

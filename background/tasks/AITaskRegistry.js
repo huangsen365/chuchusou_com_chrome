@@ -68,6 +68,19 @@ const TASK_DEFINITIONS = {
     showOpenAll: true,                // 给 optimize 也加上（每个 category 级 open-all）
     categoryVariable: 'purpose',      // category 会注入到 prompt 的 ${purpose}
     categoryTitlesKey: 'OPTIMIZE_CATEGORY_TITLES'
+  },
+  cover: {
+    id: 'cover',
+    label: '封面生成器',
+    icon: '🎨',
+    menuRootId: 'ccs-cover-root',
+    menuIdPrefix: 'ccs-cover',
+    promptsFile: 'prompts/coverPrompts.json',
+    templateVariable: 'input',
+    hasCategories: true,             // 二维：category(风格) × engine
+    showOpenAll: false,               // 单引擎，"打开以下全部"无意义
+    categoryVariable: 'purpose',      // 风格指令注入到 prompt 的 ${purpose}
+    categoryTitlesKey: 'COVER_CATEGORY_TITLES'
   }
 };
 
@@ -254,7 +267,7 @@ function resolveMenuId(menuId) {
       // 简化：找最后一段作 engineId，前面作 categoryId
       // 但 categoryId 本身可能带连字符，如 "deep-research"
       // 约定：engineId 必须是已知引擎（chatgpt/claude/grok/yiyan/google-ai）
-      const KNOWN_ENGINE_IDS = ['chatgpt', 'claude', 'grok', 'yiyan', 'google-ai'];
+      const KNOWN_ENGINE_IDS = ['chatgpt-images', 'chatgpt', 'claude', 'grok', 'yiyan', 'google-ai'];
       for (const eid of KNOWN_ENGINE_IDS) {
         if (rest === eid) {
           // 未带 category，不是合法叶子

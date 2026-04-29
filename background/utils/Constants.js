@@ -55,6 +55,9 @@ const MENU_DEFINITIONS = {
   'ccs-fastqa-open-all': { text: '打开以下全部', icon: '🚀' },
   'ccs-optimize-root': { text: '优化提示词', icon: '🧠' },
   'ccs-optimize-open-all': { text: '打开以下全部', icon: '🚀' },
+  'ccs-cover-root': { text: '封面生成器', icon: '🎨' },
+  'ccs-cover-xiaohongshu-chatgpt-images': { text: '小红书封面', icon: '🔴' },
+  'ccs-cover-coconut-chatgpt-images': { text: '椰树牌风格', icon: '🥥' },
   'ccs-copy': { text: '复制文本', icon: '📋' },
   'ccs-base64': { text: 'Base64 编码', icon: '🔤' },
   'ccs-md5': { text: 'MD5 哈希', icon: '🔐' },
@@ -127,6 +130,14 @@ const OPTIMIZE_CATEGORY_TITLES = {
   'problem-solving': '🧩 问题解答',
   'brainstorm': '💡 头脑风暴',
   'description-polish': '✨ 优化描述'
+};
+
+/**
+ * 封面生成器 - 风格标题
+ */
+const COVER_CATEGORY_TITLES = {
+  'xiaohongshu': '🔴 小红书封面',
+  'coconut':     '🥥 椰树牌风格'
 };
 
 /**
@@ -336,6 +347,10 @@ let optimizedPromptConfig = null;
 let optimizedPromptTemplate = '';
 let optimizedPromptMenuMap = new Map();
 
+let coverPromptConfig = null;
+let coverPromptTemplate = '';
+let coverPromptMenuMap = new Map();
+
 let topQuestionsConfig = null;
 let topQuestionsTemplate = '';
 let topQuestionsMenuMap = new Map();
@@ -355,6 +370,7 @@ globalThis.QUICK_RESULT_HOSTS = QUICK_RESULT_HOSTS;
 globalThis.MENU_DEFINITIONS = MENU_DEFINITIONS;
 globalThis.FAST_QA_QUICK_ITEMS = FAST_QA_QUICK_ITEMS;
 globalThis.OPTIMIZE_CATEGORY_TITLES = OPTIMIZE_CATEGORY_TITLES;
+globalThis.COVER_CATEGORY_TITLES = COVER_CATEGORY_TITLES;
 globalThis.DYNAMIC_SEARCH_MENU_ITEMS = DYNAMIC_SEARCH_MENU_ITEMS;
 globalThis.FAST_QA_MENU_ITEMS = FAST_QA_MENU_ITEMS;
 globalThis.MENU_TITLE_MAX_LENGTH = MENU_TITLE_MAX_LENGTH;
@@ -398,6 +414,9 @@ globalThis.currentMenuState = currentMenuState;
 globalThis.optimizedPromptConfig = optimizedPromptConfig;
 globalThis.optimizedPromptTemplate = optimizedPromptTemplate;
 globalThis.optimizedPromptMenuMap = optimizedPromptMenuMap;
+globalThis.coverPromptConfig = coverPromptConfig;
+globalThis.coverPromptTemplate = coverPromptTemplate;
+globalThis.coverPromptMenuMap = coverPromptMenuMap;
 globalThis.topQuestionsConfig = topQuestionsConfig;
 globalThis.topQuestionsTemplate = topQuestionsTemplate;
 globalThis.topQuestionsMenuMap = topQuestionsMenuMap;

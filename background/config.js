@@ -20,6 +20,28 @@ async function loadOptimizedPromptConfig() {
   }
 }
 
+async function loadCoverPromptConfig() {
+  if (globalThis.coverPromptConfig) return globalThis.coverPromptConfig;
+  try {
+    const url = chrome.runtime.getURL('prompts/coverPrompts.json');
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to load cover prompt config: ${response.status}`);
+    }
+    const config = await response.json();
+    globalThis.coverPromptConfig = config;
+    globalThis.coverPromptTemplate = Array.isArray(config.templateLines)
+      ? config.templateLines.join('\n')
+      : (config.template || '');
+    return globalThis.coverPromptConfig;
+  } catch (error) {
+    console.error('[触触搜][BG] Failed to load cover prompt config:', error);
+    globalThis.coverPromptConfig = null;
+    globalThis.coverPromptTemplate = '';
+    return null;
+  }
+}
+
 async function loadTopQuestionsConfig() {
   if (globalThis.topQuestionsConfig) return globalThis.topQuestionsConfig;
   try {
@@ -69,6 +91,15 @@ function buildOptimizedPrompt(purpose, inputText) {
   const safePurpose = purpose || '';
   const safeInput = inputText || '';
   return globalThis.optimizedPromptTemplate
+    .split('${purpose}').join(safePurpose)
+    .split('${input}').join(safeInput);
+}
+
+function buildCoverPrompt(purpose, inputText) {
+  if (!globalThis.coverPromptTemplate) return null;
+  const safePurpose = purpose || '';
+  const safeInput = inputText || '';
+  return globalThis.coverPromptTemplate
     .split('${purpose}').join(safePurpose)
     .split('${input}').join(safeInput);
 }
@@ -225,6 +256,27 @@ function populateOptimizedMenuMap(config) {
   });
 }
 
+function populateCoverMenuMap(config) {
+  if (!globalThis.coverPromptMenuMap || !(globalThis.coverPromptMenuMap instanceof Map)) {
+    globalThis.coverPromptMenuMap = new Map();
+  }
+  globalThis.coverPromptMenuMap.clear();
+  if (!config || !Array.isArray(config.categories)) return;
+  config.categories.forEach((category) => {
+    const categoryId = category.id;
+    if (!categoryId) return;
+    (category.engines || []).forEach((engine) => {
+      if (!engine || !engine.id) return;
+      const menuId = `ccs-cover-${categoryId}-${engine.id}`;
+      if (!isMenuEnabled(menuId)) return;
+      globalThis.coverPromptMenuMap.set(menuId, {
+        purpose: category.purpose || category.label || '',
+        urlPattern: engine.urlPattern || ''
+      });
+    });
+  });
+}
+
 // ==================== 菜单图标配置（存根） ====================
 
 /**
@@ -240,9 +292,11 @@ async function loadMenuIconConfig() {
 // ==================== 导出到全局 ====================
 
 globalThis.loadOptimizedPromptConfig = loadOptimizedPromptConfig;
+globalThis.loadCoverPromptConfig = loadCoverPromptConfig;
 globalThis.loadTopQuestionsConfig = loadTopQuestionsConfig;
 globalThis.loadFastAnswersConfig = loadFastAnswersConfig;
 globalThis.buildOptimizedPrompt = buildOptimizedPrompt;
+globalThis.buildCoverPrompt = buildCoverPrompt;
 globalThis.buildTopQuestionsPrompt = buildTopQuestionsPrompt;
 globalThis.buildFastAnswersPrompt = buildFastAnswersPrompt;
 globalThis.loadUnifiedMenuConfig = loadUnifiedMenuConfig;
@@ -253,5 +307,6 @@ globalThis.getEngine = getEngine;
 globalThis.getEngineTitle = getEngineTitle;
 globalThis.getEngineUrlPattern = getEngineUrlPattern;
 globalThis.populateOptimizedMenuMap = populateOptimizedMenuMap;
+globalThis.populateCoverMenuMap = populateCoverMenuMap;
 globalThis.loadMenuIconConfig = loadMenuIconConfig;
 

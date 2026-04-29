@@ -326,6 +326,15 @@
           "contexts": ["selection", "page"],
           "enabled": true,
           "children": []
+        },
+        {
+          "id": "ccs-cover-root",
+          "type": "submenu",
+          "title": "封面生成器",
+          "icon": "🎨",
+          "contexts": ["selection", "page"],
+          "enabled": true,
+          "children": []
         }
       ]
     },

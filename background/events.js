@@ -324,14 +324,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const encodedKeyword = effectiveKeyword ? encodeURIComponent(effectiveKeyword) : '';
 
         // === SSoT: AI 任务统一快速通道 ===
-        // 速答/百问/优化都走 runAITask；命中即返回，否则回落老 case。
-        if (['fastqa','fastqa-quick','top100','optimize'].includes(menuType) &&
+        // 速答/百问/优化/封面生成器都走 runAITask；命中即返回，否则回落老 case。
+        if (['fastqa','fastqa-quick','top100','optimize','cover'].includes(menuType) &&
             typeof runAITask === 'function' && effectiveKeyword) {
           const taskId = (menuType === 'optimize') ? 'optimize'
+            : (menuType === 'cover') ? 'cover'
             : (menuType === 'top100') ? 'top100' : 'fastqa';
           let categoryId;
           let eid = engineId;
-          if (taskId === 'optimize' && menuItemId && typeof AITaskRegistry !== 'undefined') {
+          if ((taskId === 'optimize' || taskId === 'cover') && menuItemId && typeof AITaskRegistry !== 'undefined') {
             const parsed = AITaskRegistry.resolveMenuId(menuItemId);
             if (parsed) { categoryId = parsed.categoryId; eid = parsed.engineId || eid; }
           }
@@ -489,6 +490,41 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               // 从 request 获取 purpose（优化类别）
               const purpose = request.purpose || '';
               const prompt = buildOptimizedPrompt(purpose, keyword);
+              if (!prompt) {
+                sendResponse({ success: false, error: 'template-invalid' });
+                return;
+              }
+              const encodedPrompt = encodeURIComponent(prompt);
+              let targetUrl = null;
+              if (urlPattern) {
+                targetUrl = urlPattern.replace('${PROMPT}', encodedPrompt);
+              }
+              if (targetUrl) {
+                chrome.tabs.create({ url: targetUrl });
+                sendResponse({ success: true });
+              } else {
+                sendResponse({ success: false, error: 'no-engine-url' });
+              }
+            } else {
+              sendResponse({ success: false, error: 'no-keyword' });
+            }
+            return;
+
+          case 'cover':
+            if (keyword) {
+              const config = await loadCoverPromptConfig();
+              if (!config) {
+                sendResponse({ success: false, error: 'config-load-failed' });
+                return;
+              }
+              if (!coverPromptTemplate) {
+                coverPromptTemplate = Array.isArray(config.templateLines)
+                  ? config.templateLines.join('\n')
+                  : (config.template || '');
+              }
+              // 从 request 获取 purpose（封面风格）
+              const purpose = request.purpose || '';
+              const prompt = buildCoverPrompt(purpose, keyword);
               if (!prompt) {
                 sendResponse({ success: false, error: 'template-invalid' });
                 return;

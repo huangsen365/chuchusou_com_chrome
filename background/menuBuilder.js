@@ -346,6 +346,33 @@ async function populateOptimizedMenus({ buildId }) {
   }
 }
 
+async function populateCoverMenus({ buildId }) {
+  try {
+    const config = await loadCoverPromptConfig();
+    if (!config || isStaleBuild(buildId)) return;
+    populateCoverMenuMap(config);
+    for (const category of config.categories || []) {
+      const engine = (category.engines || [])[0];
+      if (!engine) continue;
+      const leafId = `ccs-cover-${category.id}-${engine.id}`;
+      if (!isMenuEnabled(leafId)) continue;
+      if (isStaleBuild(buildId)) return;
+      const leafTitle = COVER_CATEGORY_TITLES[category.id] || category.label;
+      await createMenuItem({
+        id: leafId,
+        parentId: 'ccs-cover-root',
+        title: leafTitle,
+        contexts: MENU_CONTEXTS_DEFAULT
+      }, {
+        failureLogStage: 'cover-leaf-create-failed'
+      });
+      BG_DBG('[触触搜][BG][MENU] cover leaf created', { leafId });
+    }
+  } catch (error) {
+    console.warn('[触触搜][BG] 无法构建封面生成器菜单:', error);
+  }
+}
+
 async function createContextMenus() {
   if (menuBuildInProgress) {
     menuBuildPending = true;
@@ -389,9 +416,10 @@ async function createContextMenus() {
     const fastQaRootEnabled = isMenuEnabled('ccs-fastqa-root');
     const fastQaOpenAllEnabled = fastQaRootEnabled && isMenuEnabled('ccs-fastqa-open-all');
     const optimizeRootEnabled = isMenuEnabled('ccs-optimize-root');
+    const coverRootEnabled = isMenuEnabled('ccs-cover-root');
     const quickItems = FAST_QA_QUICK_ITEMS;
     const quickEnabledMap = new Map(quickItems.map((item) => [item.id, isMenuEnabled(item.id)]));
-    const hasAdvancedSections = top100RootEnabled || fastQaRootEnabled || optimizeRootEnabled;
+    const hasAdvancedSections = top100RootEnabled || fastQaRootEnabled || optimizeRootEnabled || coverRootEnabled;
     const needsFastAnswersConfig = fastQaRootEnabled || quickItems.some((item) => quickEnabledMap.get(item.id));
 
     logMenuEvent('toggle-status', {
@@ -655,6 +683,19 @@ async function createContextMenus() {
       // BUGFIX: Changed to synchronous to ensure optimizeCategoryLabelIds is populated
       // before createContextMenus() completes, preventing race condition
       await populateOptimizedMenus({ buildId });
+    }
+
+    if (coverRootEnabled) {
+      await createMenuItem({
+        id: 'ccs-cover-root',
+        parentId: 'ccs-main',
+        title: getMenuTitle('ccs-cover-root'),
+        contexts: MENU_CONTEXTS_DEFAULT
+      }, {
+        failureLogStage: 'cover-root-create-failed'
+      });
+
+      await populateCoverMenus({ buildId });
     }
 
     // Check if tool group has any enabled items
