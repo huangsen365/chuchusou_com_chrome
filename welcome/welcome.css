@@ -4,6 +4,15 @@
   box-sizing: border-box;
 }
 
+/* 锚点跳转走平滑滚动；目标位置上方留点视觉余量 */
+html {
+  scroll-behavior: smooth;
+}
+
+#cover-warning {
+  scroll-margin-top: 24px;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background: linear-gradient(135deg, #f0f9ff 0%, #fef3c7 100%);
@@ -39,6 +48,65 @@ body {
   font-size: 24px;
   font-weight: 600;
   letter-spacing: 0.5px;
+}
+
+/* ============ Top marquee（封面生成器提示，可点跳锚点）============ */
+.top-marquee {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border-bottom: 1px solid #f59e0b66;
+  text-decoration: none;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background 0.2s;
+}
+
+.top-marquee:hover {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+}
+
+.top-marquee-icon {
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+.top-marquee-viewport {
+  flex: 1;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.top-marquee-text {
+  display: inline-block;
+  white-space: nowrap;
+  padding-left: 100%;
+  animation: top-marquee-scroll 20s linear infinite;
+}
+
+@keyframes top-marquee-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+
+/* 鼠标悬停时暂停，方便用户读完再点 */
+.top-marquee:hover .top-marquee-text {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .top-marquee-text {
+    animation: none;
+    padding-left: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+  }
 }
 
 /* ============ Main ============ */
@@ -195,6 +263,110 @@ body {
 .feature-icon {
   font-size: 16px;
   flex-shrink: 0;
+}
+
+/* ============ Warning card（封面生成器提示）============ */
+.warning-card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border: 1px solid #f59e0b66;
+  border-radius: 12px;
+  padding: 18px 20px;
+  animation: warning-glow 2.6s ease-in-out infinite;
+}
+
+/* 斜向闪光带，每 ~4 秒从左到右扫一次 */
+.warning-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 100%
+  );
+  transform: skewX(-15deg);
+  pointer-events: none;
+  animation: warning-shimmer 4s ease-in-out infinite;
+}
+
+@keyframes warning-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.15);
+  }
+}
+
+@keyframes warning-shimmer {
+  0%   { left: -75%; }
+  60%  { left: 175%; }
+  100% { left: 175%; }
+}
+
+/* 系统级关闭动效时尊重用户 */
+@media (prefers-reduced-motion: reduce) {
+  .warning-card { animation: none; }
+  .warning-card::after { display: none; }
+}
+
+.warning-headline {
+  font-size: 15px;
+  font-weight: 600;
+  color: #92400e;
+  line-height: 1.55;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #f59e0b33;
+}
+
+.warning-body-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 10px;
+}
+
+.warning-list {
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.65;
+  padding-left: 22px;
+  margin-bottom: 14px;
+}
+
+.warning-list > li {
+  margin-bottom: 8px;
+}
+
+.warning-list > li:last-child {
+  margin-bottom: 0;
+}
+
+.warning-list ul {
+  list-style: disc;
+  margin-top: 4px;
+  padding-left: 20px;
+  color: #4b5563;
+}
+
+.warning-list ul li {
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.warning-shortcuts {
+  font-size: 13px;
+  color: #6b7280;
+  border-top: 1px dashed #f59e0b40;
+  padding-top: 10px;
+  margin-top: 4px;
 }
 
 /* ============ Video card ============ */
