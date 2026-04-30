@@ -166,6 +166,7 @@ class SidePanelRenderer {
   }
 
   async init() {
+    this.setupAlivePort();
     try {
       const [config, tabInfo] = await Promise.all([
         this.loadMenuConfig(),
@@ -207,6 +208,28 @@ class SidePanelRenderer {
       console.error('[触触搜] Side panel init failed:', error);
       document.getElementById('spMenu').innerHTML =
         '<div class="sp-empty">加载失败，请重试</div>';
+    }
+  }
+
+  // 通过 port 连接告诉 background 本侧边栏在哪个 window 活着，
+  // 同时监听 background 发来的关闭信号（popup 点「关闭」时触发）
+  // SW 重启 / 扩展重载会让 port 断开，自动重连保证状态不假报
+  async setupAlivePort() {
+    try {
+      const win = await chrome.windows.getCurrent();
+      const port = chrome.runtime.connect({ name: 'sidepanel-alive' });
+      port.postMessage({ windowId: win.id });
+      port.onMessage.addListener((msg) => {
+        if (msg && msg.action === 'close') {
+          try { window.close(); } catch (_) { /* 兜底 */ }
+        }
+      });
+      port.onDisconnect.addListener(() => {
+        // SW 重启或扩展重载导致断连，500ms 后重新建链
+        setTimeout(() => this.setupAlivePort(), 500);
+      });
+    } catch (e) {
+      console.warn('[触触搜] sidepanel alive port setup failed:', e);
     }
   }
 

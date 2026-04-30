@@ -216,6 +216,34 @@ function syncSelectionFromTab(tab, reason = 'unknown', options = {}) {
   });
 }
 
+// ========== 侧边栏存活追踪 ==========
+// 通过 port 连接判断每个 window 的侧边栏是否打开
+// 用于 popup 按钮显示「打开/关闭」相反状态 + 远程触发侧边栏自关闭
+const sidePanelPortsByWindow = new Map(); // Map<windowId, Set<port>>
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'sidepanel-alive') return;
+  let windowId = null;
+  port.onMessage.addListener((msg) => {
+    if (msg && typeof msg.windowId === 'number') {
+      windowId = msg.windowId;
+      if (!sidePanelPortsByWindow.has(windowId)) {
+        sidePanelPortsByWindow.set(windowId, new Set());
+      }
+      sidePanelPortsByWindow.get(windowId).add(port);
+    }
+  });
+  port.onDisconnect.addListener(() => {
+    if (windowId !== null) {
+      const set = sidePanelPortsByWindow.get(windowId);
+      if (set) {
+        set.delete(port);
+        if (set.size === 0) sidePanelPortsByWindow.delete(windowId);
+      }
+    }
+  });
+});
+
 // 监听来自content script和popup的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'ccs-log-menu-icons') {
@@ -235,6 +263,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse?.({ ok: false, error: err?.message || String(err) });
     });
     return true;
+  }
+  if (request.action === 'getSidePanelState') {
+    const windowId = request && typeof request.windowId === 'number' ? request.windowId : null;
+    const set = windowId !== null ? sidePanelPortsByWindow.get(windowId) : null;
+    const isOpen = !!(set && set.size > 0);
+    sendResponse?.({ isOpen });
+    return false;
+  }
+  if (request.action === 'closeSidePanel') {
+    const windowId = request && typeof request.windowId === 'number' ? request.windowId : null;
+    const set = windowId !== null ? sidePanelPortsByWindow.get(windowId) : null;
+    if (set) {
+      for (const port of set) {
+        try { port.postMessage({ action: 'close' }); } catch (_) { /* port 已断 */ }
+      }
+    }
+    sendResponse?.({ ok: !!(set && set.size > 0) });
+    return false;
   }
   if (request.action === 'getSearchText') {
     const { tabId, url, title, selectionText, forceFresh } = request;

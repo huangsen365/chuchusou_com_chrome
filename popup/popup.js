@@ -302,12 +302,59 @@ class PopupMenuRenderer {
     const backToMenu = document.getElementById('backToMenu');
     backToMenu.addEventListener('click', () => this.showMenu());
 
-    // 打开侧边面板
-    const openSidePanel = document.getElementById('openSidePanel');
-    if (openSidePanel) {
-      openSidePanel.addEventListener('click', () => {
-        this.openSidePanel();
+    // 侧边栏切换（按当前状态显示「打开/关闭」相反操作）
+    this.setupSidePanelButton();
+  }
+
+  async setupSidePanelButton() {
+    const btn = document.getElementById('openSidePanel');
+    if (!btn) return;
+
+    let isOpen = false;
+    let windowId = null;
+    try {
+      const win = await chrome.windows.getCurrent();
+      windowId = win.id;
+      const response = await new Promise((resolve) => {
+        chrome.runtime.sendMessage(
+          { action: 'getSidePanelState', windowId },
+          (resp) => {
+            if (chrome.runtime.lastError) resolve(null);
+            else resolve(resp);
+          }
+        );
       });
+      isOpen = !!(response && response.isOpen);
+    } catch (_) {
+      isOpen = false;
+    }
+
+    btn.textContent = isOpen ? '📕 关闭侧边栏' : '📑 打开侧边栏';
+
+    btn.addEventListener('click', async () => {
+      if (isOpen) {
+        await this.closeSidePanel(windowId);
+      } else {
+        await this.openSidePanel();
+      }
+    });
+  }
+
+  async closeSidePanel(windowId) {
+    try {
+      await new Promise((resolve) => {
+        chrome.runtime.sendMessage(
+          { action: 'closeSidePanel', windowId },
+          (resp) => {
+            if (chrome.runtime.lastError) resolve(null);
+            else resolve(resp);
+          }
+        );
+      });
+      window.close();
+    } catch (error) {
+      console.error('[触触搜] Close side panel failed:', error);
+      this.showToast('关闭侧边栏失败');
     }
   }
 
