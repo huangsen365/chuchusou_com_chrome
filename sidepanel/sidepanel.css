@@ -63,10 +63,23 @@ body {
 .sp-pin {
   display: flex;
   align-items: stretch;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 10px 12px;
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
   border-bottom: 1px solid #f59e0b33;
+}
+
+.sp-pin-tip {
+  flex-basis: 100%;
+  margin: 2px 2px 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #92400e;
+}
+
+.sp-pin-tip-warn {
+  cursor: help;
 }
 
 .sp-pin-action {
