@@ -72,14 +72,109 @@ body {
 
 .sp-pin-tip {
   flex-basis: 100%;
-  margin: 2px 2px 0;
+  position: relative;
+  margin: 2px -4px 0;
+  padding: 2px 6px;
+  border-radius: 4px;
   font-size: 11px;
   line-height: 1.5;
   color: #92400e;
+  cursor: help;
+  transition: background 0.15s ease;
+}
+
+.sp-pin-tip:hover {
+  background: rgba(245, 158, 11, 0.10);
+}
+
+.sp-pin-tip-text {
+  text-decoration: underline dotted rgba(146, 64, 14, 0.5);
+  text-underline-offset: 2px;
 }
 
 .sp-pin-tip-warn {
   cursor: help;
+}
+
+.sp-pin-tip-popover {
+  display: block;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding-top: 6px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+}
+
+.sp-pin-tip:hover .sp-pin-tip-popover,
+.sp-pin-tip-warn:focus-visible .sp-pin-tip-popover {
+  opacity: 1;
+  visibility: visible;
+}
+
+.sp-pin-tip-popover-card {
+  display: block;
+  position: relative;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #f59e0b66;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  font-size: 13px;
+  line-height: 1.6;
+  color: #2c3e50;
+  text-align: left;
+  font-weight: normal;
+  cursor: default;
+}
+
+.sp-pin-tip-popover-card::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 11px;
+  width: 9px;
+  height: 9px;
+  background: #ffffff;
+  border-top: 1px solid #f59e0b66;
+  border-left: 1px solid #f59e0b66;
+  transform: rotate(45deg);
+}
+
+.sp-pin-tip-popover-title {
+  display: block;
+  font-weight: 600;
+  color: #92400e;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.sp-pin-tip-popover-item {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.sp-pin-tip-popover-item:last-of-type {
+  margin-bottom: 0;
+}
+
+.sp-pin-tip-popover-bullets {
+  display: block;
+  margin-top: 3px;
+  margin-left: 12px;
+  color: #4b5563;
+}
+
+.sp-pin-tip-popover-shortcuts {
+  display: block;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed #f59e0b40;
+  color: #6b7280;
+  font-size: 12px;
 }
 
 .sp-pin-action {
