@@ -1,5 +1,17 @@
 # 更新日志
 
+## v1.3.0 (2026-04-30)
+
+### ✨ 新功能
+
+- **AI 检测规避提示**：封面生成器入口新增 ⚠️ 顶部 banner，悬停 ⚠️ 弹出全宽说明卡——讲清楚直接下载的图片自带 C2PA 元数据指纹（小红书 / 抖音 / 视频号等可一键识别为 AI 内容）、被识别后的代价（限流、降权、强制水印）、以及为什么截图能绕过。同口径文案也注入到 ChatGPT prompt 末尾，让用户在对话流里也能看到——双保障。
+- **popup 按钮按状态切换显示「打开/关闭侧边栏」**：以前不管侧边栏开没开都显示「打开」，点了没反应。现在按实际状态切换文案与行为（`📑 打开侧边栏` ↔ `📕 关闭侧边栏`），多窗口独立追踪。
+
+### 🛠 技术改动
+
+- 绕过 Chrome MV3 没有 `sidePanel.isOpen()` / `close()` API 的限制：background 加 `sidePanelPortsByWindow` Map 按 windowId 追踪 port，sidepanel 启动时连 port 上报，关闭走 port 反向消息让 sidepanel 自调 `window.close()`。SW 重启 / 扩展重载时 sidepanel 端 500ms 自动重连，避免状态假报。
+- 新增 `docs/KNOWN_ISSUES.md`，归档 `chrome://contextual-tasks/`（Chrome 内嵌 AI Mode 的内部协议）关键字提取失败问题——hostname 是 `contextual-tasks` 不是 `google.`，需要补分支；content script 因 chrome:// 协议禁注入，鼠标选区无解（Chrome 平台层硬限制）。文档含修复草稿代码 + 验证清单。
+
 ## v1.2.1 (2026-04-30)
 
 ### 🐛 修复
