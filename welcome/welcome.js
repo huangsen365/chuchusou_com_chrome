@@ -1,4 +1,13 @@
 (function () {
+  // YouTube 缩略图加载失败时（如用户网络无法访问 img.youtube.com）
+  // 隐藏 broken image 占位，露出 CSS 的深色渐变背景 + 红色播放按钮
+  const videoThumb = document.getElementById('videoThumb');
+  if (videoThumb) {
+    videoThumb.addEventListener('error', () => {
+      videoThumb.style.display = 'none';
+    });
+  }
+
   const btn = document.getElementById('openSidePanelBtn');
   if (!btn) return;
 
