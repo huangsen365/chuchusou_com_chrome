@@ -1,4 +1,11 @@
 chrome.runtime.onInstalled.addListener(createContextMenus);
+
+// 首次安装时弹欢迎页（更新时不弹，避免老用户被打扰）
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === 'install') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('welcome/welcome.html') });
+  }
+});
 if (chrome.runtime.onStartup) {
   chrome.runtime.onStartup.addListener(createContextMenus);
 }
