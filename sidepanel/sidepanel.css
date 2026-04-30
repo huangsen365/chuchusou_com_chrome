@@ -78,10 +78,46 @@ body {
   color: #92400e;
   background: #fffbeb;
   border-bottom: 1px solid #fde68a;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .sp-pin-tip-warn {
   cursor: help;
+  flex-shrink: 0;
+}
+
+/* 横向滚动文字容器 —— ⚠️ 后的文案从右往左滚动吸引注意 */
+.sp-pin-tip-marquee {
+  flex: 1;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.sp-pin-tip-text {
+  display: inline-block;
+  white-space: nowrap;
+  padding-left: 100%;
+  animation: sp-tip-marquee 18s linear infinite;
+}
+
+@keyframes sp-tip-marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+
+/* 鼠标悬停整行时暂停滚动，方便用户读完 */
+.sp-pin-tip:hover .sp-pin-tip-text {
+  animation-play-state: paused;
+}
+
+/* 尊重系统级关闭动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .sp-pin-tip-text {
+    animation: none;
+    padding-left: 0;
+  }
 }
 
 .sp-pin-tip-popover {
