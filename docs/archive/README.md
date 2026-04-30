@@ -21,6 +21,7 @@
 - **HOTFIX_SERVICE_WORKER.md**（122 行）—— Service Worker 兼容性问题的热修复记录（importScripts / globalThis / 顶层作用域坑）
 - **DOCKBAR_MODULE.md**（79 行）—— Dockbar 模块说明
 - **POPUP_FOOTER_STICKY_SHORT_DISPLAY.md** —— popup footer 短屏固定问题修复记录：记录 fixed footer 方案与失败的 height-sync 路线
+- **MARQUEE_SCROLL_WINDOWS.md** —— Windows marquee 滚动问题修复记录：记录 RAF transform 方案与失败的 CSS marquee 路线
 
 ## 当前状态（2026-04）
 

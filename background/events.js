@@ -228,27 +228,80 @@ function syncSelectionFromTab(tab, reason = 'unknown', options = {}) {
 // 用于 popup 按钮显示「打开/关闭」相反状态 + 远程触发侧边栏自关闭
 const sidePanelPortsByWindow = new Map(); // Map<windowId, Set<port>>
 
+// 欢迎页订阅侧边栏开关状态——welcome 页停留时间长，需要 push 推送状态变化
+const welcomePortsByWindow = new Map(); // Map<windowId, Set<port>>
+
+function isSidePanelOpenInWindow(windowId) {
+  const set = sidePanelPortsByWindow.get(windowId);
+  return !!(set && set.size > 0);
+}
+
+function notifyWelcomeWatchers(windowId) {
+  const watchers = welcomePortsByWindow.get(windowId);
+  if (!watchers) return;
+  const isOpen = isSidePanelOpenInWindow(windowId);
+  for (const port of watchers) {
+    try { port.postMessage({ action: 'sidePanelStateChanged', isOpen }); } catch (_) { /* port 已断 */ }
+  }
+}
+
 chrome.runtime.onConnect.addListener((port) => {
-  if (port.name !== 'sidepanel-alive') return;
-  let windowId = null;
-  port.onMessage.addListener((msg) => {
-    if (msg && typeof msg.windowId === 'number') {
-      windowId = msg.windowId;
-      if (!sidePanelPortsByWindow.has(windowId)) {
-        sidePanelPortsByWindow.set(windowId, new Set());
+  // 侧边栏存活心跳——侧边栏页面打开就连，关闭就自动断
+  if (port.name === 'sidepanel-alive') {
+    let windowId = null;
+    port.onMessage.addListener((msg) => {
+      if (msg && typeof msg.windowId === 'number') {
+        windowId = msg.windowId;
+        if (!sidePanelPortsByWindow.has(windowId)) {
+          sidePanelPortsByWindow.set(windowId, new Set());
+        }
+        sidePanelPortsByWindow.get(windowId).add(port);
+        notifyWelcomeWatchers(windowId);   // 侧边栏开 → 通知 welcome 订阅者
       }
-      sidePanelPortsByWindow.get(windowId).add(port);
-    }
-  });
-  port.onDisconnect.addListener(() => {
-    if (windowId !== null) {
-      const set = sidePanelPortsByWindow.get(windowId);
-      if (set) {
-        set.delete(port);
-        if (set.size === 0) sidePanelPortsByWindow.delete(windowId);
+    });
+    port.onDisconnect.addListener(() => {
+      if (windowId !== null) {
+        const set = sidePanelPortsByWindow.get(windowId);
+        if (set) {
+          set.delete(port);
+          if (set.size === 0) sidePanelPortsByWindow.delete(windowId);
+        }
+        notifyWelcomeWatchers(windowId);   // 侧边栏关 → 通知 welcome 订阅者
       }
-    }
-  });
+    });
+    return;
+  }
+
+  // 欢迎页订阅侧边栏状态——一连上立即推送当前状态，之后实时更新
+  if (port.name === 'welcome-watcher') {
+    let windowId = null;
+    port.onMessage.addListener((msg) => {
+      if (msg && typeof msg.windowId === 'number') {
+        windowId = msg.windowId;
+        if (!welcomePortsByWindow.has(windowId)) {
+          welcomePortsByWindow.set(windowId, new Set());
+        }
+        welcomePortsByWindow.get(windowId).add(port);
+        // 立即把当前状态推过去，避免 welcome 页等下一次状态变化才知道
+        try {
+          port.postMessage({
+            action: 'sidePanelStateChanged',
+            isOpen: isSidePanelOpenInWindow(windowId)
+          });
+        } catch (_) { /* port 已断 */ }
+      }
+    });
+    port.onDisconnect.addListener(() => {
+      if (windowId !== null) {
+        const set = welcomePortsByWindow.get(windowId);
+        if (set) {
+          set.delete(port);
+          if (set.size === 0) welcomePortsByWindow.delete(windowId);
+        }
+      }
+    });
+    return;
+  }
 });
 
 // 监听来自content script和popup的消息

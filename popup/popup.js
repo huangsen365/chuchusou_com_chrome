@@ -493,6 +493,10 @@ class PopupMenuRenderer {
       case 'prompt-library':
         this.togglePromptLibrarySection();
         break;
+      case 'open-welcome':
+        chrome.tabs.create({ url: chrome.runtime.getURL('welcome/welcome.html') });
+        window.close();
+        break;
     }
   }
 

@@ -93,28 +93,8 @@ body {
 .top-marquee-text {
   display: inline-block;
   white-space: nowrap;
-  padding-left: 100%;
-  animation: top-marquee-scroll 20s linear infinite;
-}
-
-@keyframes top-marquee-scroll {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(-100%); }
-}
-
-/* 鼠标悬停时暂停，方便用户读完再点 */
-.top-marquee:hover .top-marquee-text {
-  animation-play-state: paused;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .top-marquee-text {
-    animation: none;
-    padding-left: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    width: 100%;
-  }
+  transform: translateX(100%);
+  will-change: transform;
 }
 
 /* ============ Main ============ */

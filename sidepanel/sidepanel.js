@@ -6,6 +6,54 @@
 const PIN_STORAGE_KEY = 'ccs_sidepanel_pinned_action';
 const DEFAULT_PIN = { taskId: 'cover', categoryId: 'xiaohongshu' };
 
+// Use JS transforms instead of CSS marquee; Windows can disable/freeze CSS animation here.
+function setupMarquee(viewportSelector, textSelector, options = {}) {
+  const viewport = document.querySelector(viewportSelector);
+  const text = document.querySelector(textSelector);
+  if (!viewport || !text) return;
+
+  const speed = options.speed || 42;
+  let viewportWidth = 0;
+  let textWidth = 0;
+  let distance = 1;
+  let offset = 0;
+  let lastTime = performance.now();
+
+  text.style.animation = 'none';
+  text.style.paddingLeft = '0';
+
+  const measure = () => {
+    viewportWidth = Math.ceil(viewport.getBoundingClientRect().width);
+    textWidth = Math.ceil(text.scrollWidth || text.getBoundingClientRect().width);
+    distance = Math.max(1, viewportWidth + textWidth);
+    offset %= distance;
+  };
+
+  const tick = (now) => {
+    if (viewportWidth <= 0 || textWidth <= 0) {
+      measure();
+    }
+
+    const delta = Math.min(now - lastTime, 100);
+    offset = (offset + delta * speed / 1000) % distance;
+
+    lastTime = now;
+    text.style.transform = `translateX(${Math.round(viewportWidth - offset)}px)`;
+    requestAnimationFrame(tick);
+  };
+
+  measure();
+  if (typeof ResizeObserver !== 'undefined') {
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewport);
+    viewport._ccsMarqueeState = { observer };
+  } else {
+    window.addEventListener('resize', measure);
+  }
+  window.addEventListener('load', measure, { once: true });
+  requestAnimationFrame(tick);
+}
+
 class PinnedAction {
   constructor(renderer) {
     this.renderer = renderer;
@@ -477,6 +525,7 @@ class SidePanelRenderer {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  setupMarquee('.sp-pin-tip-marquee', '.sp-pin-tip-text', { speed: 42 });
   const renderer = new SidePanelRenderer();
   renderer.init();
 });
