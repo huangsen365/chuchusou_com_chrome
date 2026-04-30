@@ -31,6 +31,32 @@ function safeDecodeParam(value) {
   }
 }
 
+// 已知 hostname 分支都没命中时的启发式兜底：按"哪个 param 最像关键字"打分挑选
+// 命中常见 key 名 / 长度合理 / 含中文 = 加分；像 URL 或 UUID/hash = 直接毙
+const COMMON_QUERY_KEYS = ['q', 'query', 'search', 's', 'kw', 'keyword', 'wd', 'word', 'p', 'text', 'k', 'searchword'];
+const PARAM_BLACKLIST = /^(utm_|ref|fbclid|gclid|tbm|hl|source|sourceid|ie|oe|biw|bih|sa|ved|ei|sclient|cs|aep|atvm|chrome_task)/i;
+
+function heuristicExtractFromParams(searchParams) {
+  const candidates = [];
+  for (const [key, value] of searchParams) {
+    if (!value || value.length < 2 || value.length > 500) continue;
+    if (PARAM_BLACKLIST.test(key)) continue;
+
+    let score = 0;
+    if (COMMON_QUERY_KEYS.includes(key.toLowerCase())) score += 10;
+    score += Math.min(value.length / 10, 5);
+    if (/[一-龥]/.test(value)) score += 3;
+    if (/^https?:\/\//.test(value)) score -= 100;
+    if (/^[0-9a-f-]{20,}$/i.test(value)) score -= 100;
+    if (/^\d+$/.test(value)) score -= 5;       // 纯数字（id/year/page 等）大概率不是关键字
+
+    if (score > 0) candidates.push({ key, value, score });
+  }
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0];
+}
+
 async function extractSearchKeywords(url, tab) {
   try {
     const urlObj = new URL(url);
@@ -231,7 +257,15 @@ async function extractSearchKeywords(url, tab) {
         return kw;
       }
     }
-    
+
+    // 启发式兜底：未硬编码的站，按 param 打分挑最像关键字的
+    const heuristic = heuristicExtractFromParams(searchParams);
+    if (heuristic) {
+      const kw = safeDecodeParam(heuristic.value);
+      BG_DBG('[触触搜][BG][DEBUG] matched heuristic:', { hostname, key: heuristic.key, score: heuristic.score, kw });
+      return kw;
+    }
+
     // 如果都没有匹配，尝试获取页面标题作为关键词
     if (tab && tab.title) {
       let title = tab.title;
