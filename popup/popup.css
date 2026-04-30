@@ -6,6 +6,9 @@
 :root {
   --ccs-separator-color: #e8ecf0;
   --ccs-separator-margin: 4px 14px;
+  --ccs-popup-width: 280px;
+  --ccs-popup-max-height: 600px;
+  --ccs-popup-footer-height: 56px;
 }
 
 * {
@@ -15,19 +18,20 @@
 }
 
 body {
-  width: 280px;
+  width: var(--ccs-popup-width);
   min-height: 100px;
-  max-height: 600px;
+  max-height: var(--ccs-popup-max-height);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background: #ffffff;
   color: #2c3e50;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .ccs-popup-menu {
   display: flex;
   flex-direction: column;
-  max-height: 600px;
+  padding-bottom: var(--ccs-popup-footer-height);
 }
 
 /* ==================== 头部 ==================== */
@@ -69,24 +73,28 @@ body {
 
 /* ==================== 菜单容器 ==================== */
 .menu-container {
-  flex: 1;
-  overflow-y: auto;
+  flex: none;
+  overflow-y: visible;
   padding: 6px 0;
 }
 
+body::-webkit-scrollbar,
 .menu-container::-webkit-scrollbar {
   width: 5px;
 }
 
+body::-webkit-scrollbar-track,
 .menu-container::-webkit-scrollbar-track {
   background: #f1f1f1;
 }
 
+body::-webkit-scrollbar-thumb,
 .menu-container::-webkit-scrollbar-thumb {
   background: #c1c1c1;
   border-radius: 3px;
 }
 
+body::-webkit-scrollbar-thumb:hover,
 .menu-container::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
@@ -191,13 +199,21 @@ body {
 
 /* ==================== 底部 ==================== */
 .menu-footer {
+  /* Fixed against the popup viewport so short displays scroll content under it. */
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  width: var(--ccs-popup-width);
+  min-height: var(--ccs-popup-footer-height);
   padding: 10px 14px;
   border-top: 1px solid #e8ecf0;
   background: #fafbfc;
-  flex-shrink: 0;
+  box-shadow: 0 -3px 8px rgba(0, 0, 0, 0.05);  /* 上方轻阴影，强化 sticky 边界 */
 }
 
 .settings-toggle {
@@ -218,20 +234,27 @@ body {
 }
 
 .panel-toggle {
-  background: none;
-  border: 1px solid #e2e8f0;
-  padding: 5px 10px;
-  border-radius: 4px;
+  background: #f59e0b;
+  border: 1px solid #f59e0b;
+  padding: 6px 12px;
+  border-radius: 6px;
   font-size: 12px;
-  color: #f59e0b;
+  font-weight: 600;
+  color: white;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s;
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.25);
 }
 
 .panel-toggle:hover {
-  background: #f59e0b;
-  color: white;
-  border-color: #f59e0b;
+  background: #d97706;
+  border-color: #d97706;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.35);
+}
+
+.panel-toggle:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(245, 158, 11, 0.3);
 }
 
 .footer-link {
@@ -246,8 +269,8 @@ body {
 
 /* ==================== 设置面板 ==================== */
 .settings-panel {
-  flex: 1;
-  overflow-y: auto;
+  flex: none;
+  overflow-y: visible;
   background: #f5f7fa;
 }
 
