@@ -14,6 +14,19 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background: #ffffff;
   color: #2c3e50;
+  /* padding-top 给 fixed 置顶区留位（header ~52px + AI banner ~30px = ~82px） */
+  padding-top: 82px;
+}
+
+/* ==================== Sticky Top（header + AI 检测 banner 整体置顶）==================== */
+/* 用 position: fixed 代替 sticky，rock-solid 滚动无任何浮动重绘 */
+.sp-sticky-top {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  background: #ffffff;
 }
 
 /* ==================== Header ==================== */
@@ -24,9 +37,6 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  position: sticky;
-  top: 0;
-  z-index: 10;
 }
 
 .sp-header-left {

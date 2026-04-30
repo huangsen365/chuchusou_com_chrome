@@ -10,7 +10,8 @@ html {
 }
 
 #cover-warning {
-  scroll-margin-top: 24px;
+  /* sticky 横幅约 40px 高，加 24px 余量避免被遮 */
+  scroll-margin-top: 64px;
 }
 
 body {
@@ -18,12 +19,13 @@ body {
   background: linear-gradient(135deg, #f0f9ff 0%, #fef3c7 100%);
   color: #2c3e50;
   min-height: 100vh;
-  padding: 40px 20px;
+  /* padding-top 给 fixed 顶部横幅留位（横幅 ~40px + 视觉留白 20px） */
+  padding: 60px 0 0;
 }
 
 .container {
   max-width: 800px;
-  margin: 0 auto;
+  margin: 0 auto 40px;
   background: #fff;
   border-radius: 16px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
@@ -52,12 +54,18 @@ body {
 
 /* ============ Top marquee（封面生成器提示，可点跳锚点）============ */
 .top-marquee {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 20px;
   background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
   border-bottom: 1px solid #f59e0b66;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
   text-decoration: none;
   color: #92400e;
   font-size: 13px;
@@ -526,8 +534,8 @@ body {
 
 /* ============ Responsive ============ */
 @media (max-width: 600px) {
-  body {
-    padding: 20px 12px;
+  .container {
+    margin: 0 12px 20px;
   }
   .welcome-main {
     padding: 24px 20px;

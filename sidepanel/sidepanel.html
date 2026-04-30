@@ -7,16 +7,19 @@
   <link rel="stylesheet" href="sidepanel.css">
 </head>
 <body>
-  <header class="sp-header">
-    <div class="sp-header-left">
-      <span class="sp-icon">🔍</span>
-      <span class="sp-title">触触搜</span>
-    </div>
-    <span class="sp-keyword" id="spKeyword"></span>
-  </header>
+  <!-- 置顶区：header + AI 检测 banner 一起 sticky 在顶部，菜单滚动时不被滚走 -->
+  <div class="sp-sticky-top">
+    <header class="sp-header">
+      <div class="sp-header-left">
+        <span class="sp-icon">🔍</span>
+        <span class="sp-title">触触搜</span>
+      </div>
+      <span class="sp-keyword" id="spKeyword"></span>
+    </header>
 
-  <!-- AI 检测提醒（顶部 banner） -->
-  <p class="sp-pin-tip"><span class="sp-pin-tip-warn" tabindex="0" aria-label="图片生成后为什么建议截图另存新图">⚠️<span class="sp-pin-tip-popover" role="tooltip"><span class="sp-pin-tip-popover-card"><span class="sp-pin-tip-popover-title">图片生成后，为什么建议截图另存新图？</span><span class="sp-pin-tip-popover-item">1. AI 生成的图片在下载时会自带元数据指纹（C2PA 等），是 AI 内容的"身份证"，小红书、抖音、视频号等平台可一键识别。</span><span class="sp-pin-tip-popover-item">2. 一旦被打上"AI 生成"标签，账号可能面临：<span class="sp-pin-tip-popover-bullets">• 流量限流 / 推荐降权<br>• 强制叠加"AI 生成"水印<br>• 影响商业合作与账号权重</span></span><span class="sp-pin-tip-popover-item">3. 截图重新存成新文件，不携带原指纹，可有效绕过平台的 AI 内容检测。</span><span class="sp-pin-tip-popover-shortcuts">快捷键：Mac ⇧⌘4 · Windows ⊞+Shift+S（或任意截图工具）</span></span></span></span><span class="sp-pin-tip-marquee"><span class="sp-pin-tip-text">图片生成后，建议截图另存新图再使用，避免被识别为AI产出</span></span></p>
+    <!-- AI 检测提醒（顶部 banner） -->
+    <p class="sp-pin-tip"><span class="sp-pin-tip-warn" tabindex="0" aria-label="图片生成后为什么建议截图另存新图">⚠️<span class="sp-pin-tip-popover" role="tooltip"><span class="sp-pin-tip-popover-card"><span class="sp-pin-tip-popover-title">图片生成后，为什么建议截图另存新图？</span><span class="sp-pin-tip-popover-item">1. AI 生成的图片在下载时会自带元数据指纹（C2PA 等），是 AI 内容的"身份证"，小红书、抖音、视频号等平台可一键识别。</span><span class="sp-pin-tip-popover-item">2. 一旦被打上"AI 生成"标签，账号可能面临：<span class="sp-pin-tip-popover-bullets">• 流量限流 / 推荐降权<br>• 强制叠加"AI 生成"水印<br>• 影响商业合作与账号权重</span></span><span class="sp-pin-tip-popover-item">3. 截图重新存成新文件，不携带原指纹，可有效绕过平台的 AI 内容检测。</span><span class="sp-pin-tip-popover-shortcuts">快捷键：Mac ⇧⌘4 · Windows ⊞+Shift+S（或任意截图工具）</span></span></span></span><span class="sp-pin-tip-marquee"><span class="sp-pin-tip-text">关于封面生成器，图片生成后，建议截图另存新图再使用，避免被识别为AI产出</span></span></p>
+  </div>
 
   <!-- 置顶快捷动作（默认：封面生成器 · 小红书封面） -->
   <section class="sp-pin" id="spPin" hidden>
