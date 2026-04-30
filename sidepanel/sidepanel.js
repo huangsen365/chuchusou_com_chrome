@@ -163,6 +163,9 @@ class SidePanelRenderer {
     this.keyword = { text: '', raw: '' };
     this.currentTabUrl = '';
     this.pinned = new PinnedAction(this);
+    // 用户手动从剪贴板写入 keyword 时设 true；URL 变化时回 false
+    // 用于防止后续 refresh() 在 chrome:// 等不支持选区的页面拉不到、把手动设的 keyword 清空
+    this.keywordSetManually = false;
   }
 
   async init() {
@@ -181,6 +184,7 @@ class SidePanelRenderer {
 
       this.renderKeyword();
       this.renderMenu();
+      this.bindClipboardButton();
       // 置顶区独立于主菜单加载，失败不影响整体
       this.pinned.init().catch((err) => {
         console.warn('[触触搜] Pinned action init failed:', err);
@@ -236,8 +240,29 @@ class SidePanelRenderer {
   async refresh() {
     try {
       const tabInfo = await this.getActiveTab();
-      this.currentTabUrl = tabInfo.url || '';
-      this.keyword = await this.getCurrentKeyword(tabInfo);
+      const newUrl = tabInfo.url || '';
+      const urlChanged = newUrl !== this.currentTabUrl;
+      this.currentTabUrl = newUrl;
+
+      const newKeyword = await this.getCurrentKeyword(tabInfo);
+
+      // URL 变化 → 跟随新页面，清掉手动标记
+      if (urlChanged) {
+        this.keyword = newKeyword;
+        this.keywordSetManually = false;
+        this.renderKeyword();
+        return;
+      }
+
+      // URL 没变，但用户手动设过 keyword 且自动提取又空 → 保留手动设的，不覆盖
+      // （比如 chrome:// 页面 user 用剪贴板按钮写了 keyword，
+      //   后续 tab 事件触发 refresh()，自动提取还是空，不能把手动的清掉）
+      if (this.keywordSetManually && (!newKeyword || !newKeyword.text)) {
+        return;
+      }
+
+      // 其它情况照常覆盖
+      this.keyword = newKeyword;
       this.renderKeyword();
     } catch (e) {
       // Ignore refresh errors
@@ -291,13 +316,57 @@ class SidePanelRenderer {
 
   renderKeyword() {
     const el = document.getElementById('spKeyword');
+    const clipBtn = document.getElementById('spClipboardBtn');
     if (this.keyword.text) {
       const display = this.keyword.text.replace(/\s+/g, ' ').trim();
       el.textContent = `"${display.length > 20 ? display.substring(0, 20) + '...' : display}"`;
       el.title = this.keyword.raw;
+      if (clipBtn) clipBtn.hidden = true;
     } else {
       el.textContent = '';
+      if (clipBtn) clipBtn.hidden = false;
     }
+  }
+
+  // 剪贴板读取按钮——给 chrome:// 等不支持选区的页面做兜底
+  // 用户复制文字后点这个按钮，把剪贴板内容写入关键字
+  bindClipboardButton() {
+    const btn = document.getElementById('spClipboardBtn');
+    if (!btn) return;
+    const original = btn.textContent;
+    const reset = () => {
+      btn.disabled = false;
+      btn.textContent = original;
+    };
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = '⏳ 正在读取剪贴板...';
+      try {
+        const text = await navigator.clipboard.readText();
+        const cleaned = (text || '').trim();
+        if (!cleaned) {
+          btn.textContent = '⚠️ 剪贴板为空，请先复制文字再点';
+          setTimeout(reset, 2000);
+          return;
+        }
+        const limited = cleaned.slice(0, 500);
+        this.keyword = {
+          text: limited.replace(/\s+/g, ' '),
+          raw: limited
+        };
+        // 标记为手动设——后续 refresh() 在同 URL 下不会用空 keyword 覆盖它
+        this.keywordSetManually = true;
+        this.renderKeyword();   // keyword 非空 → 自动隐藏按钮
+        this.renderMenu();       // 用新关键字重渲染菜单 URL
+        // 即使按钮已 hidden，也立即重置文字 / disabled——
+        // 否则后续 tab 事件触发 refresh() 让按钮重新露出时会"卡在正在读取"
+        reset();
+      } catch (err) {
+        console.warn('[触触搜] 读剪贴板失败:', err);
+        btn.textContent = '⚠️ 读取失败，请重试';
+        setTimeout(reset, 2000);
+      }
+    });
   }
 
   renderMenu() {

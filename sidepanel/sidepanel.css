@@ -211,6 +211,39 @@ body {
   font-size: 12px;
 }
 
+/* ==================== 剪贴板读取按钮（关键字徽章为空时露出）==================== */
+.sp-clipboard-btn {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  background: #fffbeb;
+  border: 1px dashed #f59e0b66;
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.sp-clipboard-btn:hover {
+  background: #fef3c7;
+  border-color: #f59e0b;
+}
+
+.sp-clipboard-btn:active {
+  background: #fde68a;
+}
+
+.sp-clipboard-btn:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
 .sp-pin-action {
   flex: 1;
   display: flex;
