@@ -14,7 +14,8 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background: #ffffff;
   color: #2c3e50;
-  /* padding-top 给 fixed 置顶区留位（header ~52px + AI banner ~30px = ~82px） */
+  /* padding-top 由 JS 用 ResizeObserver 实时设为 .sp-sticky-top 的真实高度
+   * （剪贴板按钮 hidden/show 时高度会变 ~44px，写死会撞菜单或留空白） */
   padding-top: 82px;
 }
 

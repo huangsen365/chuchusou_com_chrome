@@ -524,7 +524,23 @@ class SidePanelRenderer {
   }
 }
 
+// 置顶区高度随剪贴板按钮 hidden/show 而变（多 ~44px），用 ResizeObserver
+// 实时把真实高度同步到 body padding-top，避免菜单被压住或留出空白
+function syncStickyTopPadding() {
+  const stickyTop = document.getElementById('spStickyTop');
+  if (!stickyTop) return;
+  const apply = () => {
+    const h = stickyTop.getBoundingClientRect().height;
+    if (h > 0) document.body.style.paddingTop = `${Math.ceil(h)}px`;
+  };
+  apply();
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(apply).observe(stickyTop);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  syncStickyTopPadding();
   setupMarquee('.sp-pin-tip-marquee', '.sp-pin-tip-text', { speed: 42 });
   const renderer = new SidePanelRenderer();
   renderer.init();
