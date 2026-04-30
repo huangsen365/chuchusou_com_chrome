@@ -1,5 +1,30 @@
 # 更新日志
 
+## v1.4.0 (2026-04-30)
+
+### ✨ 新功能
+
+- **首次安装欢迎页**：装好扩展自动弹欢迎页（仅首次装弹，更新不打扰），介绍四种入口（侧边栏 / 悬浮面板 / 右键菜单 / Popup）+ 主打功能 + 视频教程 + 作者关注。其中"立即打开侧边栏"按钮一键体验侧边栏，解决新用户找不到侧边栏的痛点。
+- **AI 检测规避提示双层引导**：欢迎页新增 ⚠️ 封面生成器使用提示 section（amber 卡片含闪耀光晕 + 斜向掠光动画），讲透"为什么生成图后要截图另存"——元数据指纹机制 / 平台后果（限流·降权·水印）/ 截图为何有效 + 截图快捷键。同时欢迎页顶部加 amber 滚动横条「图片生成后，建议截图另存新图再使用，避免被识别为AI产出 · 点击查看详情 →」，整条可点击平滑滚动跳到详细 section。
+- **侧边栏 banner 文字横向滚动**：原静态文案改为 18 秒/loop 从右往左滚动（≈27px/秒，可读速度），鼠标悬停整行暂停方便读完。被动捕获用户视线。
+- **未硬编码搜索引擎也能拿关键字**：`background/keywords.js` 加启发式参数提取兜底——20+ 个硬编码 hostname 全 fall-through 后，按"哪个 param 最像关键字"打分挑（命中常见 key 名 / 长度合理 / 含中文加分；像 URL / UUID / 纯数字大概率不是关键字 → 直接毙）。新搜索站点不用改代码也有不错的命中率。
+
+### 🐛 修复
+
+- **popup 底部 footer 短屏被滚走**：之前在分辨率低 / 浏览器窗口短的设备上，菜单内容超出 popup 高度时整个 popup 出现外层滚动条，「📑 打开侧边栏」按钮要滚到底部才能看到。改为 `position: fixed` 直接钉在 popup 视口底部，body 自身做 scroll container，跨设备稳定贴底。
+
+### 🔧 改进
+
+- **AI 检测提醒文案精简**：「图片生成后，建议截图成新文件上传自媒体，避免被识别为AI生成」→ 「图片生成后，建议截图另存新图再使用，避免被识别为AI产出」。「另存新图」比「成新文件」更直观（图片场景），「再使用」语义比「上传自媒体」更广（覆盖所有使用场景）。
+- **popup「打开侧边栏」按钮升级实心 amber 填充**：白字 + amber 实底 + 字重 600 + 阴影，hover/active 加深，让按钮成 footer 视觉焦点；footer 上方加轻阴影强化 sticky 边界。
+
+### 🛠 技术改动
+
+- 新增 `welcome/welcome.{html,css,js}` 三个文件 + `background/events.js` 加 onInstalled 监听器（仅 reason==='install' 时触发）+ `build.sh` 把 `welcome/` 加入 REQUIRED_FILES + COPY_DIRS。
+- popup CSS 抽出 `--ccs-popup-width / --ccs-popup-max-height / --ccs-popup-footer-height` 三个变量，避免散落魔法数。
+- 所有动画都加 `prefers-reduced-motion` 媒体查询兜底，尊重系统级关动效偏好（无障碍）。
+- 归档 `docs/archive/POPUP_FOOTER_STICKY_SHORT_DISPLAY.md` 记录 popup footer 短屏问题的失败路线（vh / dvh / JS innerHeight 同步 / setTimeout 轮询 / ResizeObserver）+ 最终方案，避免后续重蹈覆辙。
+
 ## v1.3.1 (2026-04-30)
 
 ### 🔧 改进
