@@ -639,6 +639,7 @@ class SidePanelRenderer {
       this.renderKeyword();
       this.renderMenu();
       this.bindClipboardButton();
+      this.bindCopyKeywordButton();
       // 置顶区独立于主菜单加载，失败不影响整体
       this.pinned.init().catch((err) => {
         console.warn('[触触搜] Pinned action init failed:', err);
@@ -773,15 +774,45 @@ class SidePanelRenderer {
   renderKeyword() {
     const el = document.getElementById('spKeyword');
     const clipBtn = document.getElementById('spClipboardBtn');
+    const copyBtn = document.getElementById('spKeywordCopy');
     if (this.keyword.text) {
       const display = this.keyword.text.replace(/\s+/g, ' ').trim();
       el.textContent = `"${display.length > 20 ? display.substring(0, 20) + '...' : display}"`;
       el.title = this.keyword.raw;
       if (clipBtn) clipBtn.hidden = true;
+      if (copyBtn) copyBtn.hidden = false;       // 有 keyword → 露出复制按钮
     } else {
       el.textContent = '';
       if (clipBtn) clipBtn.hidden = false;
+      if (copyBtn) copyBtn.hidden = true;         // 无 keyword → 隐藏复制按钮
     }
+  }
+
+  // 复制关键字按钮——keyword 徽章左侧的 📋 小图标
+  // 点击把当前关键字（优先 raw 保段落）写到剪贴板，方便用户复用到其它地方
+  bindCopyKeywordButton() {
+    const btn = document.getElementById('spKeywordCopy');
+    if (!btn) return;
+    const original = btn.textContent;
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const text = (this.keyword.raw || this.keyword.text || '').trim();
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = '✓';
+        btn.classList.add('copied');
+        btn.disabled = true;
+        setTimeout(() => {
+          btn.textContent = original;
+          btn.classList.remove('copied');
+          btn.disabled = false;
+        }, 1200);
+      } catch (err) {
+        console.warn('[触触搜] 复制关键字失败:', err);
+        this.showToast('复制失败，请检查浏览器权限');
+      }
+    });
   }
 
   // 剪贴板读取按钮——给 chrome:// 等不支持选区的页面做兜底

@@ -14,7 +14,11 @@
         <span class="sp-icon">🔍</span>
         <span class="sp-title">触触搜</span>
       </div>
-      <span class="sp-keyword" id="spKeyword"></span>
+      <div class="sp-keyword-wrap">
+        <span class="sp-keyword" id="spKeyword"></span>
+        <!-- 复制按钮：仅当 keyword 徽章非空时显示——放最右边对齐肌肉记忆，盲点不易偏 -->
+        <button class="sp-keyword-copy" id="spKeywordCopy" type="button" title="复制关键字到剪贴板" aria-label="复制关键字到剪贴板" hidden>📋</button>
+      </div>
     </header>
 
     <!-- AI 检测提醒（顶部 banner） -->

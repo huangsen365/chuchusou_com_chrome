@@ -62,6 +62,49 @@ body {
   line-height: 1.2;
 }
 
+/* keyword 徽章 + 复制按钮的右侧组合容器 */
+.sp-keyword-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* 复制关键字按钮——20px 控件让 header 总高维持 32px（与 min-height 锁高对齐） */
+.sp-keyword-copy {
+  width: 20px;
+  height: 20px;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.18);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: white;
+  flex-shrink: 0;
+  transition: background 0.15s, transform 0.12s;
+}
+
+.sp-keyword-copy:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.sp-keyword-copy:active {
+  transform: scale(0.92);
+}
+
+.sp-keyword-copy[hidden] {
+  display: none;
+}
+
+.sp-keyword-copy.copied {
+  background: rgba(34, 197, 94, 0.5);    /* 复制成功临时绿底 */
+}
+
 .sp-keyword {
   font-size: 11px;
   background: rgba(255, 255, 255, 0.2);
