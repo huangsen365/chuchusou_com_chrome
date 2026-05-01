@@ -279,6 +279,8 @@ class PinnedAction {
     this.draft = { ...this.current };
     this.draftCustomPurpose = this.customPurpose || '';
     this.draftCustomSelectedLine = this.customSelectedLine || '';
+    // 打开 picker 时把当前 textarea 解析的行作为基线，避免首次 rebuild 把现有行误判成"新增"
+    this.lastDropdownLines = parseCustomLines(this.draftCustomPurpose);
     this.draftRatio = this.ratio || DEFAULT_RATIO;
     this.draftCustomRatios = [...this.customRatios];
     const list = document.getElementById('spPinOptions');
@@ -443,11 +445,22 @@ class PinnedAction {
       sel.appendChild(opt);
       sel.disabled = true;
       this.draftCustomSelectedLine = '';
+      this.lastDropdownLines = [];
       return;
     }
     sel.disabled = false;
-    // 优先保留之前选中的那一行（如果还在）
-    let chosen = lines.includes(this.draftCustomSelectedLine) ? this.draftCustomSelectedLine : lines[0];
+    // 优先级：(1) 用户刚加的新行（最末一个新增）→ 自动选中  (2) 原选中行还在 → 保持
+    //         (3) 退回第一行
+    // 从后往前找：用户多行粘贴时，最末新增行通常是用户最关注的
+    const added = [...lines].reverse().find((l) => !this.lastDropdownLines.includes(l));
+    let chosen;
+    if (added) {
+      chosen = added;
+    } else if (lines.includes(this.draftCustomSelectedLine)) {
+      chosen = this.draftCustomSelectedLine;
+    } else {
+      chosen = lines[0];
+    }
     lines.forEach((line) => {
       const opt = document.createElement('option');
       opt.value = line;
@@ -457,6 +470,7 @@ class PinnedAction {
       sel.appendChild(opt);
     });
     this.draftCustomSelectedLine = chosen;
+    this.lastDropdownLines = [...lines];
   }
 
   refreshSaveBtn() {
@@ -472,6 +486,7 @@ class PinnedAction {
     this.draft = null;
     this.draftCustomPurpose = '';
     this.draftCustomSelectedLine = '';
+    this.lastDropdownLines = [];
     this.draftRatio = DEFAULT_RATIO;
     this.draftCustomRatios = [];
   }
