@@ -1305,12 +1305,18 @@ class SidePanelRenderer {
       const display = this.keyword.text.replace(/\s+/g, ' ').trim();
       el.textContent = `"${display.length > 20 ? display.substring(0, 20) + '...' : display}"`;
       el.title = this.keyword.raw;
-      if (clipBtn) clipBtn.hidden = true;
+      if (clipBtn) {
+        clipBtn.hidden = false;
+        clipBtn.textContent = '📋 从剪贴板更新关键字';
+      }
       if (copyBtn) copyBtn.hidden = false;       // 有 keyword → 露出复制按钮
       if (voiceBtn) voiceBtn.hidden = !(voiceSupported && voiceEnabled);
     } else {
       el.textContent = '';
-      if (clipBtn) clipBtn.hidden = false;
+      if (clipBtn) {
+        clipBtn.hidden = false;
+        clipBtn.textContent = '📋 从剪贴板读取关键字';
+      }
       if (copyBtn) copyBtn.hidden = true;         // 无 keyword → 隐藏复制按钮
       if (voiceBtn) voiceBtn.hidden = true;
     }
@@ -1403,7 +1409,7 @@ class SidePanelRenderer {
         };
         // 标记为手动设——后续 refresh() 在同 URL 下不会用空 keyword 覆盖它
         this.keywordSetManually = true;
-        this.renderKeyword();   // keyword 非空 → 自动隐藏按钮
+        this.renderKeyword();   // keyword 非空 → 按钮保留，允许继续从剪贴板更新
         this.renderMenu();       // 用新关键字重渲染菜单 URL
         // 即使按钮已 hidden，也立即重置文字 / disabled——
         // 否则后续 tab 事件触发 refresh() 让按钮重新露出时会"卡在正在读取"
