@@ -1,29 +1,33 @@
 # 更新日志
 
-## Unreleased
+## v1.5.2 (2026-05-01)
+
+封面生成器持续打磨：自定义风格升级为预设库、新增比例选择、若干 UX 细节修复。详细见 [releases/v1.5.2.md](./releases/v1.5.2.md)。
 
 ### ✨ 新功能
 
-- **封面生成器 · 自定义风格预设库**：自定义风格升级为多行编辑——textarea 维护"风格预设库"，每行=一个独立预设；下方 dropdown 列出全部预设（截断显示），选哪行就用哪行；dropdown 自动跟随 textarea 实时变化（删了当前选中行回退第一行，没删则保持选择）。一次维护多次切换。
-- **封面生成器 · 比例选择**：sidepanel 置顶 picker 内新增比例 dropdown，全局生效（适用所有封面调用——sidepanel / 右键 / popup）。10 个预设按"宽到窄"排序，覆盖国内外主流自媒体平台：
-  - **5:2** 横幅封面（默认）/ **2.35:1** 微信公众号头图 / 电影宽屏 / **2:1** 横幅卡片（Twitter / 知乎）
-  - **16:9** 通用横屏（YouTube / B 站 / 视频号）/ **3:2** 头条号 / 摄影标准 / **4:3** 传统媒体 / PPT
-  - **1:1** 方形（Instagram / 微博 / 朋友圈）/ **4:5** 竖版图文（Instagram）
-  - **3:4** 竖版封面（小红书原生 / Pinterest）/ **9:16** 手机竖屏（抖音 / TikTok / Reels / 视频号）
-  - **➕ 自定义比例**：用户输入 W:H（如 21:9 / 1.43:1），最多保留 5 个，溢出剔除最旧
+- **封面生成器 · 自定义风格预设库**：自定义风格升级为多行编辑——textarea 维护"风格预设库"，每行=一个独立预设；下方 dropdown 列出全部预设（前 15 字截断 + …），选哪行就用哪行；dropdown 自动跟随 textarea 实时变化（删了当前选中行回退第一行，没删则保持选择）。**新增行后自动跳转选中**——多行粘贴或末尾追加时立即指到最末新增项。
+- **封面生成器 · 比例选择**：sidepanel 置顶 picker 内新增比例 dropdown，全局生效（适用所有封面调用——sidepanel / 右键 / popup）。10 个预设按"宽到窄"排序覆盖国内外主流自媒体平台：5:2 横幅 / 2.35:1 微信公众号 / 2:1 Twitter / 16:9 YouTube/B站 / 3:2 头条号 / 4:3 PPT / 1:1 Instagram/微博 / 4:5 / 3:4 小红书 / 9:16 抖音。支持自定义比例（W:H，最多 5 个滚动剔除）。
+- **模板末尾「调整自定义风格」闭环提示**：ChatGPT 跳转后用户可读区追加一句"💡 如果生成图片效果不满意，请回到侧边栏调整「自定义风格」字眼后再试（风格关键词越具体，渲染越准）"。
 
 ### 🐛 修复
 
-- **自定义风格的 purpose 没注入到 prompt**：之前选自定义风格时，模板里 `${purpose}` 会被 coverPrompts.json 里 custom 分类的占位文本替代（"由 sidepanel 输入框运行时覆盖"），用户实际填写的风格关键词丢失。原因是 events.js SSoT 快速通道没把 sidepanel 传过来的 `request.purpose` 透传给 `runAITask`。修复：runAITask 加 `purposeOverride` 参数 + buildTaskPrompt 优先用 override，事件层在 cover/custom 时显式注入。
+- **自定义风格的 purpose 没注入到 prompt**：之前选自定义风格时，模板里 `${purpose}` 会被 JSON 占位文本替代，用户实际填写的关键词丢失。根因是 events.js SSoT 通道没把 sidepanel 传过来的 `request.purpose` 透传给 `runAITask`。修复：加 `purposeOverride` 参数 + `buildTaskPrompt` 优先用 override。
+- **置顶卡片副标题/dropdown 长文本挤爆容器**：超过 18 字的自定义风格行会把"✏️ 修改"按钮挤出可视区。根因是 `.sp-pin-action` 缺 `min-width: 0`，flex item 默认 `min-width: auto = content size`。修复：双层防御——应用层 truncate 统一 15 字 + CSS 给 `.sp-pin-action` 补 `min-width: 0`。
+- **操作自定义编辑区不自动激活 custom 模式**：textarea oninput / dropdown onchange 都调 `activateCustomCategory()` 自动切 radio + 同步 UI；rebuild dropdown 末尾加 `sel.value = chosen` 防浏览器 selectedIndex 残留 quirk。
+
+### 🔧 改进
+
+- **置顶卡片图标** 📌 → 🎨：与 Constants.js MENU_DEFINITIONS / README / store-listing 全项目封面生成器统一标识对齐。
 
 ### 🛠 技术改动
 
-- `prompts/coverPrompts.json` 模板把硬编码 `5:2` 改为 `${ratio}` 占位；新增 custom category。
-- `AITaskRegistry.buildTaskPrompt` 加通用 `options.vars` 机制：未来加任意模板变量直接通过 `vars` 传入，无需改 schema。
-- `AITaskHandler.runAITask` 内部抽出 `collectTaskVars(taskId)`：cover task 自动从 `chrome.storage.local` 读 `ccs_cover_aspect_ratio`，三端调用方（sidepanel / events.js / menuHandlers.js）都不用关心 ratio 透传，**单一数据源**。
-- 新增 storage keys：`ccs_cover_aspect_ratio`（当前比例）/ `ccs_cover_custom_ratios`（自定义比例数组，最多 5 个）/ `ccs_cover_custom_selected_line`（自定义风格当前选中行）。
-- README.md 功能特性段重写：完整反映 v1.2.0+ 至今所有新功能（封面生成器 / 侧边栏置顶 / 速答两步流程 / 欢迎页 / 剪贴板兜底）。
-- `releases/store-listing.txt` 新建：长期单一文件，每次发版前覆盖式更新；旧的 `store-listing-v1.2.0_*.txt` 保留为历史归档。
+- `coverPrompts.json` 模板硬编码 `5:2` → `${ratio}` 占位；新增 `custom` category。
+- `AITaskRegistry.buildTaskPrompt` 加通用 `options.vars` 机制——未来加任意模板变量直接通过 `vars` 传入，无需改 schema。
+- `AITaskHandler.runAITask` 抽 `collectTaskVars(taskId)`——cover task 自动从 storage 读 ratio，三端调用方零改动，**单一数据源**。
+- 新 storage keys：`ccs_cover_aspect_ratio` / `ccs_cover_custom_ratios` / `ccs_cover_custom_selected_line`。
+- README.md 功能特性段重写——完整反映 v1.2.0+ 至今所有新功能。
+- `releases/store-listing.txt` 新建——长期单一文件，每次发版前覆盖式更新。
 
 ## v1.5.1 (2026-05-01)
 
