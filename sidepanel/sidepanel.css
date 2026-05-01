@@ -38,6 +38,11 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  /* 锁高度——keyword 徽章 19.4px > 左侧 logo+标题 15.6px，
+   * 切换页面时 header 在 28/32px 之间跳。min-height 按"有 keyword"基线兜底，
+   * keyword 消失时仍保持同高，消除纵向跳跃感。 */
+  min-height: 32px;
+  box-sizing: border-box;
 }
 
 .sp-header-left {
