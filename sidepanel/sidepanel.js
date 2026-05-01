@@ -4,7 +4,42 @@
  */
 
 const PIN_STORAGE_KEY = 'ccs_sidepanel_pinned_action';
+const CUSTOM_PURPOSE_KEY = 'ccs_cover_custom_purpose';        // textarea 全文（用户预设库）
+const CUSTOM_LINE_KEY = 'ccs_cover_custom_selected_line';      // 当前应用的那一行
+const CUSTOM_PURPOSE_MAX = 600;
+const CUSTOM_LINE_PREVIEW_MAX = 15;                            // dropdown 选项 / 卡片副标题截断长度（中文 15 字内，避免挤爆容器）
 const DEFAULT_PIN = { taskId: 'cover', categoryId: 'xiaohongshu' };
+
+// 比例（适用所有封面调用 · 全局生效）
+const RATIO_KEY = 'ccs_cover_aspect_ratio';                    // 当前选中比例（如 "5:2"）
+const RATIO_CUSTOM_LIST_KEY = 'ccs_cover_custom_ratios';        // 用户保存的自定义比例数组
+const RATIO_CUSTOM_MAX = 5;                                     // 最多保留 5 个，溢出剔除最旧
+const DEFAULT_RATIO = '5:2';
+const RATIO_RE = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/;
+// 10 个预设按"宽到窄"排序，覆盖国内外主流自媒体平台
+const RATIO_PRESETS = [
+  { value: '5:2',    label: '5:2 · 横幅封面（默认）' },
+  { value: '2.35:1', label: '2.35:1 · 微信公众号头图 / 电影宽屏' },
+  { value: '2:1',    label: '2:1 · 横幅卡片（Twitter / 知乎）' },
+  { value: '16:9',   label: '16:9 · 通用横屏（YouTube / B 站 / 视频号）' },
+  { value: '3:2',    label: '3:2 · 头条号 / 摄影标准' },
+  { value: '4:3',    label: '4:3 · 传统媒体 / PPT' },
+  { value: '1:1',    label: '1:1 · 方形（Instagram / 微博 / 朋友圈）' },
+  { value: '4:5',    label: '4:5 · 竖版图文（Instagram 推荐）' },
+  { value: '3:4',    label: '3:4 · 竖版封面（小红书原生 / Pinterest）' },
+  { value: '9:16',   label: '9:16 · 手机竖屏（抖音 / TikTok / Reels / 视频号）' }
+];
+const RATIO_CUSTOM_TRIGGER = '__custom__';
+
+function parseCustomLines(text) {
+  if (typeof text !== 'string') return [];
+  return text.split(/\r?\n/).map((s) => s.trim()).filter((s) => s.length > 0);
+}
+
+function truncateLine(s, max = CUSTOM_LINE_PREVIEW_MAX) {
+  if (typeof s !== 'string') return '';
+  return s.length > max ? s.slice(0, max) + '…' : s;
+}
 
 // Use JS transforms instead of CSS marquee; Windows can disable/freeze CSS animation here.
 function setupMarquee(viewportSelector, textSelector, options = {}) {
@@ -59,17 +94,38 @@ class PinnedAction {
     this.renderer = renderer;
     this.coverConfig = null;
     this.current = { ...DEFAULT_PIN };
+    this.customPurpose = '';        // textarea 全文（多行预设库）
+    this.customSelectedLine = '';   // 当前应用的那一行
+    this.ratio = DEFAULT_RATIO;     // 当前选中比例
+    this.customRatios = [];         // 用户保存的自定义比例
     this.draft = null;
+    this.draftCustomPurpose = '';
+    this.draftCustomSelectedLine = '';
+    this.draftRatio = DEFAULT_RATIO;
+    this.draftCustomRatios = [];
   }
 
   async init() {
-    const [stored, coverCfg] = await Promise.all([
+    const [stored, customPurpose, customLine, ratioInfo, coverCfg] = await Promise.all([
       this.loadStored(),
+      this.loadCustomPurpose(),
+      this.loadCustomLine(),
+      this.loadRatioInfo(),
       this.loadCoverConfig()
     ]);
     this.coverConfig = coverCfg;
+    this.customPurpose = customPurpose || '';
+    this.ratio = ratioInfo.ratio;
+    this.customRatios = ratioInfo.customRatios;
+    // 兼容旧版本：CUSTOM_LINE_KEY 没存过时，把全文作为单行 fallback
+    this.customSelectedLine = customLine || (parseCustomLines(this.customPurpose)[0] || '');
     if (stored && this.findCategory(stored.categoryId, coverCfg)) {
-      this.current = stored;
+      // custom 风格但没保存过有效行 → 退回默认
+      if (stored.categoryId === 'custom' && !this.customSelectedLine) {
+        this.current = { ...DEFAULT_PIN };
+      } else {
+        this.current = stored;
+      }
     } else {
       this.current = { ...DEFAULT_PIN };
     }
@@ -90,6 +146,49 @@ class PinnedAction {
         });
       } catch (_) {
         resolve(null);
+      }
+    });
+  }
+
+  loadCustomPurpose() {
+    return new Promise((resolve) => {
+      try {
+        chrome.storage.local.get([CUSTOM_PURPOSE_KEY], (result) => {
+          const v = result?.[CUSTOM_PURPOSE_KEY];
+          resolve(typeof v === 'string' ? v : '');
+        });
+      } catch (_) {
+        resolve('');
+      }
+    });
+  }
+
+  loadCustomLine() {
+    return new Promise((resolve) => {
+      try {
+        chrome.storage.local.get([CUSTOM_LINE_KEY], (result) => {
+          const v = result?.[CUSTOM_LINE_KEY];
+          resolve(typeof v === 'string' ? v : '');
+        });
+      } catch (_) {
+        resolve('');
+      }
+    });
+  }
+
+  loadRatioInfo() {
+    return new Promise((resolve) => {
+      try {
+        chrome.storage.local.get([RATIO_KEY, RATIO_CUSTOM_LIST_KEY], (result) => {
+          const r = result?.[RATIO_KEY];
+          const list = result?.[RATIO_CUSTOM_LIST_KEY];
+          resolve({
+            ratio: (typeof r === 'string' && RATIO_RE.test(r.trim())) ? r.trim() : DEFAULT_RATIO,
+            customRatios: Array.isArray(list) ? list.filter((x) => typeof x === 'string' && RATIO_RE.test(x)) : []
+          });
+        });
+      } catch (_) {
+        resolve({ ratio: DEFAULT_RATIO, customRatios: [] });
       }
     });
   }
@@ -116,7 +215,17 @@ class PinnedAction {
     const styleEl = document.getElementById('spPinStyle');
     const taskEl = document.getElementById('spPinTask');
     if (taskEl) taskEl.textContent = '封面生成器';
-    if (styleEl) styleEl.textContent = cat.label || cat.id;
+    if (!styleEl) return;
+    if (cat.id === 'custom') {
+      // 自定义：副标题用当前选中行的截断预览（应用层 truncateLine 默认 15 字 + CSS ellipsis 兜底）
+      const line = (this.customSelectedLine || '').trim();
+      const preview = truncateLine(line);
+      styleEl.textContent = preview ? `🖌️ ${preview}` : '🖌️ 自定义风格';
+      styleEl.title = line || '';
+    } else {
+      styleEl.textContent = cat.label || cat.id;
+      styleEl.title = '';
+    }
   }
 
   attachListeners() {
@@ -134,6 +243,16 @@ class PinnedAction {
       this.renderer.showToast('该风格暂无可用引擎');
       return;
     }
+    // 自定义风格：用 storage 里用户填写的文本作为 purpose；无文本则提示先去设置
+    let purpose = cat.purpose || cat.label;
+    if (cat.id === 'custom') {
+      const userText = (this.customSelectedLine || '').trim();
+      if (!userText) {
+        this.renderer.showToast('请先点 ✏️ 填写自定义风格');
+        return;
+      }
+      purpose = userText;
+    }
     await this.renderer.refresh();
     const keyword = this.renderer.keyword.raw || this.renderer.keyword.text;
     const menuItemId = `ccs-cover-${cat.id}-${engine.id}`;
@@ -145,7 +264,7 @@ class PinnedAction {
         keyword,
         urlPattern: engine.urlPattern,
         engineId: engine.id,
-        purpose: cat.purpose || cat.label,
+        purpose,
         categoryId: cat.id
       });
       if (response && response.error === 'no-keyword') {
@@ -158,6 +277,10 @@ class PinnedAction {
 
   openPicker() {
     this.draft = { ...this.current };
+    this.draftCustomPurpose = this.customPurpose || '';
+    this.draftCustomSelectedLine = this.customSelectedLine || '';
+    this.draftRatio = this.ratio || DEFAULT_RATIO;
+    this.draftCustomRatios = [...this.customRatios];
     const list = document.getElementById('spPinOptions');
     list.innerHTML = '';
     (this.coverConfig?.categories || []).forEach((cat) => {
@@ -168,7 +291,7 @@ class PinnedAction {
       label.htmlFor = optId;
       label.innerHTML = `
         <input type="radio" name="pinStyle" id="${optId}" value="${cat.id}" ${checked}>
-        <span class="sp-pin-option-label">${cat.label || cat.id}</span>
+        <span class="sp-pin-option-label">${cat.id === 'custom' ? '🖌️ ' + (cat.label || cat.id) : (cat.label || cat.id)}</span>
       `;
       list.appendChild(label);
     });
@@ -176,14 +299,181 @@ class PinnedAction {
       const target = e.target;
       if (target && target.name === 'pinStyle') {
         this.draft.categoryId = target.value;
+        this.refreshPickerCustomVisibility();
+        this.refreshSaveBtn();
       }
     };
+    // 初始化 textarea
+    const ta = document.getElementById('spPinCustomInput');
+    if (ta) {
+      ta.value = this.draftCustomPurpose;
+      ta.oninput = () => {
+        this.draftCustomPurpose = ta.value || '';
+        this.refreshPickerCounter();
+        this.rebuildCustomDropdown();
+        this.refreshSaveBtn();
+      };
+    }
+    // 初始化 dropdown
+    const sel = document.getElementById('spPinCustomSelect');
+    if (sel) {
+      sel.onchange = () => {
+        this.draftCustomSelectedLine = sel.value || '';
+        this.refreshSaveBtn();
+      };
+    }
+    this.refreshPickerCustomVisibility();
+    this.refreshPickerCounter();
+    this.rebuildCustomDropdown();
+    this.bindRatioControls();
+    this.rebuildRatioDropdown();
+    this.refreshSaveBtn();
     document.getElementById('spPinPicker').hidden = false;
+  }
+
+  bindRatioControls() {
+    const sel = document.getElementById('spPinRatioSelect');
+    const customBox = document.getElementById('spPinRatioCustom');
+    const input = document.getElementById('spPinRatioInput');
+    const addBtn = document.getElementById('spPinRatioAdd');
+    const hint = document.getElementById('spPinRatioHint');
+    if (!sel || !customBox || !input || !addBtn || !hint) return;
+
+    sel.onchange = () => {
+      const v = sel.value;
+      if (v === RATIO_CUSTOM_TRIGGER) {
+        customBox.hidden = false;
+        hint.hidden = false;
+        hint.textContent = '格式：宽:高（数字，可带小数）';
+        hint.classList.remove('error');
+        input.focus();
+      } else {
+        customBox.hidden = true;
+        hint.hidden = true;
+        this.draftRatio = v;
+      }
+    };
+    input.oninput = () => {
+      input.classList.remove('invalid');
+      hint.classList.remove('error');
+      hint.textContent = '格式：宽:高（数字，可带小数）';
+    };
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); addBtn.click(); }
+    };
+    addBtn.onclick = () => {
+      const raw = (input.value || '').trim();
+      if (!RATIO_RE.test(raw)) {
+        input.classList.add('invalid');
+        hint.classList.add('error');
+        hint.textContent = '格式不对，应为 宽:高（如 2.35:1）';
+        return;
+      }
+      // 已存在 → 直接选中，不重复加
+      if (RATIO_PRESETS.some((p) => p.value === raw) || this.draftCustomRatios.includes(raw)) {
+        this.draftRatio = raw;
+      } else {
+        this.draftCustomRatios.unshift(raw);
+        if (this.draftCustomRatios.length > RATIO_CUSTOM_MAX) {
+          this.draftCustomRatios = this.draftCustomRatios.slice(0, RATIO_CUSTOM_MAX);
+        }
+        this.draftRatio = raw;
+      }
+      input.value = '';
+      customBox.hidden = true;
+      hint.hidden = true;
+      this.rebuildRatioDropdown();
+    };
+  }
+
+  rebuildRatioDropdown() {
+    const sel = document.getElementById('spPinRatioSelect');
+    if (!sel) return;
+    sel.innerHTML = '';
+    const groups = [];
+    if (this.draftCustomRatios.length > 0) {
+      groups.push({ label: '自定义', items: this.draftCustomRatios.map((v) => ({ value: v, label: `${v} · 自定义` })) });
+    }
+    groups.push({ label: '预设', items: RATIO_PRESETS });
+    for (const g of groups) {
+      const og = document.createElement('optgroup');
+      og.label = g.label;
+      for (const it of g.items) {
+        const opt = document.createElement('option');
+        opt.value = it.value;
+        opt.textContent = it.label;
+        if (it.value === this.draftRatio) opt.selected = true;
+        og.appendChild(opt);
+      }
+      sel.appendChild(og);
+    }
+    // 末尾加"+ 自定义"触发项
+    const trigger = document.createElement('option');
+    trigger.value = RATIO_CUSTOM_TRIGGER;
+    trigger.textContent = '➕ 自定义比例…';
+    sel.appendChild(trigger);
+    // 当前 draftRatio 不在任何 option 里 → 退回默认
+    if (![...sel.options].some((o) => o.value === this.draftRatio && o.value !== RATIO_CUSTOM_TRIGGER)) {
+      this.draftRatio = DEFAULT_RATIO;
+      [...sel.options].forEach((o) => { o.selected = o.value === DEFAULT_RATIO; });
+    }
+  }
+
+  refreshPickerCustomVisibility() {
+    const box = document.getElementById('spPinCustom');
+    if (!box) return;
+    box.hidden = this.draft?.categoryId !== 'custom';
+  }
+
+  refreshPickerCounter() {
+    const counter = document.getElementById('spPinCustomCounter');
+    if (counter) counter.textContent = String((this.draftCustomPurpose || '').length);
+  }
+
+  rebuildCustomDropdown() {
+    const sel = document.getElementById('spPinCustomSelect');
+    if (!sel) return;
+    const lines = parseCustomLines(this.draftCustomPurpose);
+    sel.innerHTML = '';
+    if (lines.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '（请先在上方填写至少 1 行预设）';
+      opt.disabled = true;
+      sel.appendChild(opt);
+      sel.disabled = true;
+      this.draftCustomSelectedLine = '';
+      return;
+    }
+    sel.disabled = false;
+    // 优先保留之前选中的那一行（如果还在）
+    let chosen = lines.includes(this.draftCustomSelectedLine) ? this.draftCustomSelectedLine : lines[0];
+    lines.forEach((line) => {
+      const opt = document.createElement('option');
+      opt.value = line;
+      opt.textContent = truncateLine(line);
+      opt.title = line;
+      if (line === chosen) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    this.draftCustomSelectedLine = chosen;
+  }
+
+  refreshSaveBtn() {
+    const btn = document.getElementById('spPinSave');
+    if (!btn) return;
+    // custom 必须有选中行才能保存；其它风格随时可保存
+    const blocked = this.draft?.categoryId === 'custom' && !(this.draftCustomSelectedLine || '').trim();
+    btn.disabled = !!blocked;
   }
 
   closePicker() {
     document.getElementById('spPinPicker').hidden = true;
     this.draft = null;
+    this.draftCustomPurpose = '';
+    this.draftCustomSelectedLine = '';
+    this.draftRatio = DEFAULT_RATIO;
+    this.draftCustomRatios = [];
   }
 
   async savePicker() {
@@ -191,10 +481,29 @@ class PinnedAction {
       this.closePicker();
       return;
     }
+    if (this.draft.categoryId === 'custom' && !(this.draftCustomSelectedLine || '').trim()) {
+      this.renderer.showToast('请先填写至少 1 行自定义风格');
+      return;
+    }
     this.current = { ...this.draft };
+    const writes = { [PIN_STORAGE_KEY]: this.current };
+    if (this.draft.categoryId === 'custom') {
+      const fullText = (this.draftCustomPurpose || '').slice(0, CUSTOM_PURPOSE_MAX);
+      const selectedLine = (this.draftCustomSelectedLine || '').trim();
+      this.customPurpose = fullText;
+      this.customSelectedLine = selectedLine;
+      writes[CUSTOM_PURPOSE_KEY] = fullText;
+      writes[CUSTOM_LINE_KEY] = selectedLine;
+    }
+    // 比例：始终保存（与置顶风格独立但同存）
+    const ratio = (typeof this.draftRatio === 'string' && RATIO_RE.test(this.draftRatio)) ? this.draftRatio : DEFAULT_RATIO;
+    this.ratio = ratio;
+    this.customRatios = [...this.draftCustomRatios];
+    writes[RATIO_KEY] = ratio;
+    writes[RATIO_CUSTOM_LIST_KEY] = this.customRatios;
     await new Promise((resolve) => {
       try {
-        chrome.storage.local.set({ [PIN_STORAGE_KEY]: this.current }, () => resolve());
+        chrome.storage.local.set(writes, () => resolve());
       } catch (_) {
         resolve();
       }

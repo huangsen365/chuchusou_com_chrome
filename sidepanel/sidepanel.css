@@ -231,6 +231,7 @@ body {
 
 .sp-pin-action {
   flex: 1;
+  min-width: 0;              /* 关键：让内层 ellipsis 真正生效，否则长文本会撑爆 flex item 把 ✏️ 按钮挤出可视区 */
   display: flex;
   align-items: center;
   gap: 10px;
@@ -353,6 +354,218 @@ body {
 
 .sp-pin-option-label {
   flex: 1;
+}
+
+/* ==================== Pin Picker · Custom Style Input ==================== */
+.sp-pin-custom {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px dashed #93c5fd;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sp-pin-custom-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.sp-pin-custom-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 56px;
+  max-height: 140px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.5;
+  color: #2c3e50;
+  background: #f9fafb;
+  border: 1px solid var(--ccs-separator-color);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.sp-pin-custom-input:focus {
+  border-color: #0ea5e9;
+  background: #ffffff;
+}
+
+.sp-pin-custom-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.sp-pin-custom-pick-label {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.sp-pin-custom-select {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #2c3e50;
+  background: #f9fafb;
+  border: 1px solid var(--ccs-separator-color);
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.sp-pin-custom-select:focus,
+.sp-pin-custom-select:hover {
+  border-color: #0ea5e9;
+  background: #ffffff;
+}
+
+.sp-pin-custom-select:disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.sp-pin-custom-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.sp-pin-custom-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-pin-custom-counter {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  color: #9ca3af;
+}
+
+.sp-pin-save:disabled {
+  background: #cbd5e1;
+  color: #f1f5f9;
+  cursor: not-allowed;
+}
+
+.sp-pin-save:disabled:hover {
+  background: #cbd5e1;
+}
+
+/* ==================== Aspect Ratio ==================== */
+.sp-pin-ratio {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid var(--ccs-separator-color);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sp-pin-ratio-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.sp-pin-ratio-select {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #2c3e50;
+  background: #f9fafb;
+  border: 1px solid var(--ccs-separator-color);
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.sp-pin-ratio-select:focus,
+.sp-pin-ratio-select:hover {
+  border-color: #0ea5e9;
+  background: #ffffff;
+}
+
+.sp-pin-ratio-custom {
+  display: flex;
+  gap: 6px;
+}
+
+.sp-pin-ratio-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #2c3e50;
+  background: #f9fafb;
+  border: 1px solid var(--ccs-separator-color);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.sp-pin-ratio-input:focus {
+  border-color: #0ea5e9;
+  background: #ffffff;
+}
+
+.sp-pin-ratio-input.invalid {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+
+.sp-pin-ratio-add {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #ffffff;
+  background: #0ea5e9;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.sp-pin-ratio-add:hover {
+  background: #0284c7;
+}
+
+.sp-pin-ratio-add:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.sp-pin-ratio-hint {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.sp-pin-ratio-hint.error {
+  color: #dc2626;
 }
 
 .sp-pin-picker-actions {

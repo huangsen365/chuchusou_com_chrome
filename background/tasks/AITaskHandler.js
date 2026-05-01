@@ -20,16 +20,17 @@
  * 执行一个 AI 任务。
  *
  * @param {Object} options
- * @param {string} options.taskId      - 'fastqa' | 'top100' | 'optimize'
+ * @param {string} options.taskId      - 'fastqa' | 'top100' | 'optimize' | 'cover'
  * @param {string} options.keyword     - 用户选中文字（原始，未编码）
  * @param {string} [options.engineId]  - 目标引擎 id；若为 openAll 可省略
- * @param {string} [options.categoryId]- 二维任务（optimize）的分类 id
+ * @param {string} [options.categoryId]- 二维任务（optimize/cover）的分类 id
  * @param {boolean}[options.openAll]   - 是否"打开以下全部"
  * @param {number} [options.tabId]     - 用于 toast 提示
+ * @param {string} [options.purposeOverride] - 运行时覆盖 JSON 里 categories[].purpose（cover 自定义风格用）
  * @returns {Promise<{success:boolean, error?:string, opened?:number}>}
  */
 async function runAITask(options = {}) {
-  const { taskId, keyword, engineId, categoryId, openAll, tabId } = options;
+  const { taskId, keyword, engineId, categoryId, openAll, tabId, purposeOverride } = options;
 
   if (!taskId || typeof AITaskRegistry === 'undefined') {
     return { success: false, error: 'registry-unavailable' };
@@ -66,7 +67,10 @@ async function runAITask(options = {}) {
     effectiveKeyword = limited.text;
   }
 
-  const prompt = await AITaskRegistry.buildTaskPrompt(taskId, effectiveKeyword, { categoryId });
+  // 任务级运行时变量（如 cover 的比例）—— 单一数据源 = chrome.storage.local
+  // 这样 sidepanel/events/menuHandlers 三处调用方都不用关心 ratio 透传
+  const vars = await collectTaskVars(taskId);
+  const prompt = await AITaskRegistry.buildTaskPrompt(taskId, effectiveKeyword, { categoryId, purposeOverride, vars });
   if (!prompt) return { success: false, error: 'template-invalid' };
   const encodedPrompt = encodeURIComponent(prompt);
 
@@ -132,6 +136,27 @@ async function runAITaskByMenuId(menuItemId, keyword, options = {}) {
     tabId: options.tabId
   });
   return { ...res, matched: true };
+}
+
+/**
+ * 收集任务运行时变量（注入到 prompt 模板）。
+ * 当前只有 cover 任务用：从 chrome.storage.local 读用户选的比例。
+ * 未来加任何 task-scoped 模板变量直接在这里扩展。
+ */
+async function collectTaskVars(taskId) {
+  const vars = {};
+  if (taskId === 'cover') {
+    try {
+      const data = await new Promise((resolve) => {
+        chrome.storage.local.get(['ccs_cover_aspect_ratio'], resolve);
+      });
+      const r = (data && data.ccs_cover_aspect_ratio) || '';
+      vars.ratio = (typeof r === 'string' && r.trim()) ? r.trim() : '5:2';
+    } catch (_) {
+      vars.ratio = '5:2';
+    }
+  }
+  return vars;
 }
 
 // 导出

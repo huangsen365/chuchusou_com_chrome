@@ -137,7 +137,8 @@ const OPTIMIZE_CATEGORY_TITLES = {
  */
 const COVER_CATEGORY_TITLES = {
   'xiaohongshu': '🔴 小红书封面',
-  'coconut':     '🥥 椰树牌风格'
+  'coconut':     '🥥 椰树牌风格',
+  'custom':      '🖌️ 自定义风格'
 };
 
 /**

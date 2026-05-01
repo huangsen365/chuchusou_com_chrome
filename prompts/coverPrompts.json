@@ -1,7 +1,7 @@
 {
-  "_comment": "TODO: 占位模板，待用户提供正式 prompt 后替换 templateLines 即可。${input} = 选中文本，${purpose} = 风格指令（来自 categories[i].purpose）。templateLines 数组每个元素 = 一行（用 \\n 拼接），空字符串 = 空行。",
+  "_comment": "${input} = 选中文本；${purpose} = 风格指令（来自 categories[i].purpose 或 sidepanel 自定义覆盖）；${ratio} = 用户在 sidepanel 选的比例，运行时由 AITaskHandler 从 chrome.storage.local 注入（缺省 5:2）。",
   "templateLines": [
-    "生成一张 5:2 比例的吸睛大标题图片（image）：",
+    "生成一张 ${ratio} 比例的吸睛大标题图片（image）：",
     "",
     "内容：",
     "${input}",
@@ -34,6 +34,18 @@
       "id": "coconut",
       "label": "椰树牌风格",
       "purpose": "椰树牌风格",
+      "engines": [
+        {
+          "id": "chatgpt-images",
+          "label": "ChatGPT Images 2.0",
+          "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}"
+        }
+      ]
+    },
+    {
+      "id": "custom",
+      "label": "自定义风格",
+      "purpose": "（用户自定义，由 sidepanel 输入框运行时覆盖）",
       "engines": [
         {
           "id": "chatgpt-images",

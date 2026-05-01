@@ -180,7 +180,10 @@ async function buildTaskPrompt(taskId, keyword, options = {}) {
     const cat = (task.categories || []).find((c) => c.id === options.categoryId);
     if (!cat) return null;
     template = cat.template || template;
-    purpose = cat.purpose || cat.label || '';
+    // purposeOverride 优先：让运行时（sidepanel 自定义输入）覆盖 JSON 里的占位
+    purpose = (typeof options.purposeOverride === 'string' && options.purposeOverride.trim())
+      ? options.purposeOverride
+      : (cat.purpose || cat.label || '');
   }
 
   if (!template) return null;
@@ -190,6 +193,13 @@ async function buildTaskPrompt(taskId, keyword, options = {}) {
   prompt = prompt.split('${' + task.templateVariable + '}').join(keyword || '');
   if (task.categoryVariable) {
     prompt = prompt.split('${' + task.categoryVariable + '}').join(purpose);
+  }
+  // 通用变量注入（如 cover 的 ${ratio}）—— 未来加新变量直接通过 options.vars 传入，无需改 schema
+  if (options.vars && typeof options.vars === 'object') {
+    for (const [k, v] of Object.entries(options.vars)) {
+      if (typeof k !== 'string' || !k) continue;
+      prompt = prompt.split('${' + k + '}').join(v == null ? '' : String(v));
+    }
   }
   return prompt;
 }

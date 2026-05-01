@@ -1086,6 +1086,8 @@ async function getPopupMenuStructure() {
 
     if (coverConfig && coverConfig.categories) {
       for (const category of coverConfig.categories) {
+        // custom 自定义风格仅在 sidepanel 置顶 picker 内可用，popup 主菜单跳过
+        if (category.id === 'custom') continue;
         const engine = (category.engines || [])[0];
         if (!engine) continue;
         const leafId = `ccs-cover-${category.id}-${engine.id}`;

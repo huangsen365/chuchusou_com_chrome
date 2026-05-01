@@ -442,10 +442,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             const parsed = AITaskRegistry.resolveMenuId(menuItemId);
             if (parsed) { categoryId = parsed.categoryId; eid = parsed.engineId || eid; }
           }
+          // cover 自定义风格：sidepanel 传过来的 request.purpose 作为 purposeOverride 注入
+          // 否则会用 coverPrompts.json 里 custom category 的占位文本
+          const purposeOverride = (taskId === 'cover' && categoryId === 'custom' && typeof request.purpose === 'string' && request.purpose.trim())
+            ? request.purpose
+            : undefined;
           try {
             const r = await runAITask({
               taskId, keyword: effectiveKeyword, engineId: eid,
-              categoryId, tabId: sender?.tab?.id
+              categoryId, tabId: sender?.tab?.id,
+              purposeOverride
             });
             if (r.success) { sendResponse({ success: true }); return; }
           } catch (err) { /* 继续 fallback */ }
