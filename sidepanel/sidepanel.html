@@ -16,6 +16,8 @@
       </div>
       <div class="sp-keyword-wrap">
         <span class="sp-keyword" id="spKeyword"></span>
+        <!-- 语音选引擎按钮：仅当 keyword 非空时显示，点击后录音→识别→列 top-10 候选 -->
+        <button class="sp-keyword-voice" id="spKeywordVoice" type="button" title="语音选择搜索引擎" aria-label="语音选择搜索引擎" hidden>🎤</button>
         <!-- 复制按钮：仅当 keyword 徽章非空时显示——放最右边对齐肌肉记忆，盲点不易偏 -->
         <button class="sp-keyword-copy" id="spKeywordCopy" type="button" title="复制关键字到剪贴板" aria-label="复制关键字到剪贴板" hidden>📋</button>
       </div>
@@ -68,6 +70,40 @@
           <strong>📋 文字来源</strong>
           <p>选中文本优先；网页不支持选区时（如 chrome://），点顶部「📋 从剪贴板读取关键字」兜底。</p>
         </div>
+      </div>
+    </section>
+
+    <!-- 语音引擎选择面板（点 🎤 触发，永远列 top-10 候选让用户把关，不自动跳） -->
+    <section class="sp-voice" id="spVoice" hidden>
+      <!-- 首次知情同意页：用户看完说明亲手点"开始录音"，那一下才触发浏览器麦克风请求 -->
+      <div class="sp-voice-intro" id="spVoiceIntro" hidden>
+        <h4 class="sp-voice-intro-title">🎤 语音选择搜索引擎</h4>
+        <ul class="sp-voice-intro-list">
+          <li>仅在你点击 🎤 按钮时启用麦克风，识别完立即关闭</li>
+          <li>仅识别引擎名（如"百度"、"GPT"、"知乎"），<b>不会上传你选中的文字</b></li>
+          <li>当前版本走浏览器内置语音识别（首次需联网）</li>
+          <li>下个版本将切换为完全离线识别（端侧模型）</li>
+          <li>可随时在 <code>chrome://settings/content/microphone</code> 撤回授权</li>
+        </ul>
+        <div class="sp-voice-intro-actions">
+          <button class="sp-voice-intro-ok" id="spVoiceIntroOk" type="button">明白了，开始录音</button>
+          <button class="sp-voice-intro-cancel" id="spVoiceIntroCancel" type="button">取消</button>
+        </div>
+      </div>
+      <!-- 录音中 / 识别完 / 错误 共用的状态栏 -->
+      <div class="sp-voice-status" id="spVoiceStatus" hidden>
+        <span class="sp-voice-status-icon" id="spVoiceStatusIcon">🎤</span>
+        <span class="sp-voice-status-text" id="spVoiceStatusText">准备就绪</span>
+      </div>
+      <!-- 权限被拒后的引导按钮（普通错误时隐藏） -->
+      <div class="sp-voice-help" id="spVoiceHelp" hidden>
+        <p class="sp-voice-help-text">点击下面按钮跳到 Chrome 麦克风设置，找到本扩展把状态改成「允许」，回来点重新录音即可。</p>
+        <button class="sp-voice-help-btn" id="spVoiceHelpBtn" type="button">🔓 去 Chrome 设置开启</button>
+      </div>
+      <ul class="sp-voice-list" id="spVoiceList" hidden></ul>
+      <div class="sp-voice-actions" id="spVoiceActions" hidden>
+        <button class="sp-voice-retry" id="spVoiceRetry" type="button">🎤 重新录音</button>
+        <button class="sp-voice-cancel" id="spVoiceCancel" type="button">✕ 取消</button>
       </div>
     </section>
   </div>

@@ -35,6 +35,7 @@ importScripts(
 
   './menuBuilder.js',   // 菜单构建
   './menuHandlers.js',  // 菜单处理
+  './voiceOffscreenBridge.js', // 语音选引擎：offscreen 麦克风 / 识别桥
   './events.js',        // 事件处理
 
   // ==================== 第4层：新架构模块（已全部搬到 legacy/_unactivated/） ====================

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>触触搜麦克风授权</title>
+  <link rel="stylesheet" href="permission.css">
+</head>
+<body>
+  <main class="vp-shell">
+    <section class="vp-panel">
+      <div class="vp-icon">🎤</div>
+      <h1>触触搜语音录音</h1>
+      <p class="vp-copy">Chrome 隐藏录音页可能拿不到麦克风。请在这个可见页面直接录音，说出引擎名后，候选列表会回到侧边栏。</p>
+      <button id="vpGrant" type="button">开始录音</button>
+      <button id="vpSettings" class="secondary" type="button">打开 Chrome 麦克风设置</button>
+      <p class="vp-status" id="vpStatus">点击「开始录音」后，如果 Chrome 弹出授权框请选择允许。</p>
+    </section>
+  </main>
+  <script src="permission.js"></script>
+</body>
+</html>

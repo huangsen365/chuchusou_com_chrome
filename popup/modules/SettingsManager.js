@@ -17,10 +17,57 @@ class SettingsManager {
   async init() {
     this._initExtensionToggle();
     this._initDebugToggle();
+    this._initVoiceToggle();
     this._initBlacklist();
     this._initShortcutSettings();
     this._initPromptLibrary();
     this._bindSettingButtons();
+  }
+
+  /**
+   * 初始化语音功能开关——默认关闭（实验性功能，用户主动开启才生效）
+   * @private
+   */
+  _initVoiceToggle() {
+    chrome.storage.local.get(['ccs_voice_enabled'], (res) => {
+      this._setVoiceButtonState(!!res.ccs_voice_enabled);
+    });
+  }
+
+  /**
+   * 切换语音功能（实验性）。开启后 sidepanel 会显示 🎤 按钮和选引擎流程；
+   * 关闭后整个语音模块不实例化、不绑定事件、不查权限。
+   */
+  toggleVoice() {
+    chrome.storage.local.get(['ccs_voice_enabled'], (res) => {
+      const current = !!res.ccs_voice_enabled;
+      const next = !current;
+      chrome.storage.local.set({ ccs_voice_enabled: next }, () => {
+        this._setVoiceButtonState(next);
+        this.onToast(next ? '语音功能已开启（实验性，需重开侧边栏生效）' : '语音功能已关闭');
+      });
+    });
+  }
+
+  /**
+   * 设置语音按钮显示状态
+   * @private
+   */
+  _setVoiceButtonState(enabled) {
+    const btn = document.querySelector('[data-action="voice"]');
+    if (!btn) return;
+    const label = btn.querySelector('.setting-label');
+    const icon = btn.querySelector('.setting-icon');
+    icon.textContent = '🎤';
+    if (enabled) {
+      label.textContent = '语音功能：开（实验性）';
+      btn.style.background = '#fff8e1';
+      btn.style.borderColor = '#fbc02d';
+    } else {
+      label.textContent = '语音功能：关';
+      btn.style.background = '';
+      btn.style.borderColor = '';
+    }
   }
 
   /**
@@ -335,6 +382,9 @@ class SettingsManager {
         break;
       case 'debug':
         this.toggleDebug();
+        break;
+      case 'voice':
+        this.toggleVoice();
         break;
       case 'export-menu-state':
         this.exportMenuState();

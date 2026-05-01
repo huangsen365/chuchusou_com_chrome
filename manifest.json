@@ -11,7 +11,8 @@
     "storage",
     "contextMenus",
     "scripting",
-    "sidePanel"
+    "sidePanel",
+    "offscreen"
   ],
   "background": {
     "service_worker": "background/index.js"

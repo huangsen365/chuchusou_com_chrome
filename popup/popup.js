@@ -445,6 +445,8 @@ class PopupMenuRenderer {
 
     // 初始化调试按钮状态
     this.initDebugToggle();
+    // 初始化语音功能开关（默认关，实验性）
+    this.initVoiceToggle();
 
     // 绑定设置按钮事件
     document.querySelectorAll('.setting-btn').forEach(btn => {
@@ -483,6 +485,9 @@ class PopupMenuRenderer {
         break;
       case 'debug':
         this.toggleDebug();
+        break;
+      case 'voice':
+        this.toggleVoice();
         break;
       case 'export-menu-state':
         this.exportMenuState();
@@ -584,6 +589,48 @@ class PopupMenuRenderer {
           }
         });
         this.showToast(next ? '调试已开启' : '调试已关闭');
+      });
+    });
+  }
+
+  // 初始化语音功能开关——默认关闭（实验性，主动开启才生效）
+  initVoiceToggle() {
+    const btn = document.querySelector('[data-action="voice"]');
+    if (!btn) return;
+    chrome.storage.local.get(['ccs_voice_enabled'], (res) => {
+      this.setVoiceButtonState(!!res.ccs_voice_enabled);
+    });
+  }
+
+  setVoiceButtonState(enabled) {
+    const btn = document.querySelector('[data-action="voice"]');
+    if (!btn) return;
+    const label = btn.querySelector('.setting-label');
+    const icon = btn.querySelector('.setting-icon');
+    icon.textContent = '🎤';
+    btn.title = '实验性功能：通过语音说出引擎名快速搜索（默认关）';
+    // 主 label 只用 6 字保持与其它设置按钮等宽（与"调试日志：关"对齐），
+    // "实验性"通过 .setting-badge 小角标表达，不挤压网格
+    label.textContent = enabled ? '语音功能：开' : '语音功能：关';
+    if (enabled) {
+      btn.style.background = '#fff8e1';
+      btn.style.borderColor = '#fbc02d';
+    } else {
+      btn.style.background = '';
+      btn.style.borderColor = '';
+    }
+  }
+
+  // 切换语音功能：开则 sidepanel 实例化语音模块、显示 🎤；关则全部不激活。
+  // sidepanel 通过 storage onChanged 实时响应，无需重开。
+  toggleVoice() {
+    chrome.storage.local.get(['ccs_voice_enabled'], (res) => {
+      const current = !!res.ccs_voice_enabled;
+      const next = !current;
+      chrome.storage.local.set({ ccs_voice_enabled: next }, () => {
+        this.setVoiceButtonState(next);
+        // 短文案与"调试已开启/关闭"等同类 toast 风格对齐，不再带括号注释
+        this.showToast(next ? '语音功能已开启' : '语音功能已关闭');
       });
     });
   }

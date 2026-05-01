@@ -53,6 +53,7 @@ export default [
         importScripts: "readonly",
         globalThis: "writable",
         self: "readonly",
+        clients: "readonly",
 
         // Custom extension globals - existing modules
         CCS: "writable",

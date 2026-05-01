@@ -10,6 +10,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background: #ffffff;
@@ -103,6 +107,48 @@ body {
 
 .sp-keyword-copy.copied {
   background: rgba(34, 197, 94, 0.5);    /* 复制成功临时绿底 */
+}
+
+/* 语音选引擎按钮——与复制按钮同尺寸 20px，header 总高仍维持 32px */
+.sp-keyword-voice {
+  width: 20px;
+  height: 20px;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.18);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: white;
+  flex-shrink: 0;
+  transition: background 0.15s, transform 0.12s;
+}
+
+.sp-keyword-voice:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.sp-keyword-voice:active {
+  transform: scale(0.92);
+}
+
+.sp-keyword-voice[hidden] {
+  display: none;
+}
+
+/* 录音中状态——脉冲动画提示 */
+.sp-keyword-voice.recording {
+  background: rgba(239, 68, 68, 0.7);
+  animation: voicePulse 1s ease-in-out infinite;
+}
+
+@keyframes voicePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+  50%      { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
 }
 
 .sp-keyword {
@@ -874,6 +920,279 @@ body {
   padding: 40px 20px;
   color: #95a5a6;
   font-size: 13px;
+}
+
+/* ==================== Voice Picker（语音选引擎面板）==================== */
+/* 加入 sticky 区，触发时常驻顶部，user 把关从 top-10 候选里选；ResizeObserver 自动调 padding */
+.sp-voice {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-bottom: 1px solid #0284c733;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 知情同意页——首次点 🎤 时弹出，用户看完点"开始录音"才触发麦克风权限请求 */
+.sp-voice-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 2px 0;
+}
+
+.sp-voice-intro-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0c4a6e;
+  margin: 0 0 4px 0;
+}
+
+.sp-voice-intro-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #1f2937;
+}
+
+.sp-voice-intro-list li {
+  margin-bottom: 3px;
+}
+
+.sp-voice-intro-list b {
+  color: #b45309;
+}
+
+.sp-voice-intro-list code {
+  font-size: 11px;
+  background: #f1f5f9;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.sp-voice-intro-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.sp-voice-intro-ok,
+.sp-voice-intro-cancel {
+  flex: 1;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  border: 1px solid;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.sp-voice-intro-ok {
+  background: #0ea5e9;
+  color: white;
+  border-color: #0284c7;
+}
+
+.sp-voice-intro-ok:hover {
+  background: #0284c7;
+  border-color: #0369a1;
+}
+
+.sp-voice-intro-ok:active {
+  transform: scale(0.99);
+}
+
+.sp-voice-intro-cancel {
+  background: #ffffff;
+  color: #6b7280;
+  border-color: #e5e7eb;
+}
+
+.sp-voice-intro-cancel:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+/* 权限被拒后的引导卡片 */
+.sp-voice-help {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #fef3c7;
+  border: 1px solid #f59e0b66;
+  border-radius: 6px;
+}
+
+.sp-voice-help-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #92400e;
+}
+
+.sp-voice-help-btn {
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  background: #f59e0b;
+  color: white;
+  border: 1px solid #d97706;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.sp-voice-help-btn:hover {
+  background: #d97706;
+}
+
+.sp-voice-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #0c4a6e;
+  font-weight: 500;
+}
+
+.sp-voice-status-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.sp-voice-status.recording .sp-voice-status-icon {
+  animation: voicePulse 1s ease-in-out infinite;
+}
+
+.sp-voice-status.error {
+  color: #b91c1c;
+}
+
+.sp-voice-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.sp-voice-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #ffffff;
+  border: 1px solid #e0f2fe;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  font-size: 13px;
+  color: #1f2937;
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
+}
+
+.sp-voice-item:hover {
+  background: #f0f9ff;
+  border-color: #0ea5e9;
+}
+
+.sp-voice-item:active {
+  transform: scale(0.99);
+}
+
+.sp-voice-item-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.sp-voice-item-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-voice-item-bar {
+  width: 50px;
+  height: 4px;
+  background: #e5e7eb;
+  border-radius: 2px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.sp-voice-item-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0ea5e9, #0284c7);
+  border-radius: 2px;
+}
+
+.sp-voice-item-pct {
+  font-size: 11px;
+  color: #6b7280;
+  width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.sp-voice-item.top {
+  border-color: #0ea5e9;
+  background: #f0f9ff;
+}
+
+.sp-voice-item.top .sp-voice-item-bar-fill {
+  background: linear-gradient(90deg, #22c55e, #16a34a);
+}
+
+.sp-voice-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.sp-voice-retry,
+.sp-voice-cancel {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  border: 1px solid;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.sp-voice-retry {
+  background: #ffffff;
+  color: #0284c7;
+  border-color: #0ea5e9;
+}
+
+.sp-voice-retry:hover {
+  background: #f0f9ff;
+}
+
+.sp-voice-cancel {
+  background: #ffffff;
+  color: #6b7280;
+  border-color: #e5e7eb;
+}
+
+.sp-voice-cancel:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
 }
 
 /* ==================== Toast ==================== */

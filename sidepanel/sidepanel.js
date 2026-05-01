@@ -44,6 +44,513 @@ function truncateLine(s, max = CUSTOM_LINE_PREVIEW_MAX) {
   return s.length > max ? s.slice(0, max) + '…' : s;
 }
 
+// ============================================================================
+// 语音选引擎模块（Voice Engine Picker）
+// ============================================================================
+// 设计要点：
+// - 用户已选好 keyword（独立于语音流程），语音"仅"用于挑引擎
+// - 闭集识别：候选词汇是固定的引擎名表 → 准确率天然高
+// - 永远不自动跳转，给 top-10 候选让用户把关，错了可重录
+// - 每次用户选择都喂给 reranker（chrome.storage.local 历史频次）→ 越用越准
+// - VoiceRecognizer 是抽象层：V1 用 Web Speech API，V2 计划替换为 Vosk-WASM
+//   底层换不影响 VoicePanel 的逻辑
+
+// V1 alias 表硬编码——稳定后挪到 engines.json 的 voiceAliases 字段
+// key 是 unifiedMenuConfig 里的 menu item id，确保和现有 handleClick 链路对齐
+const VOICE_ALIAS_MAP = {
+  'ccs-baidu':            ['百度', 'baidu', '度娘', '白度', '摆度'],
+  'ccs-google':           ['谷歌', 'google', '咕咕', '搜歌'],
+  'ccs-chatgpt':          ['ChatGPT', 'chat gpt', 'gpt', '鸡屁屁', '吉皮提', '聊天 gpt', '吉批批', '机批批'],
+  'ccs-claude':           ['Claude', '克劳德', '克劳特', '克老德', '克老特'],
+  'ccs-grok':             ['Grok', '格罗克', '高科', '格洛克'],
+  'ccs-yiyan':            ['文心一言', '文心', '一言', 'yiyan'],
+  'ccs-google-ai-chat':   ['Google AI', 'google ai', '谷歌 AI', '谷歌 ai', 'AI 模式', '谷歌 AI 模式'],
+  'ccs-zhihu':            ['知乎', 'zhihu', '智乎', '只乎'],
+  'ccs-weixin':           ['微信', '微信搜一搜', 'weixin', '搜一搜'],
+  'ccs-taobao':           ['淘宝', 'taobao', '掏宝'],
+  'ccs-jd':               ['京东', 'jd', 'jingdong'],
+  'ccs-sov2ex':           ['v2ex', '搜 v2ex', 'sov2ex', 'V 站'],
+  'ccs-google-translate': ['翻译', '谷歌翻译', 'google 翻译', 'translate'],
+  'ccs-chuchusou':        ['更多', '更多搜索引擎', '触触搜', 'chuchusou', '搜索导航']
+};
+
+// Levenshtein 编辑距离——fuzzy 匹配 ASR 文本和别名
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a) return b.length;
+  if (!b) return a.length;
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+// 归一化 ASR 文本：小写 + 去标点空白，让"chat gpt"和"chatgpt"能匹配上
+function normalizeAsrText(s) {
+  return (s || '').toLowerCase().replace(/[\s\.,!?。，！？、；;]/g, '');
+}
+
+// 给定一段 ASR 文本，对所有引擎计算最佳别名相似度 ∈ [0,1]
+function aliasMatchScores(asrText) {
+  const norm = normalizeAsrText(asrText);
+  const out = {};
+  for (const [engineId, aliases] of Object.entries(VOICE_ALIAS_MAP)) {
+    let best = 0;
+    for (const a of aliases) {
+      const aNorm = normalizeAsrText(a);
+      if (!aNorm) continue;
+      const dist = levenshtein(norm, aNorm);
+      const maxLen = Math.max(norm.length, aNorm.length, 1);
+      const sim = 1 - dist / maxLen;
+      if (sim > best) best = sim;
+    }
+    out[engineId] = best;
+  }
+  return out;
+}
+
+// VoiceRecognizer 抽象层——V1 = Web Speech API（浏览器内置，部分实现走云）
+// V2 计划：VoskRecognizer 用 Vosk-WASM + grammar 真离线
+// 接口契约：recognize() 返回 [{ text, score }]，按 score 降序，最多 N-best
+class VoiceRecognizer {
+  async recognize() { throw new Error('not implemented'); }
+}
+
+class VoiceRecognitionError extends Error {
+  constructor(error) {
+    const code = error?.code || error?.message || error?.name || 'recognition-error';
+    super(code);
+    this.name = error?.name || 'VoiceRecognitionError';
+    this.code = code;
+    this.details = error || null;
+  }
+}
+
+class OffscreenSpeechRecognizer extends VoiceRecognizer {
+  isSupported() {
+    const hasRuntimeBridge = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage;
+    const hasWebSpeech = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    return !!(hasRuntimeBridge && hasWebSpeech);
+  }
+
+  async recognize() {
+    if (!this.isSupported()) throw new Error('当前浏览器不支持 Web Speech API');
+    const response = await chrome.runtime.sendMessage({
+      action: 'ccsVoiceRecognize',
+      lang: 'zh-CN',
+      maxAlternatives: 10
+    });
+    if (!response) throw new VoiceRecognitionError({ code: 'offscreen-no-response' });
+    if (!response.success) throw new VoiceRecognitionError(response.error);
+    return Array.isArray(response.candidates) ? response.candidates : [];
+  }
+
+  async cancel() {
+    try {
+      await chrome.runtime.sendMessage({ action: 'ccsVoiceCancel' });
+    } catch (_) {
+      // Best effort only: the UI state is guarded by recognitionRunId.
+    }
+  }
+}
+
+// 历史频次存储 key（chrome.storage.local 简化版 reranker 数据源）
+const VOICE_HISTORY_KEY = 'ccs_voice_history';
+// 首次知情同意标志——用户看完说明亲手点"开始"才触发麦克风请求
+const VOICE_INTRO_SEEN_KEY = 'ccs_voice_intro_seen';
+// 全局开关 key——默认关，用户在 popup 设置里主动开启才会激活整个语音模块
+const VOICE_ENABLED_KEY = 'ccs_voice_enabled';
+
+function getVoicePermissionUrl() {
+  return chrome.runtime.getURL('voice-permission/permission.html');
+}
+
+// 麦克风设置页 —— 优先深链到本扩展自身的 site details，让用户不用在列表里翻找
+function getMicSettingsUrl() {
+  try {
+    const extId = chrome.runtime.id;
+    if (extId) {
+      // 直接打开"本扩展的所有站点权限"页面，里面有麦克风一栏
+      return `chrome://settings/content/siteDetails?site=chrome-extension%3A%2F%2F${extId}`;
+    }
+  } catch (_) { /* fallback below */ }
+  return 'chrome://settings/content/microphone';
+}
+
+// VoicePanel——录音 → 识别 → 融合排序 → top-10 候选 → 用户选择 → 调度
+class VoicePanel {
+  constructor(renderer) {
+    this.renderer = renderer;
+    this.recognizer = new OffscreenSpeechRecognizer();
+    this.history = {};       // engineId → count
+    this.introSeen = false;  // 知情同意标志
+    this.busy = false;
+    this.recognitionRunId = 0;
+    this.helpTargetUrl = getVoicePermissionUrl();
+    this.loadHistory();
+    this.loadIntroFlag();
+    this.bind();
+    if (!this.recognizer.isSupported()) {
+      // 浏览器不支持 Web Speech API → 永久隐藏入口按钮
+      const btn = document.getElementById('spKeywordVoice');
+      if (btn) {
+        btn.hidden = true;
+        btn.dataset.disabled = 'true';
+      }
+    }
+  }
+
+  loadHistory() {
+    try {
+      chrome.storage.local.get([VOICE_HISTORY_KEY], (result) => {
+        this.history = result?.[VOICE_HISTORY_KEY] || {};
+      });
+    } catch (_) { /* ignore */ }
+  }
+
+  loadIntroFlag() {
+    try {
+      chrome.storage.local.get([VOICE_INTRO_SEEN_KEY], (result) => {
+        this.introSeen = !!result?.[VOICE_INTRO_SEEN_KEY];
+      });
+    } catch (_) { /* ignore */ }
+  }
+
+  saveIntroSeen() {
+    this.introSeen = true;
+    try { chrome.storage.local.set({ [VOICE_INTRO_SEEN_KEY]: true }); } catch (_) { /* ignore */ }
+  }
+
+  saveHistory() {
+    try {
+      chrome.storage.local.set({ [VOICE_HISTORY_KEY]: this.history });
+    } catch (_) { /* ignore */ }
+  }
+
+  bumpHistory(engineId) {
+    this.history[engineId] = (this.history[engineId] || 0) + 1;
+    this.saveHistory();
+  }
+
+  bind() {
+    const btn = document.getElementById('spKeywordVoice');
+    if (btn) btn.addEventListener('click', () => this.start());
+    document.getElementById('spVoiceCancel')?.addEventListener('click', () => this.cancel());
+    document.getElementById('spVoiceRetry')?.addEventListener('click', () => this.startRecognition());
+    document.getElementById('spVoiceIntroOk')?.addEventListener('click', () => this.confirmIntro());
+    document.getElementById('spVoiceIntroCancel')?.addEventListener('click', () => this.cancel());
+    document.getElementById('spVoiceHelpBtn')?.addEventListener('click', () => {
+      try { chrome.tabs.create({ url: this.helpTargetUrl || getVoicePermissionUrl() }); } catch (_) { /* ignore */ }
+    });
+  }
+
+  isEnabled() {
+    return this.renderer?.voiceEnabled === true;
+  }
+
+  // 从 renderer.config 抓"叶子级搜索引擎"项——直接搜索类，不含子菜单
+  // 暂不支持需要二级选择的（速答/百问/优化/封面），那些靠 picker 流程
+  collectEngineItems() {
+    const out = [];
+    const validTypes = new Set(['search', 'ai-chat', 'ai-search', 'ecommerce', 'translate', 'portal']);
+    for (const group of (this.renderer.config?.groups || [])) {
+      if (!group.items) continue;
+      for (const item of group.items) {
+        if (item.children && item.children.length > 0) continue;
+        if (!validTypes.has(item.type)) continue;
+        if (item.enabled === false) continue;
+        out.push(item);
+      }
+    }
+    return out;
+  }
+
+  // 入口：点 🎤 调这里。决定先弹"知情同意"还是直接录音
+  start() {
+    if (!this.isEnabled()) {
+      this.deactivate();
+      return;
+    }
+    if (this.busy) return;
+    if (!this.renderer.keyword.text) {
+      this.renderer.showToast('请先选中文字或读剪贴板');
+      return;
+    }
+    if (!this.introSeen) {
+      this.showIntro();          // 首次：先看说明
+      return;
+    }
+    this.startRecognition();      // 看过：直接录音
+  }
+
+  // 用户在 intro 页点"明白了，开始录音"——这是真正触发麦克风请求的那一下
+  confirmIntro() {
+    if (!this.isEnabled()) {
+      this.deactivate();
+      return;
+    }
+    this.saveIntroSeen();
+    this.startRecognition();
+  }
+
+  // 通过 background/offscreen 启动 SpeechRecognition——麦克风 prompt 由 offscreen document 触发
+  async startRecognition() {
+    if (!this.isEnabled()) {
+      this.deactivate();
+      return;
+    }
+    if (this.busy) return;
+    const runId = ++this.recognitionRunId;
+    this.busy = true;
+    this.showRecordingUi();
+    const voiceBtn = document.getElementById('spKeywordVoice');
+    if (voiceBtn) voiceBtn.classList.add('recording');
+    this.setStatus('recording', '🎤', '正在请求麦克风权限——请留意 Chrome 顶部弹出的授权对话框');
+
+    let candidates;
+    try {
+      candidates = await this.recognizer.recognize();
+    } catch (err) {
+      if (runId !== this.recognitionRunId || !this.isEnabled()) return;
+      console.warn('[触触搜][Voice] 识别失败:', err);
+      const code = err.code || err.message || err.name || '';
+      if (voiceBtn) voiceBtn.classList.remove('recording');
+      this.busy = false;
+      if (code === 'permission-denied' || code === 'not-allowed' || code === 'service-not-allowed' ||
+          code === 'NotAllowedError' || err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        const permissionState = err.details?.permissionState || '';
+        this.setStatus('error', '🚫', permissionState === 'denied' ? '麦克风权限被拒绝' : '需要先完成麦克风授权');
+        this.showPermissionHelp(permissionState === 'denied' ? 'settings' : 'grant');
+        return;
+      }
+      const msg = code === 'no-speech' ? '没听到声音，请再试一次或点取消'
+                : code === 'audio-capture' || code === 'NotFoundError' || code === 'DevicesNotFoundError' ? '没找到麦克风设备'
+                : code === 'network' ? '识别引擎需要联网（V1 用 Web Speech，V2 将切换到本地）'
+                : code === 'media-devices-unavailable' ? '当前浏览器环境不支持麦克风访问'
+                : code === 'speech-recognition-unavailable' ? '当前浏览器不支持 Web Speech API'
+                : code === 'offscreen-unavailable' ? '当前 Chrome 版本不支持扩展离屏录音'
+                : `识别失败：${code}`;
+      this.setStatus('error', '⚠️', msg);
+      return;
+    }
+    if (runId !== this.recognitionRunId || !this.isEnabled()) return;
+    this.finishRecognition(candidates);
+  }
+
+  finishRecognition(candidates) {
+    if (!this.isEnabled()) return;
+    const voiceBtn = document.getElementById('spKeywordVoice');
+    if (voiceBtn) voiceBtn.classList.remove('recording');
+    this.busy = false;
+    document.getElementById('spVoice').hidden = false;
+    document.getElementById('spVoiceIntro').hidden = true;
+    document.getElementById('spVoiceStatus').hidden = false;
+    document.getElementById('spVoiceHelp').hidden = true;
+    document.getElementById('spVoiceActions').hidden = false;
+    const ranked = this.rankEngines(candidates);
+    if (!ranked.length) {
+      this.setStatus('error', '🤔', '没匹配到引擎，请重录或取消');
+      return;
+    }
+    const heard = candidates[0]?.text || '';
+    this.setStatus('done', '✓', `听到：「${heard}」—— 请从下方选择`);
+    this.renderCandidates(ranked);
+  }
+
+  showVisibleRecognitionError(errorText) {
+    if (!this.isEnabled()) return;
+    this.busy = false;
+    const voiceBtn = document.getElementById('spKeywordVoice');
+    if (voiceBtn) voiceBtn.classList.remove('recording');
+    document.getElementById('spVoice').hidden = false;
+    document.getElementById('spVoiceIntro').hidden = true;
+    document.getElementById('spVoiceStatus').hidden = false;
+    document.getElementById('spVoiceList').hidden = true;
+    document.getElementById('spVoiceList').innerHTML = '';
+    document.getElementById('spVoiceHelp').hidden = true;
+    document.getElementById('spVoiceActions').hidden = false;
+    this.setStatus('error', '⚠️', errorText || '可见录音页识别失败，请重试');
+  }
+
+  // Joint Scoring：声学分（recogScore）× 别名匹配 + 用户历史 boost
+  // 现在 V1 已经"声学+别名"两路融合；V2 加 audio embedding 第三路时只改这里
+  rankEngines(asrCandidates) {
+    const items = this.collectEngineItems();
+    const histValues = Object.values(this.history);
+    const maxCount = Math.max(1, ...histValues);
+
+    const engineScores = items.map((item) => {
+      let bestPair = 0;
+      for (const cand of asrCandidates) {
+        const aliasScores = aliasMatchScores(cand.text);
+        const aSim = aliasScores[item.id] || 0;
+        // 万一 alias 表没覆盖到，用 title 直接比对兜底
+        const titleNorm = normalizeAsrText(item.title || '');
+        const candNorm = normalizeAsrText(cand.text);
+        const titleSim = titleNorm && candNorm
+          ? 1 - levenshtein(candNorm, titleNorm) / Math.max(candNorm.length, titleNorm.length, 1)
+          : 0;
+        const matchSim = Math.max(aSim, titleSim);
+        const acousticConf = cand.score || 0.5;
+        // 声学置信度低时，更依赖文本匹配；高时，加权融合
+        const pairScore = acousticConf * 0.4 + matchSim * 0.6;
+        if (pairScore > bestPair) bestPair = pairScore;
+      }
+      const histBoost = (this.history[item.id] || 0) / maxCount;     // [0,1]
+      const finalScore = bestPair * 0.85 + histBoost * 0.15;
+      return { item, score: finalScore, matchOnly: bestPair };
+    });
+
+    return engineScores
+      .filter((x) => x.matchOnly > 0.15)        // 滤掉完全不像的（连 15% 相似都没有）
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+  }
+
+  renderCandidates(ranked) {
+    if (!this.isEnabled()) {
+      this.hide();
+      return;
+    }
+    const ul = document.getElementById('spVoiceList');
+    ul.innerHTML = '';
+    ul.hidden = false;
+    const max = ranked[0]?.score || 1;
+    ranked.forEach((entry, i) => {
+      const li = document.createElement('li');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sp-voice-item' + (i === 0 ? ' top' : '');
+      const pct = Math.max(5, Math.round((entry.score / max) * 100));
+      const titleSafe = String(entry.item.title || entry.item.id || '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+      const iconSafe = String(entry.item.icon || '🔍');
+      btn.innerHTML = `
+        <span class="sp-voice-item-icon">${iconSafe}</span>
+        <span class="sp-voice-item-title">${titleSafe}</span>
+        <span class="sp-voice-item-bar"><span class="sp-voice-item-bar-fill" style="width:${pct}%"></span></span>
+        <span class="sp-voice-item-pct">${pct}%</span>
+      `;
+      btn.addEventListener('click', () => this.pick(entry.item));
+      li.appendChild(btn);
+      ul.appendChild(li);
+    });
+  }
+
+  pick(item) {
+    this.bumpHistory(item.id);
+    this.hide();
+    // 复用现有 handleClick 调度链路——type 路由 / executeMenuAction 全免重写
+    this.renderer.handleClick(item);
+  }
+
+  cancel() {
+    this.deactivate();
+  }
+
+  deactivate() {
+    this.recognitionRunId++;
+    this.busy = false;
+    const voiceBtn = document.getElementById('spKeywordVoice');
+    if (voiceBtn) voiceBtn.classList.remove('recording');
+    if (this.recognizer && typeof this.recognizer.cancel === 'function') {
+      this.recognizer.cancel();
+    }
+    this.hide();
+  }
+
+  // 面板的 4 种"子状态"切换 ——
+  //   intro: 仅 .sp-voice-intro 显示
+  //   recording / result / generic-error: 仅 status + actions 显示
+  //   permission-denied: status + .sp-voice-help + actions 显示
+  showIntro() {
+    if (!this.isEnabled()) {
+      this.hide();
+      return;
+    }
+    document.getElementById('spVoice').hidden = false;
+    document.getElementById('spVoiceIntro').hidden = false;
+    document.getElementById('spVoiceStatus').hidden = true;
+    document.getElementById('spVoiceList').hidden = true;
+    document.getElementById('spVoiceList').innerHTML = '';
+    document.getElementById('spVoiceHelp').hidden = true;
+    document.getElementById('spVoiceActions').hidden = true;
+  }
+
+  showRecordingUi() {
+    if (!this.isEnabled()) {
+      this.hide();
+      return;
+    }
+    document.getElementById('spVoice').hidden = false;
+    document.getElementById('spVoiceIntro').hidden = true;
+    document.getElementById('spVoiceStatus').hidden = false;
+    document.getElementById('spVoiceList').hidden = true;
+    document.getElementById('spVoiceList').innerHTML = '';
+    document.getElementById('spVoiceHelp').hidden = true;
+    document.getElementById('spVoiceActions').hidden = false;
+  }
+
+  showPermissionHelp(kind = 'grant') {
+    const helpEl = document.getElementById('spVoiceHelp');
+    const textEl = helpEl?.querySelector('.sp-voice-help-text');
+    const btnEl = document.getElementById('spVoiceHelpBtn');
+    if (kind === 'settings') {
+      this.helpTargetUrl = getMicSettingsUrl();
+      if (textEl) textEl.textContent = 'Chrome 已记录为拒绝麦克风。点击下面按钮打开本扩展的麦克风设置，把状态改成「允许」，回来点重新录音。';
+      if (btnEl) btnEl.textContent = '🔓 去 Chrome 设置开启';
+    } else {
+      this.helpTargetUrl = getVoicePermissionUrl();
+      if (textEl) textEl.textContent = 'Chrome 隐藏录音页仍拿不到麦克风。点击下面按钮打开可见录音页，在新页完成录音后，候选列表会回到这里。';
+      if (btnEl) btnEl.textContent = '🎤 打开可见录音页';
+    }
+    if (helpEl) helpEl.hidden = false;
+  }
+
+  showPermissionReady() {
+    if (!this.isEnabled()) return;
+    document.getElementById('spVoice').hidden = false;
+    document.getElementById('spVoiceIntro').hidden = true;
+    document.getElementById('spVoiceStatus').hidden = false;
+    document.getElementById('spVoiceList').hidden = true;
+    document.getElementById('spVoiceList').innerHTML = '';
+    document.getElementById('spVoiceHelp').hidden = true;
+    document.getElementById('spVoiceActions').hidden = false;
+    this.setStatus('done', '✓', '麦克风授权成功，请点重新录音');
+  }
+
+  hide() {
+    document.getElementById('spVoice').hidden = true;
+    document.getElementById('spVoiceIntro').hidden = true;
+    document.getElementById('spVoiceStatus').hidden = true;
+    document.getElementById('spVoiceList').hidden = true;
+    document.getElementById('spVoiceList').innerHTML = '';
+    document.getElementById('spVoiceHelp').hidden = true;
+    document.getElementById('spVoiceActions').hidden = true;
+  }
+
+  setStatus(state, icon, text) {
+    const statusEl = document.getElementById('spVoiceStatus');
+    if (!statusEl) return;
+    statusEl.classList.remove('recording', 'error', 'done');
+    statusEl.classList.add(state);
+    document.getElementById('spVoiceStatusIcon').textContent = icon;
+    document.getElementById('spVoiceStatusText').textContent = text;
+  }
+}
+
 // Use JS transforms instead of CSS marquee; Windows can disable/freeze CSS animation here.
 function setupMarquee(viewportSelector, textSelector, options = {}) {
   const viewport = document.querySelector(viewportSelector);
@@ -636,10 +1143,13 @@ class SidePanelRenderer {
       // Get keyword
       this.keyword = await this.getCurrentKeyword(tabInfo);
 
+      this.voiceEnabled = false;
+      this.voicePanel = null;
       this.renderKeyword();
       this.renderMenu();
       this.bindClipboardButton();
       this.bindCopyKeywordButton();
+      this.initVoiceModule();                      // 按 ccs_voice_enabled 开关决定是否激活语音模块
       // 置顶区独立于主菜单加载，失败不影响整体
       this.pinned.init().catch((err) => {
         console.warn('[触触搜] Pinned action init failed:', err);
@@ -661,6 +1171,18 @@ class SidePanelRenderer {
             raw: message.keyword.raw || message.keyword.text || ''
           };
           this.renderKeyword();
+          return;
+        }
+        if (message.action === 'ccsVoicePermissionGranted' && this.voicePanel) {
+          this.voicePanel.showPermissionReady();
+          return;
+        }
+        if (message.action === 'ccsVoiceVisibleRecognized' && this.voicePanel) {
+          this.voicePanel.finishRecognition(Array.isArray(message.candidates) ? message.candidates : []);
+          return;
+        }
+        if (message.action === 'ccsVoiceVisibleError' && this.voicePanel) {
+          this.voicePanel.showVisibleRecognitionError(message.error || '');
         }
       });
     } catch (error) {
@@ -775,17 +1297,51 @@ class SidePanelRenderer {
     const el = document.getElementById('spKeyword');
     const clipBtn = document.getElementById('spClipboardBtn');
     const copyBtn = document.getElementById('spKeywordCopy');
+    const voiceBtn = document.getElementById('spKeywordVoice');
+    // 语音按钮显示需 3 个条件同时满足：浏览器支持 + 用户在设置里开启 + keyword 非空
+    const voiceSupported = voiceBtn && voiceBtn.dataset.disabled !== 'true';
+    const voiceEnabled = this.voiceEnabled === true;
     if (this.keyword.text) {
       const display = this.keyword.text.replace(/\s+/g, ' ').trim();
       el.textContent = `"${display.length > 20 ? display.substring(0, 20) + '...' : display}"`;
       el.title = this.keyword.raw;
       if (clipBtn) clipBtn.hidden = true;
       if (copyBtn) copyBtn.hidden = false;       // 有 keyword → 露出复制按钮
+      if (voiceBtn) voiceBtn.hidden = !(voiceSupported && voiceEnabled);
     } else {
       el.textContent = '';
       if (clipBtn) clipBtn.hidden = false;
       if (copyBtn) copyBtn.hidden = true;         // 无 keyword → 隐藏复制按钮
+      if (voiceBtn) voiceBtn.hidden = true;
     }
+  }
+
+  // 语音模块门禁——读取 ccs_voice_enabled 开关，开则实例化 VoicePanel，关则不做任何事。
+  // 同时挂 storage onChanged 监听，让用户在 popup 切开关后 sidepanel 实时响应（不用重开）。
+  initVoiceModule() {
+    chrome.storage.local.get([VOICE_ENABLED_KEY], (result) => {
+      this.voiceEnabled = !!result?.[VOICE_ENABLED_KEY];
+      if (this.voiceEnabled && !this.voicePanel) {
+        this.voicePanel = new VoicePanel(this);
+      }
+      this.renderKeyword();
+    });
+
+    try {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local') return;
+        if (!changes[VOICE_ENABLED_KEY]) return;
+        const next = !!changes[VOICE_ENABLED_KEY].newValue;
+        this.voiceEnabled = next;
+      if (next && !this.voicePanel) {
+        this.voicePanel = new VoicePanel(this);
+      }
+      if (!next && this.voicePanel) {
+        this.voicePanel.deactivate();  // 关闭时取消录音/识别，并隐藏任何语音 UI
+      }
+      this.renderKeyword();
+    });
+    } catch (_) { /* ignore */ }
   }
 
   // 复制关键字按钮——keyword 徽章左侧的 📋 小图标
