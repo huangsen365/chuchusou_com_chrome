@@ -81,6 +81,7 @@ body {
   padding: 10px 12px;
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
   border-bottom: 1px solid #f59e0b33;
+  position: relative;       /* 详情弹层 absolute 定位锚点 */
 }
 
 .sp-pin-tip {
@@ -273,11 +274,136 @@ body {
   flex: 1;
 }
 
+.sp-pin-task-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
 .sp-pin-task {
   font-size: 11px;
   color: #92400e;
   font-weight: 600;
   letter-spacing: 0.3px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ⓘ 信息图标——点击触发详情弹层（非 hover，保证触屏可达） */
+.sp-pin-task-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  font-size: 13px;
+  line-height: 1;
+  color: #b45309;
+  cursor: pointer;
+  border-radius: 50%;
+  user-select: none;
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+}
+
+.sp-pin-task-info:hover,
+.sp-pin-task-info:focus-visible {
+  background: rgba(180, 83, 9, 0.18);
+  color: #78350f;
+  outline: none;
+}
+
+.sp-pin-task-info[aria-expanded="true"] {
+  background: rgba(180, 83, 9, 0.25);
+  color: #78350f;
+  transform: scale(1.05);
+}
+
+/* ==================== Task Info Popover ==================== */
+.sp-pin-task-popover {
+  position: absolute;
+  top: calc(100% - 1px);            /* 紧贴 .sp-pin 下边缘，避免缝隙看出层级断 */
+  left: 12px;
+  right: 12px;
+  z-index: 30;
+  background: #ffffff;
+  border: 1px solid #e8ecf0;
+  border-radius: 8px;
+  padding: 14px 16px 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+  font-size: 12px;
+  line-height: 1.6;
+  color: #2c3e50;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.sp-pin-task-popover-close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+  border-radius: 50%;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sp-pin-task-popover-close:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.sp-pin-task-popover-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 8px;
+  padding-right: 24px;            /* 给关闭按钮留位 */
+}
+
+.sp-pin-task-popover-section {
+  padding: 6px 0;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.sp-pin-task-popover-section:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.sp-pin-task-popover-section strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 3px;
+}
+
+.sp-pin-task-popover-section p {
+  margin: 0 0 2px 0;
+}
+
+.sp-pin-task-popover-section ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.sp-pin-task-popover-section li {
+  margin-bottom: 2px;
+}
+
+.sp-pin-task-popover-section b {
+  color: #b45309;
 }
 
 .sp-pin-style {

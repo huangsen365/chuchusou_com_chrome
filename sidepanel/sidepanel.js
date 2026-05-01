@@ -217,7 +217,10 @@ class PinnedAction {
     if (!cat) return;
     const styleEl = document.getElementById('spPinStyle');
     const taskEl = document.getElementById('spPinTask');
-    if (taskEl) taskEl.textContent = '封面生成器';
+    if (taskEl) {
+      taskEl.textContent = '封面生成器（建议字数适中）';
+      taskEl.title = '建议选择字数适中，否则图片效果不佳';
+    }
     if (!styleEl) return;
     if (cat.id === 'custom') {
       // 自定义：副标题用当前选中行的截断预览（应用层 truncateLine 默认 15 字 + CSS ellipsis 兜底）
@@ -236,6 +239,51 @@ class PinnedAction {
     document.getElementById('spPinEdit').addEventListener('click', () => this.openPicker());
     document.getElementById('spPinCancel').addEventListener('click', () => this.closePicker());
     document.getElementById('spPinSave').addEventListener('click', () => this.savePicker());
+    this.bindTaskInfoPopover();
+  }
+
+  // ⓘ 详情弹层：click 切换（不是 hover）；点外部 / ESC / × 关闭
+  // 点 ⓘ 时 stopPropagation 防止冒泡触发 .sp-pin-action 的 execute()
+  bindTaskInfoPopover() {
+    const infoEl = document.getElementById('spPinTaskInfo');
+    const popover = document.getElementById('spPinTaskPopover');
+    if (!infoEl || !popover) return;
+
+    const setOpen = (open) => {
+      popover.hidden = !open;
+      infoEl.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    const isOpen = () => !popover.hidden;
+    const toggle = () => setOpen(!isOpen());
+    const close = () => setOpen(false);
+
+    infoEl.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();              // 阻止冒泡到 .sp-pin-action button → 不触发封面生成
+      toggle();
+    });
+    // 键盘可达：tab focus 后 Enter/Space 切换
+    infoEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        e.stopPropagation();
+        toggle();
+      }
+    });
+
+    const closeBtn = popover.querySelector('.sp-pin-task-popover-close');
+    if (closeBtn) closeBtn.addEventListener('click', close);
+
+    // 点击 popover/info 之外的任意位置关闭
+    document.addEventListener('click', (e) => {
+      if (!isOpen()) return;
+      if (popover.contains(e.target) || infoEl.contains(e.target)) return;
+      close();
+    });
+    // ESC 关闭
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isOpen()) close();
+    });
   }
 
   async execute() {

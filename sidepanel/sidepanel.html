@@ -30,11 +30,41 @@
       <button class="sp-pin-action" id="spPinAction" type="button">
         <span class="sp-pin-icon" id="spPinIcon">🎨</span>
         <span class="sp-pin-text">
-          <span class="sp-pin-task" id="spPinTask">封面生成器</span>
+          <span class="sp-pin-task-row">
+            <span class="sp-pin-task" id="spPinTask" title="建议选择字数适中，否则图片效果不佳">封面生成器（建议字数适中）</span>
+            <span class="sp-pin-task-info" id="spPinTaskInfo" role="button" tabindex="0" aria-label="查看封面生成器使用说明" aria-expanded="false">ⓘ</span>
+          </span>
           <span class="sp-pin-style" id="spPinStyle"></span>
         </span>
       </button>
       <button class="sp-pin-edit" id="spPinEdit" type="button" title="修改置顶风格" aria-label="修改置顶风格">✏️</button>
+
+      <!-- 详细说明弹层（点 ⓘ 切换 / 点外部 / ESC 关闭，非 hover——保证触屏可达） -->
+      <div class="sp-pin-task-popover" id="spPinTaskPopover" role="dialog" aria-label="封面生成器使用说明" hidden>
+        <button class="sp-pin-task-popover-close" type="button" aria-label="关闭说明">×</button>
+        <h4 class="sp-pin-task-popover-title">封面生成器使用说明</h4>
+        <div class="sp-pin-task-popover-section">
+          <strong>📝 文字篇幅</strong>
+          <p>主文案推荐 <b>10–30 字</b>（标题 + 副标题）。</p>
+          <ul>
+            <li>过短：标题撑得很大，画面留白偏多</li>
+            <li>过长：字号被自动压小，画面拥挤</li>
+            <li>带换行：每行作为独立段落，可作主/副标题分隔</li>
+          </ul>
+        </div>
+        <div class="sp-pin-task-popover-section">
+          <strong>🎨 风格 / 📐 比例</strong>
+          <p>点旁边 ✏️ 编辑按钮，可切换内置风格（小红书 / 椰树牌）、自定义预设，以及画面比例（5:2 / 16:9 / 9:16 等 10 种 + 自定义）。</p>
+        </div>
+        <div class="sp-pin-task-popover-section">
+          <strong>💡 不会写自定义风格？</strong>
+          <p>picker 里有「💡 不知道填什么？」按钮，跳 ChatGPT 让它列 30 个封面风格名供参考。</p>
+        </div>
+        <div class="sp-pin-task-popover-section">
+          <strong>📋 文字来源</strong>
+          <p>选中文本优先；网页不支持选区时（如 chrome://），点顶部「📋 从剪贴板读取关键字」兜底。</p>
+        </div>
+      </div>
     </section>
   </div>
 
