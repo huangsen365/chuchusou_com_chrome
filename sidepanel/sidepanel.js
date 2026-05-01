@@ -31,6 +31,9 @@ const RATIO_PRESETS = [
 ];
 const RATIO_CUSTOM_TRIGGER = '__custom__';
 
+// 自定义风格"不知道填什么？"参考链接——让 ChatGPT 列 30 个封面风格名供用户挑选
+const COVER_STYLE_REFERENCE_URL = 'https://chatgpt.com/?prompt=%E6%88%91%E9%9C%80%E8%A6%81%E4%BD%A0%E4%B8%BA%E2%80%9C%E5%B0%81%E9%9D%A2%E5%9B%BE%E8%AE%BE%E8%AE%A1%E9%A3%8E%E6%A0%BC%E5%8F%82%E8%80%83%E2%80%9D%E7%94%9F%E6%88%90%E4%B8%80%E4%B8%AA%E5%88%97%E8%A1%A8%E3%80%82%0A%0A%E8%A6%81%E6%B1%82%EF%BC%9A%0A-+%E8%BE%93%E5%87%BA%E7%BA%A630%E4%B8%AA%E9%A3%8E%E6%A0%BC%E5%90%8D%E7%A7%B0%0A-+%E6%AF%8F%E8%A1%8C%E4%B8%80%E4%B8%AA%E9%A3%8E%E6%A0%BC%0A-+%E4%BB%85%E4%BD%BF%E7%94%A8%E7%BA%AF%E6%96%87%E6%9C%AC%EF%BC%88plain+text%EF%BC%89%EF%BC%8C%E4%B8%8D%E8%A6%81%E4%BD%BF%E7%94%A8%E7%BC%96%E5%8F%B7%E3%80%81%E7%AC%A6%E5%8F%B7%E6%88%96%E8%A7%A3%E9%87%8A%0A-+%E4%B8%8D%E8%A6%81%E6%B7%BB%E5%8A%A0%E4%BB%BB%E4%BD%95%E9%A2%9D%E5%A4%96%E8%AF%B4%E6%98%8E%E6%88%96%E5%89%8D%E5%90%8E%E7%BC%80%E6%96%87%E5%AD%97%0A-+%E9%A3%8E%E6%A0%BC%E5%8F%AF%E4%BB%A5%E6%9D%A5%E8%87%AA%E5%85%A8%E7%90%83%EF%BC%8C%E4%BD%86%E8%AF%B7%E4%BC%98%E5%85%88%E5%8C%85%E5%90%AB%E7%AC%A6%E5%90%88%E5%8D%8E%E4%BA%BA%2F%E4%B8%AD%E5%9B%BD%E5%AE%A1%E7%BE%8E%E7%9A%84%E8%AE%BE%E8%AE%A1%E9%A3%8E%E6%A0%BC%0A-+%E9%A3%8E%E6%A0%BC%E5%90%8D%E7%A7%B0%E5%B0%BD%E9%87%8F%E7%AE%80%E6%B4%81%EF%BC%88%E5%A6%82%E2%80%9CXX%E9%A3%8E%E6%A0%BC%E2%80%9D%E6%88%96%E5%B8%B8%E8%A7%81%E8%A1%A8%E8%BE%BE%EF%BC%89%0A%0A%E7%A4%BA%E4%BE%8B%E6%A0%BC%E5%BC%8F%EF%BC%88%E4%BB%85%E4%BE%9B%E5%8F%82%E8%80%83%EF%BC%8C%E4%B8%8D%E8%A6%81%E5%A4%8D%E7%94%A8%E7%A4%BA%E4%BE%8B%E5%86%85%E5%AE%B9%EF%BC%89%EF%BC%9A%0A%E5%B0%8F%E7%BA%A2%E4%B9%A6%E5%B0%81%E9%9D%A2%E9%A3%8E%E6%A0%BC%0A%E6%A4%B0%E6%A0%91%E7%89%8C%E6%B5%B7%E6%8A%A5%E9%A3%8E%E6%A0%BC%0A%0A%E8%AF%B7%E7%9B%B4%E6%8E%A5%E8%BE%93%E5%87%BA%E5%88%97%E8%A1%A8%E5%86%85%E5%AE%B9%E3%80%82';
+
 function parseCustomLines(text) {
   if (typeof text !== 'string') return [];
   return text.split(/\r?\n/).map((s) => s.trim()).filter((s) => s.length > 0);
@@ -326,13 +329,24 @@ class PinnedAction {
         this.refreshSaveBtn();
       };
     }
+    // 「💡 不知道填什么？」帮助链接：跳 ChatGPT 让它列 30 个封面风格供用户挑
+    const helpBtn = document.getElementById('spPinCustomHelp');
+    if (helpBtn) {
+      helpBtn.onclick = () => {
+        try { chrome.tabs.create({ url: COVER_STYLE_REFERENCE_URL }); } catch (_) { /* ignore */ }
+      };
+    }
     this.refreshPickerCustomVisibility();
     this.refreshPickerCounter();
     this.rebuildCustomDropdown();
     this.bindRatioControls();
     this.rebuildRatioDropdown();
     this.refreshSaveBtn();
-    document.getElementById('spPinPicker').hidden = false;
+    const picker = document.getElementById('spPinPicker');
+    picker.hidden = false;
+    // .sp-pin 已经 sticky 在顶部，picker 在主滚动区，用户当前滚到中段时点 ✏️ 会看不到 picker；
+    // 自动滚回顶部确保 picker 可见
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (_) { window.scrollTo(0, 0); }
   }
 
   bindRatioControls() {
@@ -520,7 +534,10 @@ class PinnedAction {
     this.current = { ...this.draft };
     const writes = { [PIN_STORAGE_KEY]: this.current };
     if (this.draft.categoryId === 'custom') {
-      const fullText = (this.draftCustomPurpose || '').slice(0, CUSTOM_PURPOSE_MAX);
+      // 保存时统一 trim：parseCustomLines 已经做了 per-line trim + 丢空行，
+      // 再 join('\n') 得到干净版本——避免用户输入残留前后空格 / 多余空行
+      const cleanLines = parseCustomLines(this.draftCustomPurpose);
+      const fullText = cleanLines.join('\n').slice(0, CUSTOM_PURPOSE_MAX);
       const selectedLine = (this.draftCustomSelectedLine || '').trim();
       this.customPurpose = fullText;
       this.customSelectedLine = selectedLine;
@@ -643,10 +660,12 @@ class SidePanelRenderer {
         return;
       }
 
-      // URL 没变，但用户手动设过 keyword 且自动提取又空 → 保留手动设的，不覆盖
-      // （比如 chrome:// 页面 user 用剪贴板按钮写了 keyword，
-      //   后续 tab 事件触发 refresh()，自动提取还是空，不能把手动的清掉）
-      if (this.keywordSetManually && (!newKeyword || !newKeyword.text)) {
+      // URL 没变 + 用户手动设过 keyword → 一律保留，不论自动提取是否有内容
+      // 用户点 📋 是强烈意图信号：在这个页面用剪贴板内容做关键字
+      // 之前的弱保护（仅 newKeyword 为空时不覆盖）会让标题提取 / 缓存选区悄悄替掉手动值，
+      // 表现为"最后一次动作不是 📋 时，系统回到默认机制"——剪贴板数据其实在第一次 handleClick→refresh 时就被冲掉了
+      // 退出条件：URL 变化（上面 urlChanged 分支已处理，此时 manual 标志被清掉）或用户再点 📋 写新值
+      if (this.keywordSetManually) {
         return;
       }
 
@@ -738,9 +757,13 @@ class SidePanelRenderer {
           setTimeout(reset, 2000);
           return;
         }
-        const limited = cleaned.slice(0, 500);
+        // 上限对齐 backend AI Chat 引擎硬上限（utils/TextLimits.js LIMITS.aiChat = 6000）
+        // 之前 500 太小，多段换行内容会被吃掉；下游 applyTextLimit 仍按 menuId 做引擎级保护
+        const limited = cleaned.slice(0, 6000);
         this.keyword = {
+          // text 用于徽章显示，把换行/连续空白合成单空格（视觉紧凑，不影响真实数据）
           text: limited.replace(/\s+/g, ' '),
+          // raw 保留原始换行——执行菜单时走 keyword.raw，确保多段文字完整透传
           raw: limited
         };
         // 标记为手动设——后续 refresh() 在同 URL 下不会用空 keyword 覆盖它
@@ -830,7 +853,14 @@ class SidePanelRenderer {
 
   async handleClick(item) {
     await this.refresh();
-    const keyword = this.keyword.raw || this.keyword.text;
+    // 关键字按目标类型分流：
+    // - 搜索类 (search/ai-search/ecommerce/translate/portal)：取 keyword.text（已合并换行/连续空白成单空格）
+    //   → 多段剪贴板内容里的 \n 不会编码成 %0A 灌进搜索查询、破坏语义
+    // - AI 对话 / 速答 / 百问 / 优化 / 封面 / 工具：取 keyword.raw 保留原始段落结构
+    const SEARCH_LIKE_TYPES = ['search', 'ai-search', 'ecommerce', 'translate', 'portal'];
+    const keyword = SEARCH_LIKE_TYPES.includes(item.type)
+      ? (this.keyword.text || this.keyword.raw)
+      : (this.keyword.raw || this.keyword.text);
 
     try {
       const response = await chrome.runtime.sendMessage({

@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="sidepanel.css">
 </head>
 <body>
-  <!-- 置顶区：header + AI 检测 banner + 剪贴板按钮 一起 fixed 在顶部，菜单滚动时不被滚走 -->
+  <!-- 置顶区：header + 温馨提示 + 剪贴板按钮 + 封面生成器 一起 fixed 在顶部，菜单滚动时不被滚走 -->
   <div class="sp-sticky-top" id="spStickyTop">
     <header class="sp-header">
       <div class="sp-header-left">
@@ -24,26 +24,29 @@
     <button class="sp-clipboard-btn" id="spClipboardBtn" type="button" hidden>
       📋 从剪贴板读取关键字
     </button>
-  </div>
 
-  <!-- 置顶快捷动作（默认：封面生成器 · 小红书封面） -->
-  <section class="sp-pin" id="spPin" hidden>
-    <button class="sp-pin-action" id="spPinAction" type="button">
-      <span class="sp-pin-icon" id="spPinIcon">🎨</span>
-      <span class="sp-pin-text">
-        <span class="sp-pin-task" id="spPinTask">封面生成器</span>
-        <span class="sp-pin-style" id="spPinStyle"></span>
-      </span>
-    </button>
-    <button class="sp-pin-edit" id="spPinEdit" type="button" title="修改置顶风格" aria-label="修改置顶风格">✏️</button>
-  </section>
+    <!-- 置顶快捷动作（默认：封面生成器 · 小红书封面）—— 加入 sticky 区，菜单滚动时常驻 -->
+    <section class="sp-pin" id="spPin" hidden>
+      <button class="sp-pin-action" id="spPinAction" type="button">
+        <span class="sp-pin-icon" id="spPinIcon">🎨</span>
+        <span class="sp-pin-text">
+          <span class="sp-pin-task" id="spPinTask">封面生成器</span>
+          <span class="sp-pin-style" id="spPinStyle"></span>
+        </span>
+      </button>
+      <button class="sp-pin-edit" id="spPinEdit" type="button" title="修改置顶风格" aria-label="修改置顶风格">✏️</button>
+    </section>
+  </div>
 
   <!-- 置顶选择器（默认隐藏，点编辑按钮展开） -->
   <div class="sp-pin-picker" id="spPinPicker" hidden>
     <h3 class="sp-pin-picker-title">选择置顶风格</h3>
     <div class="sp-pin-options" id="spPinOptions"></div>
     <div class="sp-pin-custom" id="spPinCustom" hidden>
-      <label class="sp-pin-custom-label" for="spPinCustomInput">自定义预设（每行一个，可保存多个）：</label>
+      <div class="sp-pin-custom-header">
+        <label class="sp-pin-custom-label" for="spPinCustomInput">自定义预设（每行一个，可保存多个）：</label>
+        <button type="button" class="sp-pin-custom-help" id="spPinCustomHelp" title="让 ChatGPT 给你列 30 个封面风格参考">💡 不知道填什么？</button>
+      </div>
       <textarea
         class="sp-pin-custom-input"
         id="spPinCustomInput"
