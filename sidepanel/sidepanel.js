@@ -311,6 +311,7 @@ class PinnedAction {
       ta.value = this.draftCustomPurpose;
       ta.oninput = () => {
         this.draftCustomPurpose = ta.value || '';
+        this.activateCustomCategory();   // 用户在编辑自定义文本 → 意图就是用自定义
         this.refreshPickerCounter();
         this.rebuildCustomDropdown();
         this.refreshSaveBtn();
@@ -321,6 +322,7 @@ class PinnedAction {
     if (sel) {
       sel.onchange = () => {
         this.draftCustomSelectedLine = sel.value || '';
+        this.activateCustomCategory();   // 用户在选 dropdown 行 → 自动激活自定义模式
         this.refreshSaveBtn();
       };
     }
@@ -427,6 +429,19 @@ class PinnedAction {
     box.hidden = this.draft?.categoryId !== 'custom';
   }
 
+  /**
+   * 用户在自定义编辑区做了任意操作（改 textarea / 选 dropdown）→
+   * 自动把 radio 切到「自定义」并同步 UI，不需要再手动点上面的 radio。
+   * 已是 custom 时是 no-op。
+   */
+  activateCustomCategory() {
+    if (!this.draft || this.draft.categoryId === 'custom') return;
+    this.draft.categoryId = 'custom';
+    const radio = document.querySelector('input[name="pinStyle"][value="custom"]');
+    if (radio) radio.checked = true;
+    this.refreshPickerCustomVisibility();
+  }
+
   refreshPickerCounter() {
     const counter = document.getElementById('spPinCustomCounter');
     if (counter) counter.textContent = String((this.draftCustomPurpose || '').length);
@@ -469,6 +484,8 @@ class PinnedAction {
       if (line === chosen) opt.selected = true;
       sel.appendChild(opt);
     });
+    // 显式同步 select.value，防止某些浏览器在 innerHTML 重建后 selectedIndex 残留默认 0
+    sel.value = chosen;
     this.draftCustomSelectedLine = chosen;
     this.lastDropdownLines = [...lines];
   }
