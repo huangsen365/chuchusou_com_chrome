@@ -1,5 +1,35 @@
 # 更新日志
 
+## v1.5.3 (2026-05-01)
+
+侧边栏 UX 持续打磨：封面卡片置顶 + header 收窄省空间、剪贴板 / 自定义风格多项体验修复、新增 ⓘ 详情弹层。详细见 [releases/v1.5.3.md](./releases/v1.5.3.md)。
+
+### ✨ 新功能
+
+- **封面卡片置顶**：`.sp-pin` 从主滚动区搬进 sticky 区，菜单滚动时常驻视野。最终 sticky 顺序：(收窄)header → AI 检测温馨提示 → 剪贴板按钮 → 封面生成器卡片。
+- **顶部蓝色 header 收窄**：padding 14/16 → 6/14、icon 20→15、标题 16→13、keyword 徽章紧凑化，整体省 ~22px 高度，刚好给新加入 sticky 的封面卡片腾位。
+- **封面卡片 ⓘ 详情弹层**：标题旁加 ⓘ 图标，点击（非 hover，触屏 / 桌面行为统一）展开详情卡片，4 种关闭路径：再点 ⓘ / 点 × / 点弹层外部 / ESC。弹层内含字数篇幅建议（10–30 字）、风格 / 比例切换说明、💡 自定义风格参考入口、文字来源说明。
+- **自定义风格 picker 加「💡 不知道填什么？」帮助按钮**：跳 ChatGPT 让它列 30 个封面风格名供参考，缓解部分用户"想不出风格关键词"的痛点。
+- **置顶卡片标题加字数提示**：`封面生成器` → `封面生成器（建议字数适中）`，配合 title 兜全文「建议选择字数适中，否则图片效果不佳」。
+
+### 🐛 修复
+
+- **剪贴板读取被 500 字符 cap 截断**：之前 sidepanel 剪贴板按钮硬截 500 字，多段换行长文超出部分丢失。上限 500 → 6000 对齐 backend `LIMITS.aiChat`，下游 `applyTextLimit` 仍按 menuId 做引擎级保护。
+- **剪贴板内容灌给搜索引擎查询失败**：之前所有菜单类型都用 `keyword.raw`（带换行），Google / Baidu 等搜索引擎收到 `%0A` 当噪声，查询语义被破坏。修复：`handleClick` 按 `item.type` 分流——搜索类（search/ai-search/ecommerce/translate/portal）用 `keyword.text`（合并空白成单空格），AI 对话 / 任务类继续用 `keyword.raw` 保段落结构。
+- **手动剪贴板 keyword 优先级被悄悄替换**：之前 `refresh()` 仅在自动提取为空时保留手动值；只要后台返回任意内容（标题提取 / 缓存选区），剪贴板内容就被覆盖。表现为"最后一次动作不是 📋 时系统回到默认机制"。修复：手动设过 keyword 后 URL 不变就一律保留，唯一退出条件 = URL 切换或用户再点 📋 写新值。
+- **自定义预设 textarea 保存时残留脏数据**：之前直接存 textarea 原文，行首尾空格 / 多余空行写入存储。修复：保存路径走 `parseCustomLines + join('\n')` 规范化清洗。
+
+### 🔧 改进
+
+- **picker 自动滚顶**：因为 `.sp-pin` 现在常驻顶部，picker 仍在主滚动区——用户滚到中段时点 ✏️，picker 出现在视野外。`openPicker()` 末尾加 `window.scrollTo({ top: 0, behavior: 'smooth' })` 确保可见。
+- **自定义预设 label 不再被强制换行**：之前我加的 `flex: 1` + `min-width: 0` 让 label 在容器空间不够时被强制中途断词。改用 `white-space: nowrap` + 容器 `flex-wrap: wrap`，label 整段保持完整，按钮空间不够时优雅落到下一行。
+
+### 🛠 技术改动
+
+- 新增 `.sp-pin-task-info` ⓘ 图标交互模式：`<span>` 嵌套在 `<button>` 内（避免 nested button 非法 HTML），点击靠 `e.stopPropagation()` 阻止冒泡到外层封面生成 action；键盘可达性靠 `role="button" tabindex="0"` + Enter/Space keydown handler；`aria-expanded` 同步切换状态。
+- `.sp-pin` 加 `position: relative`、`.sp-pin-task-popover` 用 `position: absolute; top: calc(100% - 1px)` 紧贴 `.sp-pin` 下边缘，`max-height: 70vh` 内滚兜底超长内容。
+- `bindTaskInfoPopover()` 4 种关闭路径：`infoEl click toggle` / `closeBtn click` / `document click contains 检查` / `document keydown Escape`。
+
 ## v1.5.2 (2026-05-01)
 
 封面生成器持续打磨：自定义风格升级为预设库、新增比例选择、若干 UX 细节修复。详细见 [releases/v1.5.2.md](./releases/v1.5.2.md)。
