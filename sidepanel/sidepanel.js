@@ -791,6 +791,14 @@ class PinnedAction {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && isOpen()) close();
     });
+    // 失焦关闭：用户点到其它 Chrome 页 / 其它窗口 / 其它应用，自动收起，避免一直挂在那里
+    window.addEventListener('blur', () => {
+      if (isOpen()) close();
+    });
+    // 侧栏被隐藏（折叠 / 切到不同标签的 sidepanel）也关闭
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && isOpen()) close();
+    });
   }
 
   async execute() {
