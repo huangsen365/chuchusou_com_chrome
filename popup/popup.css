@@ -51,6 +51,14 @@ body {
   gap: 6px;
 }
 
+.menu-keyword-wrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 160px;
+}
+
 .menu-icon {
   font-size: 18px;
 }
@@ -69,6 +77,37 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.menu-keyword-copy {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  color: white;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0;
+  flex: 0 0 auto;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.menu-keyword-copy:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.menu-keyword-copy:active {
+  transform: translateY(0);
+}
+
+.menu-keyword-copy[hidden] {
+  display: none;
 }
 
 /* ==================== 菜单容器 ==================== */

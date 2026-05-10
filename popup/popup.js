@@ -97,14 +97,24 @@ class PopupMenuRenderer {
 
     // 显示当前关键词
     const keywordEl = document.getElementById('currentKeyword');
+    const keywordCopyEl = document.getElementById('currentKeywordCopy');
     if (this.keyword.text) {
       const displayText = this.formatKeyword(this.keyword.text);
+      const fullKeyword = this.keyword.raw || this.keyword.text;
       keywordEl.textContent = `"${displayText}"`;
-      keywordEl.title = this.keyword.raw;
+      keywordEl.title = fullKeyword;
       keywordEl.style.display = 'block';
+      if (keywordCopyEl) {
+        keywordCopyEl.hidden = false;
+        keywordCopyEl.dataset.keyword = fullKeyword;
+      }
     } else {
       keywordEl.textContent = '';
       keywordEl.style.display = 'none';
+      if (keywordCopyEl) {
+        keywordCopyEl.hidden = true;
+        keywordCopyEl.dataset.keyword = '';
+      }
     }
 
     // 渲染菜单组
@@ -304,6 +314,32 @@ class PopupMenuRenderer {
 
     // 侧边栏切换（按当前状态显示「打开/关闭」相反操作）
     this.setupSidePanelButton();
+
+    // 关键字复制按钮
+    const keywordCopy = document.getElementById('currentKeywordCopy');
+    if (keywordCopy) {
+      keywordCopy.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.copyCurrentKeyword();
+      });
+    }
+  }
+
+  async copyCurrentKeyword() {
+    const keyword = this.keyword.raw || this.keyword.text;
+    if (!keyword) {
+      this.showToast('没有可复制的关键字');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(keyword);
+      this.showToast('已复制关键字');
+    } catch (error) {
+      console.error('[触触搜] 复制关键字失败:', error);
+      this.showToast('复制失败');
+    }
   }
 
   async setupSidePanelButton() {

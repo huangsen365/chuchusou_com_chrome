@@ -58,16 +58,26 @@ class MenuRenderer {
    */
   _renderKeyword(keyword) {
     const keywordEl = document.querySelector(this.keywordSelector);
+    const copyEl = document.querySelector('#currentKeywordCopy');
     if (!keywordEl) return;
 
     if (keyword && keyword.text) {
       const displayText = this._formatKeyword(keyword.text);
+      const fullKeyword = keyword.raw || keyword.text;
       keywordEl.textContent = `"${displayText}"`;
-      keywordEl.title = keyword.raw || keyword.text;
+      keywordEl.title = fullKeyword;
       keywordEl.style.display = 'block';
+      if (copyEl) {
+        copyEl.hidden = false;
+        copyEl.dataset.keyword = fullKeyword;
+      }
     } else {
       keywordEl.textContent = '';
       keywordEl.style.display = 'none';
+      if (copyEl) {
+        copyEl.hidden = true;
+        copyEl.dataset.keyword = '';
+      }
     }
   }
 
