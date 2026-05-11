@@ -57,6 +57,7 @@ body {
   gap: 5px;
   min-width: 0;
   max-width: 160px;
+  position: relative;
 }
 
 .menu-icon {
@@ -77,6 +78,31 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: default;
+}
+
+.menu-keyword-wrap[data-full-keyword]:not([data-full-keyword=""]):hover::after,
+.menu-keyword-wrap[data-full-keyword]:not([data-full-keyword=""]):focus-within::after {
+  content: attr(data-full-keyword);
+  position: fixed;
+  top: 42px;
+  right: 12px;
+  z-index: 10000;
+  box-sizing: border-box;
+  width: min(320px, calc(100vw - 24px));
+  max-height: 180px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: rgba(17, 24, 39, 0.97);
+  color: #fff;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
 }
 
 .menu-keyword-copy {

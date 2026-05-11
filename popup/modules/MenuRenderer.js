@@ -60,12 +60,15 @@ class MenuRenderer {
     const keywordEl = document.querySelector(this.keywordSelector);
     const copyEl = document.querySelector('#currentKeywordCopy');
     if (!keywordEl) return;
+    const keywordWrapEl = keywordEl.closest('.menu-keyword-wrap');
 
     if (keyword && keyword.text) {
       const displayText = this._formatKeyword(keyword.text);
       const fullKeyword = keyword.raw || keyword.text;
       keywordEl.textContent = `"${displayText}"`;
-      keywordEl.title = fullKeyword;
+      // 用自定义 CSS tooltip 替代原生 title：原生 title 有浏览器级延迟，hover 体感慢。
+      if (keywordWrapEl) keywordWrapEl.dataset.fullKeyword = fullKeyword;
+      keywordEl.removeAttribute('title');
       keywordEl.style.display = 'block';
       if (copyEl) {
         copyEl.hidden = false;
@@ -73,6 +76,8 @@ class MenuRenderer {
       }
     } else {
       keywordEl.textContent = '';
+      if (keywordWrapEl) keywordWrapEl.dataset.fullKeyword = '';
+      keywordEl.removeAttribute('title');
       keywordEl.style.display = 'none';
       if (copyEl) {
         copyEl.hidden = true;

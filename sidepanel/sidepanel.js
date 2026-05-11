@@ -1306,13 +1306,16 @@ class SidePanelRenderer {
     const clipBtn = document.getElementById('spClipboardBtn');
     const copyBtn = document.getElementById('spKeywordCopy');
     const voiceBtn = document.getElementById('spKeywordVoice');
+    const keywordWrapEl = el?.closest('.sp-keyword-wrap');
     // 语音按钮显示需 3 个条件同时满足：浏览器支持 + 用户在设置里开启 + keyword 非空
     const voiceSupported = voiceBtn && voiceBtn.dataset.disabled !== 'true';
     const voiceEnabled = this.voiceEnabled === true;
     if (this.keyword.text) {
       const display = this.keyword.text.replace(/\s+/g, ' ').trim();
       el.textContent = `"${display.length > 20 ? display.substring(0, 20) + '...' : display}"`;
-      el.title = this.keyword.raw;
+      // 用自定义 CSS tooltip 替代原生 title：原生 title 有浏览器级延迟，hover 体感慢。
+      if (keywordWrapEl) keywordWrapEl.dataset.fullKeyword = this.keyword.raw || this.keyword.text || '';
+      el.removeAttribute('title');
       if (clipBtn) {
         clipBtn.hidden = false;
         clipBtn.textContent = '📋 从剪贴板更新关键字';
@@ -1321,6 +1324,8 @@ class SidePanelRenderer {
       if (voiceBtn) voiceBtn.hidden = !(voiceSupported && voiceEnabled);
     } else {
       el.textContent = '';
+      if (keywordWrapEl) keywordWrapEl.dataset.fullKeyword = '';
+      el.removeAttribute('title');
       if (clipBtn) {
         clipBtn.hidden = false;
         clipBtn.textContent = '📋 从剪贴板读取关键字';

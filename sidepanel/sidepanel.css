@@ -72,6 +72,7 @@ body {
   align-items: center;
   gap: 4px;
   min-width: 0;
+  position: relative;
 }
 
 /* 复制关键字按钮——20px 控件让 header 总高维持 32px（与 min-height 锁高对齐） */
@@ -161,6 +162,31 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 1.4;
+  cursor: default;
+}
+
+.sp-keyword-wrap[data-full-keyword]:not([data-full-keyword=""]):hover::after,
+.sp-keyword-wrap[data-full-keyword]:not([data-full-keyword=""]):focus-within::after {
+  content: attr(data-full-keyword);
+  position: fixed;
+  top: 38px;
+  right: 12px;
+  z-index: 10000;
+  box-sizing: border-box;
+  width: min(360px, calc(100vw - 24px));
+  max-height: 260px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: rgba(17, 24, 39, 0.97);
+  color: #fff;
+  padding: 9px 11px;
+  border-radius: 9px;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
 }
 
 .sp-keyword:empty {

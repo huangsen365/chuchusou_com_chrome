@@ -98,11 +98,14 @@ class PopupMenuRenderer {
     // 显示当前关键词
     const keywordEl = document.getElementById('currentKeyword');
     const keywordCopyEl = document.getElementById('currentKeywordCopy');
+    const keywordWrapEl = keywordEl?.closest('.menu-keyword-wrap');
     if (this.keyword.text) {
       const displayText = this.formatKeyword(this.keyword.text);
       const fullKeyword = this.keyword.raw || this.keyword.text;
       keywordEl.textContent = `"${displayText}"`;
-      keywordEl.title = fullKeyword;
+      // 用自定义 CSS tooltip 替代原生 title：原生 title 有浏览器级延迟，hover 体感慢。
+      if (keywordWrapEl) keywordWrapEl.dataset.fullKeyword = fullKeyword;
+      keywordEl.removeAttribute('title');
       keywordEl.style.display = 'block';
       if (keywordCopyEl) {
         keywordCopyEl.hidden = false;
@@ -110,6 +113,8 @@ class PopupMenuRenderer {
       }
     } else {
       keywordEl.textContent = '';
+      if (keywordWrapEl) keywordWrapEl.dataset.fullKeyword = '';
+      keywordEl.removeAttribute('title');
       keywordEl.style.display = 'none';
       if (keywordCopyEl) {
         keywordCopyEl.hidden = true;
