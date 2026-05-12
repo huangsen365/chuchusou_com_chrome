@@ -81,8 +81,9 @@ body {
   cursor: default;
 }
 
-.menu-keyword-wrap[data-full-keyword]:not([data-full-keyword=""]):hover::after,
-.menu-keyword-wrap[data-full-keyword]:not([data-full-keyword=""]):focus-within::after {
+/* 关键字 tooltip：常驻 DOM 但默认隐藏，hover 延迟 400ms 才显示（避免鼠标偶然经过误触），
+ * focus-within 仍立即显示（键盘 Tab 是主动行为，不应该等待） */
+.menu-keyword-wrap[data-full-keyword]:not([data-full-keyword=""])::after {
   content: attr(data-full-keyword);
   position: fixed;
   top: 42px;
@@ -103,6 +104,21 @@ body {
   text-align: left;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
   pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0s linear 0.15s;
+}
+
+.menu-keyword-wrap[data-full-keyword]:not([data-full-keyword=""]):hover::after {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.15s ease 0.4s, visibility 0s linear 0.4s;
+}
+
+.menu-keyword-wrap[data-full-keyword]:not([data-full-keyword=""]):focus-within::after {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.1s ease, visibility 0s linear;
 }
 
 .menu-keyword-copy {
