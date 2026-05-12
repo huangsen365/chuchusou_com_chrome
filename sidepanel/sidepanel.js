@@ -725,9 +725,13 @@ class PinnedAction {
     if (!cat) return;
     const styleEl = document.getElementById('spPinStyle');
     const taskEl = document.getElementById('spPinTask');
+    const ratioEl = document.getElementById('spPinRatio');
     if (taskEl) {
       taskEl.textContent = '封面生成器（建议字数适中）';
       taskEl.title = '建议选择字数适中，否则图片效果不佳';
+    }
+    if (ratioEl) {
+      ratioEl.textContent = '· ' + (this.ratio || DEFAULT_RATIO);
     }
     if (!styleEl) return;
     if (cat.id === 'custom') {

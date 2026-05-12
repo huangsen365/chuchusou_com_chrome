@@ -526,12 +526,30 @@ body {
   color: #b45309;
 }
 
+.sp-pin-style-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
 .sp-pin-style {
   font-size: 14px;
   font-weight: 500;
   color: #1f2937;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 当前比例：风格名后的次级信息，色淡 + 小字 + 永不被 ellipsis 吃掉 */
+.sp-pin-ratio {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 400;
+  color: #6b7280;
   white-space: nowrap;
 }
 
