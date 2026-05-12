@@ -1,6 +1,6 @@
 {
   "name": "chuchusou_com_chrome",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "**触触搜** —— 轻触即搜，一触即达。",
   "main": "content.js",
   "directories": {
