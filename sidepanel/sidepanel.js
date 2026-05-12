@@ -16,9 +16,10 @@ const RATIO_CUSTOM_LIST_KEY = 'ccs_cover_custom_ratios';        // 用户保存�
 const RATIO_CUSTOM_MAX = 5;                                     // 最多保留 5 个，溢出剔除最旧
 const DEFAULT_RATIO = '5:2';
 const RATIO_RE = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/;
-// 10 个预设按"宽到窄"排序，覆盖国内外主流自媒体平台
+// 11 个预设按"宽到窄"排序，覆盖国内外主流自媒体平台
 const RATIO_PRESETS = [
   { value: '5:2',    label: '5:2 · 横幅封面（默认）' },
+  { value: '6:2',    label: '6:2 · X (Twitter / 推特) 个人主页 Banner（1500×500）' },
   { value: '2.35:1', label: '2.35:1 · 微信公众号头图 / 电影宽屏' },
   { value: '2:1',    label: '2:1 · 横幅卡片（Twitter / 知乎）' },
   { value: '16:9',   label: '16:9 · 通用横屏（YouTube / B 站 / 视频号）' },
