@@ -33,17 +33,14 @@
 
     <!-- 置顶快捷动作（默认：封面生成器 · 二次元可爱）—— 加入 sticky 区，菜单滚动时常驻 -->
     <section class="sp-pin" id="spPin" hidden>
+      <!-- 当前比例：卡片右上角内侧小字（绝对定位，与主行解耦，避免与 picker 容器同名 .sp-pin-ratio 的样式冲突） -->
+      <span class="sp-pin-corner-ratio" id="spPinRatio" title="当前画面比例"></span>
       <button class="sp-pin-action" id="spPinAction" type="button">
         <span class="sp-pin-icon" id="spPinIcon">🎨</span>
         <span class="sp-pin-text">
-          <span class="sp-pin-task-row">
-            <span class="sp-pin-task" id="spPinTask" title="建议选择字数适中，否则图片效果不佳">封面生成器（建议字数适中）</span>
-            <span class="sp-pin-task-info" id="spPinTaskInfo" role="button" tabindex="0" aria-label="查看封面生成器使用说明" aria-expanded="false">ⓘ</span>
-          </span>
-          <span class="sp-pin-style-row">
-            <span class="sp-pin-style" id="spPinStyle"></span>
-            <span class="sp-pin-ratio" id="spPinRatio" title="当前画面比例"></span>
-          </span>
+          <span class="sp-pin-task">封面生成器</span>
+          <span class="sp-pin-style" id="spPinStyle"></span>
+          <span class="sp-pin-task-info" id="spPinTaskInfo" role="button" tabindex="0" aria-label="查看封面生成器使用说明" aria-expanded="false">ⓘ</span>
         </span>
       </button>
       <button class="sp-pin-edit" id="spPinEdit" type="button" title="修改置顶风格" aria-label="修改置顶风格">✏️</button>

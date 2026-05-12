@@ -198,10 +198,10 @@ body {
   display: flex;
   align-items: stretch;
   gap: 6px;
-  padding: 10px 12px;
+  padding: 14px 12px 10px;  /* top 加 4px 给 .sp-pin-corner-ratio 留个干净的"屋檐" */
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
   border-bottom: 1px solid #f59e0b33;
-  position: relative;       /* 详情弹层 absolute 定位锚点 */
+  position: relative;       /* 详情弹层 + corner-ratio absolute 定位锚点 */
 }
 
 .sp-pin-tip {
@@ -388,27 +388,20 @@ body {
 
 .sp-pin-text {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
   flex: 1;
 }
 
-.sp-pin-task-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-
+/* 「封面生成器」分类标签——单行布局里作为小字琥珀色 badge，与风格名拉开视觉层级 */
 .sp-pin-task {
   font-size: 11px;
   color: #92400e;
   font-weight: 600;
   letter-spacing: 0.3px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex-shrink: 0;
   white-space: nowrap;
 }
 
@@ -526,13 +519,6 @@ body {
   color: #b45309;
 }
 
-.sp-pin-style-row {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 0;
-}
-
 .sp-pin-style {
   font-size: 14px;
   font-weight: 500;
@@ -544,13 +530,19 @@ body {
   min-width: 0;
 }
 
-/* 当前比例：风格名后的次级信息，色淡 + 小字 + 永不被 ellipsis 吃掉 */
-.sp-pin-ratio {
-  flex: 0 0 auto;
-  font-size: 12px;
-  font-weight: 400;
-  color: #6b7280;
+/* 当前比例：卡片右上角内侧小字，纯文字无框，色相与卡片暖色调一致但 opacity 压低
+ * 用独立 class 名 (corner-ratio) 避免与 picker 容器同名 .sp-pin-ratio 冲突 */
+.sp-pin-corner-ratio {
+  position: absolute;
+  top: 2px;
+  right: 12px;
+  font-size: 10px;
+  font-weight: 500;
+  color: #92400e;
+  opacity: 0.6;
+  letter-spacing: 0.3px;
   white-space: nowrap;
+  pointer-events: none;            /* 纯展示，不拦截卡片任何点击/hover */
 }
 
 .sp-pin-edit {
