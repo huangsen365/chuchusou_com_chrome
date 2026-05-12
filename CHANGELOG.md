@@ -1,5 +1,21 @@
 # 更新日志
 
+## v1.6.2 (2026-05-12)
+
+商店与文档 SEO 文案更新：manifest 名称 / 描述、README、welcome、package.json 同步加入「ChatGPT Image 2.0」关键字，方便用户在 Chrome Web Store / Google 搜索时命中。详细见 [releases/v1.6.2.md](./releases/v1.6.2.md)。
+
+### 🔧 改进
+
+- **manifest `name` 加入「ChatGPT Image 2.0 封面生成器」**：商店搜索结果与扩展列表中能直接看到核心卖点，方便目标用户识别。
+- **manifest `description` 加入「基于 ChatGPT Image 2.0」**：同时保留「ChatGPT Images」（OpenAI 官方写法）兼容两种搜索拼写，覆盖 132 字符内的关键词组合。
+- **README.md / welcome 页 SEO 文案同步**：H1 标题、tagline、封面生成器段落均提及 ChatGPT Image 2.0，GitHub 搜索 & 欢迎页阅读体验一致。
+- **package.json `description` 替换为功能描述**：从原 tagline「轻触即搜，一触即达」改为含功能关键字的描述，便于 GitHub Topics / 第三方扫描器索引。
+
+### 🛠 技术改动
+
+- 改动仅限文案，无代码逻辑变更；service worker / content script / 提示词模板全部不动。
+- 改动文件：`manifest.json` / `package.json` / `package-lock.json` / `README.md` / `welcome/welcome.html`。
+
 ## v1.6.1 (2026-05-12)
 
 封面生成器扩容：新增「二次元可爱」「极简的留白」两个内置风格 + 自定义风格 textarea 上限大幅放宽。详细见 [releases/v1.6.1.md](./releases/v1.6.1.md)。
