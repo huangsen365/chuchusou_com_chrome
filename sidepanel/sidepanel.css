@@ -75,11 +75,12 @@ body {
   position: relative;
 }
 
-/* 复制关键字按钮——20px 控件让 header 总高维持 32px（与 min-height 锁高对齐） */
+/* 复制关键字按钮——26px 控件，header `min-height: 32px` 仍兜得住（32-26=6，每边 3px 净空）
+ * 与 Popup `.menu-keyword-copy` 同尺寸，跨面板视觉一致 */
 .sp-keyword-copy {
-  width: 20px;
-  height: 20px;
-  font-size: 11px;
+  width: 26px;
+  height: 26px;
+  font-size: 14px;
   line-height: 1;
   padding: 0;
   display: inline-flex;
@@ -110,11 +111,11 @@ body {
   background: rgba(34, 197, 94, 0.5);    /* 复制成功临时绿底 */
 }
 
-/* 语音选引擎按钮——与复制按钮同尺寸 20px，header 总高仍维持 32px */
+/* 语音选引擎按钮——与复制按钮同尺寸 26px */
 .sp-keyword-voice {
-  width: 20px;
-  height: 20px;
-  font-size: 11px;
+  width: 26px;
+  height: 26px;
+  font-size: 14px;
   line-height: 1;
   padding: 0;
   display: inline-flex;
