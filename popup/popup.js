@@ -338,9 +338,20 @@ class PopupMenuRenderer {
       return;
     }
 
+    const btn = document.getElementById('currentKeywordCopy');
     try {
       await navigator.clipboard.writeText(keyword);
-      this.showToast('已复制关键字');
+      if (btn) {
+        const original = btn.textContent;
+        btn.textContent = '✓';
+        btn.classList.add('copied');
+        btn.disabled = true;
+        setTimeout(() => {
+          btn.textContent = original;
+          btn.classList.remove('copied');
+          btn.disabled = false;
+        }, 1200);
+      }
     } catch (error) {
       console.error('[触触搜] 复制关键字失败:', error);
       this.showToast('复制失败');

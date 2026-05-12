@@ -178,7 +178,7 @@ body {
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-word;
-  background: rgba(17, 24, 39, 0.97);
+  background: rgba(3, 105, 161, 0.97);   /* sky-700：与 header 渐变同系，比 gray-900 柔和 */
   color: #fff;
   padding: 9px 11px;
   border-radius: 9px;
