@@ -1,5 +1,20 @@
 # 更新日志
 
+## v1.6.4 (2026-05-12)
+
+SEO 文案修正：`ChatGPT Image 2.0`（单数）→ `ChatGPT Images 2.0`（复数，OpenAI 官方写法）；同时移除冗余的「（ChatGPT Images）」并列括注。**ZIP 与 v1.6.3 行为完全一致**，仅商店元信息文案差异。详细见 [releases/v1.6.4.md](./releases/v1.6.4.md)。
+
+### 🔧 改进
+
+- **manifest `name` / `description` 统一改为「ChatGPT Images 2.0」**：原 v1.6.2 引入的「ChatGPT Image 2.0」是用户搜索习惯写法，但 OpenAI 官方品牌名是 `ChatGPT Images`（复数）。统一为官方写法避免被识别为错别字，同时仍可命中带「Image」前缀的搜索。
+- **删除冗余括注**：原 description / README / store-listing 里的 `ChatGPT Images 2.0（ChatGPT Images）` 现在前后已是同名，括号纯属重复 → 删除，释放商店 132 字符 description 配额。
+
+### 🛠 技术改动
+
+- 改动仅限文案，零代码逻辑变更；service worker / content script / 提示词模板 / engines.json 全部不动。
+- 改动文件：`manifest.json` / `package.json` / `package-lock.json` / `README.md` / `welcome/welcome.html` / `releases/store-listing.txt` / `CHANGELOG.md`。
+- `releases/v1.6.2.md` 保留原状作历史档案，未追改单复数。
+
 ## v1.6.3 (2026-05-12)
 
 仅同步 `releases/store-listing.txt` 上架资料模板的 docs commit 留 tag。**ZIP 内容与 v1.6.2 功能完全一致**，扩展行为无任何差异。详细见 [releases/v1.6.3.md](./releases/v1.6.3.md)。
@@ -11,13 +26,13 @@
 
 ## v1.6.2 (2026-05-12)
 
-商店与文档 SEO 文案更新：manifest 名称 / 描述、README、welcome、package.json 同步加入「ChatGPT Image 2.0」关键字，方便用户在 Chrome Web Store / Google 搜索时命中。详细见 [releases/v1.6.2.md](./releases/v1.6.2.md)。
+商店与文档 SEO 文案更新：manifest 名称 / 描述、README、welcome、package.json 同步加入「ChatGPT Images 2.0」关键字，方便用户在 Chrome Web Store / Google 搜索时命中。详细见 [releases/v1.6.2.md](./releases/v1.6.2.md)。
 
 ### 🔧 改进
 
-- **manifest `name` 加入「ChatGPT Image 2.0 封面生成器」**：商店搜索结果与扩展列表中能直接看到核心卖点，方便目标用户识别。
-- **manifest `description` 加入「基于 ChatGPT Image 2.0」**：同时保留「ChatGPT Images」（OpenAI 官方写法）兼容两种搜索拼写，覆盖 132 字符内的关键词组合。
-- **README.md / welcome 页 SEO 文案同步**：H1 标题、tagline、封面生成器段落均提及 ChatGPT Image 2.0，GitHub 搜索 & 欢迎页阅读体验一致。
+- **manifest `name` 加入「ChatGPT Images 2.0 封面生成器」**：商店搜索结果与扩展列表中能直接看到核心卖点，方便目标用户识别。
+- **manifest `description` 加入「基于 ChatGPT Images 2.0」**：同时保留「ChatGPT Images」（OpenAI 官方写法）兼容两种搜索拼写，覆盖 132 字符内的关键词组合。
+- **README.md / welcome 页 SEO 文案同步**：H1 标题、tagline、封面生成器段落均提及 ChatGPT Images 2.0，GitHub 搜索 & 欢迎页阅读体验一致。
 - **package.json `description` 替换为功能描述**：从原 tagline「轻触即搜，一触即达」改为含功能关键字的描述，便于 GitHub Topics / 第三方扫描器索引。
 
 ### 🛠 技术改动
