@@ -1,5 +1,14 @@
 # 更新日志
 
+## v1.6.3 (2026-05-12)
+
+仅同步 `releases/store-listing.txt` 上架资料模板的 docs commit 留 tag。**ZIP 内容与 v1.6.2 功能完全一致**，扩展行为无任何差异。详细见 [releases/v1.6.3.md](./releases/v1.6.3.md)。
+
+### 🛠 技术改动
+
+- `releases/store-listing.txt` 同步 v1.6.2 SEO 文案 + v1.6.1 新增的两个内置风格（🌸 二次元可爱 / ⬜ 极简的留白）已经在 commit `1f304ad` 落地，本次发版仅打 tag 留作时间锚点。
+- 该模板文件不进 zip（`build.sh` 只复制扩展本体，不复制 `releases/` 目录），因此对装机用户无任何影响。
+
 ## v1.6.2 (2026-05-12)
 
 商店与文档 SEO 文案更新：manifest 名称 / 描述、README、welcome、package.json 同步加入「ChatGPT Image 2.0」关键字，方便用户在 Chrome Web Store / Google 搜索时命中。详细见 [releases/v1.6.2.md](./releases/v1.6.2.md)。
