@@ -8,7 +8,7 @@ const CUSTOM_PURPOSE_KEY = 'ccs_cover_custom_purpose';        // textarea 全文
 const CUSTOM_LINE_KEY = 'ccs_cover_custom_selected_line';      // 当前应用的那一行
 const CUSTOM_PURPOSE_MAX = 5000;
 const CUSTOM_LINE_PREVIEW_MAX = 15;                            // dropdown 选项 / 卡片副标题截断长度（中文 15 字内，避免挤爆容器）
-const DEFAULT_PIN = { taskId: 'cover', categoryId: 'xiaohongshu' };
+const DEFAULT_PIN = { taskId: 'cover', categoryId: 'anime-cute' };
 
 // 比例（适用所有封面调用 · 全局生效）
 const RATIO_KEY = 'ccs_cover_aspect_ratio';                    // 当前选中比例（如 "5:2"）

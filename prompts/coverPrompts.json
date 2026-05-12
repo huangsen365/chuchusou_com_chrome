@@ -21,6 +21,18 @@
   ],
   "categories": [
     {
+      "id": "anime-cute",
+      "label": "二次元可爱",
+      "purpose": "日系二次元可爱风格（随机各种）",
+      "engines": [
+        {
+          "id": "chatgpt-images",
+          "label": "ChatGPT Images 2.0",
+          "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}"
+        }
+      ]
+    },
+    {
       "id": "xiaohongshu",
       "label": "小红书封面",
       "purpose": "小红书的那个封面风格（颜色格调考虑：黄绿蓝红 随机搭配 ，或者选其一）",
@@ -36,18 +48,6 @@
       "id": "coconut",
       "label": "椰树牌风格",
       "purpose": "椰树牌风格",
-      "engines": [
-        {
-          "id": "chatgpt-images",
-          "label": "ChatGPT Images 2.0",
-          "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}"
-        }
-      ]
-    },
-    {
-      "id": "anime-cute",
-      "label": "二次元可爱",
-      "purpose": "日系二次元可爱风格（随机各种）",
       "engines": [
         {
           "id": "chatgpt-images",

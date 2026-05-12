@@ -56,9 +56,9 @@ const MENU_DEFINITIONS = {
   'ccs-optimize-root': { text: '优化提示词', icon: '🧠' },
   'ccs-optimize-open-all': { text: '打开以下全部', icon: '🚀' },
   'ccs-cover-root': { text: '封面生成器', icon: '🎨' },
+  'ccs-cover-anime-cute-chatgpt-images': { text: '二次元可爱', icon: '🌸' },
   'ccs-cover-xiaohongshu-chatgpt-images': { text: '小红书封面', icon: '🔴' },
   'ccs-cover-coconut-chatgpt-images': { text: '椰树牌风格', icon: '🥥' },
-  'ccs-cover-anime-cute-chatgpt-images': { text: '二次元可爱', icon: '🌸' },
   'ccs-cover-minimal-chatgpt-images': { text: '极简的留白', icon: '⬜' },
   'ccs-copy': { text: '复制文本', icon: '📋' },
   'ccs-base64': { text: 'Base64 编码', icon: '🔤' },
@@ -138,9 +138,9 @@ const OPTIMIZE_CATEGORY_TITLES = {
  * 封面生成器 - 风格标题
  */
 const COVER_CATEGORY_TITLES = {
+  'anime-cute':  '🌸 二次元可爱',
   'xiaohongshu': '🔴 小红书封面',
   'coconut':     '🥥 椰树牌风格',
-  'anime-cute':  '🌸 二次元可爱',
   'minimal':     '⬜ 极简的留白',
   'custom':      '🖌️ 自定义风格'
 };
