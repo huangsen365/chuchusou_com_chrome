@@ -1,5 +1,21 @@
 # 更新日志
 
+## v1.6.5 (2026-05-13)
+
+UI 一致性微调 + 封面生成器默认风格调整。**无破坏改动**，老用户升级后体验差异：popup 复制按钮变得更精致、关键字 tooltip 颜色更和谐、风格列表里二次元可爱排到第一位。详细见 [releases/v1.6.5.md](./releases/v1.6.5.md)。
+
+### 🔧 改进
+
+- **Popup 复制按钮反馈对齐 sidepanel**：点击复制后由原来的底部 toast 改为按钮原地变绿底 + 显示 `✓` + 1.2s 后复原。两个面板同款按钮长得几乎一样，现在行为也完全一致，切换面板无割裂感。错误路径（"没有可复制的关键字" / "复制失败"）仍走 toast。
+- **关键字 hover tooltip 改用天蓝主题色**：popup / sidepanel 两端的关键字预览悬浮框背景从原来的 gray-900（接近纯黑）改为 sky-700 `#0369a1`，与 header 渐变末端同系深蓝，整体主题协调度更高。
+- **封面生成器「二次元可爱」调到风格列表第一位**：`coverPrompts.json` categories 数组顺序调整，三入口（右键 / popup / sidepanel）菜单渲染顺序自动跟随。市场判断「二次元可爱」最具传播性，前置主推。
+- **新装用户的默认置顶切换到「二次元可爱」**：`sidepanel.js` 的 `DEFAULT_PIN` 从 `xiaohongshu` 改为 `anime-cute`。**老用户已 pin 过的不动**——仅首次打开 sidepanel 还没设置过置顶的新装用户受影响。
+
+### 🛠 技术改动
+
+- 改动文件：`popup/popup.js` / `popup/popup.css` / `sidepanel/sidepanel.css` / `sidepanel/sidepanel.html` / `sidepanel/sidepanel.js` / `prompts/coverPrompts.json` / `background/utils/Constants.js` / `manifest.json` / `package.json` / `README.md` / `welcome/welcome.html` / `releases/store-listing.txt`。
+- 历史档案 `releases/v1.x.x.md` 与 `CHANGELOG.md` 旧版块保留原状，未追改风格顺序，以反映各版本发布当时的设计意图。
+
 ## v1.6.4 (2026-05-12)
 
 SEO 文案修正：`ChatGPT Image 2.0`（单数）→ `ChatGPT Images 2.0`（复数，OpenAI 官方写法）；同时移除冗余的「（ChatGPT Images）」并列括注。**ZIP 与 v1.6.3 行为完全一致**，仅商店元信息文案差异。详细见 [releases/v1.6.4.md](./releases/v1.6.4.md)。
