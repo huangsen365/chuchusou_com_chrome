@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "触触搜 - 多 AI 速答、封面生成器、提示词优化",
   "version": "1.6.0",
-  "description": "选中文本快速搜索和处理工具，含封面生成器（内置小红书 / 椰树牌风格）",
+  "description": "选中文本快速搜索和处理工具，含封面生成器（内置小红书 / 椰树牌 / 二次元可爱风格）",
   "homepage_url": "https://chuchusou.com",
   "permissions": [
     "activeTab",

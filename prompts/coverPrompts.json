@@ -45,6 +45,18 @@
       ]
     },
     {
+      "id": "anime-cute",
+      "label": "二次元可爱",
+      "purpose": "日系二次元可爱风格（随机各种）",
+      "engines": [
+        {
+          "id": "chatgpt-images",
+          "label": "ChatGPT Images 2.0",
+          "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}"
+        }
+      ]
+    },
+    {
       "id": "custom",
       "label": "自定义风格",
       "purpose": "（用户自定义，由 sidepanel 输入框运行时覆盖）",
