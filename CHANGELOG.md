@@ -1,5 +1,29 @@
 # 更新日志
 
+## v1.6.6 (2026-05-13)
+
+封面生成器与三端 UI 一系列微调：新增 X (Twitter / 推特) Banner 比例预设、置顶卡片右上角显示当前比例、复制按钮加大到 26px、关键字 tooltip 加 400ms hover 延迟避免误触；顺手修了一个隐性 CSS class 冲突 bug。详细见 [releases/v1.6.6.md](./releases/v1.6.6.md)。
+
+### ✨ 新功能
+
+- **封面生成器新增 6:2 比例预设**：用于 X (Twitter / 推特) 个人主页 Banner 背景图（标准 1500×500，正好 3:1 = 6:2），排在 5:2 之后作为第二项。Label 兼顾 X / Twitter / 推特 三种叫法，搜索习惯都能命中。
+- **侧边栏置顶卡片显示当前画面比例**：卡片右上角内侧低调显示 5:2 / 6:2 / 9:16 等当前选中的比例（10px 琥珀色 0.6 opacity），让用户不点 ✏️ 也能一眼看到当前比例。
+
+### 🔧 改进
+
+- **侧边栏置顶卡片重构为单行**：原 2 行（任务名 + 风格名）合并为单行（封面生成器 + 风格名 + ⓘ），卡片高度减约半行；删掉「（建议字数适中）」冗余文案（ⓘ popover 内有详细说明）。
+- **Popup / Sidepanel 复制按钮加大到 26×26**：原 20-22px 在桌面端偏小，跨面板统一为 26px / 14px icon（sidepanel 语音按钮同步加大避免相邻按钮大小不齐）。
+- **关键字 tooltip hover 加 400ms 延迟**：鼠标在 header 区域偶然经过不再立即弹出，键盘 Tab 主动聚焦仍立即显示（400ms 是 hover-intent 阈值，与 macOS Finder / VSCode 同档）。
+
+### 🐛 修复
+
+- **隐性 CSS class 冲突 bug**：原 `.sp-pin-ratio` 这个 class 同时被 sidepanel 置顶卡片的小字显示（`<span>`）和 picker 容器（`<div>` 白底/边框/padding/flex-column）使用，picker 规则把卡片 span 渲染成了大白方块。改名 `.sp-pin-corner-ratio` 彻底解耦。
+
+### 🛠 技术改动
+
+- 改动文件：`prompts/coverPrompts.json` / `sidepanel/sidepanel.js` / `sidepanel/sidepanel.html` / `sidepanel/sidepanel.css` / `popup/popup.css` / `manifest.json` / `package.json` / `README.md` / `welcome/welcome.html` / `releases/store-listing.txt`。
+- CSS 净减约 16 行（清理 `.sp-pin-task-row` / `.sp-pin-style-row` 不再需要的中间容器）。
+
 ## v1.6.5 (2026-05-13)
 
 UI 一致性微调 + 封面生成器默认风格调整。**无破坏改动**，老用户升级后体验差异：popup 复制按钮变得更精致、关键字 tooltip 颜色更和谐、风格列表里二次元可爱排到第一位。详细见 [releases/v1.6.5.md](./releases/v1.6.5.md)。
