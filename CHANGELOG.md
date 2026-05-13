@@ -1,5 +1,27 @@
 # 更新日志
 
+## v1.6.7 (2026-05-13)
+
+三端封面生成器 pin 状态一致化 —— 右键菜单顶层、popup 顶部都加了与 sidepanel 同源的置顶快捷启动；popup 顺手修了展开 submenu 被 footer 盖住、橙色按钮窄屏换行两个小问题。详细见 [releases/v1.6.7.md](./releases/v1.6.7.md)。
+
+### ✨ 新功能
+
+- **右键菜单顶层新增置顶封面生成器项**：与 popup / sidepanel pin 同源 `chrome.storage.local`，用户在 sidepanel 切换风格后右键菜单标题（`🎨 封面生成器 · <当前风格>`）通过 `storage.onChanged` 实时同步，不用重启浏览器、不用 reload 扩展。位置在菜单最顶部第一项，与既有「高级功能 > 封面生成器」5 风格 submenu **并存**。
+- **Popup 顶部新增置顶封面生成器卡片**：与 sidepanel `.sp-pin` 同款暖色琥珀渐变（padding 紧凑些适配窄屏），点击整张卡片一键启动当前置顶风格 + 关键字。不带编辑按钮（要换风格去 sidepanel ✏️）。
+- **自定义风格新增第二个「💡 不知道填什么？」按钮**：(1) 跳 ChatGPT 让它列 30 个封面风格名；(2) 跳 Google 搜「ChatGPT Images 2.0 提示词」看社区博客 / Reddit 灵感。两种渠道互补。
+
+### 🔧 改进
+
+- **Popup 展开 submenu 后自动滚动到可视区**：之前在底部展开「高级功能」等 submenu 时最后一行会被 fixed `.menu-footer`（56px）盖住，必须手动再滚。改用 `transitionend` + `getBoundingClientRect()` 显式计算后 `scrollBy({behavior:'smooth'})`，submenu 底部稳定停在 footer 上方 12px。仅展开动作触发，收起不滚。
+- **「打开/关闭侧边栏」橙色按钮加 nowrap**：之前 popup 窄屏被压窄时 "📑 打开侧边栏" / "📕 关闭侧边栏" 会被折成两行。给 `.panel-toggle` 加 `white-space: nowrap` 一行解决。
+
+### 🛠 技术改动
+
+- 三端 pin 状态走同一套 storage key（`PIN_STORAGE_KEY` / `CUSTOM_LINE_KEY` / `RATIO_KEY` / `CUSTOM_PURPOSE_KEY`），sidepanel 是 SSoT，popup / background 只读 + 监听。
+- 右键菜单 ccs-cover-pinned 在 `menuHandlers.js` 层做 menuId 翻译为真实 leaf（`ccs-cover-{cat}-chatgpt-images`），复用既有 `runAITaskByMenuId` 快速通道，字数保护 / ratio 注入 / 日志全部复用，不动 `AITaskRegistry` / `AITaskHandler`。
+- `installCoverPinSync()` 在 SW boot 顶层注册一次 `chrome.storage.onChanged` 监听，变化时 `chrome.contextMenus.update()` 单项标题而非 rebuild（菜单可能正在用户使用中）。
+- 改动文件：`background/menuBuilder.js` / `background/menuHandlers.js` / `popup/popup.html` / `popup/popup.css` / `popup/popup.js` / `sidepanel/sidepanel.html` / `sidepanel/sidepanel.js`。
+
 ## v1.6.6 (2026-05-13)
 
 封面生成器与三端 UI 一系列微调：新增 X (Twitter / 推特) Banner 比例预设、置顶卡片右上角显示当前比例、复制按钮加大到 26px、关键字 tooltip 加 400ms hover 延迟避免误触；顺手修了一个隐性 CSS class 冲突 bug。详细见 [releases/v1.6.6.md](./releases/v1.6.6.md)。
