@@ -168,14 +168,30 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     return;
   }
 
+  // 顶层置顶封面项：menuId 是 ccs-cover-pinned，需要查 storage 解析为真实 leaf
+  // (ccs-cover-{category}-{engine})，再交给 runAITaskByMenuId 走既有快速通道。
+  // 不直接调 AITaskHandler API 是为了让所有 cover 路径走同一个执行入口（字数保护 / ratio
+  // 注入 / 日志记录都在那一层做了）。
+  let effectiveMenuItemId = info.menuItemId;
+  if (effectiveMenuItemId === globalThis.COVER_PIN_MENU_ID && typeof globalThis.resolveCoverPinTarget === 'function') {
+    try {
+      const target = await globalThis.resolveCoverPinTarget();
+      if (target?.leafMenuId) {
+        effectiveMenuItemId = target.leafMenuId;
+      }
+    } catch (err) {
+      BG_DBG('[menuHandlers] resolveCoverPinTarget error', err?.message);
+    }
+  }
+
   // === SSoT: AI 任务统一快速通道 ===
   // 速答 / 百问 / 优化 三类任务全部走 runAITaskByMenuId。
   // 未命中（或执行失败）回落到下方的 top100/fastqa/optimize 逻辑块作为安全网。
-  if (typeof runAITaskByMenuId === 'function' && info.menuItemId) {
+  if (typeof runAITaskByMenuId === 'function' && effectiveMenuItemId) {
     const rawKeyword = finalRaw || finalNormalized;
     if (rawKeyword) {
       try {
-        const r = await runAITaskByMenuId(info.menuItemId, rawKeyword, { tabId: tab?.id });
+        const r = await runAITaskByMenuId(effectiveMenuItemId, rawKeyword, { tabId: tab?.id });
         if (r.matched && r.success) {
           return; // 已由 AITaskHandler 打开
         }

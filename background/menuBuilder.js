@@ -35,6 +35,81 @@ const MENU_GROUPS = Object.freeze({
   ]
 });
 
+// ============================================================================
+// 封面生成器置顶项（右键菜单顶层入口，与 sidepanel/popup pin 同源 storage）
+// ============================================================================
+// 设计要点：
+// - 顶层独立菜单项 ccs-cover-pinned，与「高级功能 > 封面生成器」submenu 并存
+// - 标题动态显示当前置顶风格名，如「🎨 封面生成器 · 二次元可爱」
+// - 点击时通过 menuHandlers 翻译为真实 leaf menuId (ccs-cover-{cat}-chatgpt-images)
+//   走既有 runAITaskByMenuId 快速通道，不动 AITaskHandler 逻辑
+// - 监听 chrome.storage.onChanged 实时更新标题，与 sidepanel 改动联动
+// storage key 必须与 sidepanel/sidepanel.js 顶部声明完全一致——那边是 SSoT，这里只读
+const COVER_PIN_MENU_ID = 'ccs-cover-pinned';
+const COVER_PIN_SEPARATOR_ID = 'ccs-cover-pinned-separator';
+const COVER_PIN_STORAGE_KEYS = {
+  pin: 'ccs_sidepanel_pinned_action',
+  customLine: 'ccs_cover_custom_selected_line',
+  customPurpose: 'ccs_cover_custom_purpose'
+};
+const COVER_PIN_DEFAULT_CATEGORY = 'anime-cute';
+const COVER_PIN_PREFERRED_ENGINE = 'chatgpt-images';
+
+function _readCoverPinStorage() {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.local.get([
+        COVER_PIN_STORAGE_KEYS.pin,
+        COVER_PIN_STORAGE_KEYS.customLine,
+        COVER_PIN_STORAGE_KEYS.customPurpose
+      ], (result) => {
+        const pin = result?.[COVER_PIN_STORAGE_KEYS.pin] || null;
+        // 兼容 sidepanel: 没存过 CUSTOM_LINE 时退而求其次取 customPurpose 第一行
+        const fallbackLine = (typeof result?.[COVER_PIN_STORAGE_KEYS.customPurpose] === 'string')
+          ? (result[COVER_PIN_STORAGE_KEYS.customPurpose].split(/\r?\n/)[0] || '').trim()
+          : '';
+        const customLine = (result?.[COVER_PIN_STORAGE_KEYS.customLine] || fallbackLine || '').trim();
+        resolve({ pin, customLine });
+      });
+    } catch (_) {
+      resolve({ pin: null, customLine: '' });
+    }
+  });
+}
+
+// 把当前 pin 状态解析为右键菜单需要的目标 (label + 真实 leaf menuId)
+// 返回 null 时调用方应跳过置顶项创建/更新
+async function resolveCoverPinTarget() {
+  if (typeof loadCoverPromptConfig !== 'function') return null;
+  const config = await loadCoverPromptConfig();
+  if (!config || !Array.isArray(config.categories) || config.categories.length === 0) return null;
+  const { pin, customLine } = await _readCoverPinStorage();
+  let categoryId = (pin && pin.taskId === 'cover' && typeof pin.categoryId === 'string')
+    ? pin.categoryId
+    : COVER_PIN_DEFAULT_CATEGORY;
+  let category = config.categories.find((c) => c.id === categoryId);
+  // 自定义但没填文本 → 退回默认（与 sidepanel/popup 同逻辑）
+  if (category && category.id === 'custom' && !customLine) {
+    categoryId = COVER_PIN_DEFAULT_CATEGORY;
+    category = config.categories.find((c) => c.id === categoryId);
+  }
+  if (!category) return null;
+  const engines = Array.isArray(category.engines) ? category.engines : [];
+  const engine = engines.find((e) => e.id === COVER_PIN_PREFERRED_ENGINE) || engines[0];
+  if (!engine) return null;
+  const rawLabel = category.id === 'custom'
+    ? `🖌️ ${customLine.length > 15 ? customLine.slice(0, 15) + '…' : customLine}`
+    : (category.label || category.id);
+  return {
+    leafMenuId: `ccs-cover-${category.id}-${engine.id}`,
+    label: rawLabel,
+    title: `🎨 封面生成器 · ${rawLabel}`
+  };
+}
+// 暴露给 menuHandlers.js 翻译点击 menuId 用
+globalThis.resolveCoverPinTarget = resolveCoverPinTarget;
+globalThis.COVER_PIN_MENU_ID = COVER_PIN_MENU_ID;
+
 function extractErrorMessage(error) {
   if (!error) return '';
   if (typeof error === 'string') return error;
@@ -490,6 +565,30 @@ async function createContextMenus() {
       failureLogStage: 'create-search-label-separator-failed'
     });
 
+    // 顶层置顶封面生成器入口（与 sidepanel/popup pin 同源 storage）：
+    // 仅在 cover 功能启用且 pin 解析成功时创建；与下方 advanced > ccs-cover-root 并存。
+    if (coverRootEnabled && isMenuEnabled(COVER_PIN_MENU_ID)) {
+      try {
+        const pinTarget = await resolveCoverPinTarget();
+        if (pinTarget && !isStaleBuild(buildId)) {
+          await createMenuItem({
+            id: COVER_PIN_MENU_ID,
+            parentId: 'ccs-main',
+            title: pinTarget.title,
+            contexts: MENU_CONTEXTS_DEFAULT
+          }, { failureLogStage: 'cover-pinned-create-failed' });
+          await createMenuItem({
+            id: COVER_PIN_SEPARATOR_ID,
+            parentId: 'ccs-main',
+            type: 'separator',
+            contexts: MENU_CONTEXTS_DEFAULT
+          }, { failureLogStage: 'cover-pinned-separator-create-failed' });
+        }
+      } catch (error) {
+        console.warn('[触触搜][BG] 顶层置顶封面项创建失败:', error);
+      }
+    }
+
     await createQuickMenuItems(quickEnabledMap);
 
     await createMenuItem({
@@ -830,3 +929,38 @@ async function createContextMenus() {
 
   finalizeMenuBuild();
 }
+
+// ============================================================================
+// 封面 pin 状态同步：sidepanel/popup 改风格 → 右键菜单标题实时跟着变
+// ============================================================================
+// 实现要点：
+// - 必须在 SW boot 顶层同步注册 onChanged listener，否则 SW 唤醒后可能漏第一波事件
+// - 只在被监听的 3 个 key 变化时才触发，避免无关 storage 写入引发空跑
+// - 用 chrome.contextMenus.update 而不是 rebuild：菜单可能正在被用户使用，rebuild 体验差
+// - update 时如果菜单还没创建（启动竞态），chrome.runtime.lastError 会有值；静默忽略即可，
+//   等下一次 createContextMenus 时会以最新状态创建
+function installCoverPinSync() {
+  if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.onChanged) return;
+  chrome.storage.onChanged.addListener(async (changes, area) => {
+    if (area !== 'local') return;
+    const watchedKeys = [
+      COVER_PIN_STORAGE_KEYS.pin,
+      COVER_PIN_STORAGE_KEYS.customLine,
+      COVER_PIN_STORAGE_KEYS.customPurpose
+    ];
+    if (!watchedKeys.some((k) => k in changes)) return;
+    try {
+      const target = await resolveCoverPinTarget();
+      if (!target) return;
+      chrome.contextMenus.update(COVER_PIN_MENU_ID, { title: target.title }, () => {
+        // 菜单尚未创建 / 已被 removeAll 清空时这里会报错，吃掉即可，
+        // 下次 createContextMenus 会用最新 storage 直接构造正确标题
+        void chrome.runtime.lastError;
+      });
+    } catch (error) {
+      console.warn('[触触搜][BG] 封面 pin 同步失败:', error);
+    }
+  });
+}
+
+installCoverPinSync();
