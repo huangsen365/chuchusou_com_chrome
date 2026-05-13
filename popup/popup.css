@@ -26,6 +26,9 @@ body {
   color: #2c3e50;
   overflow-x: hidden;
   overflow-y: auto;
+  /* scrollIntoView 锚定 body 底部时要避开 fixed .menu-footer（56px）+ 8px 呼吸距，
+   * 否则展开 submenu 滚到底部时最后一行会被 footer 盖住——这就是"展开后一点点没露出来"的根因。 */
+  scroll-padding-bottom: calc(var(--ccs-popup-footer-height) + 8px);
 }
 
 .ccs-popup-menu {
@@ -154,6 +157,95 @@ body {
 
 .menu-keyword-copy.copied {
   background: rgba(34, 197, 94, 0.5);    /* 复制成功临时绿底——与 sidepanel 对齐 */
+}
+
+/* ==================== 置顶卡片（封面生成器一键启动） ==================== */
+/* 设计思路：与 sidepanel .sp-pin 同源 storage，让常用封面生成器用户开 popup 直接一键触发，
+ * 不用滚到 advanced 展开。视觉调性沿用 sidepanel 暖色琥珀渐变以保持识别度。
+ * 高度比 sidepanel 紧凑一点（popup 屏幕本来就窄）。 */
+.popup-pin {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  padding: 12px 10px 8px;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-bottom: 1px solid #f59e0b33;
+  position: relative;
+}
+
+.popup-pin-action {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  background: #ffffff;
+  border: 1px solid #f59e0b66;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  text-align: left;
+  font-family: inherit;
+  color: #2c3e50;
+}
+
+.popup-pin-action:hover {
+  background: #fffbeb;
+  border-color: #f59e0b;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.18);
+}
+
+.popup-pin-action:active {
+  background: #fef3c7;
+}
+
+.popup-pin-icon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.popup-pin-text {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.popup-pin-task {
+  font-size: 11px;
+  color: #92400e;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.popup-pin-style {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1f2937;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.popup-pin-corner-ratio {
+  position: absolute;
+  top: 2px;
+  right: 10px;
+  font-size: 10px;
+  font-weight: 500;
+  color: #92400e;
+  opacity: 0.6;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 /* ==================== 菜单容器 ==================== */

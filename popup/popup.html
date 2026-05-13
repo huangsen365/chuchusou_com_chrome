@@ -20,6 +20,18 @@
       </div>
     </header>
 
+    <!-- 置顶卡片（封面生成器快捷启动，与 sidepanel pin 同源 storage）：默认隐藏，加载完成有 pin 才显示 -->
+    <section class="popup-pin" id="popupPin" hidden>
+      <span class="popup-pin-corner-ratio" id="popupPinRatio" title="当前画面比例"></span>
+      <button class="popup-pin-action" id="popupPinAction" type="button" title="用当前置顶风格 + 关键字一键生成封面">
+        <span class="popup-pin-icon">🎨</span>
+        <span class="popup-pin-text">
+          <span class="popup-pin-task">封面生成器</span>
+          <span class="popup-pin-style" id="popupPinStyle"></span>
+        </span>
+      </button>
+    </section>
+
     <!-- 菜单容器：动态渲染 -->
     <div class="menu-container" id="menuContainer">
       <div class="menu-loading">加载中...</div>

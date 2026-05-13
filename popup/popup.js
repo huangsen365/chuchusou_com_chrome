@@ -24,6 +24,9 @@ class PopupMenuRenderer {
       this.keyword = keyword;
 
       this.render();
+      // 与 sidepanel pin 同源：读 chrome.storage.local 的置顶记录，把用户选的那一个风格做成
+      // popup 顶部的一键启动卡片。和菜单渲染并行无依赖关系，挂在 render 之后即可。
+      this.initPinnedCover();
       this.bindEvents();
       this.initSettings();
       this.loadVersion();
@@ -274,9 +277,171 @@ class PopupMenuRenderer {
 
   toggleSubmenu(parentEl, parentId) {
     const submenu = document.querySelector(`.submenu[data-parent-id="${parentId}"]`);
-    if (submenu) {
-      submenu.classList.toggle('collapsed');
-      parentEl.classList.toggle('expanded');
+    if (!submenu) return;
+    const willExpand = submenu.classList.contains('collapsed');
+    submenu.classList.toggle('collapsed');
+    parentEl.classList.toggle('expanded');
+    if (willExpand) {
+      // 展开后让 submenu 完整露出，避开 popup 底部 fixed .menu-footer（56px）。
+      // 注：之前用 scrollIntoView + CSS scroll-padding-bottom，在部分 Chrome 版本上
+      // 与 block:'nearest' 配合不可靠，最后一行仍被 footer 遮住。改成显式算偏移 + scrollBy，
+      // 强制把 submenu 的底部抬到 footer 上方 12px 处。
+      submenu.addEventListener('transitionend', () => {
+        const FOOTER_H = 56;
+        const BREATH = 12;          // submenu 底部与 footer 之间的呼吸距
+        const SAFE_BOTTOM = FOOTER_H + BREATH;
+        const rect = submenu.getBoundingClientRect();
+        const viewportH = window.innerHeight || document.documentElement.clientHeight;
+        const targetMaxBottom = viewportH - SAFE_BOTTOM;
+        if (rect.bottom <= targetMaxBottom) return;     // 已经完整露出
+        const delta = Math.ceil(rect.bottom - targetMaxBottom);
+        // popup 用 body 自身做滚动容器（body { overflow-y: auto; max-height }）
+        const scroller = document.scrollingElement || document.body;
+        try {
+          scroller.scrollBy({ top: delta, behavior: 'smooth' });
+        } catch (_) {
+          scroller.scrollTop += delta;   // 老浏览器无 options-form scrollBy 时降级
+        }
+      }, { once: true });
+    }
+  }
+
+  // === Pinned cover quick-launch（与 sidepanel pin 共享 chrome.storage.local 状态） ===
+  // 这些 storage key 必须与 sidepanel/sidepanel.js 顶部声明保持一致；那边是 SSoT，这里只读。
+  static PIN_STORAGE_KEY = 'ccs_sidepanel_pinned_action';
+  static CUSTOM_LINE_KEY = 'ccs_cover_custom_selected_line';
+  static CUSTOM_PURPOSE_KEY = 'ccs_cover_custom_purpose';
+  static RATIO_KEY = 'ccs_cover_aspect_ratio';
+  static DEFAULT_PIN = { taskId: 'cover', categoryId: 'anime-cute' };
+  static DEFAULT_RATIO = '5:2';
+
+  async initPinnedCover() {
+    try {
+      const [storage, coverConfig] = await Promise.all([
+        this.loadPinStorage(),
+        this.loadCoverConfig()
+      ]);
+      if (!coverConfig || !Array.isArray(coverConfig.categories) || coverConfig.categories.length === 0) {
+        return;   // 没有 cover 配置就不显示
+      }
+      let pin = storage.pin && storage.pin.taskId === 'cover' ? storage.pin : { ...PopupMenuRenderer.DEFAULT_PIN };
+      const cat = coverConfig.categories.find((c) => c.id === pin.categoryId);
+      if (!cat) {
+        pin = { ...PopupMenuRenderer.DEFAULT_PIN };
+      }
+      // 自定义风格：必须有可用文本，否则退回默认（与 sidepanel 同逻辑）
+      const customLine = (storage.customLine || '').trim();
+      if (pin.categoryId === 'custom' && !customLine) {
+        pin = { ...PopupMenuRenderer.DEFAULT_PIN };
+      }
+      this.pinnedCover = {
+        pin,
+        category: coverConfig.categories.find((c) => c.id === pin.categoryId),
+        ratio: storage.ratio || PopupMenuRenderer.DEFAULT_RATIO,
+        customLine
+      };
+      this.renderPinnedCover();
+      this.bindPinnedCover();
+    } catch (error) {
+      console.warn('[触触搜] 置顶封面生成器加载失败:', error);
+    }
+  }
+
+  loadPinStorage() {
+    return new Promise((resolve) => {
+      try {
+        chrome.storage.local.get([
+          PopupMenuRenderer.PIN_STORAGE_KEY,
+          PopupMenuRenderer.CUSTOM_LINE_KEY,
+          PopupMenuRenderer.CUSTOM_PURPOSE_KEY,
+          PopupMenuRenderer.RATIO_KEY
+        ], (result) => {
+          resolve({
+            pin: result?.[PopupMenuRenderer.PIN_STORAGE_KEY] || null,
+            customLine: result?.[PopupMenuRenderer.CUSTOM_LINE_KEY] || result?.[PopupMenuRenderer.CUSTOM_PURPOSE_KEY]?.split(/\r?\n/)[0]?.trim() || '',
+            ratio: typeof result?.[PopupMenuRenderer.RATIO_KEY] === 'string' ? result[PopupMenuRenderer.RATIO_KEY].trim() : ''
+          });
+        });
+      } catch (_) {
+        resolve({ pin: null, customLine: '', ratio: '' });
+      }
+    });
+  }
+
+  async loadCoverConfig() {
+    try {
+      const url = chrome.runtime.getURL('prompts/coverPrompts.json');
+      const response = await fetch(url);
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  renderPinnedCover() {
+    const section = document.getElementById('popupPin');
+    const styleEl = document.getElementById('popupPinStyle');
+    const ratioEl = document.getElementById('popupPinRatio');
+    if (!section || !styleEl || !this.pinnedCover) return;
+    const { category, ratio, customLine } = this.pinnedCover;
+    if (!category) return;
+    if (category.id === 'custom') {
+      const preview = customLine.length > 15 ? customLine.slice(0, 15) + '…' : customLine;
+      styleEl.textContent = preview ? `🖌️ ${preview}` : '🖌️ 自定义风格';
+      styleEl.title = customLine || '';
+    } else {
+      styleEl.textContent = category.label || category.id;
+      styleEl.title = '';
+    }
+    if (ratioEl) ratioEl.textContent = ratio || PopupMenuRenderer.DEFAULT_RATIO;
+    section.hidden = false;
+  }
+
+  bindPinnedCover() {
+    const actionBtn = document.getElementById('popupPinAction');
+    if (!actionBtn) return;
+    actionBtn.addEventListener('click', () => this.executePinnedCover());
+  }
+
+  async executePinnedCover() {
+    if (!this.pinnedCover) return;
+    const { category, customLine } = this.pinnedCover;
+    if (!category) return;
+    const engine = (category.engines || [])[0];
+    if (!engine) {
+      this.showToast('该风格暂无可用引擎');
+      return;
+    }
+    let purpose = category.purpose || category.label;
+    if (category.id === 'custom') {
+      if (!customLine) {
+        this.showToast('请到侧边栏 ✏️ 填写自定义风格');
+        return;
+      }
+      purpose = customLine;
+    }
+    const keyword = this.keyword.raw || this.keyword.text;
+    const menuItemId = `ccs-cover-${category.id}-${engine.id}`;
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'executeMenuAction',
+        menuItemId,
+        menuType: 'cover',
+        keyword,
+        urlPattern: engine.urlPattern,
+        engineId: engine.id,
+        purpose,
+        categoryId: category.id
+      });
+      if (response && response.success) {
+        window.close();
+      } else if (response && response.error === 'no-keyword') {
+        this.showToast('没有选中文本或无法提取关键词');
+      }
+    } catch (error) {
+      console.error('[触触搜] 置顶封面启动失败:', error);
+      this.showToast('启动失败');
     }
   }
 
