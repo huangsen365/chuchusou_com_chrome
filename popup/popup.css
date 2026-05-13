@@ -329,6 +329,7 @@ body::-webkit-scrollbar-thumb:hover,
   cursor: pointer;
   transition: all 0.15s;
   box-shadow: 0 1px 3px rgba(245, 158, 11, 0.25);
+  white-space: nowrap;
 }
 
 .panel-toggle:hover {
