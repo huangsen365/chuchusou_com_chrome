@@ -78,7 +78,9 @@ const TASK_DEFINITIONS = {
     promptsFile: 'prompts/coverPrompts.json',
     templateVariable: 'input',
     hasCategories: true,             // 二维：category(风格) × engine
-    showOpenAll: false,               // 单引擎，"打开以下全部"无意义
+    showOpenAll: true,                // 「打开以下全部预设风格」按 category 维度展开（同一引擎跑 N 种风格）
+    openAllAxis: 'category',          // cover 单引擎多风格 → 沿 category 轴批量；fastqa/top100/optimize 默认沿 engine 轴
+    openAllSkipCategoryIds: ['custom'],// 「自定义风格」依赖 sidepanel 输入框，批量场景无 purpose，跳过
     categoryVariable: 'purpose',      // 风格指令注入到 prompt 的 ${purpose}
     categoryTitlesKey: 'COVER_CATEGORY_TITLES'
   }
@@ -125,6 +127,9 @@ function _normalize(def, raw) {
     icon: raw.icon || def.icon,
     // 允许 JSON 覆盖 showOpenAll
     showOpenAll: typeof raw.showOpenAll === 'boolean' ? raw.showOpenAll : def.showOpenAll,
+    // 'engine'（默认）= 同 category 下打开所有引擎；'category' = 同一引擎跑所有 category（cover）
+    openAllAxis: def.openAllAxis || 'engine',
+    openAllSkipCategoryIds: Array.isArray(def.openAllSkipCategoryIds) ? def.openAllSkipCategoryIds : [],
     template,
     engines: [],
     categories: []

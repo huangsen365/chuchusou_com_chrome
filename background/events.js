@@ -438,9 +438,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             : (menuType === 'top100') ? 'top100' : 'fastqa';
           let categoryId;
           let eid = engineId;
+          let openAllFlag = request.openAll === true; // 调用方显式传 openAll（popup/sidepanel 走 menuItemId 走下面 resolveMenuId 也会兜住）
           if ((taskId === 'optimize' || taskId === 'cover') && menuItemId && typeof AITaskRegistry !== 'undefined') {
             const parsed = AITaskRegistry.resolveMenuId(menuItemId);
-            if (parsed) { categoryId = parsed.categoryId; eid = parsed.engineId || eid; }
+            if (parsed) {
+              categoryId = parsed.categoryId;
+              eid = parsed.engineId || eid;
+              if (parsed.openAll) openAllFlag = true;
+            }
           }
           // cover 自定义风格：sidepanel 传过来的 request.purpose 作为 purposeOverride 注入
           // 否则会用 coverPrompts.json 里 custom category 的占位文本
@@ -451,6 +456,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             const r = await runAITask({
               taskId, keyword: effectiveKeyword, engineId: eid,
               categoryId, tabId: sender?.tab?.id,
+              openAll: openAllFlag,
               purposeOverride
             });
             if (r.success) { sendResponse({ success: true }); return; }

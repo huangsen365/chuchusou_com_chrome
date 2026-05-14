@@ -426,6 +426,30 @@ async function populateCoverMenus({ buildId }) {
     const config = await loadCoverPromptConfig();
     if (!config || isStaleBuild(buildId)) return;
     populateCoverMenuMap(config);
+
+    // 计算除 custom 外的有效叶子数，≥2 才挂「打开以下全部预设风格」
+    const presetCount = (config.categories || []).filter((c) => c && c.id && c.id !== 'custom' && (c.engines || [])[0]).length;
+    const openAllEnabled = presetCount >= 2 && isMenuEnabled('ccs-cover-open-all');
+    if (openAllEnabled) {
+      if (isStaleBuild(buildId)) return;
+      await createMenuItem({
+        id: 'ccs-cover-open-all',
+        parentId: 'ccs-cover-root',
+        title: '🚀 ' + (MENU_DEFINITIONS['ccs-cover-open-all']?.text || '打开以下全部预设风格'),
+        contexts: MENU_CONTEXTS_DEFAULT
+      }, {
+        failureLogStage: 'cover-open-all-create-failed'
+      });
+      await createMenuItem({
+        id: 'ccs-cover-open-all-separator',
+        parentId: 'ccs-cover-root',
+        type: 'separator',
+        contexts: MENU_CONTEXTS_DEFAULT
+      }, {
+        failureLogStage: 'cover-open-all-separator-create-failed'
+      });
+    }
+
     for (const category of config.categories || []) {
       // custom 自定义风格仅在 sidepanel 置顶 picker 内可用（需用户先填风格描述），
       // 右键菜单/popup 这类静态入口跳过它，避免点击时无 purpose 出空 prompt。

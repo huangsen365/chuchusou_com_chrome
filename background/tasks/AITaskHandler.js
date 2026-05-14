@@ -42,8 +42,9 @@ async function runAITask(options = {}) {
   const task = await AITaskRegistry.loadTask(taskId);
   if (!task) return { success: false, error: 'task-not-found' };
 
-  // 二维任务必须给 categoryId
-  if (task.hasCategories && !categoryId) {
+  const openAllAxis = task.openAllAxis || 'engine';
+  // 二维任务必须给 categoryId —— 但 axis === 'category' 的 openAll（如 cover 一键打开 4 种风格）天然没有 categoryId
+  if (task.hasCategories && !categoryId && !(openAll && openAllAxis === 'category')) {
     return { success: false, error: 'missing-category' };
   }
 
@@ -51,10 +52,14 @@ async function runAITask(options = {}) {
   // 这里的 menuId 取具体叶子（或其中一个引擎，如 openAll 情况）
   let sampleMenuId;
   if (openAll) {
-    // 对 openAll 用 category/task 的代表 id
-    sampleMenuId = task.hasCategories
-      ? `${task.menuIdPrefix}-${categoryId}-open-all`
-      : `${task.menuIdPrefix}-open-all`;
+    if (openAllAxis === 'category') {
+      // 沿 category 轴批量：用 task 顶层 open-all 作为代表 id
+      sampleMenuId = `${task.menuIdPrefix}-open-all`;
+    } else {
+      sampleMenuId = task.hasCategories
+        ? `${task.menuIdPrefix}-${categoryId}-open-all`
+        : `${task.menuIdPrefix}-open-all`;
+    }
   } else {
     sampleMenuId = task.hasCategories
       ? `${task.menuIdPrefix}-${categoryId}-${engineId}`
@@ -70,11 +75,34 @@ async function runAITask(options = {}) {
   // 任务级运行时变量（如 cover 的比例）—— 单一数据源 = chrome.storage.local
   // 这样 sidepanel/events/menuHandlers 三处调用方都不用关心 ratio 透传
   const vars = await collectTaskVars(taskId);
+
+  // 分支：openAll 沿 category 轴（cover）vs openAll 沿 engine 轴 vs 单一引擎
+  if (openAll && openAllAxis === 'category') {
+    const skipSet = new Set(task.openAllSkipCategoryIds || []);
+    const targetCats = (task.categories || []).filter((c) => c && c.id && !skipSet.has(c.id));
+    if (!targetCats.length) return { success: false, error: 'no-categories' };
+    let opened = 0;
+    for (const cat of targetCats) {
+      const engine = (cat.engines || [])[0];
+      if (!engine || !engine.urlPattern) continue;
+      // 每个 category 独立构造 prompt（注入它自己的 purpose）—— 这就是「打开以下全部预设风格」的意义
+      const catPrompt = await AITaskRegistry.buildTaskPrompt(taskId, effectiveKeyword, { categoryId: cat.id, vars });
+      if (!catPrompt) continue;
+      const encoded = encodeURIComponent(catPrompt);
+      let url = engine.urlPattern.split('${PROMPT}').join(encoded);
+      if (typeof enforceFinalUrlCap === 'function') url = enforceFinalUrlCap(url);
+      try {
+        chrome.tabs.create({ url, active: opened === 0 });
+        opened++;
+      } catch (_) { /* ignore */ }
+    }
+    return { success: true, opened };
+  }
+
   const prompt = await AITaskRegistry.buildTaskPrompt(taskId, effectiveKeyword, { categoryId, purposeOverride, vars });
   if (!prompt) return { success: false, error: 'template-invalid' };
   const encodedPrompt = encodeURIComponent(prompt);
 
-  // 分支：openAll vs 单一引擎
   if (openAll) {
     const engines = await AITaskRegistry.listTaskEngines(taskId, { categoryId });
     if (!engines.length) return { success: false, error: 'no-enabled-engines' };

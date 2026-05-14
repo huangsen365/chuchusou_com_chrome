@@ -1083,6 +1083,7 @@ async function getPopupMenuStructure() {
   if (isMenuEnabled('ccs-cover-root')) {
     const coverConfig = await loadCoverPromptConfig();
     const coverChildren = [];
+    const coverPresets = [];
 
     if (coverConfig && coverConfig.categories) {
       for (const category of coverConfig.categories) {
@@ -1092,7 +1093,7 @@ async function getPopupMenuStructure() {
         if (!engine) continue;
         const leafId = `ccs-cover-${category.id}-${engine.id}`;
         if (!isMenuEnabled(leafId)) continue;
-        coverChildren.push({
+        coverPresets.push({
           id: leafId,
           title: COVER_CATEGORY_TITLES[category.id] || category.label,
           icon: '',
@@ -1104,6 +1105,18 @@ async function getPopupMenuStructure() {
         });
       }
     }
+
+    // 「打开以下全部预设风格」置于子菜单顶部，与速答/百问保持一致
+    if (coverPresets.length >= 2 && isMenuEnabled('ccs-cover-open-all')) {
+      coverChildren.push({
+        id: 'ccs-cover-open-all',
+        title: '🚀 打开以下全部预设风格',
+        icon: '',
+        type: 'cover',
+        openAll: true
+      });
+    }
+    coverChildren.push(...coverPresets);
 
     if (coverChildren.length > 0) {
       advancedItems.push({
