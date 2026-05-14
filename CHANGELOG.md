@@ -1,5 +1,21 @@
 # 更新日志
 
+## v1.6.8 (2026-05-14)
+
+封面生成器子菜单顶部新增「🚀 打开以下全部预设风格」一键批量启动 —— 与速答/百问/优化的「打开以下全部」对称，一次开 4 个 tab 同步对比 4 种内置风格（二次元可爱 / 小红书 / 椰树牌 / 极简留白），同一 ChatGPT Images 2.0 引擎、各自独立的 prompt。详细见 [releases/v1.6.8.md](./releases/v1.6.8.md)。
+
+### ✨ 新功能
+
+- **封面生成器子菜单新增「🚀 打开以下全部预设风格」**：右键菜单 / popup 的「高级功能 > 封面生成器」展开后，顶部第一项就是它（与速答/百问的「打开以下全部」位置一致）。点击后**一次性开 4 个 tab**，每个 tab 用同一份选中文本 + 同一个比例（5:2 等用户在 sidepanel 设的）、但套不同风格的 prompt。让"挑哪个风格最戳"从「分别点 4 次」变成「点 1 次同屏比对」。
+
+### 🛠 技术改动
+
+- `AITaskRegistry` 引入 `openAllAxis` 语义：speed/top100/optimize 沿 **engine 轴**批量（一种 prompt × N 个引擎），cover 沿 **category 轴**批量（N 种 prompt × 同一个引擎）。声明式注册，未来加新任务直接选轴。
+- `AITaskHandler.runAITask` 的 openAll 分支按 axis 分流；category 轴时为每个 category 单独构造 prompt（注入自己的 `${purpose}`），共享一份字数保护、URL 上限、ratio 注入。
+- 跳过「自定义风格」批量打开（依赖 sidepanel 输入框，无 purpose 时打开是空提示），通过 `openAllSkipCategoryIds: ['custom']` 声明。
+- `events.js` SSoT fast-path 从 `resolveMenuId` 解出 `parsed.openAll` 透传给 `runAITask`，popup 点击 `ccs-cover-open-all` 自动走批量路径。
+- 改动文件：`background/tasks/AITaskRegistry.js` / `background/tasks/AITaskHandler.js` / `background/menuBuilder.js` / `background/base.js` / `background/events.js` / `background/utils/Constants.js`。
+
 ## v1.6.7 (2026-05-13)
 
 三端封面生成器 pin 状态一致化 —— 右键菜单顶层、popup 顶部都加了与 sidepanel 同源的置顶快捷启动；popup 顺手修了展开 submenu 被 footer 盖住、橙色按钮窄屏换行两个小问题。详细见 [releases/v1.6.7.md](./releases/v1.6.7.md)。
