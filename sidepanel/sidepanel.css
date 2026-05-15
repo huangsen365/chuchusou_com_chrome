@@ -66,13 +66,23 @@ body {
   line-height: 1.2;
 }
 
-/* keyword 徽章 + 复制按钮的右侧组合容器 */
+/* keyword 徽章 + 复制按钮的右侧组合容器
+ * 无 keyword 时 max-width 折叠为 0，有 keyword 时展开到 240px。
+ * 200ms 平滑 transition + overflow:hidden → 抽屉式滑入/滑出，彻底消灭"跳跃感"。
+ * 注：JS `renderKeyword()` 切换 `.has-keyword` class，data-full-keyword 不再决定布局（只用于 tooltip）。 */
 .sp-keyword-wrap {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 4px;
-  min-width: 0;
+  max-width: 0;
+  overflow: hidden;
   position: relative;
+  transition: max-width 0.2s ease;
+}
+
+.sp-keyword-wrap.has-keyword {
+  max-width: 240px;
 }
 
 /* 复制关键字按钮——26px 控件，header `min-height: 32px` 仍兜得住（32-26=6，每边 3px 净空）
@@ -92,7 +102,9 @@ body {
   cursor: pointer;
   color: white;
   flex-shrink: 0;
-  transition: background 0.15s, transform 0.12s;
+  opacity: 1;
+  visibility: visible;
+  transition: background 0.15s, transform 0.12s, opacity 0.15s ease, visibility 0s linear 0s;
 }
 
 .sp-keyword-copy:hover {
@@ -103,8 +115,13 @@ body {
   transform: scale(0.92);
 }
 
+/* hidden 渐隐：保留 display 占位（wrap min-width 锁外层已防外层跳），用 opacity/visibility 替代 display:none 实现淡入淡出 */
 .sp-keyword-copy[hidden] {
-  display: none;
+  display: inline-flex;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease, visibility 0s linear 0.15s;
 }
 
 .sp-keyword-copy.copied {
@@ -127,7 +144,9 @@ body {
   cursor: pointer;
   color: white;
   flex-shrink: 0;
-  transition: background 0.15s, transform 0.12s;
+  opacity: 1;
+  visibility: visible;
+  transition: background 0.15s, transform 0.12s, opacity 0.15s ease, visibility 0s linear 0s;
 }
 
 .sp-keyword-voice:hover {
@@ -138,8 +157,13 @@ body {
   transform: scale(0.92);
 }
 
+/* hidden 渐隐：同 .sp-keyword-copy[hidden]，避免硬切引发横向跳动 */
 .sp-keyword-voice[hidden] {
-  display: none;
+  display: inline-flex;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease, visibility 0s linear 0.15s;
 }
 
 /* 录音中状态——脉冲动画提示 */
@@ -154,16 +178,19 @@ body {
 }
 
 .sp-keyword {
-  font-size: 11px;
+  font-size: 12px;
   background: rgba(255, 255, 255, 0.2);
   padding: 2px 8px;
   border-radius: 9px;
-  max-width: 160px;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 1.4;
   cursor: default;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.15s ease, visibility 0s linear 0s;
 }
 
 /* 关键字 tooltip：常驻 DOM 但默认隐藏，hover 延迟 400ms 才显示（避免鼠标偶然经过误触），
@@ -206,8 +233,12 @@ body {
   transition: opacity 0.1s ease, visibility 0s linear;
 }
 
+/* 空徽章渐隐：保留 inline 占位但视觉透明，wrap min-width 已锁外层占位，
+ * 这里只控制徽章本身的圆角胶囊从"有底色显示"过渡到"完全消失"。 */
 .sp-keyword:empty {
-  display: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0s linear 0.15s;
 }
 
 /* ==================== Pinned Action ==================== */

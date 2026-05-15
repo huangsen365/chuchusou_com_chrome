@@ -107,23 +107,28 @@ class PopupMenuRenderer {
       const fullKeyword = this.keyword.raw || this.keyword.text;
       keywordEl.textContent = `"${displayText}"`;
       // 用自定义 CSS tooltip 替代原生 title：原生 title 有浏览器级延迟，hover 体感慢。
-      if (keywordWrapEl) keywordWrapEl.dataset.fullKeyword = fullKeyword;
+      if (keywordWrapEl) {
+        keywordWrapEl.dataset.fullKeyword = fullKeyword;
+        keywordWrapEl.classList.add('has-keyword'); // 触发 wrap max-width 平滑展开
+      }
       keywordEl.removeAttribute('title');
-      keywordEl.style.display = 'block';
       if (keywordCopyEl) {
         keywordCopyEl.hidden = false;
         keywordCopyEl.dataset.keyword = fullKeyword;
       }
     } else {
       keywordEl.textContent = '';
-      if (keywordWrapEl) keywordWrapEl.dataset.fullKeyword = '';
+      if (keywordWrapEl) {
+        keywordWrapEl.dataset.fullKeyword = '';
+        keywordWrapEl.classList.remove('has-keyword'); // 触发 wrap max-width 平滑折叠
+      }
       keywordEl.removeAttribute('title');
-      keywordEl.style.display = 'none';
       if (keywordCopyEl) {
         keywordCopyEl.hidden = true;
         keywordCopyEl.dataset.keyword = '';
       }
     }
+    // 注：移除 keywordEl.style.display 强制切换——改由 CSS `.menu-keyword:empty` + wrap `.has-keyword` 渐变控制
 
     // 渲染菜单组
     if (!this.config || !this.config.groups) {

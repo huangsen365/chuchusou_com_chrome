@@ -1334,7 +1334,10 @@ class SidePanelRenderer {
       const display = this.keyword.text.replace(/\s+/g, ' ').trim();
       el.textContent = `"${display.length > 20 ? display.substring(0, 20) + '...' : display}"`;
       // 用自定义 CSS tooltip 替代原生 title：原生 title 有浏览器级延迟，hover 体感慢。
-      if (keywordWrapEl) keywordWrapEl.dataset.fullKeyword = this.keyword.raw || this.keyword.text || '';
+      if (keywordWrapEl) {
+        keywordWrapEl.dataset.fullKeyword = this.keyword.raw || this.keyword.text || '';
+        keywordWrapEl.classList.add('has-keyword');  // 触发 wrap max-width 平滑展开
+      }
       el.removeAttribute('title');
       if (clipBtn) {
         clipBtn.hidden = false;
@@ -1344,7 +1347,10 @@ class SidePanelRenderer {
       if (voiceBtn) voiceBtn.hidden = !(voiceSupported && voiceEnabled);
     } else {
       el.textContent = '';
-      if (keywordWrapEl) keywordWrapEl.dataset.fullKeyword = '';
+      if (keywordWrapEl) {
+        keywordWrapEl.dataset.fullKeyword = '';
+        keywordWrapEl.classList.remove('has-keyword'); // 触发 wrap max-width 平滑折叠
+      }
       el.removeAttribute('title');
       if (clipBtn) {
         clipBtn.hidden = false;

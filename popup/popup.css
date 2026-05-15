@@ -54,13 +54,23 @@ body {
   gap: 6px;
 }
 
+/* keyword 徽章 + 复制按钮的右侧组合容器
+ * 无 keyword 时 max-width 折叠为 0，有 keyword 时展开到 200px。
+ * 200ms 平滑 transition + overflow:hidden → 抽屉式滑入/滑出，彻底消灭"跳跃感"。
+ * 注：JS render() 切换 `.has-keyword` class。 */
 .menu-keyword-wrap {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 5px;
-  min-width: 0;
-  max-width: 160px;
+  max-width: 0;
+  overflow: hidden;
   position: relative;
+  transition: max-width 0.2s ease;
+}
+
+.menu-keyword-wrap.has-keyword {
+  max-width: 220px;
 }
 
 .menu-icon {
@@ -73,15 +83,25 @@ body {
 }
 
 .menu-keyword {
-  font-size: 12px;
+  font-size: 13px;
   background: rgba(255, 255, 255, 0.2);
   padding: 3px 8px;
   border-radius: 10px;
-  max-width: 120px;
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: default;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.15s ease, visibility 0s linear 0s;
+}
+
+/* 空徽章渐隐：保留 inline 占位但视觉透明，wrap min-width 已锁外层占位 */
+.menu-keyword:empty {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0s linear 0.15s;
 }
 
 /* 关键字 tooltip：常驻 DOM 但默认隐藏，hover 延迟 400ms 才显示（避免鼠标偶然经过误触），
@@ -139,7 +159,9 @@ body {
   line-height: 1;
   padding: 0;
   flex: 0 0 auto;
-  transition: background 0.15s ease, transform 0.15s ease;
+  opacity: 1;
+  visibility: visible;
+  transition: background 0.15s ease, transform 0.15s ease, opacity 0.15s ease, visibility 0s linear 0s;
 }
 
 .menu-keyword-copy:hover {
@@ -151,8 +173,13 @@ body {
   transform: translateY(0);
 }
 
+/* hidden 渐隐：保留 display 占位（wrap min-width 锁外层），用 opacity/visibility 替代 display:none */
 .menu-keyword-copy[hidden] {
-  display: none;
+  display: inline-flex;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease, visibility 0s linear 0.15s;
 }
 
 .menu-keyword-copy.copied {
