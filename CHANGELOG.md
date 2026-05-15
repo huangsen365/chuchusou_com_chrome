@@ -1,5 +1,18 @@
 # 更新日志
 
+## v1.6.10 (2026-05-16)
+
+Service Worker 启动时预热 prompt / 配置缓存 —— 首次冷启动 popup / 侧边栏的"反应慢"得到改善。详细见 [releases/v1.6.10.md](./releases/v1.6.10.md)。
+
+### 🔧 改进
+
+- **SW 启动时预热 6 个 JSON 配置缓存**：之前用户首次安装 / 浏览器重启后第一次点扩展图标或打开侧边栏，要串/并行 6 个 `fetch`（4 个 prompts/*.json + unifiedMenuConfig + engines.json）才能渲染菜单，体感"反应慢"。现在 SW 一启动就 fire-and-forget 并行触发这些 fetch，等用户实际点开时全是 cache hit。`onInstalled` / `onStartup` / 模块顶层兜底三处都接入。
+
+### 🛠 技术改动
+
+- `background/init.js`：新增 `prewarmPromptConfigs()` 辅助函数，幂等 + `Promise.allSettled` 容错。
+- `sidepanel/sidepanel.html`：暂时隐藏 Stanley / HerName 两个入口（资料未备齐），核心代码（`members/` 目录 + JSON + JS 监听）全部保留，未来去掉 `hidden` 属性即可恢复。
+
 ## v1.6.9 (2026-05-15)
 
 popup 置顶封面生成器卡片新增「📑 改风格 / 比例 → 侧边栏」副链接 —— 解决"popup 没有侧边栏 ✏️ + ⓘ 容易让人迷茫怎么换风格"的问题。详细见 [releases/v1.6.9.md](./releases/v1.6.9.md)。
