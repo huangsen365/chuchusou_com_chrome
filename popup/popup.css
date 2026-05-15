@@ -46,6 +46,10 @@ body {
   justify-content: space-between;
   align-items: center;
   flex-shrink: 0;
+  /* 锁死高度：26px 按钮 + 12×2 padding = 50px。
+   * 与 sidepanel 一样用 `height` 而非 `min-height`，杜绝有/无 keyword 之间的高度抖动。 */
+  height: 50px;
+  box-sizing: border-box;
 }
 
 .header-left {
@@ -55,22 +59,18 @@ body {
 }
 
 /* keyword 徽章 + 复制按钮的右侧组合容器
- * 无 keyword 时 max-width 折叠为 0，有 keyword 时展开到 200px。
- * 200ms 平滑 transition + overflow:hidden → 抽屉式滑入/滑出，彻底消灭"跳跃感"。
- * 注：JS render() 切换 `.has-keyword` class。 */
+ *
+ * 与 sidepanel.css 同思路：固定 width + height，wrap 自己永远不动，内部通过 opacity 淡入淡出。
+ * 详见 sidepanel.css 注释。 */
 .menu-keyword-wrap {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 5px;
-  max-width: 0;
-  overflow: hidden;
+  width: 180px;
+  height: 26px;
+  flex-shrink: 0;
   position: relative;
-  transition: max-width 0.2s ease;
-}
-
-.menu-keyword-wrap.has-keyword {
-  max-width: 220px;
 }
 
 .menu-icon {
