@@ -1,5 +1,13 @@
 # 更新日志
 
+## v1.6.12 (2026-05-16)
+
+Windows 下 popup 标题"触触搜"换行问题修复。详细见 [releases/v1.6.12.md](./releases/v1.6.12.md)。
+
+### 🐛 修复
+
+- **Windows 下 popup 顶部"触触搜"三个字会换行**：根因是 popup 总宽 280px，去掉左右 padding 后内容区 252px；右侧关键字徽章 wrap 固定 180px，左侧只剩 72px。macOS 用苹方字体刚好塞下，Windows 用微软雅黑同字号要宽 2-3px 直接溢出换行。修复：左侧 `.header-left` / `.menu-title` 加 `white-space: nowrap` + `flex-shrink: 0`，右侧 keyword wrap 从 180px 缩到 170px（徽章 max-width 同步 140 → 130），给 Windows 字体留 ~10px buffer。
+
 ## v1.6.11 (2026-05-16)
 
 侧边栏关键字徽章稳定性大改 —— 解决"在 chrome:// 内置页拿不到 keyword""徽章切换时跳跃感"两个老问题，关键字获取链路统一过 `KeywordService` 门面。详细见 [releases/v1.6.11.md](./releases/v1.6.11.md)。
