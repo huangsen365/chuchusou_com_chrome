@@ -1,5 +1,30 @@
 # 更新日志
 
+## v1.6.11 (2026-05-16)
+
+侧边栏关键字徽章稳定性大改 —— 解决"在 chrome:// 内置页拿不到 keyword""徽章切换时跳跃感"两个老问题，关键字获取链路统一过 `KeywordService` 门面。详细见 [releases/v1.6.11.md](./releases/v1.6.11.md)。
+
+### 🐛 修复
+
+- **侧边栏在 chrome:// 等内置页面拿不到关键字徽章**：根因是 manifest 只声明 `activeTab` 权限不够覆盖侧边栏长期挂着的查询场景，Chrome 会把返回 tab 对象里的 url/title 抹掉。新增 `tabs` 权限 + 在 background 主动用 `chrome.tabs.get(tabId)` 重读最新 tab 元数据。**对老用户升级无感**（已有 `<all_urls>` host_permission 涵盖了警告）。
+- **徽章切换有/无关键字时的"跳跃感"**：之前 wrap 用 `min-width / max-width drawer 动画`仍有 1-2px 的高度抖动（不同 Chrome 版本对 flex 子项高度计算有差异）。改为彻底固定 `width + height`、内部 badge/buttons 通过 opacity 淡入淡出，header 完全静态。
+- **popup 在 chrome:// 上"假成功"显示上一页旧关键字**：之前 storage 5 分钟瞬时缓存只比 tabId + TTL 不查 URL，加 URL 强校验避免跨页面误读。
+
+### 🔧 改进
+
+- **侧边栏关键字字体加大**（11px → 12px）；popup 关键字字体加大（12px → 13px）。max-width 同步上调避免过早截断。
+- **关键字获取链路统一过 `KeywordService` 门面**（popup / sidepanel / 右键菜单 三个入口共用），意图驱动（`'popup-open'` / `'sidepanel-init'` / `'contextmenu-click'` ...），各自的 policy 表声明式管理。
+
+### 🛠 技术改动
+
+- 新增 `background/KeywordService.js`：意图 → policy 表 + storage 缓存 + `_hydrateContext` 兜底拿新鲜 tab 元数据。
+- 新增 `shared/keywordClient.js`：popup + sidepanel 共用客户端，消除 `getCurrentKeyword` 双份代码重复。
+- `manifest.json`：新增 `tabs` 权限（在已有 `<all_urls>` host_permission 下被警告合并覆盖，升级静默）。
+- `sidepanel/sidepanel.js`：refresh 加 debounce + 空结果退避重试 + 多事件触发（防御性，根因修复在 background 侧）。
+- `background/keywordResolver.js`：所有在线 candidate 失败后兜底读 `fallbackKeywordByTab[tabId]`（URL 强校验避免跨页污染）。
+- `eslint.config.mjs`：注册 `KeywordService` / `CCSKeywordClient` / `KEYWORD_INTENTS` 三个新全局。
+- `build.sh`：`COPY_DIRS` 加 `shared/`。
+
 ## v1.6.10 (2026-05-16)
 
 Service Worker 启动时预热 prompt / 配置缓存 —— 首次冷启动 popup / 侧边栏的"反应慢"得到改善。详细见 [releases/v1.6.10.md](./releases/v1.6.10.md)。
