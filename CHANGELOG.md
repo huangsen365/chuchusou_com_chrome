@@ -1,5 +1,20 @@
 # 更新日志
 
+## v1.6.9 (2026-05-15)
+
+popup 置顶封面生成器卡片新增「📑 改风格 / 比例 → 侧边栏」副链接 —— 解决"popup 没有侧边栏 ✏️ + ⓘ 容易让人迷茫怎么换风格"的问题。详细见 [releases/v1.6.9.md](./releases/v1.6.9.md)。
+
+### 🔧 改进
+
+- **Popup 置顶卡片右下角新增「📑 改风格 / 比例 → 侧边栏」副链接**：极轻量（10px 琥珀色、opacity 0.6、hover 加下划线），点击复用已有 `openSidePanel()` 直接打开侧边栏。之前 popup pin 卡片只有主执行按钮，没给用户"切风格 / 改比例"的入口（sidepanel 有 ✏️ 编辑按钮 + ⓘ 说明）。直接搬 picker UI 进 popup 不现实（5 种风格 × 11 种比例塞不下 360px），改用副链接把用户引到侧边栏更对症。
+
+### 🛠 技术改动
+
+- `popup/popup.html`：`#popupPin` 内主按钮后新增 `#popupPinOpenSidepanel` 按钮。
+- `popup/popup.css`：`.popup-pin` 改 `flex-direction: column`、gap 4px、底 padding 减 2px；新增 `.popup-pin-hint` 样式（`align-self: flex-end` 靠右、`font-size: 10px`、琥珀色 `#92400e`）。
+- `popup/popup.js`：`bindPinnedCover()` 绑点击复用已有 `openSidePanel()`，零新逻辑。
+- 改动文件：`popup/popup.html` / `popup/popup.css` / `popup/popup.js`。
+
 ## v1.6.8 (2026-05-14)
 
 封面生成器子菜单顶部新增「🚀 打开以下全部预设风格」一键批量启动 —— 与速答/百问/优化的「打开以下全部」对称，一次开 4 个 tab 同步对比 4 种内置风格（二次元可爱 / 小红书 / 椰树牌 / 极简留白），同一 ChatGPT Images 2.0 引擎、各自独立的 prompt。详细见 [releases/v1.6.8.md](./releases/v1.6.8.md)。
