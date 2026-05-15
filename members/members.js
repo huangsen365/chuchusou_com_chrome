@@ -1,9 +1,18 @@
 (function () {
   'use strict';
 
+  // 已知 group 注册表：URL 参数 ?group=<id> 决定加载哪份 JSON。
+  // 加新 group 时往这里加一行 + 在 sidepanel 加对应入口即可，独立页本身无需改动。
+  const GROUPS = {
+    stanleyFriends: 'prompts/stanleyFriends.json',
+    herName: 'prompts/herName.json'
+  };
+  const DEFAULT_GROUP = 'stanleyFriends';
+
   const STATE = {
     config: null,
-    expandedId: null
+    expandedId: null,
+    groupId: null
   };
 
   function $(id) { return document.getElementById(id); }
@@ -14,8 +23,15 @@
     }[c]));
   }
 
-  async function loadConfig() {
-    const url = chrome.runtime.getURL('prompts/stanleyFriends.json');
+  function resolveGroupId() {
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get('group');
+    return Object.prototype.hasOwnProperty.call(GROUPS, raw) ? raw : DEFAULT_GROUP;
+  }
+
+  async function loadConfig(groupId) {
+    const path = GROUPS[groupId] || GROUPS[DEFAULT_GROUP];
+    const url = chrome.runtime.getURL(path);
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     return await resp.json();
@@ -150,13 +166,14 @@
   }
 
   async function init() {
+    STATE.groupId = resolveGroupId();
     try {
-      STATE.config = await loadConfig();
+      STATE.config = await loadConfig(STATE.groupId);
       renderHeader(STATE.config);
       renderGrid(STATE.config);
       $('mbLoading').hidden = true;
     } catch (err) {
-      console.error('[触触搜] 加载 stanleyFriends.json 失败:', err);
+      console.error(`[触触搜] 加载 group=${STATE.groupId} 失败:`, err);
       $('mbLoading').hidden = true;
       $('mbErrorMsg').textContent = err.message || String(err);
       $('mbError').hidden = false;

@@ -750,14 +750,16 @@ class PinnedAction {
     document.getElementById('spPinSave').addEventListener('click', () => this.savePicker());
     this.bindTaskInfoPopover();
 
-    // Stanley 朋友圈入口：在新 tab 打开 members.html（独立通道，不动 cover 主流程）
-    const stanleyEntry = document.getElementById('spStanleyEntry');
-    if (stanleyEntry) {
-      stanleyEntry.addEventListener('click', (e) => {
+    // 内置风格成员库入口（Stanley / HerName / 未来更多 group）：在新 tab 打开 members.html?group=<id>
+    // 独立通道，不动 cover 主流程；新增 group 时只需在 HTML 里加一个 data-group=... 的链接
+    document.querySelectorAll('.sp-stanley-entry[data-group]').forEach((el) => {
+      el.addEventListener('click', (e) => {
         e.preventDefault();
-        chrome.tabs.create({ url: chrome.runtime.getURL('members/members.html') });
+        const group = el.dataset.group || 'stanleyFriends';
+        const url = chrome.runtime.getURL(`members/members.html?group=${encodeURIComponent(group)}`);
+        chrome.tabs.create({ url });
       });
-    }
+    });
   }
 
   // ⓘ 详情弹层：click 切换（不是 hover）；点外部 / ESC / × 关闭

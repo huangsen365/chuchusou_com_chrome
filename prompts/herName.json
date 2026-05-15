@@ -1,0 +1,42 @@
+{
+  "categoryLabel": "HerName",
+  "categoryDescription": "HerName 系列成员的封面风格预设。点击成员卡片展开后，复制对应的提示词到剪贴板，回到任意网页选中文字后用右键菜单 / Popup pin 一键生成封面。",
+  "members": [
+    {
+      "id": "xiaohua",
+      "displayName": "小花",
+      "xName": "小花",
+      "xHandle": "@xiaohua",
+      "altHandle": "",
+      "avatarUrl": "",
+      "previewUrls": [],
+      "bio": "TODO: 小花的简介",
+      "prompts": [
+        {
+          "id": "default",
+          "label": "默认风格",
+          "description": "TODO: 这条 prompt 想表达什么风格",
+          "text": "TODO: 在这里写正式的提示词模板。可以用 ${input} 占位用户选中的关键字。\n\n示例：\nimage:${input}\n5:2 比例的封面标题\n--要使用 小花 标志性风格（请描述）"
+        }
+      ]
+    },
+    {
+      "id": "xiaoli",
+      "displayName": "小丽",
+      "xName": "小丽",
+      "xHandle": "@xiaoli",
+      "altHandle": "",
+      "avatarUrl": "",
+      "previewUrls": [],
+      "bio": "TODO: 小丽的简介",
+      "prompts": [
+        {
+          "id": "default",
+          "label": "默认风格",
+          "description": "TODO: 这条 prompt 想表达什么风格",
+          "text": "TODO: 在这里写正式的提示词模板。可以用 ${input} 占位用户选中的关键字。\n\n示例：\nimage:${input}\n5:2 比例的封面标题\n--要使用 小丽 标志性风格（请描述）"
+        }
+      ]
+    }
+  ]
+}
