@@ -76,6 +76,7 @@ COPY_DIRS=(
   "prompts"
   "icons"
   "assets"
+  "members"
 )
 
 # 顶层单文件

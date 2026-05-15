@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stanley 和他的朋友们 · 触触搜</title>
+  <link rel="stylesheet" href="members.css">
+</head>
+<body>
+  <header class="mb-header">
+    <div class="mb-header-inner">
+      <h1 class="mb-title">
+        <span class="mb-title-icon">🧑‍🤝‍🧑</span>
+        <span class="mb-title-text" id="mbTitle">Stanley 和他的朋友们</span>
+      </h1>
+      <p class="mb-desc" id="mbDesc"></p>
+    </div>
+  </header>
+
+  <main class="mb-main">
+    <div class="mb-loading" id="mbLoading">加载中…</div>
+    <div class="mb-error" id="mbError" hidden>
+      <p>加载失败：<span id="mbErrorMsg"></span></p>
+    </div>
+    <div class="mb-grid" id="mbGrid" hidden></div>
+  </main>
+
+  <footer class="mb-footer">
+    <span class="mb-footer-tip">💡 点击成员展开 → 复制提示词 → 回到网页选中文字 → 右键菜单 / Popup pin 生成封面</span>
+  </footer>
+
+  <div class="mb-toast" id="mbToast" hidden></div>
+
+  <script src="members.js"></script>
+</body>
+</html>

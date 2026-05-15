@@ -749,6 +749,15 @@ class PinnedAction {
     document.getElementById('spPinCancel').addEventListener('click', () => this.closePicker());
     document.getElementById('spPinSave').addEventListener('click', () => this.savePicker());
     this.bindTaskInfoPopover();
+
+    // Stanley 朋友圈入口：在新 tab 打开 members.html（独立通道，不动 cover 主流程）
+    const stanleyEntry = document.getElementById('spStanleyEntry');
+    if (stanleyEntry) {
+      stanleyEntry.addEventListener('click', (e) => {
+        e.preventDefault();
+        chrome.tabs.create({ url: chrome.runtime.getURL('members/members.html') });
+      });
+    }
   }
 
   // ⓘ 详情弹层：click 切换（不是 hover）；点外部 / ESC / × 关闭

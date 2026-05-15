@@ -1,0 +1,42 @@
+{
+  "categoryLabel": "Stanley 和他的朋友们",
+  "categoryDescription": "Stanley 朋友圈成员的封面风格预设。点击成员卡片展开后，复制对应的提示词到剪贴板，回到任意网页选中文字后用右键菜单 / Popup pin 一键生成封面。",
+  "members": [
+    {
+      "id": "stanley",
+      "displayName": "Stanley",
+      "xName": "Stanley",
+      "xHandle": "@stanley",
+      "altHandle": "",
+      "avatarUrl": "",
+      "previewUrls": [],
+      "bio": "TODO: Stanley 的简介",
+      "prompts": [
+        {
+          "id": "default",
+          "label": "默认风格",
+          "description": "TODO: 这条 prompt 想表达什么风格",
+          "text": "TODO: 在这里写正式的提示词模板。可以用 ${input} 占位用户选中的关键字。\n\n示例：\nimage:${input}\n5:2 比例的封面标题\n--要使用 Stanley 经典风格（极简、留白、低饱和、衬线大字）"
+        }
+      ]
+    },
+    {
+      "id": "friend-a",
+      "displayName": "朋友 A（占位）",
+      "xName": "朋友 A",
+      "xHandle": "@friend_a",
+      "altHandle": "",
+      "avatarUrl": "",
+      "previewUrls": [],
+      "bio": "TODO: 朋友 A 的简介",
+      "prompts": [
+        {
+          "id": "default",
+          "label": "默认风格",
+          "description": "TODO: 这条 prompt 想表达什么风格",
+          "text": "TODO: 写朋友 A 的正式 prompt。用 ${input} 占位关键字。"
+        }
+      ]
+    }
+  ]
+}

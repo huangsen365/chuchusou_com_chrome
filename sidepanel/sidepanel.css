@@ -213,12 +213,40 @@ body {
 /* ==================== Pinned Action ==================== */
 .sp-pin {
   display: flex;
+  flex-wrap: wrap;          /* 让 .sp-stanley-entry 折到第二行作独立条带 */
   align-items: stretch;
   gap: 6px;
-  padding: 14px 12px 10px;  /* top 加 4px 给 .sp-pin-corner-ratio 留个干净的"屋檐" */
+  padding: 14px 12px 8px;   /* top 加 4px 给 .sp-pin-corner-ratio 留"屋檐"；bottom 缩 2px 给 Stanley 行让位 */
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
   border-bottom: 1px solid #f59e0b33;
   position: relative;       /* 详情弹层 + corner-ratio absolute 定位锚点 */
+}
+
+/* Stanley 朋友圈入口：贴在 pin 卡片底部的极轻量条带，与 cover 系统暖色调一致但视觉低于主按钮 */
+.sp-stanley-entry {
+  flex: 1 0 100%;           /* 触发 flex-wrap：占满一整行 */
+  display: block;
+  margin-top: 2px;
+  padding: 4px 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #92400e;
+  opacity: 0.7;
+  letter-spacing: 0.3px;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.sp-stanley-entry:hover {
+  opacity: 1;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.sp-stanley-entry:active {
+  background: rgba(245, 158, 11, 0.18);
 }
 
 .sp-pin-tip {
