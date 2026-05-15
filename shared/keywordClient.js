@@ -30,10 +30,40 @@
   const STORAGE_PREFIX = 'ccs_kw_';
   const STORAGE_TTL_MS = 5 * 60 * 1000; // 必须和 background/KeywordService.js 的 KEYWORD_STORAGE_TTL_MS 一致
 
+  // 三段兜底拿 active tab：
+  // 1) currentWindow:true（popup 上下文稳，sidepanel 偶发返回空数组）
+  // 2) chrome.windows.getCurrent() 拿到 windowId 后显式 query({windowId})
+  // 3) lastFocusedWindow:true（多窗口/失焦场景兜底）
+  // 任一步成功立刻返回，避免假装拿到 {id:null,url:'',title:''} 占位对象。
   async function getActiveTab() {
-    return new Promise((resolve) => {
+    const fromCurrent = await new Promise((resolve) => {
       try {
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          resolve(tabs && tabs[0] ? tabs[0] : null);
+        });
+      } catch (_) { resolve(null); }
+    });
+    if (fromCurrent) return fromCurrent;
+
+    try {
+      const win = await new Promise((resolve) => {
+        try { chrome.windows.getCurrent((w) => resolve(w || null)); } catch (_) { resolve(null); }
+      });
+      if (win?.id != null) {
+        const fromWindow = await new Promise((resolve) => {
+          try {
+            chrome.tabs.query({ active: true, windowId: win.id }, (tabs) => {
+              resolve(tabs && tabs[0] ? tabs[0] : null);
+            });
+          } catch (_) { resolve(null); }
+        });
+        if (fromWindow) return fromWindow;
+      }
+    } catch (_) { /* ignore */ }
+
+    return new Promise((resolve) => {
+      try {
+        chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
           resolve(tabs && tabs[0] ? tabs[0] : null);
         });
       } catch (_) { resolve(null); }

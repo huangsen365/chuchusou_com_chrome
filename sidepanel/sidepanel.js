@@ -1276,12 +1276,12 @@ class SidePanelRenderer {
     }
   }
 
+  // 三段兜底拿 active tab——直接复用 CCSKeywordClient.getActiveTab（包含 currentWindow / windowId / lastFocusedWindow 三层兜底）。
+  // 之前 sidepanel 用单层 currentWindow:true 失败时回退到 {id:null,url:'',title:''} 占位对象，导致
+  // 后台收到空 tabId / 空 URL，所有 candidate 路径都跳过，徽章拿不到任何内容（包括 title 兜底）。
   async getActiveTab() {
-    return new Promise((resolve) => {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        resolve(tabs[0] || { url: '', title: '', id: null });
-      });
-    });
+    const tab = await CCSKeywordClient.getActiveTab();
+    return tab || { url: '', title: '', id: null };
   }
 
   async loadMenuConfig() {
