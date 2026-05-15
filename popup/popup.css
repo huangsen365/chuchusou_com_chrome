@@ -165,9 +165,10 @@ body {
  * 高度比 sidepanel 紧凑一点（popup 屏幕本来就窄）。 */
 .popup-pin {
   display: flex;
+  flex-direction: column;
   align-items: stretch;
-  gap: 6px;
-  padding: 12px 10px 8px;
+  gap: 4px;
+  padding: 12px 10px 6px;
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
   border-bottom: 1px solid #f59e0b33;
   position: relative;
@@ -246,6 +247,28 @@ body {
   letter-spacing: 0.3px;
   white-space: nowrap;
   pointer-events: none;
+}
+
+/* 副链接：把用户引到侧边栏改风格/比例/自定义——比加 ✏️ picker 轻 */
+.popup-pin-hint {
+  align-self: flex-end;
+  background: none;
+  border: 0;
+  padding: 0 2px;
+  margin: 0;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  color: #92400e;
+  opacity: 0.6;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.popup-pin-hint:hover {
+  opacity: 1;
+  text-decoration: underline;
 }
 
 /* ==================== 菜单容器 ==================== */

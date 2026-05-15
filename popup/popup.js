@@ -402,6 +402,11 @@ class PopupMenuRenderer {
     const actionBtn = document.getElementById('popupPinAction');
     if (!actionBtn) return;
     actionBtn.addEventListener('click', () => this.executePinnedCover());
+
+    const hintBtn = document.getElementById('popupPinOpenSidepanel');
+    if (hintBtn) {
+      hintBtn.addEventListener('click', () => this.openSidePanel());
+    }
   }
 
   async executePinnedCover() {
