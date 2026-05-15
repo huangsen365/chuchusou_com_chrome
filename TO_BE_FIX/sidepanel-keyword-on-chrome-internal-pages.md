@@ -1,7 +1,7 @@
 # BUG: Sidepanel 在 chrome:// 等内置页面首次进入时拿不到关键字
 
 > 创建时间：2026-05-16
-> 状态：**未解决** — 已经做了多轮修复尝试都没治本，需要新视角介入
+> 状态：**已修复** — 2026-05-16：补齐 `tabs` 权限，并由 background 在 `KeywordService` 内基于 `tabId` 重新读取新鲜 tab 元数据
 > 影响：触触搜 Chrome 扩展（Manifest V3），代码在仓库根目录
 
 ---
@@ -288,3 +288,14 @@ d77f599  release(v1.6.10): SW 启动时预热 prompt / 配置缓存
 ---
 
 **祝好运。这个 bug 我花了很多轮迭代没治本，可能需要换个思路了。**
+
+---
+
+## 九、修复记录（2026-05-16）
+
+根因判断：`chrome://` 内置页不受 `<all_urls>` host permission 覆盖，sidepanel 依赖 `chrome.tabs.query()` 从扩展页上下文读取 `url/title` 时容易拿到空快照；popup 因用户点击扩展图标触发 `activeTab` 授权，所以更容易拿到标题，造成两边表现不一致。
+
+修复：
+- `manifest.json` 增加 `"tabs"` 权限，用于稳定读取 tab 的 `url/title` 元数据。
+- `background/KeywordService.js` 在处理 `getKeyword` 时不再完全信任前端传入的早期快照，而是用 `chrome.tabs.get(tabId)` 重新读取当前 tab；如果拿到非空 `title`，再进入 `computeSearchTextForTab()` 的 title 兜底路径。
+- popup 的 storage 缓存写入 URL 也改用 background 重新读取后的 URL，避免 sidepanel/popup 传空 URL 时写入不准。

@@ -6,6 +6,7 @@
   "homepage_url": "https://chuchusou.com",
   "permissions": [
     "activeTab",
+    "tabs",
     "clipboardWrite",
     "clipboardRead",
     "storage",

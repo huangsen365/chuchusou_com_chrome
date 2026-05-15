@@ -59,6 +59,50 @@ const KEYWORD_STORAGE_PREFIX = 'ccs_kw_';
 const KEYWORD_STORAGE_TTL_MS = 5 * 60 * 1000; // 5 分钟
 
 class KeywordService {
+  static async _getFreshTab(tabId) {
+    if (tabId == null || !chrome?.tabs?.get) return null;
+    return new Promise((resolve) => {
+      try {
+        chrome.tabs.get(tabId, (tab) => {
+          if (chrome.runtime.lastError) {
+            resolve(null);
+            return;
+          }
+          resolve(tab || null);
+        });
+      } catch (_) {
+        resolve(null);
+      }
+    });
+  }
+
+  static async _hydrateContext(ctx) {
+    const out = {
+      tabId: ctx?.tabId,
+      url: ctx?.url || '',
+      title: ctx?.title || '',
+      selectionText: ctx?.selectionText || ''
+    };
+
+    const freshTab = await KeywordService._getFreshTab(out.tabId);
+    if (!freshTab) return out;
+
+    const freshUrl = freshTab.url || freshTab.pendingUrl || '';
+    const freshTitle = freshTab.title || '';
+
+    // Sidepanel 在 chrome:// 页面上经常只能传进空 title/url。这里让 background
+    // 用 tabs.get(tabId) 再拿一次当前 tab 元数据，避免把前端的早期空快照当最终结果。
+    if (freshUrl) out.url = freshUrl;
+    if (freshTitle) {
+      out.title = freshTitle;
+      if (typeof updateLatestTabTitle === 'function') {
+        try { updateLatestTabTitle(out.tabId, freshTitle); } catch (_) { /* ignore */ }
+      }
+    }
+
+    return out;
+  }
+
   /**
    * 统一获取关键字
    *
@@ -73,14 +117,15 @@ class KeywordService {
   static async getKeyword(ctx) {
     const intent = ctx?.intent || KEYWORD_INTENTS.LEGACY;
     const policy = INTENT_POLICIES[intent] || INTENT_POLICIES[KEYWORD_INTENTS.LEGACY];
+    const hydratedCtx = await KeywordService._hydrateContext(ctx);
 
     let result;
     try {
       result = await computeSearchTextForTab({
-        tabId: ctx?.tabId,
-        tabUrl: ctx?.url || '',
-        tabTitle: ctx?.title || '',
-        selectionText: ctx?.selectionText || ''
+        tabId: hydratedCtx.tabId,
+        tabUrl: hydratedCtx.url,
+        tabTitle: hydratedCtx.title,
+        selectionText: hydratedCtx.selectionText
       }, {
         forceFetchSelection: policy.forceFetchSelection,
         skipCurrentMenuFallback: policy.skipCurrentMenuFallback
@@ -95,11 +140,11 @@ class KeywordService {
 
     // 仅 popup-open 写 storage 缓存（5 分钟 TTL）。URL 一起入库，读取时强校验，
     // 避免"同 tab 切到 chrome:// 后误把上一个 URL 的旧值当本页关键字显示"。
-    if (policy.cacheToStorage && ctx?.tabId != null && text) {
-      KeywordService._writeStorageCache(ctx.tabId, {
+    if (policy.cacheToStorage && hydratedCtx.tabId != null && text) {
+      KeywordService._writeStorageCache(hydratedCtx.tabId, {
         text,
         raw,
-        url: ctx?.url || ''
+        url: hydratedCtx.url
       }).catch(() => { /* 写失败不影响主流程 */ });
     }
 
