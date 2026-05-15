@@ -206,6 +206,41 @@ async function computeSearchTextForTab({
     }
   }
 
+  // BUGFIX: 读 fallbackKeywordByTab[tabId] 作为补充候选源（C 档重构后追加）
+  //
+  // 之前的问题：sidepanel 在 chrome.tabs.onUpdated `url` 事件触发时就 refresh，
+  // 但此时 chrome.tabs.query 拿到的 tab.title 还是空的（页面没加载完）。
+  // 在线 extractSearchKeywords({title:''}) 失败 → 返回空。
+  //
+  // 与此同时，bg 的 prefetchMenuState 监听 `title` 变化时会把 extract 结果写到
+  // fallbackKeywordByTab[tabId]，但 compute 之前不读它，下一次 refresh 仍然空跑。
+  //
+  // 修复：在所有在线 candidate 失败后，读 fallbackKeywordByTab[tabId]。URL 强匹配避免跨页污染。
+  // 这是"per-tab、URL 一致"的缓存，跟 currentMenuState 那种"跨 tab 单例"完全不同，
+  // 即使 skipCurrentMenuFallback:true 也应当读（前者是 tab 自己的历史，后者是污染源）。
+  if (!candidates.length && tabId != null && typeof fallbackKeywordByTab === 'object' && fallbackKeywordByTab) {
+    const stored = fallbackKeywordByTab[tabId];
+    if (stored && typeof stored.raw === 'string' && stored.raw.trim().length > 0) {
+      const urlMatches = typeof stored.url === 'string' && stored.url === tabUrl;
+      if (urlMatches) {
+        candidates.push(stored.raw);
+        logResolver('candidate', {
+          source: 'tab-fallback-cache',
+          value: stored.raw,
+          storedUrl: stored.url,
+          tabUrl,
+          ageMs: stored.timestamp ? (Date.now() - stored.timestamp) : null
+        });
+      } else {
+        logResolver('tab-fallback-cache-skipped', {
+          reason: 'url-mismatch',
+          storedUrl: stored.url,
+          tabUrl
+        });
+      }
+    }
+  }
+
   if (!skipCurrentMenuFallback && !candidates.length && typeof currentMenuState === 'object' && currentMenuState) {
     const preservedRaw = currentMenuState.raw;
     const preservedUrl = currentMenuState.url;
