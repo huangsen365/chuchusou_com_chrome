@@ -14,14 +14,42 @@ class PopupMenuRenderer {
 
   async init() {
     try {
-      // 并行加载配置和关键词（菜单结构已由 background 处理好，包含启用/禁用过滤）
-      const [config, keyword] = await Promise.all([
+      // C 档重构：CCSKeywordClient（shared/keywordClient.js）统一关键字获取。
+      // popup-open 意图启用 storage 瞬时缓存：onInstant 在拿到 storage 缓存时立刻渲染，
+      // 后续 fresh 真值回来再覆盖。这解决"popup 抢焦点 → 当前 tab 失焦 → selection 被清"
+      // 导致的"打开瞬间空白徽章"问题（5 分钟 TTL，下次同 tab 打开能秒显）。
+      const keywordPromise = CCSKeywordClient.requestKeyword(
+        CCSKeywordClient.INTENTS.POPUP_OPEN,
+        {
+          instantFromStorage: true,
+          onInstant: (cached) => {
+            // 仅在 config 已加载完成（DOM 已构建）才能直接更新徽章。
+            // 如果 config 还没好，先缓在 _pendingInstantKeyword，等 render() 用上。
+            if (this.config && cached && cached.text) {
+              this.keyword = cached;
+              this._renderKeyword();
+            } else if (cached && cached.text) {
+              this._pendingInstantKeyword = cached;
+            }
+          }
+        }
+      );
+
+      const [config, freshKeyword] = await Promise.all([
         this.loadMenuConfig(),
-        this.getCurrentKeyword()
+        keywordPromise
       ]);
 
       this.config = config;
-      this.keyword = keyword;
+      // 优先级：fresh 真值 > pending instant > 空。如果 fresh 有内容就用 fresh；
+      // 否则用 instant 兜底；都没有就空。
+      if (freshKeyword.text) {
+        this.keyword = freshKeyword;
+      } else if (this._pendingInstantKeyword && this._pendingInstantKeyword.text) {
+        this.keyword = this._pendingInstantKeyword;
+      } else {
+        this.keyword = freshKeyword;
+      }
 
       this.render();
       // 与 sidepanel pin 同源：读 chrome.storage.local 的置顶记录，把用户选的那一个风格做成
@@ -62,31 +90,14 @@ class PopupMenuRenderer {
     });
   }
 
-  async getCurrentKeyword() {
-    return new Promise((resolve) => {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (!tabs[0]) {
-          resolve({ text: '', raw: '' });
-          return;
-        }
-        chrome.runtime.sendMessage({
-          action: 'getSearchText',
-          tabId: tabs[0].id,
-          url: tabs[0].url,
-          title: tabs[0].title,
-          forceFresh: true
-        }, (response) => {
-          if (chrome.runtime.lastError) {
-            resolve({ text: '', raw: '' });
-            return;
-          }
-          resolve({
-            text: response?.text || '',
-            raw: response?.raw || response?.text || ''
-          });
-        });
-      });
-    });
+  // C 档重构后：popup.js 不再直接发消息拿关键字，统一过 CCSKeywordClient。
+  // 老调用点（PromptLibraryManager / SettingsManager 等）若需要兜底刷新关键字，
+  // 调用 this.refreshKeyword() 即可。
+  async refreshKeyword() {
+    const fresh = await CCSKeywordClient.requestKeyword(CCSKeywordClient.INTENTS.POPUP_OPEN);
+    this.keyword = fresh;
+    this._renderKeyword();
+    return fresh;
   }
 
   // isMenuEnabled: background 已经过滤了禁用的菜单项，这里始终返回 true
@@ -94,22 +105,20 @@ class PopupMenuRenderer {
     return true;
   }
 
-  render() {
-    const container = document.getElementById('menuContainer');
-    container.innerHTML = '';
-
-    // 显示当前关键词
+  // 仅刷新关键字徽章那一块，不重建菜单 DOM（避免丢交互态）。
+  // 供 init() 在 fresh 关键字到来后单独触发，避免整页 re-render。
+  _renderKeyword() {
     const keywordEl = document.getElementById('currentKeyword');
+    if (!keywordEl) return;
     const keywordCopyEl = document.getElementById('currentKeywordCopy');
-    const keywordWrapEl = keywordEl?.closest('.menu-keyword-wrap');
-    if (this.keyword.text) {
+    const keywordWrapEl = keywordEl.closest('.menu-keyword-wrap');
+    if (this.keyword?.text) {
       const displayText = this.formatKeyword(this.keyword.text);
       const fullKeyword = this.keyword.raw || this.keyword.text;
       keywordEl.textContent = `"${displayText}"`;
-      // 用自定义 CSS tooltip 替代原生 title：原生 title 有浏览器级延迟，hover 体感慢。
       if (keywordWrapEl) {
         keywordWrapEl.dataset.fullKeyword = fullKeyword;
-        keywordWrapEl.classList.add('has-keyword'); // 触发 wrap max-width 平滑展开
+        keywordWrapEl.classList.add('has-keyword');
       }
       keywordEl.removeAttribute('title');
       if (keywordCopyEl) {
@@ -120,7 +129,7 @@ class PopupMenuRenderer {
       keywordEl.textContent = '';
       if (keywordWrapEl) {
         keywordWrapEl.dataset.fullKeyword = '';
-        keywordWrapEl.classList.remove('has-keyword'); // 触发 wrap max-width 平滑折叠
+        keywordWrapEl.classList.remove('has-keyword');
       }
       keywordEl.removeAttribute('title');
       if (keywordCopyEl) {
@@ -128,6 +137,14 @@ class PopupMenuRenderer {
         keywordCopyEl.dataset.keyword = '';
       }
     }
+  }
+
+  render() {
+    const container = document.getElementById('menuContainer');
+    container.innerHTML = '';
+
+    // 关键字徽章：抽到独立方法，方便后续单独刷新
+    this._renderKeyword();
     // 注：移除 keywordEl.style.display 强制切换——改由 CSS `.menu-keyword:empty` + wrap `.has-keyword` 渐变控制
 
     // 渲染菜单组

@@ -342,18 +342,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse?.({ ok: !!(set && set.size > 0) });
     return false;
   }
-  if (request.action === 'getSearchText') {
-    const { tabId, url, title, selectionText, forceFresh } = request;
-    computeSearchTextForTab({
+  // C 档重构入口：popup / sidepanel 通过 shared/keywordClient.js 发 'getKeyword'，
+  // intent 决定 background 的获取策略（policy 表见 background/KeywordService.js）。
+  // 同时仍保留 'getSearchText' 作为旧消息名兼容入口，下面那段。
+  if (request.action === 'getKeyword') {
+    const { tabId, url, title, selectionText, intent } = request;
+    KeywordService.getKeyword({
       tabId,
-      tabUrl: url,
-      tabTitle: title,
+      url,
+      title,
+      intent: intent || KEYWORD_INTENTS.LEGACY,
       selectionText
-    }, {
-      forceFetchSelection: !!forceFresh,
-      skipCurrentMenuFallback: !!forceFresh
-    }).then((text) => {
-      sendResponse?.({ text: text.normalized, raw: text.raw });
+    }).then((result) => {
+      sendResponse?.({ text: result.text, raw: result.raw, source: result.source, intent: result.intent });
+    }).catch((error) => {
+      console.error('[触触搜][BG] getKeyword 失败:', error);
+      sendResponse?.({ text: '', raw: '' });
+    });
+    return true;
+  }
+  if (request.action === 'getSearchText') {
+    // 兼容入口：通过 KeywordService 处理，intent 视 forceFresh 而定，行为与旧逻辑一致
+    const { tabId, url, title, selectionText, forceFresh } = request;
+    KeywordService.getKeyword({
+      tabId,
+      url,
+      title,
+      intent: forceFresh ? KEYWORD_INTENTS.LEGACY : KEYWORD_INTENTS.PAGE_CHANGED,
+      selectionText
+    }).then((result) => {
+      sendResponse?.({ text: result.text, raw: result.raw });
     }).catch((error) => {
       console.error('[触触搜][BG] 获取搜索文本失败:', error);
       sendResponse?.({ text: '', raw: '' });
@@ -1274,15 +1292,8 @@ chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
   });
 
   // Clean up per-tab caches to prevent memory leaks and stale data
-  if (selectedTextByTab[tabId]) {
-    delete selectedTextByTab[tabId];
-  }
-  if (fallbackKeywordByTab[tabId]) {
-    delete fallbackKeywordByTab[tabId];
-  }
-  if (latestTitleByTab[tabId]) {
-    delete latestTitleByTab[tabId];
-  }
+  // C 档重构：内存缓存 + storage 缓存一起清，走 KeywordService.clearTab
+  KeywordService.clearTab(tabId);
 
   // Clear currentMenuState if it belongs to the closed tab
   if (currentMenuState.tabId === tabId) {

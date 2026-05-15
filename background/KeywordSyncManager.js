@@ -1,6 +1,15 @@
 /**
  * 关键字同步管理器
  *
+ * ⚠️ C 档重构（2026-05）后定位收窄：
+ * - 类名容易让人以为是"关键字获取"统一入口，**但实际不是**。关键字获取已经迁到
+ *   `background/KeywordService.js`（intent 驱动的统一门面）。
+ * - 本类只负责"右键菜单标题的批量同步"那一块业务（_setupOnShownListener 已禁用、
+ *   syncMenus / syncGroup 仍在 base.js 的 setMenuState 流程里被调用）。
+ * - 名字保留是为了不破坏现有 importScripts / globalThis 引用，未来如果重命名建议
+ *   改成 MenuTitleSyncCoordinator 之类更准确的名字。
+ *
+ * 之前的设计意图（保留作历史参考）：
  * 整合原有的多个全局状态对象，提供统一的状态管理和同步接口
  * 核心功能：
  * 1. 集中管理关键字状态（合并 currentMenuState, selectedTextByTab 等）

@@ -1249,7 +1249,7 @@ class SidePanelRenderer {
       const urlChanged = newUrl !== this.currentTabUrl;
       this.currentTabUrl = newUrl;
 
-      const newKeyword = await this.getCurrentKeyword(tabInfo);
+      const newKeyword = await this.getCurrentKeyword(tabInfo, true /* isRefresh */);
 
       // URL 变化 → 跟随新页面，清掉手动标记
       if (urlChanged) {
@@ -1300,25 +1300,13 @@ class SidePanelRenderer {
     });
   }
 
-  async getCurrentKeyword(tabInfo) {
-    return new Promise((resolve) => {
-      chrome.runtime.sendMessage({
-        action: 'getSearchText',
-        tabId: tabInfo.id,
-        url: tabInfo.url,
-        title: tabInfo.title,
-        forceFresh: true
-      }, (response) => {
-        if (chrome.runtime.lastError) {
-          resolve({ text: '', raw: '' });
-          return;
-        }
-        resolve({
-          text: response?.text || '',
-          raw: response?.raw || response?.text || ''
-        });
-      });
-    });
+  // C 档重构：统一过 CCSKeywordClient（shared/keywordClient.js），与 popup 共用同一客户端。
+  // 第二参数 isRefresh 区分 init / refresh 两种意图（policy 表见 background/KeywordService.js）。
+  async getCurrentKeyword(tabInfo, isRefresh = false) {
+    const intent = isRefresh
+      ? CCSKeywordClient.INTENTS.SIDEPANEL_REFRESH
+      : CCSKeywordClient.INTENTS.SIDEPANEL_INIT;
+    return CCSKeywordClient.requestKeyword(intent, { tab: tabInfo });
   }
 
   renderKeyword() {

@@ -27,16 +27,19 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     tabUrl: tab?.url || '',
     tabTitle: tab?.title || ''
   });
-  const { raw: rawText, normalized: normalizedText } = await computeSearchTextForTab({
+  // C 档重构：用 KeywordService.getKeyword({intent:'contextmenu-click'}) 替代直接调 compute。
+  // 内部仍走 computeSearchTextForTab(forceFetchSelection:true, skipCurrentMenuFallback:true)，
+  // 行为完全一致，只是入口语义化了。
+  const ctxResult = await KeywordService.getKeyword({
     tabId: tab?.id,
-    tabUrl: tab?.url,
+    url: tab?.url,
     // BUGFIX: Prefer fresh tab.title over cached value to avoid cross-tab contamination
-    tabTitle: tab?.title || (tab?.id != null ? getLatestTabPageTitle(tab.id) : '') || '',
+    title: tab?.title || (tab?.id != null ? getLatestTabPageTitle(tab.id) : '') || '',
+    intent: KEYWORD_INTENTS.CONTEXT_MENU_CLICK,
     selectionText: info.selectionText || ''
-  }, {
-    forceFetchSelection: true,
-    skipCurrentMenuFallback: true
   });
+  const rawText = ctxResult.raw;
+  const normalizedText = ctxResult.normalized;
   logMenuEvent('context-click-resolved', {
     tabId: tab?.id ?? null,
     menuItemId: info.menuItemId,
@@ -62,15 +65,13 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   if (!effectiveRaw && !effectiveNormalized) {
     try {
-      const fallbackResult = await computeSearchTextForTab({
+      // 兜底分支：意图改成 'page-changed'（允许 currentMenuState fallback + 不强制 executeScript）
+      const fallbackResult = await KeywordService.getKeyword({
         tabId: tab?.id,
-        tabUrl: tab?.url,
-        // BUGFIX: Prefer fresh tab.title over cached value to avoid cross-tab contamination
-        tabTitle: tab?.title || (tab?.id != null ? getLatestTabPageTitle(tab.id) : '') || '',
+        url: tab?.url,
+        title: tab?.title || (tab?.id != null ? getLatestTabPageTitle(tab.id) : '') || '',
+        intent: KEYWORD_INTENTS.PAGE_CHANGED,
         selectionText: ''
-      }, {
-        forceFetchSelection: false,
-        skipCurrentMenuFallback: false
       });
       if (fallbackResult?.raw || fallbackResult?.normalized) {
         effectiveRaw = fallbackResult.raw;

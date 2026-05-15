@@ -72,6 +72,7 @@ COPY_DIRS=(
   "welcome"
   "content"
   "modules"
+  "shared"
   "config"
   "prompts"
   "icons"

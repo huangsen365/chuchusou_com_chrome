@@ -25,7 +25,8 @@ importScripts(
   './config.js',        // 配置加载函数
   './icons.js',         // 图标处理
   './keywords.js',      // 关键词提取
-  './keywordResolver.js', // 关键词解析
+  './keywordResolver.js', // 关键词解析（computeSearchTextForTab —— 引擎层）
+  './KeywordService.js',  // 关键字统一门面（C 档重构：intent 驱动策略 + storage 缓存）
   './base.js',          // 核心业务函数（最多依赖）
 
   // ==================== 第3.5层：AI 任务统一抽象 ====================

@@ -203,6 +203,13 @@ export default [
         // keywordResolver.js exports
         computeSearchTextForTab: "writable",
 
+        // KeywordService.js exports (C 档重构入口)
+        KeywordService: "writable",
+        KEYWORD_INTENTS: "writable",
+
+        // shared/keywordClient.js exports
+        CCSKeywordClient: "writable",
+
         // MenuRegistry.js exports
         menuRegistry: "writable",
 
