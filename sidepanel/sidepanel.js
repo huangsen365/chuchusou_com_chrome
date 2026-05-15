@@ -1175,6 +1175,13 @@ class SidePanelRenderer {
       this.voicePanel = null;
       this.renderKeyword();
       this.renderMenu();
+
+      // 如果 init 一次性 fetch 拿到空 + URL 非空（说明在某个页面但没拿到 keyword），
+      // 触发 scheduleRefresh 走带重试的路径。专治"用户正好在 chrome:// 上打开 sidepanel"
+      // 的竞态（init 比 onUpdated 早，没机会重试）。
+      if (!this.keyword.text && (tabInfo.url || '').length > 0) {
+        this.scheduleRefresh();
+      }
       this.bindClipboardButton();
       this.bindCopyKeywordButton();
       this.initVoiceModule();                      // 按 ccs_voice_enabled 开关决定是否激活语音模块
@@ -1184,10 +1191,13 @@ class SidePanelRenderer {
       });
 
       // Listen for tab changes to update pinned actions
-      chrome.tabs.onActivated.addListener(() => this.refresh());
+      // 多事件触发 + debounce + 空结果重试三层防护：解决 chrome:// 等内置页时序竞态
+      // （url 事件早期触发时 tab.title 还是空，导致 sidepanel 一次性 refresh 拿空）。
+      // 多监听 title 事件确保 title 一旦填进来就触发一次新的 refresh。
+      chrome.tabs.onActivated.addListener(() => this.scheduleRefresh());
       chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-        if (changeInfo.url || changeInfo.status === 'complete') {
-          this.refresh();
+        if (changeInfo.url || changeInfo.title || changeInfo.status === 'complete') {
+          this.scheduleRefresh();
         }
       });
 
@@ -1242,7 +1252,28 @@ class SidePanelRenderer {
     }
   }
 
+  // scheduleRefresh：debounce 50ms 合并连续事件
+  // （chrome:// 上 url / title / status 事件常常在几十 ms 内连发，避免一次跳转跑 3 次 refresh）
+  scheduleRefresh() {
+    if (this._refreshDebounceTimer) clearTimeout(this._refreshDebounceTimer);
+    this._refreshDebounceTimer = setTimeout(() => {
+      this._refreshDebounceTimer = null;
+      this.refresh();
+    }, 50);
+  }
+
   async refresh() {
+    // 取消任何挂起的重试，避免 race（用户主动操作 / 新事件触发新 refresh 时旧重试还在等）
+    if (this._refreshRetryTimer) {
+      clearTimeout(this._refreshRetryTimer);
+      this._refreshRetryTimer = null;
+    }
+    return this._doRefresh(1);
+  }
+
+  // 实际 refresh，attempt 表示当前尝试次数。
+  // 空结果时按 attempt 退避重试（处理 chrome:// 上 tab.title 还没填好就被 url 事件叫醒的竞态）。
+  async _doRefresh(attempt) {
     try {
       const tabInfo = await this.getActiveTab();
       const newUrl = tabInfo.url || '';
@@ -1256,21 +1287,29 @@ class SidePanelRenderer {
         this.keyword = newKeyword;
         this.keywordSetManually = false;
         this.renderKeyword();
+      } else if (this.keywordSetManually) {
+        // URL 没变 + 用户手动设过 keyword → 一律保留，不论自动提取是否有内容
+        // 用户点 📋 是强烈意图信号：在这个页面用剪贴板内容做关键字
+        // 退出条件：URL 变化（上面 urlChanged 分支已处理，此时 manual 标志被清掉）或用户再点 📋 写新值
         return;
+      } else {
+        // 其它情况照常覆盖
+        this.keyword = newKeyword;
+        this.renderKeyword();
       }
 
-      // URL 没变 + 用户手动设过 keyword → 一律保留，不论自动提取是否有内容
-      // 用户点 📋 是强烈意图信号：在这个页面用剪贴板内容做关键字
-      // 之前的弱保护（仅 newKeyword 为空时不覆盖）会让标题提取 / 缓存选区悄悄替掉手动值，
-      // 表现为"最后一次动作不是 📋 时，系统回到默认机制"——剪贴板数据其实在第一次 handleClick→refresh 时就被冲掉了
-      // 退出条件：URL 变化（上面 urlChanged 分支已处理，此时 manual 标志被清掉）或用户再点 📋 写新值
-      if (this.keywordSetManually) {
-        return;
+      // 第一次拿空 + 还有重试机会 → 退避重试
+      // 真实场景：chrome://settings/help 等内置页 onUpdated.url 事件早期被叫醒，
+      // 此时 tab.title 还是空，extract 失败。等几百 ms 后 title 填进来 / bg prefetch
+      // 写完 fallbackKeywordByTab，重试就能命中。最多 3 次（400ms / 800ms 间隔，1.2s 内收敛）。
+      // 注意：如果用户在重试间隙手动改了 keyword（设了 keywordSetManually），上面的 if 分支
+      // 会直接 return，重试不会覆盖。
+      if (!newKeyword.text && attempt < 3) {
+        this._refreshRetryTimer = setTimeout(() => {
+          this._refreshRetryTimer = null;
+          this._doRefresh(attempt + 1);
+        }, attempt * 400);
       }
-
-      // 其它情况照常覆盖
-      this.keyword = newKeyword;
-      this.renderKeyword();
     } catch (e) {
       // Ignore refresh errors
     }
