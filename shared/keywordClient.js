@@ -43,8 +43,14 @@
   /**
    * 直接读 storage 缓存（不发消息，避免唤醒 SW）。
    * popup 打开时用于"零等待"先渲染上次的关键字。
+   *
+   * 强校验 URL：缓存的 url 不等于当前 url 就丢弃，避免在 chrome:// 等无法取
+   * selection 的页面把上一个页面的关键字"假装"成本页的（用户会误以为正常获取）。
+   *
+   * @param {number} tabId
+   * @param {string} [currentUrl]  —— 当前 tab 的 URL；不传则跳过 URL 校验
    */
-  async function readInstantCache(tabId) {
+  async function readInstantCache(tabId, currentUrl) {
     if (tabId == null || !chrome?.storage?.local) return null;
     return new Promise((resolve) => {
       const key = `${STORAGE_PREFIX}${tabId}`;
@@ -54,6 +60,11 @@
           const entry = data?.[key];
           if (!entry || typeof entry !== 'object') { resolve(null); return; }
           if (Date.now() - (entry.ts || 0) > STORAGE_TTL_MS) { resolve(null); return; }
+          // URL 强校验：缓存 URL ≠ 当前 URL → stale → 丢弃
+          if (currentUrl && entry.url && entry.url !== currentUrl) {
+            resolve(null);
+            return;
+          }
           resolve({ text: entry.text || '', raw: entry.raw || entry.text || '' });
         });
       } catch (_) { resolve(null); }
@@ -80,7 +91,7 @@
 
     // 并发：读 storage（快）+ 发消息拿新鲜（慢）
     if (instantFromStorage && typeof onInstant === 'function') {
-      readInstantCache(activeTab.id).then((cached) => {
+      readInstantCache(activeTab.id, activeTab.url).then((cached) => {
         // 只有"新鲜值还没回来 + 缓存命中 + 用户没主动取消"才回调 instant
         if (!freshResolved && !onInstantCalled && cached && cached.text) {
           onInstantCalled = true;

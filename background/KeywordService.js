@@ -93,9 +93,14 @@ class KeywordService {
     const text = result?.normalized || '';
     const raw = result?.raw || '';
 
-    // 仅 popup-open 写 storage 缓存（5 分钟 TTL，下次开 popup 瞬时显示）
+    // 仅 popup-open 写 storage 缓存（5 分钟 TTL）。URL 一起入库，读取时强校验，
+    // 避免"同 tab 切到 chrome:// 后误把上一个 URL 的旧值当本页关键字显示"。
     if (policy.cacheToStorage && ctx?.tabId != null && text) {
-      KeywordService._writeStorageCache(ctx.tabId, { text, raw }).catch(() => { /* 写失败不影响主流程 */ });
+      KeywordService._writeStorageCache(ctx.tabId, {
+        text,
+        raw,
+        url: ctx?.url || ''
+      }).catch(() => { /* 写失败不影响主流程 */ });
     }
 
     return { text, raw, normalized: text, source: policy.source, intent };
@@ -103,10 +108,16 @@ class KeywordService {
 
   /**
    * 读 storage 缓存（popup 端"打开瞬间不空白"用）
+   *
+   * 强校验 URL：缓存里的 url 必须等于 currentUrl 才认。否则即使 tabId 没变，
+   * 也可能是用户在同一 tab 内导航到了不能取 selection 的页面（chrome:// 等），
+   * 此时不应该把上一个 URL 的关键字"假装"成本页关键字给用户看。
+   *
    * @param {number} tabId
+   * @param {string} currentUrl  —— 当前 tab 的 URL；不传或传空则跳过 URL 校验（向后兼容）
    * @returns {Promise<{text: string, raw: string}|null>}
    */
-  static async readStorageCache(tabId) {
+  static async readStorageCache(tabId, currentUrl) {
     if (tabId == null || !chrome?.storage?.local) return null;
     return new Promise((resolve) => {
       const key = `${KEYWORD_STORAGE_PREFIX}${tabId}`;
@@ -119,19 +130,24 @@ class KeywordService {
             resolve(null);
             return;
           }
+          // URL 强校验：缓存的 URL 和当前 URL 不一致 → 视为 stale，丢弃。
+          if (currentUrl && entry.url && entry.url !== currentUrl) {
+            resolve(null);
+            return;
+          }
           resolve({ text: entry.text || '', raw: entry.raw || entry.text || '' });
         });
       } catch (_) { resolve(null); }
     });
   }
 
-  static async _writeStorageCache(tabId, { text, raw }) {
+  static async _writeStorageCache(tabId, { text, raw, url }) {
     if (tabId == null || !chrome?.storage?.local) return;
     return new Promise((resolve) => {
       const key = `${KEYWORD_STORAGE_PREFIX}${tabId}`;
       try {
         chrome.storage.local.set({
-          [key]: { text, raw: raw || text, ts: Date.now() }
+          [key]: { text, raw: raw || text, url: url || '', ts: Date.now() }
         }, () => resolve());
       } catch (_) { resolve(); }
     });
