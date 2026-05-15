@@ -43,6 +43,40 @@ function logPerformance(stage, duration) {
 }
 
 // ============================================
+// Prompt / 配置缓存预热
+// ============================================
+
+// 首次冷启动时，popup/sidepanel 第一次拉 getMenuStructure 会触发 4 个 prompts/*.json
+// 加 unifiedMenuConfig + engines.json 共 6 个 fetch（loaders 用 globalThis.*Config 内存缓存，
+// 首次为空全走 fetch）。把这些 fetch 摊到 SW 启动时并行触发，等用户点 popup 时全是 cache hit。
+//
+// 幂等：每个 loader 内部 `if (globalThis.xxxConfig) return ...` 已经做了去重，重复调用零成本。
+let _prewarmStarted = false;
+function prewarmPromptConfigs() {
+  if (_prewarmStarted) return Promise.resolve();
+  _prewarmStarted = true;
+  const loaders = [
+    'loadOptimizedPromptConfig',
+    'loadCoverPromptConfig',
+    'loadTopQuestionsConfig',
+    'loadFastAnswersConfig',
+    'loadUnifiedMenuConfig',
+    'loadEnginesConfig'
+  ];
+  const startedAt = Date.now();
+  const tasks = loaders
+    .map((name) => (typeof globalThis[name] === 'function' ? globalThis[name]() : null))
+    .filter(Boolean);
+  return Promise.allSettled(tasks).then((results) => {
+    if (INIT_CONFIG.debug) {
+      const ok = results.filter((r) => r.status === 'fulfilled').length;
+      const ms = Date.now() - startedAt;
+      console.log(`[Init] 🔥 prompt 缓存预热完成 (${ok}/${results.length}, ${ms}ms)`);
+    }
+  });
+}
+
+// ============================================
 // 初始化流程
 // ============================================
 
@@ -226,6 +260,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     console.log('[Init] ✅ 新菜单系统工具初始化完成');
     console.log('[Init] 📝 等待旧系统创建菜单（由 events.js 触发）...');
 
+    // 预热 prompt / 配置缓存（fire-and-forget），让用户首次点 popup/sidepanel 时全是 cache hit
+    prewarmPromptConfigs();
+
   } catch (error) {
     console.error('[Init] ❌ 初始化失败:', error);
   }
@@ -248,10 +285,17 @@ chrome.runtime.onStartup.addListener(async () => {
 
     console.log('[Init] ✅ 新菜单系统工具初始化完成');
 
+    // 预热 prompt / 配置缓存（fire-and-forget），让用户首次点 popup/sidepanel 时全是 cache hit
+    prewarmPromptConfigs();
+
   } catch (error) {
     console.error('[Init] ❌ 初始化失败:', error);
   }
 });
+
+// 模块顶层兜底：SW 被消息事件唤醒（既不是 install 也不是 startup）时也跑一次。
+// _prewarmStarted 保证幂等，重复调用零成本。
+prewarmPromptConfigs();
 
 // ============================================
 // 调试命令（仅在调试模式下）
