@@ -56,6 +56,8 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 /* keyword 徽章 + 复制按钮的右侧组合容器
@@ -67,7 +69,7 @@ body {
   align-items: center;
   justify-content: flex-end;
   gap: 5px;
-  width: 180px;
+  width: 170px;
   height: 26px;
   flex-shrink: 0;
   position: relative;
@@ -80,6 +82,7 @@ body {
 .menu-title {
   font-size: 15px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .menu-keyword {
@@ -87,7 +90,7 @@ body {
   background: rgba(255, 255, 255, 0.2);
   padding: 3px 8px;
   border-radius: 10px;
-  max-width: 140px;
+  max-width: 130px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
