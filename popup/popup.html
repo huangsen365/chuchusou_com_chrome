@@ -33,12 +33,43 @@
       <button class="popup-pin-hint" id="popupPinOpenSidepanel" type="button" title="到侧边栏切换风格 / 比例 / 自定义预设">📑 改风格 / 比例 → 侧边栏</button>
     </section>
 
-    <!-- 菜单容器：首屏 shimmer 骨架，popup.js 拿到结构后整段替换 -->
+    <!-- 菜单容器：静态核心菜单先出，popup.js 之后只做绑定/增强。
+         这样首装首次打开也不依赖 storage / fetch / SW 才能看到菜单。 -->
     <div class="menu-container" id="menuContainer">
-      <div class="menu-skeleton" aria-hidden="true">
-        <div class="skeleton-row"></div>
-        <div class="skeleton-row"></div>
-        <div class="skeleton-row"></div>
+      <div class="menu-item" data-menu-id="ccs-fastqa-chatgpt-quick" data-menu-type="fastqa-quick" data-engine-id="chatgpt">
+        <span class="item-icon">🤖</span>
+        <span class="item-title">速答 · ChatGPT</span>
+      </div>
+      <div class="menu-item" data-menu-id="ccs-fastqa-claude-quick" data-menu-type="fastqa-quick" data-engine-id="claude">
+        <span class="item-icon">🧠</span>
+        <span class="item-title">速答 · Claude</span>
+      </div>
+      <div class="menu-separator"></div>
+      <div class="menu-item" data-menu-id="ccs-baidu" data-menu-type="search" data-url-pattern="https://www.baidu.com/s?wd=${KEYWORD}">
+        <span class="item-icon">🐼</span>
+        <span class="item-title">百度搜索</span>
+      </div>
+      <div class="menu-item" data-menu-id="ccs-google" data-menu-type="search" data-url-pattern="https://www.google.com/search?q=${KEYWORD}">
+        <span class="item-icon">🔎</span>
+        <span class="item-title">Google 搜索</span>
+      </div>
+      <div class="menu-separator"></div>
+      <div class="menu-item" data-menu-id="ccs-chatgpt" data-menu-type="ai-chat" data-url-pattern="https://chatgpt.com/?q=${KEYWORD}">
+        <span class="item-icon">🤖</span>
+        <span class="item-title">ChatGPT</span>
+      </div>
+      <div class="menu-item" data-menu-id="ccs-claude" data-menu-type="ai-chat" data-url-pattern="https://claude.ai/new?q=${KEYWORD}">
+        <span class="item-icon">🧠</span>
+        <span class="item-title">Claude</span>
+      </div>
+      <div class="menu-item" data-menu-id="ccs-google-ai-chat" data-menu-type="ai-chat" data-url-pattern="https://www.google.com/search?udm=50&amp;ie=UTF-8&amp;oe=UTF-8&amp;q=${KEYWORD}">
+        <span class="item-icon">✨</span>
+        <span class="item-title">Google AI 模式</span>
+      </div>
+      <div class="menu-separator"></div>
+      <div class="menu-item" data-menu-id="ccs-google-translate" data-menu-type="translate" data-url-pattern="https://translate.google.com/?sl=auto&amp;tl=zh-CN&amp;text=${KEYWORD}">
+        <span class="item-icon">🔁</span>
+        <span class="item-title">Google 翻译</span>
       </div>
     </div>
 

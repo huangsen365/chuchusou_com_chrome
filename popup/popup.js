@@ -27,6 +27,9 @@ class PopupMenuRenderer {
     try {
       this.loadVersion();
       this.bindEvents();
+      this.startKeywordLoad();
+      this.initPinnedCover();
+      this._preloadEnableState();
 
       // 优先路径（v1.6.15）：storage 预热缓存（~5ms）。
       // background 在 onInstalled / SW 冷启动时把完整 menu structure 写入 chrome.storage.local。
@@ -58,11 +61,8 @@ class PopupMenuRenderer {
     }
 
     // 后台增强（不阻塞首屏）
-    this.startKeywordLoad();
-    this.initPinnedCover();
     // 设置面板按需 lazy load —— 用户点 ⚙️ 时才跑 initSettings()。
     // 但启用/禁用状态影响底部按钮配色，仍轻量预读一次。
-    this._preloadEnableState();
   }
 
   // v1.6.15：优先读 background 写入的预热菜单结构
@@ -121,7 +121,7 @@ class PopupMenuRenderer {
   startKeywordLoad() {
     // keyword 不属于首屏菜单结构，不能阻塞 popup 打开。storage 命中时先渲染，
     // background 新鲜值回来后再更新；如果 fresh 为空且已有缓存，沿用缓存兜底。
-    CCSKeywordClient.requestKeyword(
+    this._keywordLoadPromise = CCSKeywordClient.requestKeyword(
       CCSKeywordClient.INTENTS.POPUP_OPEN,
       {
         instantFromStorage: true,
@@ -137,6 +137,7 @@ class PopupMenuRenderer {
     }).catch((error) => {
       console.warn('[触触搜] 关键字加载失败:', error);
     });
+    return this._keywordLoadPromise;
   }
 
   applyKeyword(keyword) {
@@ -538,6 +539,12 @@ class PopupMenuRenderer {
   }
 
   async handleClick(item) {
+    if (!(this.keyword.raw || this.keyword.text) && this._keywordLoadPromise) {
+      await Promise.race([
+        this._keywordLoadPromise,
+        new Promise((resolve) => setTimeout(resolve, 600))
+      ]);
+    }
     const keyword = this.keyword.raw || this.keyword.text;
 
     // 发送消息给 background 执行
@@ -565,6 +572,18 @@ class PopupMenuRenderer {
     }
   }
 
+  itemFromElement(el) {
+    if (!el) return null;
+    return {
+      id: el.dataset.menuId || '',
+      type: el.dataset.menuType || '',
+      urlPattern: el.dataset.urlPattern || '',
+      action: el.dataset.action || '',
+      engineId: el.dataset.engineId || '',
+      purpose: el.dataset.purpose || ''
+    };
+  }
+
   bindEvents() {
     // 设置按钮点击
     const settingsToggle = document.getElementById('settingsToggle');
@@ -584,6 +603,18 @@ class PopupMenuRenderer {
         e.preventDefault();
         e.stopPropagation();
         this.copyCurrentKeyword();
+      });
+    }
+
+    const menuContainer = document.getElementById('menuContainer');
+    if (menuContainer && !this._menuDelegationBound) {
+      this._menuDelegationBound = true;
+      menuContainer.addEventListener('click', (e) => {
+        const itemEl = e.target?.closest?.('.menu-item[data-menu-id]');
+        if (!itemEl || !menuContainer.contains(itemEl)) return;
+        const item = this.itemFromElement(itemEl);
+        if (!item?.id) return;
+        this.handleClick(item);
       });
     }
   }

@@ -1159,22 +1159,34 @@ class SidePanelRenderer {
 
   async init() {
     this.setupAlivePort();
-    try {
-      const [config, tabInfo] = await Promise.all([
-        this.loadMenuConfig(),
-        this.getActiveTab()
-      ]);
+    this.voiceEnabled = false;
+    this.voicePanel = null;
+    this.renderKeyword();
+    this.bindClipboardButton();
+    this.bindCopyKeywordButton();
+    this.bindStaticMenuItems();
+    this.initVoiceModule();                      // 按 ccs_voice_enabled 开关决定是否激活语音模块
+    this.bindTabRefreshListeners();
+    this.bindRuntimeMessages();
 
+    // 置顶区独立于主菜单加载，失败不影响整体
+    this.pinned.init().catch((err) => {
+      console.warn('[触触搜] Pinned action init failed:', err);
+    });
+
+    this.loadMenuConfig().then((config) => {
       this.config = config;
-      this.currentTabUrl = tabInfo.url || '';
-
-      // Get keyword
-      this.keyword = await this.getCurrentKeyword(tabInfo);
-
-      this.voiceEnabled = false;
-      this.voicePanel = null;
-      this.renderKeyword();
       this.renderMenu();
+    }).catch((error) => {
+      console.error('[触触搜] Side panel menu config failed:', error);
+      // 保留 HTML 静态核心菜单，不用错误块覆盖首屏可用入口。
+    });
+
+    try {
+      const tabInfo = await this.getActiveTab();
+      this.currentTabUrl = tabInfo.url || '';
+      this.keyword = await this.getCurrentKeyword(tabInfo);
+      this.renderKeyword();
 
       // 如果 init 一次性 fetch 拿到空 + URL 非空（说明在某个页面但没拿到 keyword），
       // 触发 scheduleRefresh 走带重试的路径。专治"用户正好在 chrome:// 上打开 sidepanel"
@@ -1182,52 +1194,76 @@ class SidePanelRenderer {
       if (!this.keyword.text && (tabInfo.url || '').length > 0) {
         this.scheduleRefresh();
       }
-      this.bindClipboardButton();
-      this.bindCopyKeywordButton();
-      this.initVoiceModule();                      // 按 ccs_voice_enabled 开关决定是否激活语音模块
-      // 置顶区独立于主菜单加载，失败不影响整体
-      this.pinned.init().catch((err) => {
-        console.warn('[触触搜] Pinned action init failed:', err);
-      });
-
-      // Listen for tab changes to update pinned actions
-      // 多事件触发 + debounce + 空结果重试三层防护：解决 chrome:// 等内置页时序竞态
-      // （url 事件早期触发时 tab.title 还是空，导致 sidepanel 一次性 refresh 拿空）。
-      // 多监听 title 事件确保 title 一旦填进来就触发一次新的 refresh。
-      chrome.tabs.onActivated.addListener(() => this.scheduleRefresh());
-      chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-        if (changeInfo.url || changeInfo.title || changeInfo.status === 'complete') {
-          this.scheduleRefresh();
-        }
-      });
-
-      // Listen for real-time keyword updates from background
-      chrome.runtime.onMessage.addListener((message) => {
-        if (message.action === 'keywordUpdated' && message.keyword) {
-          this.keyword = {
-            text: message.keyword.text || '',
-            raw: message.keyword.raw || message.keyword.text || ''
-          };
-          this.renderKeyword();
-          return;
-        }
-        if (message.action === 'ccsVoicePermissionGranted' && this.voicePanel) {
-          this.voicePanel.showPermissionReady();
-          return;
-        }
-        if (message.action === 'ccsVoiceVisibleRecognized' && this.voicePanel) {
-          this.voicePanel.finishRecognition(Array.isArray(message.candidates) ? message.candidates : []);
-          return;
-        }
-        if (message.action === 'ccsVoiceVisibleError' && this.voicePanel) {
-          this.voicePanel.showVisibleRecognitionError(message.error || '');
-        }
-      });
     } catch (error) {
-      console.error('[触触搜] Side panel init failed:', error);
-      document.getElementById('spMenu').innerHTML =
-        '<div class="sp-empty">加载失败，请重试</div>';
+      console.error('[触触搜] Side panel keyword init failed:', error);
     }
+  }
+
+  bindTabRefreshListeners() {
+    if (this._tabRefreshListenersBound) return;
+    this._tabRefreshListenersBound = true;
+    // Listen for tab changes to update pinned actions
+    // 多事件触发 + debounce + 空结果重试三层防护：解决 chrome:// 等内置页时序竞态
+    // （url 事件早期触发时 tab.title 还是空，导致 sidepanel 一次性 refresh 拿空）。
+    // 多监听 title 事件确保 title 一旦填进来就触发一次新的 refresh。
+    chrome.tabs.onActivated.addListener(() => this.scheduleRefresh());
+    chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+      if (changeInfo.url || changeInfo.title || changeInfo.status === 'complete') {
+        this.scheduleRefresh();
+      }
+    });
+  }
+
+  bindRuntimeMessages() {
+    if (this._runtimeMessagesBound) return;
+    this._runtimeMessagesBound = true;
+    // Listen for real-time keyword updates from background
+    chrome.runtime.onMessage.addListener((message) => {
+      if (message.action === 'keywordUpdated' && message.keyword) {
+        this.keyword = {
+          text: message.keyword.text || '',
+          raw: message.keyword.raw || message.keyword.text || ''
+        };
+        this.renderKeyword();
+        return;
+      }
+      if (message.action === 'ccsVoicePermissionGranted' && this.voicePanel) {
+        this.voicePanel.showPermissionReady();
+        return;
+      }
+      if (message.action === 'ccsVoiceVisibleRecognized' && this.voicePanel) {
+        this.voicePanel.finishRecognition(Array.isArray(message.candidates) ? message.candidates : []);
+        return;
+      }
+      if (message.action === 'ccsVoiceVisibleError' && this.voicePanel) {
+        this.voicePanel.showVisibleRecognitionError(message.error || '');
+      }
+    });
+  }
+
+  itemFromElement(el) {
+    if (!el) return null;
+    return {
+      id: el.dataset.menuId || '',
+      type: el.dataset.menuType || '',
+      urlPattern: el.dataset.urlPattern || '',
+      action: el.dataset.action || '',
+      engineId: el.dataset.engineId || '',
+      purpose: el.dataset.purpose || ''
+    };
+  }
+
+  bindStaticMenuItems() {
+    const container = document.getElementById('spMenu');
+    if (!container || this._staticMenuItemsBound) return;
+    this._staticMenuItemsBound = true;
+    container.addEventListener('click', (event) => {
+      const itemEl = event.target?.closest?.('.sp-menu-item[data-menu-id]');
+      if (!itemEl || !container.contains(itemEl)) return;
+      const item = this.itemFromElement(itemEl);
+      if (!item?.id) return;
+      this.handleClick(item);
+    });
   }
 
   // 通过 port 连接告诉 background 本侧边栏在哪个 window 活着，
@@ -1554,7 +1590,10 @@ class SidePanelRenderer {
       <span class="sp-item-title">${displayTitle}</span>
     `;
 
-    el.addEventListener('click', () => this.handleClick(item));
+    el.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.handleClick(item);
+    });
     return el;
   }
 

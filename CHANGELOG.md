@@ -1,5 +1,23 @@
 # 更新日志
 
+## v1.6.16 (2026-05-17)
+
+Popup / Sidepanel 首帧"零 JS"——核心菜单直接预渲染在 HTML 里，HTML 一解析完就能点。详细见 [releases/v1.6.16.md](./releases/v1.6.16.md)。
+
+### 🔧 改进
+
+- **Popup 首帧核心菜单"开包即用"**：v1.6.15 在 storage 预热完整菜单（~5ms），v1.6.16 更进一步——把 8 个最常用菜单项（速答 × 2 / 百度 / Google / ChatGPT / Claude / Google AI / Google 翻译）**直接写在 popup.html 里作为静态 DOM**，浏览器解析完 HTML 就立刻可见可点，完全不需要 fetch / storage.get / SW 应答。
+- **Sidepanel 首帧同步**：同样把核心菜单写进 sidepanel.html，去掉 "加载中..." 占位，首装首次打开侧边栏即刻看到完整入口。
+- **菜单交互无缝过渡**：dynamic 菜单（含百问 / 速答全套 / 优化提示词 / 封面生成器）异步加载完后自动 `innerHTML` 替换为完整菜单结构，用户感知不到切换。
+
+### 🛠 技术改动
+
+- `popup/popup.html`：8 个静态核心菜单项 + data-* 属性（id / type / engineId / urlPattern），删除 shimmer 骨架
+- `popup/popup.js`：`init()` 把 `bindEvents` / `startKeywordLoad` / `initPinnedCover` / `_preloadEnableState` 提前到菜单加载之前；新增 `itemFromElement(el)` 静态项解析 + 容器事件委托；`handleClick` 加 600ms keyword race 等待（用户在 keyword 还没到时秒点也能用上 fresh keyword）
+- `sidepanel/sidepanel.html`：同样 8 个静态核心菜单项 + 删 "加载中..." 占位
+- `sidepanel/sidepanel.js`：拆 `init()` 为 5 段独立异步链（port / static menu binding / pin / menu config / keyword），任一失败不再覆盖整页错误状态；新增 `bindTabRefreshListeners` / `bindRuntimeMessages` / `bindStaticMenuItems` / `itemFromElement`；dynamic createMenuItem 加 stopPropagation 防止与委托双触发
+- 与 v1.6.15 prewarm 共存：storage 命中时菜单整体替换为完整结构，未命中时也至少有静态核心菜单可用
+
 ## v1.6.15 (2026-05-17)
 
 Popup 预热到 chrome.storage.local —— 装/更新完后所有数据 ready，离线/慢盘/老设备打开 popup 也即时显示。详细见 [releases/v1.6.15.md](./releases/v1.6.15.md)。

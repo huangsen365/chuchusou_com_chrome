@@ -161,9 +161,44 @@
     </div>
   </div>
 
-  <!-- Flat first-level menu items -->
+  <!-- Flat first-level menu items：静态核心菜单先出，sidepanel.js 启动后再绑定/增强。
+       避免首次打开时等待 Service Worker getMenuStructure 才看到内容。 -->
   <div class="sp-menu" id="spMenu">
-    <div class="sp-loading">加载中...</div>
+    <div class="sp-menu-item" data-menu-id="ccs-fastqa-chatgpt-quick" data-menu-type="fastqa-quick" data-engine-id="chatgpt">
+      <span class="sp-item-icon">🤖</span>
+      <span class="sp-item-title">速答 · ChatGPT</span>
+    </div>
+    <div class="sp-menu-item" data-menu-id="ccs-fastqa-claude-quick" data-menu-type="fastqa-quick" data-engine-id="claude">
+      <span class="sp-item-icon">🧠</span>
+      <span class="sp-item-title">速答 · Claude</span>
+    </div>
+    <div class="sp-separator"></div>
+    <div class="sp-menu-item" data-menu-id="ccs-baidu" data-menu-type="search" data-url-pattern="https://www.baidu.com/s?wd=${KEYWORD}">
+      <span class="sp-item-icon">🐼</span>
+      <span class="sp-item-title">百度搜索</span>
+    </div>
+    <div class="sp-menu-item" data-menu-id="ccs-google" data-menu-type="search" data-url-pattern="https://www.google.com/search?q=${KEYWORD}">
+      <span class="sp-item-icon">🔎</span>
+      <span class="sp-item-title">Google 搜索</span>
+    </div>
+    <div class="sp-separator"></div>
+    <div class="sp-menu-item" data-menu-id="ccs-chatgpt" data-menu-type="ai-chat" data-url-pattern="https://chatgpt.com/?q=${KEYWORD}">
+      <span class="sp-item-icon">🤖</span>
+      <span class="sp-item-title">ChatGPT</span>
+    </div>
+    <div class="sp-menu-item" data-menu-id="ccs-claude" data-menu-type="ai-chat" data-url-pattern="https://claude.ai/new?q=${KEYWORD}">
+      <span class="sp-item-icon">🧠</span>
+      <span class="sp-item-title">Claude</span>
+    </div>
+    <div class="sp-menu-item" data-menu-id="ccs-google-ai-chat" data-menu-type="ai-chat" data-url-pattern="https://www.google.com/search?udm=50&amp;ie=UTF-8&amp;oe=UTF-8&amp;q=${KEYWORD}">
+      <span class="sp-item-icon">✨</span>
+      <span class="sp-item-title">Google AI 模式</span>
+    </div>
+    <div class="sp-separator"></div>
+    <div class="sp-menu-item" data-menu-id="ccs-google-translate" data-menu-type="translate" data-url-pattern="https://translate.google.com/?sl=auto&amp;tl=zh-CN&amp;text=${KEYWORD}">
+      <span class="sp-item-icon">🔁</span>
+      <span class="sp-item-title">Google 翻译</span>
+    </div>
   </div>
 
   <!-- 共享：popup + sidepanel 共用的关键字获取客户端（必须在 sidepanel.js 之前） -->
