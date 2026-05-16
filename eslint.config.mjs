@@ -1,7 +1,7 @@
 export default [
   {
     files: ["**/*.js"],
-    ignores: ["node_modules/**", "legacy/**"],
+    ignores: ["node_modules/**", "legacy/**", "build/**", ".plasmo/**"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "script",

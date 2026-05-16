@@ -2,16 +2,15 @@
   "name": "chuchusou_com_chrome",
   "version": "1.6.16",
   "description": "**触触搜** —— 基于 ChatGPT Images 2.0 的封面生成器（二次元可爱 / 小红书 / 椰树牌 / 极简留白）+ 多 AI 速答 / 提示词优化 / 选中文本快速搜索处理。",
-  "main": "content.js",
   "directories": {
     "doc": "docs"
   },
   "scripts": {
     "lint": "eslint .",
     "test": "npm run lint",
-    "plasmo:dev": "plasmo dev --target=chrome-mv3",
-    "plasmo:build": "plasmo build --target=chrome-mv3",
-    "plasmo:package": "plasmo package --target=chrome-mv3"
+    "plasmo:dev": "plasmo dev --target=chrome-mv3 --src-path=src",
+    "plasmo:build": "plasmo build --target=chrome-mv3 --src-path=src",
+    "plasmo:package": "plasmo package --target=chrome-mv3 --src-path=src"
   },
   "repository": {
     "type": "git",
@@ -20,7 +19,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/huangsen365/chuchusou_com_chrome/issues"
   },
@@ -30,6 +28,7 @@
     "@types/node": "^20.11.5",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
+    "@types/scheduler": "^0.16.8",
     "eslint": "^9.39.2",
     "prettier": "^3.2.4",
     "typescript": "^5.3.3"
