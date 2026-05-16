@@ -8,7 +8,10 @@
   },
   "scripts": {
     "lint": "eslint .",
-    "test": "npm run lint"
+    "test": "npm run lint",
+    "plasmo:dev": "plasmo dev --target=chrome-mv3",
+    "plasmo:build": "plasmo build --target=chrome-mv3",
+    "plasmo:package": "plasmo package --target=chrome-mv3"
   },
   "repository": {
     "type": "git",
@@ -23,6 +26,17 @@
   },
   "homepage": "https://github.com/huangsen365/chuchusou_com_chrome#readme",
   "devDependencies": {
-    "eslint": "^9.39.2"
+    "@types/chrome": "^0.0.258",
+    "@types/node": "^20.11.5",
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "eslint": "^9.39.2",
+    "prettier": "^3.2.4",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "plasmo": "^0.90.5",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   }
 }
