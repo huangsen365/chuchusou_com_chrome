@@ -8,6 +8,9 @@ importScripts(
   // 日志系统
   './Logger.js',
 
+  // Popup 菜单结构构建器（纯函数 / SSoT 共享，popup + background 共用）
+  '../shared/menuStructureBuilder.js',
+
   // ==================== 第2层：核心管理器 ====================
   // 关键字同步系统
   './MenuRegistry.js',

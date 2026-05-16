@@ -1,10 +1,14 @@
 /**
  * 触触搜 Popup - 菜单式UI
  * 点击扩展icon时显示与右键菜单相同的层级菜单
+ *
+ * 启动路径（v1.6.14 起）：
+ *   1. popup.html 静态 shimmer 骨架先出（~20ms）
+ *   2. init() 并行 fetch 同源 JSON（config + 4 个 prompts + engines）+ 1 次 storage.get
+ *   3. CCSMenuStructureBuilder.build() 纯函数构造菜单
+ *   4. render() 一次性 DOM 切换
+ *   完全脱离 background SW 冷启动 —— 首屏 TTFB 目标 < 150ms
  */
-
-const POPUP_MENU_CACHE_KEY = 'ccs_popup_menu_structure_cache';
-const POPUP_MENU_FALLBACK_DELAY_MS = 700;
 
 class PopupMenuRenderer {
   constructor() {
@@ -13,21 +17,59 @@ class PopupMenuRenderer {
     this.menuToggleConfig = null;
     this.currentMode = 'menu'; // 'menu' or 'settings'
     this.promptLibraryManager = null;
+    this._settingsInitDone = false;
+    this._promptLibraryLoadPromise = null;
   }
 
   async init() {
+    performance.mark('ccs-popup-start');
     try {
       this.loadVersion();
       this.bindEvents();
-      this.initSettings();
-      this.startKeywordLoad();
-      this.startMenuLoad();
-      // 与 sidepanel pin 同源：非首屏关键路径，独立异步加载，避免拖慢菜单渲染。
-      this.initPinnedCover();
+
+      // 关键路径：并行 fetch 同源资源（chrome-extension:// 同源 + 本地文件，10-30ms 量级）
+      // 完全不走 SW message，无视 SW 冷启动开销。
+      const [unifiedConfig, top100, fastqa, optimize, cover, engines] = await Promise.all([
+        this.fetchJSON('config/unifiedMenuConfig.json'),
+        this.fetchJSON('prompts/topQuestionsPrompts.json'),
+        this.fetchJSON('prompts/fastAnswersPrompts.json'),
+        this.fetchJSON('prompts/optimizedPrompts.json'),
+        this.fetchJSON('prompts/coverPrompts.json'),
+        this.fetchJSON('config/engines.json')
+      ]);
+
+      if (!unifiedConfig) {
+        throw new Error('unifiedMenuConfig 加载失败');
+      }
+
+      this.config = CCSMenuStructureBuilder.build({
+        unifiedConfig,
+        enginesConfig: engines,
+        top100Config: top100,
+        fastqaConfig: fastqa,
+        optimizeConfig: optimize,
+        coverConfig: cover
+      });
+
+      this.render();
+      performance.mark('ccs-popup-rendered');
+      try {
+        performance.measure('ccs-popup-ttfb', 'ccs-popup-start', 'ccs-popup-rendered');
+        const m = performance.getEntriesByName('ccs-popup-ttfb')[0];
+        if (m) console.log(`[触触搜][PERF] popup TTFB: ${m.duration.toFixed(1)}ms`);
+      } catch (_) { /* perf 失败无所谓 */ }
     } catch (error) {
       console.error('[触触搜] Popup 初始化失败:', error);
       this.showError('加载失败，请重试');
+      return;
     }
+
+    // 后台增强（不阻塞首屏）
+    this.startKeywordLoad();
+    this.initPinnedCover();
+    // 设置面板按需 lazy load —— 用户点 ⚙️ 时才跑 initSettings()。
+    // 但启用/禁用状态影响底部按钮配色，仍轻量预读一次。
+    this._preloadEnableState();
   }
 
   loadVersion() {
@@ -38,54 +80,10 @@ class PopupMenuRenderer {
     }
   }
 
-  async loadMenuConfig() {
-    // 从 background 获取与右键菜单一致的菜单结构
-    return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ action: 'getMenuStructure' }, (response) => {
-        if (chrome.runtime.lastError) {
-          console.error('[触触搜] 获取菜单结构失败:', chrome.runtime.lastError);
-          reject(new Error('配置加载失败'));
-          return;
-        }
-        if (response && response.success) {
-          resolve(response.structure);
-        } else {
-          reject(new Error(response?.error || '配置加载失败'));
-        }
-      });
-    });
-  }
-
-  startMenuLoad() {
-    let fallbackTimer = null;
-
-    this.readCachedMenuStructure().then((cached) => {
-      if (this.config || !this.isValidMenuStructure(cached)) return;
-      this.config = cached;
-      this.render();
-    }).catch(() => {});
-
-    fallbackTimer = setTimeout(() => {
-      if (this.config) return;
-      this.config = this.getFallbackMenuStructure();
-      this.render();
-    }, POPUP_MENU_FALLBACK_DELAY_MS);
-
-    this.loadMenuConfig().then((config) => {
-      if (fallbackTimer) clearTimeout(fallbackTimer);
-      if (!this.isValidMenuStructure(config)) {
-        throw new Error('菜单配置为空');
-      }
-      this.config = config;
-      this.render();
-      this.writeCachedMenuStructure(config);
-    }).catch((error) => {
-      if (fallbackTimer) clearTimeout(fallbackTimer);
-      console.error('[触触搜] 菜单配置加载失败:', error);
-      if (!this.config) {
-        this.showError('菜单加载失败，请重试');
-      }
-    });
+  fetchJSON(path) {
+    return fetch(chrome.runtime.getURL(path))
+      .then((r) => r.ok ? r.json() : null)
+      .catch(() => null);
   }
 
   startKeywordLoad() {
@@ -117,72 +115,12 @@ class PopupMenuRenderer {
     this._renderKeyword();
   }
 
-  isValidMenuStructure(structure) {
-    return !!(structure && Array.isArray(structure.groups) && structure.groups.length > 0);
-  }
-
-  readCachedMenuStructure() {
-    return new Promise((resolve) => {
-      try {
-        chrome.storage.local.get([POPUP_MENU_CACHE_KEY], (result) => {
-          const entry = result?.[POPUP_MENU_CACHE_KEY];
-          const version = chrome.runtime.getManifest()?.version || '';
-          if (!entry || entry.version !== version || !this.isValidMenuStructure(entry.structure)) {
-            resolve(null);
-            return;
-          }
-          resolve(entry.structure);
-        });
-      } catch (_) {
-        resolve(null);
-      }
+  // 设置面板首屏不展示，只在用户点 ⚙️ 时才完整 initSettings。
+  // 但启用/禁用状态可能影响顶层 UI（如 toast 区别 etc.），轻量预读。
+  _preloadEnableState() {
+    chrome.storage.local.get(['enabled'], (r) => {
+      this._cachedEnabled = r.enabled !== false;
     });
-  }
-
-  writeCachedMenuStructure(structure) {
-    if (!this.isValidMenuStructure(structure)) return;
-    try {
-      chrome.storage.local.set({
-        [POPUP_MENU_CACHE_KEY]: {
-          version: chrome.runtime.getManifest()?.version || '',
-          ts: Date.now(),
-          structure
-        }
-      });
-    } catch (_) { /* cache best effort */ }
-  }
-
-  getFallbackMenuStructure() {
-    return {
-      groups: [
-        {
-          id: 'search',
-          separator: 'after',
-          items: [
-            { id: 'ccs-baidu', title: '百度', icon: '🔍', type: 'search', urlPattern: 'https://www.baidu.com/s?wd=${KEYWORD}' },
-            { id: 'ccs-google', title: 'Google', icon: '🔍', type: 'search', urlPattern: 'https://www.google.com/search?q=${KEYWORD}' }
-          ]
-        },
-        {
-          id: 'ai',
-          separator: 'after',
-          items: [
-            { id: 'ccs-chatgpt', title: 'ChatGPT', icon: '🤖', type: 'ai-chat', urlPattern: 'https://chatgpt.com/?q=${KEYWORD}' },
-            { id: 'ccs-claude', title: 'Claude', icon: '🧠', type: 'ai-chat', urlPattern: 'https://claude.ai/new?q=${KEYWORD}' },
-            { id: 'ccs-google-ai-chat', title: 'Google AI', icon: '✨', type: 'ai-chat', urlPattern: 'https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${KEYWORD}' }
-          ]
-        },
-        {
-          id: 'general',
-          separator: 'none',
-          items: [
-            { id: 'ccs-zhihu', title: '知乎', icon: '📘', type: 'search', urlPattern: 'https://www.zhihu.com/search?q=${KEYWORD}' },
-            { id: 'ccs-weixin', title: '微信搜一搜', icon: '💬', type: 'search', urlPattern: 'https://weixin.sogou.com/weixin?query=${KEYWORD}' },
-            { id: 'ccs-google-translate', title: 'Google 翻译', icon: '🌐', type: 'translate', urlPattern: 'https://translate.google.com/?sl=auto&tl=zh-CN&text=${KEYWORD}' }
-          ]
-        }
-      ]
-    };
   }
 
   // C 档重构后：popup.js 不再直接发消息拿关键字，统一过 CCSKeywordClient。
@@ -736,11 +674,52 @@ class PopupMenuRenderer {
     }
   }
 
-  showSettings() {
+  async showSettings() {
     this.currentMode = 'settings';
     document.getElementById('menuContainer').style.display = 'none';
     document.getElementById('settingsPanel').style.display = 'block';
     document.getElementById('settingsToggle').style.display = 'none';
+    // Lazy 初始化设置面板（首次打开扩展不必跑这一坨）
+    await this.ensureSettingsInit();
+  }
+
+  async ensureSettingsInit() {
+    if (this._settingsInitDone) return;
+    this._settingsInitDone = true;
+    this.initSettings();
+  }
+
+  loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const existing = document.querySelector(`script[data-ccs-lazy="${src}"]`);
+      if (existing) { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = src;
+      s.dataset.ccsLazy = src;
+      s.onload = () => resolve();
+      s.onerror = (e) => reject(e);
+      document.head.appendChild(s);
+    });
+  }
+
+  async ensurePromptLibrary() {
+    if (!this._promptLibraryLoadPromise) {
+      this._promptLibraryLoadPromise = this.loadScript('modules/PromptLibraryManager.js')
+        .then(() => {
+          if (window.CCSPopup && window.CCSPopup.PromptLibraryManager && !this.promptLibraryManager) {
+            this.promptLibraryManager = new window.CCSPopup.PromptLibraryManager({
+              onToast: (msg) => this.showToast(msg)
+            });
+            this.promptLibraryManager.init();
+          }
+        })
+        .catch((e) => {
+          console.error('[触触搜] 加载提示词库模块失败:', e);
+          this._promptLibraryLoadPromise = null;  // 允许重试
+          this.showToast('提示词库加载失败');
+        });
+    }
+    return this._promptLibraryLoadPromise;
   }
 
   showMenu() {
@@ -776,16 +755,13 @@ class PopupMenuRenderer {
   // ==================== 设置功能（保留自原有代码） ====================
 
   initSettings() {
-    // 初始化启用/禁用状态
-    chrome.storage.local.get(['enabled'], (result) => {
+    // 合并多次 storage.get 为一次（原 5 次串行回调改为 1 次）
+    chrome.storage.local.get(['enabled', 'ccs_debug', 'ccs_voice_enabled'], (result) => {
       const enabled = result.enabled !== false;
       this.updateToggleButton(enabled);
+      this.setDebugButtonState(!!result.ccs_debug);
+      this.setVoiceButtonState(!!result.ccs_voice_enabled);
     });
-
-    // 初始化调试按钮状态
-    this.initDebugToggle();
-    // 初始化语音功能开关（默认关，实验性）
-    this.initVoiceToggle();
 
     // 绑定设置按钮事件
     document.querySelectorAll('.setting-btn').forEach(btn => {
@@ -801,17 +777,7 @@ class PopupMenuRenderer {
     // 初始化快捷键设置
     this.initShortcutSettings();
 
-    // 初始化提示词库
-    this.initPromptLibrary();
-  }
-
-  initPromptLibrary() {
-    if (window.CCSPopup && window.CCSPopup.PromptLibraryManager) {
-      this.promptLibraryManager = new window.CCSPopup.PromptLibraryManager({
-        onToast: (msg) => this.showToast(msg)
-      });
-      this.promptLibraryManager.init();
-    }
+    // 提示词库改为 lazy：用户点 "📚 提示词库" 时才加载 PromptLibraryManager.js
   }
 
   handleSettingAction(action) {
@@ -886,16 +852,6 @@ class PopupMenuRenderer {
     }
   }
 
-  initDebugToggle() {
-    const btn = document.querySelector('[data-action="debug"]');
-    if (!btn) return;
-
-    chrome.storage.local.get(['ccs_debug'], (res) => {
-      const enabled = !!res.ccs_debug;
-      this.setDebugButtonState(enabled);
-    });
-  }
-
   setDebugButtonState(enabled) {
     const btn = document.querySelector('[data-action="debug"]');
     if (!btn) return;
@@ -929,15 +885,6 @@ class PopupMenuRenderer {
         });
         this.showToast(next ? '调试已开启' : '调试已关闭');
       });
-    });
-  }
-
-  // 初始化语音功能开关——默认关闭（实验性，主动开启才生效）
-  initVoiceToggle() {
-    const btn = document.querySelector('[data-action="voice"]');
-    if (!btn) return;
-    chrome.storage.local.get(['ccs_voice_enabled'], (res) => {
-      this.setVoiceButtonState(!!res.ccs_voice_enabled);
     });
   }
 
@@ -1109,7 +1056,7 @@ class PopupMenuRenderer {
     }
   }
 
-  togglePromptLibrarySection() {
+  async togglePromptLibrarySection() {
     const promptLibrarySection = document.getElementById('promptLibrarySection');
     const shortcutSection = document.getElementById('shortcutSection');
     const blacklistSection = document.getElementById('blacklistSection');
@@ -1122,7 +1069,8 @@ class PopupMenuRenderer {
       shortcutSection.style.display = 'none';
       blacklistSection.style.display = 'none';
       debugSection.style.display = 'none';
-      // Initialize and render prompt library
+      // 首次打开提示词库时 lazy 加载 PromptLibraryManager.js
+      await this.ensurePromptLibrary();
       if (this.promptLibraryManager) {
         this.promptLibraryManager.renderList();
       }

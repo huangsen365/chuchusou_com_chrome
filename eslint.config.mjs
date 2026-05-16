@@ -210,6 +210,9 @@ export default [
         // shared/keywordClient.js exports
         CCSKeywordClient: "writable",
 
+        // shared/menuStructureBuilder.js exports
+        CCSMenuStructureBuilder: "writable",
+
         // MenuRegistry.js exports
         menuRegistry: "writable",
 

@@ -1,5 +1,25 @@
 # 更新日志
 
+## v1.6.14 (2026-05-17)
+
+Popup 启动路径**彻底重构** —— 首屏完全脱离 Service Worker，把"点扩展图标到看到菜单"的延迟从 250-700ms 砍到 < 150ms。详细见 [releases/v1.6.14.md](./releases/v1.6.14.md)。
+
+### 🔧 改进
+
+- **Popup 首屏完全脱离 Service Worker**：之前 popup 要等 background 应答 `getMenuStructure`，而 SW 冷启动要解析 24 个 .js / 339KB 代码才能响应；现在 popup 自己 fetch `config/*.json` + `prompts/*.json`（同源资源，10-30ms），自己用共享 `menuStructureBuilder` 纯函数拼菜单，**首屏 0 次 sendMessage**。
+- **shimmer 骨架屏 + 极致 TTFB**：HTML 内直接渲染 3 条 shimmer 骨架条，约 20ms 视觉反馈；菜单数据到位（再 50-100ms）后一次性切换。首屏总目标 < 150ms。
+- **彻底消除 700ms fallback 视觉抖动**：v1.6.13 加的 storage 缓存 + 700ms fallback timer + fresh 覆盖逻辑全部删除——本地 fetch 比这个机制还快，缓存反而拖累。
+
+### 🛠 技术改动
+
+- **新增 `shared/menuStructureBuilder.js`**：popup 和 background 共用同一份菜单结构纯函数（`CCSMenuStructureBuilder.build()`），SSoT 一致性保障，不会再出现"popup 菜单 vs 右键菜单不一致"。
+- **`background/base.js` 的 `getPopupMenuStructure()` 改为薄包装**：内部 await 6 个 loader 后直接调 builder，372 行旧实现已删除。
+- **Popup HTML 删除 3 个无用 `<script>`**：`MenuRenderer.js` / `SettingsManager.js` / `ToastHelper.js` 在 popup.js 里从未被引用（popup.js 内联了所有需要的功能），首屏脚本数 5 → 2。
+- **Settings 5 次串行 storage.get 合并为 1 次**：用户点 ⚙️ 时 5 个 key 一次拉齐（enabled / ccs_debug / ccs_voice_enabled 等）。
+- **提示词库 lazy load**：`PromptLibraryManager.js` 改为用户点"📚 提示词库"时再动态注入 `<script>`。首屏不下载这个模块。
+- **回滚锚点**：本次重构前已打 `pre-popup-rebuild` tag；如出问题可一键 `git revert` 或 `git reset --hard pre-popup-rebuild`。
+- **性能埋点**：popup.js 加 `performance.mark` —— 开发者在 popup devtools 控制台能看到 `[触触搜][PERF] popup TTFB: XXXms`，方便实测。
+
 ## v1.6.13 (2026-05-16)
 
 Popup 启动路径性能优化 —— 消灭"点扩展图标后短暂白屏"的体感卡顿。详细见 [releases/v1.6.13.md](./releases/v1.6.13.md)。

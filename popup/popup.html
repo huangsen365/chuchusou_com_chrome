@@ -33,9 +33,13 @@
       <button class="popup-pin-hint" id="popupPinOpenSidepanel" type="button" title="到侧边栏切换风格 / 比例 / 自定义预设">📑 改风格 / 比例 → 侧边栏</button>
     </section>
 
-    <!-- 菜单容器：动态渲染 -->
+    <!-- 菜单容器：首屏 shimmer 骨架，popup.js 拿到结构后整段替换 -->
     <div class="menu-container" id="menuContainer">
-      <div class="menu-loading">加载中...</div>
+      <div class="menu-skeleton" aria-hidden="true">
+        <div class="skeleton-row"></div>
+        <div class="skeleton-row"></div>
+        <div class="skeleton-row"></div>
+      </div>
     </div>
 
     <!-- 设置面板（默认隐藏） -->
@@ -177,10 +181,8 @@
 
   <!-- 共享：popup + sidepanel 共用的关键字获取客户端（必须在 popup.js 之前） -->
   <script src="../shared/keywordClient.js"></script>
-  <script src="modules/ToastHelper.js"></script>
-  <script src="modules/MenuRenderer.js"></script>
-  <script src="modules/SettingsManager.js"></script>
-  <script src="modules/PromptLibraryManager.js"></script>
+  <!-- 共享：popup 菜单结构构建器（同源纯函数，与 background 同源 SSoT） -->
+  <script src="../shared/menuStructureBuilder.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
