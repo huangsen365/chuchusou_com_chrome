@@ -9,8 +9,9 @@
     "lint": "eslint .",
     "test": "npm run lint",
     "plasmo:dev": "plasmo dev --target=chrome-mv3 --src-path=src",
-    "plasmo:build": "plasmo build --target=chrome-mv3 --src-path=src && node scripts/plasmo-compat-postbuild.mjs",
-    "plasmo:package": "npm run plasmo:build && plasmo package --target=chrome-mv3 --src-path=src"
+    "plasmo:build": "plasmo build --target=chrome-mv3 --src-path=src && node scripts/plasmo-compat-postbuild.mjs && npm run plasmo:verify",
+    "plasmo:package": "npm run plasmo:build && plasmo package --target=chrome-mv3 --src-path=src",
+    "plasmo:verify": "node scripts/verify-plasmo-compat-build.mjs"
   },
   "repository": {
     "type": "git",
