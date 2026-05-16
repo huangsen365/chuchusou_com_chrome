@@ -1,5 +1,20 @@
 # 更新日志
 
+## v1.6.13 (2026-05-16)
+
+Popup 启动路径性能优化 —— 消灭"点扩展图标后短暂白屏"的体感卡顿。详细见 [releases/v1.6.13.md](./releases/v1.6.13.md)。
+
+### 🔧 改进
+
+- **Popup 首次打开更快**：之前 popup 启动要等关键字 + 菜单结构两条网络/IPC 路径 `Promise.all` 一起回来才渲染；现在两条路径解耦，菜单到就先渲染、关键字回来再补徽章，再叠加 storage 缓存的菜单结构「秒显」，体感像本地页一样快。
+- **后台菜单组装并行化**：高级功能子菜单的 4 个配置 loader（百问/速答/优化/封面）原本逐个 `await` 串行；改为同时启动并行等待，给一次性首次启动 SW 的场景剃掉一截延迟。
+
+### 🛠 技术改动
+
+- 新增 popup `chrome.storage.local` 菜单结构缓存（key 按 manifest version 失效），重新打开 popup 秒显上次菜单。
+- 新增 700ms 兜底：若 background 异常未返回菜单结构，先用硬编码基础搜索/AI 项渲染，避免完全白屏。
+- `popup/popup.js`：`init()` 拆为 `startMenuLoad()` / `startKeywordLoad()` / `applyKeyword()` / `readCachedMenuStructure()` / `writeCachedMenuStructure()` / `getFallbackMenuStructure()` 6 个独立方法，加载逻辑可测可读。
+
 ## v1.6.12 (2026-05-16)
 
 Windows 下 popup 标题"触触搜"换行问题修复。详细见 [releases/v1.6.12.md](./releases/v1.6.12.md)。
