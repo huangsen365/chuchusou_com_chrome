@@ -23,40 +23,33 @@ class PopupMenuRenderer {
 
   async init() {
     performance.mark('ccs-popup-start');
+    let renderSource = 'unknown';
     try {
       this.loadVersion();
       this.bindEvents();
 
-      // 关键路径：并行 fetch 同源资源（chrome-extension:// 同源 + 本地文件，10-30ms 量级）
-      // 完全不走 SW message，无视 SW 冷启动开销。
-      const [unifiedConfig, top100, fastqa, optimize, cover, engines] = await Promise.all([
-        this.fetchJSON('config/unifiedMenuConfig.json'),
-        this.fetchJSON('prompts/topQuestionsPrompts.json'),
-        this.fetchJSON('prompts/fastAnswersPrompts.json'),
-        this.fetchJSON('prompts/optimizedPrompts.json'),
-        this.fetchJSON('prompts/coverPrompts.json'),
-        this.fetchJSON('config/engines.json')
-      ]);
-
-      if (!unifiedConfig) {
-        throw new Error('unifiedMenuConfig 加载失败');
+      // 优先路径（v1.6.15）：storage 预热缓存（~5ms）。
+      // background 在 onInstalled / SW 冷启动时把完整 menu structure 写入 chrome.storage.local。
+      let menuStructure = await this._tryReadPrewarm();
+      if (menuStructure) {
+        renderSource = 'storage-prewarm';
+      } else {
+        // Fallback：v1.6.14 的 6 个本地 fetch + builder（~30-50ms）
+        menuStructure = await this._buildMenuFromFetch();
+        renderSource = 'local-fetch';
       }
 
-      this.config = CCSMenuStructureBuilder.build({
-        unifiedConfig,
-        enginesConfig: engines,
-        top100Config: top100,
-        fastqaConfig: fastqa,
-        optimizeConfig: optimize,
-        coverConfig: cover
-      });
+      if (!menuStructure) {
+        throw new Error('菜单结构构建失败');
+      }
 
+      this.config = menuStructure;
       this.render();
       performance.mark('ccs-popup-rendered');
       try {
         performance.measure('ccs-popup-ttfb', 'ccs-popup-start', 'ccs-popup-rendered');
         const m = performance.getEntriesByName('ccs-popup-ttfb')[0];
-        if (m) console.log(`[触触搜][PERF] popup TTFB: ${m.duration.toFixed(1)}ms`);
+        if (m) console.log(`[触触搜][PERF] popup TTFB: ${m.duration.toFixed(1)}ms (${renderSource})`);
       } catch (_) { /* perf 失败无所谓 */ }
     } catch (error) {
       console.error('[触触搜] Popup 初始化失败:', error);
@@ -70,6 +63,45 @@ class PopupMenuRenderer {
     // 设置面板按需 lazy load —— 用户点 ⚙️ 时才跑 initSettings()。
     // 但启用/禁用状态影响底部按钮配色，仍轻量预读一次。
     this._preloadEnableState();
+  }
+
+  // v1.6.15：优先读 background 写入的预热菜单结构
+  async _tryReadPrewarm() {
+    try {
+      const r = await new Promise((resolve) =>
+        chrome.storage.local.get(['ccs_popup_menu_prewarm'], resolve));
+      const entry = r?.ccs_popup_menu_prewarm;
+      if (!entry) return null;
+      const currentVersion = chrome.runtime.getManifest()?.version;
+      if (entry.version !== currentVersion) return null;
+      if (!entry.structure || !Array.isArray(entry.structure.groups) || entry.structure.groups.length === 0) {
+        return null;
+      }
+      return entry.structure;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Fallback：v1.6.14 路径——6 个同源 fetch + builder
+  async _buildMenuFromFetch() {
+    const [unifiedConfig, top100, fastqa, optimize, cover, engines] = await Promise.all([
+      this.fetchJSON('config/unifiedMenuConfig.json'),
+      this.fetchJSON('prompts/topQuestionsPrompts.json'),
+      this.fetchJSON('prompts/fastAnswersPrompts.json'),
+      this.fetchJSON('prompts/optimizedPrompts.json'),
+      this.fetchJSON('prompts/coverPrompts.json'),
+      this.fetchJSON('config/engines.json')
+    ]);
+    if (!unifiedConfig) return null;
+    return CCSMenuStructureBuilder.build({
+      unifiedConfig,
+      enginesConfig: engines,
+      top100Config: top100,
+      fastqaConfig: fastqa,
+      optimizeConfig: optimize,
+      coverConfig: cover
+    });
   }
 
   loadVersion() {
@@ -589,24 +621,33 @@ class PopupMenuRenderer {
 
     let isOpen = false;
     let windowId = null;
+    const updateLabel = () => {
+      btn.textContent = isOpen ? '📕 关闭侧边栏' : '📑 打开侧边栏';
+    };
+
     try {
       const win = await chrome.windows.getCurrent();
       windowId = win.id;
-      const response = await new Promise((resolve) => {
-        chrome.runtime.sendMessage(
-          { action: 'getSidePanelState', windowId },
-          (resp) => {
-            if (chrome.runtime.lastError) resolve(null);
-            else resolve(resp);
-          }
-        );
-      });
-      isOpen = !!(response && response.isOpen);
+      // v1.6.15 优先：读 background 持久化的 sidepanel 状态（即时）
+      const cached = await new Promise((resolve) =>
+        chrome.storage.local.get([`ccs_sp_open_${windowId}`], resolve));
+      isOpen = !!cached?.[`ccs_sp_open_${windowId}`];
     } catch (_) {
       isOpen = false;
     }
+    updateLabel();
 
-    btn.textContent = isOpen ? '📕 关闭侧边栏' : '📑 打开侧边栏';
+    // SW 异步校正：storage 数据可能陈旧（SW 死过没来得及更新），
+    // 发个消息让 SW 给权威答案。如果不一致就更新 label，不阻塞首屏。
+    if (typeof windowId === 'number') {
+      chrome.runtime.sendMessage({ action: 'getSidePanelState', windowId }, (resp) => {
+        if (chrome.runtime.lastError) return;
+        if (resp && !!resp.isOpen !== isOpen) {
+          isOpen = !!resp.isOpen;
+          updateLabel();
+        }
+      });
+    }
 
     btn.addEventListener('click', async () => {
       if (isOpen) {

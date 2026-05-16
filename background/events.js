@@ -245,6 +245,16 @@ function notifyWelcomeWatchers(windowId) {
   }
 }
 
+// v1.6.15 预热：把 sidepanel 是否打开持久化到 chrome.storage.local，
+// 让 popup 打开时即时显示「打开/关闭」按钮 label，不必等 sendMessage 回 SW（~50-300ms）。
+function persistSidePanelState(windowId) {
+  if (typeof windowId !== 'number') return;
+  const isOpen = isSidePanelOpenInWindow(windowId);
+  try {
+    chrome.storage.local.set({ [`ccs_sp_open_${windowId}`]: isOpen });
+  } catch (_) { /* best effort */ }
+}
+
 chrome.runtime.onConnect.addListener((port) => {
   // 侧边栏存活心跳——侧边栏页面打开就连，关闭就自动断
   if (port.name === 'sidepanel-alive') {
@@ -257,6 +267,7 @@ chrome.runtime.onConnect.addListener((port) => {
         }
         sidePanelPortsByWindow.get(windowId).add(port);
         notifyWelcomeWatchers(windowId);   // 侧边栏开 → 通知 welcome 订阅者
+        persistSidePanelState(windowId);   // v1.6.15: 同步到 storage 给 popup 即时读
       }
     });
     port.onDisconnect.addListener(() => {
@@ -267,6 +278,7 @@ chrome.runtime.onConnect.addListener((port) => {
           if (set.size === 0) sidePanelPortsByWindow.delete(windowId);
         }
         notifyWelcomeWatchers(windowId);   // 侧边栏关 → 通知 welcome 订阅者
+        persistSidePanelState(windowId);   // v1.6.15: 同步到 storage 给 popup 即时读
       }
     });
     return;

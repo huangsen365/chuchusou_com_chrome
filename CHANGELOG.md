@@ -1,5 +1,23 @@
 # 更新日志
 
+## v1.6.15 (2026-05-17)
+
+Popup 预热到 chrome.storage.local —— 装/更新完后所有数据 ready，离线/慢盘/老设备打开 popup 也即时显示。详细见 [releases/v1.6.15.md](./releases/v1.6.15.md)。
+
+### 🔧 改进
+
+- **Popup 首屏从"6 次本地 fetch + builder"砍到"1 次 storage.get + 直接 render"**：v1.6.14 已让 popup 不走 background message，但还有 6 个 `chrome-extension://` 本地 fetch（虽然不走网络但在系统繁忙、磁盘竞争时累计 50-100ms）。v1.6.15 让 background 在 `onInstalled`（装/更新时）和 SW 冷启动时**预先构建好完整菜单结构并写入 `chrome.storage.local`**，popup 一打开只需 1 次 storage.get（~5ms）即可 render。
+- **侧边栏按钮 label 即时显示**：之前"📑 打开侧边栏"/"📕 关闭侧边栏"切换要等 SW 应答 `getSidePanelState`（50-300ms 等 SW 唤醒）。现在 SW 在 sidepanel 连接/断开时主动写 `ccs_sp_open_<windowId>` 到 storage，popup 读了即时 label。SW 异步校正不一致的情况（罕见）。
+
+### 🛠 技术改动
+
+- `background/init.js`：新增 `prewarmPopupMenuStructure()` 和 `clearStaleSidepanelStates()`；onInstalled / SW 顶层 init 串接调用
+- `background/events.js`：sidepanel port `onMessage` / `onDisconnect` 内追加 `persistSidePanelState(windowId)` 调用，写 `ccs_sp_open_<windowId>` 到 storage
+- `popup/popup.js`：`init()` 拆出 `_tryReadPrewarm()`（优先路径）和 `_buildMenuFromFetch()`（v1.6.14 fallback）；`setupSidePanelButton()` 先读 storage 显示 label，后异步校正
+- 新增 chrome.storage.local key：`ccs_popup_menu_prewarm` / `ccs_sp_open_<windowId>`
+- 性能埋点 `[触触搜][PERF] popup TTFB: XXXms (storage-prewarm)` 标注 render source，方便诊断
+- 打 tag `pre-popup-prewarm` 作回滚锚点
+
 ## v1.6.14 (2026-05-17)
 
 Popup 启动路径**彻底重构** —— 首屏完全脱离 Service Worker，把"点扩展图标到看到菜单"的延迟从 250-700ms 砍到 < 150ms。详细见 [releases/v1.6.14.md](./releases/v1.6.14.md)。

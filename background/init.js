@@ -77,6 +77,67 @@ function prewarmPromptConfigs() {
 }
 
 // ============================================
+// Popup 菜单结构预热（v1.6.15）
+// ============================================
+//
+// 把完整的 popup 菜单结构提前构建并写入 chrome.storage.local。
+// popup 打开时优先读这个 storage key（~5ms），命中后直接 render，
+// 不需要再做 6 次本地 fetch + builder（v1.6.14 路径，~30-50ms）。
+//
+// 写入时机：
+//   1. onInstalled —— 用户装/更新扩展即写入
+//   2. 模块顶层 —— 每次 SW 冷启动也重写，作为防御性保险
+//   （prewarmPromptConfigs 后串接，loader 命中 globalThis cache，零成本）
+//
+// Cache miss / version 不匹配 / storage 异常 → popup 自动 fallback 到 v1.6.14 fetch 路径。
+// 单源（仅 background 写）—— 与 v1.6.13 的双源缓存本质不同，无视觉抖动风险。
+const POPUP_MENU_PREWARM_KEY = 'ccs_popup_menu_prewarm';
+
+async function prewarmPopupMenuStructure() {
+  try {
+    if (typeof CCSMenuStructureBuilder === 'undefined') return;
+    const [unifiedConfig, top100Config, fastqaConfig, optimizeConfig, coverConfig, enginesConfig] = await Promise.all([
+      typeof loadUnifiedMenuConfig === 'function' ? loadUnifiedMenuConfig().catch(() => null) : null,
+      typeof loadTopQuestionsConfig === 'function' ? loadTopQuestionsConfig().catch(() => null) : null,
+      typeof loadFastAnswersConfig === 'function' ? loadFastAnswersConfig().catch(() => null) : null,
+      typeof loadOptimizedPromptConfig === 'function' ? loadOptimizedPromptConfig().catch(() => null) : null,
+      typeof loadCoverPromptConfig === 'function' ? loadCoverPromptConfig().catch(() => null) : null,
+      typeof loadEnginesConfig === 'function' ? loadEnginesConfig().catch(() => null) : null
+    ]);
+    if (!unifiedConfig) return;   // 没有 unified 就别写，让 popup 走 fallback
+    const structure = CCSMenuStructureBuilder.build({
+      unifiedConfig, enginesConfig,
+      top100Config, fastqaConfig, optimizeConfig, coverConfig
+    });
+    if (!structure || !Array.isArray(structure.groups) || structure.groups.length === 0) return;
+    await chrome.storage.local.set({
+      [POPUP_MENU_PREWARM_KEY]: {
+        version: chrome.runtime.getManifest().version,
+        ts: Date.now(),
+        structure
+      }
+    });
+    if (INIT_CONFIG.debug) {
+      console.log('[Init] 🔥 popup 菜单结构预热完成', structure.groups.map((g) => g.id).join(','));
+    }
+  } catch (e) {
+    console.warn('[Init] popup 菜单预热失败:', e);
+  }
+}
+
+// 清理上一次浏览器会话遗留的 sidepanel 状态键（onInstalled 时调用）
+async function clearStaleSidepanelStates() {
+  try {
+    const all = await chrome.storage.local.get(null);
+    const keys = Object.keys(all).filter((k) => k.startsWith('ccs_sp_open_'));
+    if (keys.length > 0) {
+      await chrome.storage.local.remove(keys);
+      if (INIT_CONFIG.debug) console.log(`[Init] 🧹 清理了 ${keys.length} 个旧 sidepanel 状态键`);
+    }
+  } catch (_) { /* best effort */ }
+}
+
+// ============================================
 // 初始化流程
 // ============================================
 
@@ -261,7 +322,11 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     console.log('[Init] 📝 等待旧系统创建菜单（由 events.js 触发）...');
 
     // 预热 prompt / 配置缓存（fire-and-forget），让用户首次点 popup/sidepanel 时全是 cache hit
-    prewarmPromptConfigs();
+    // 完成后串接 popup 菜单结构预热，写入 chrome.storage.local（用户立即点 popup icon 即时命中）
+    prewarmPromptConfigs().then(() => prewarmPopupMenuStructure());
+
+    // 清掉上一次会话遗留的 sidepanel 状态键，避免脏数据
+    clearStaleSidepanelStates();
 
   } catch (error) {
     console.error('[Init] ❌ 初始化失败:', error);
@@ -295,7 +360,7 @@ chrome.runtime.onStartup.addListener(async () => {
 
 // 模块顶层兜底：SW 被消息事件唤醒（既不是 install 也不是 startup）时也跑一次。
 // _prewarmStarted 保证幂等，重复调用零成本。
-prewarmPromptConfigs();
+prewarmPromptConfigs().then(() => prewarmPopupMenuStructure());
 
 // ============================================
 // 调试命令（仅在调试模式下）
