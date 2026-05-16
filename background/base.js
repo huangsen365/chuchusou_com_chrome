@@ -933,10 +933,27 @@ async function getPopupMenuStructure() {
 
   // 5. 高级功能组 (advanced) - 动态加载
   const advancedItems = [];
+  // 冷启动时 popup 会等待完整菜单结构。动态配置并行读取，避免百问/速答/优化/封面
+  // 逐个 await 把首次打开时间串起来；各 loader 内部已有内存缓存，重复调用零成本。
+  if (typeof loadEnginesConfig === 'function') {
+    loadEnginesConfig().catch(() => {});
+  }
+  const top100ConfigPromise = isMenuEnabled('ccs-top100-root')
+    ? loadTopQuestionsConfig()
+    : Promise.resolve(null);
+  const fastqaConfigPromise = isMenuEnabled('ccs-fastqa-root')
+    ? loadFastAnswersConfig()
+    : Promise.resolve(null);
+  const optimizeConfigPromise = isMenuEnabled('ccs-optimize-root')
+    ? loadOptimizedPromptConfig()
+    : Promise.resolve(null);
+  const coverConfigPromise = isMenuEnabled('ccs-cover-root')
+    ? loadCoverPromptConfig()
+    : Promise.resolve(null);
 
   // 5.1 触触搜百问
   if (isMenuEnabled('ccs-top100-root')) {
-    const top100Config = await loadTopQuestionsConfig();
+    const top100Config = await top100ConfigPromise;
     const top100Children = [];
 
     if (isMenuEnabled('ccs-top100-open-all')) {
@@ -977,7 +994,7 @@ async function getPopupMenuStructure() {
 
   // 5.2 速答壹拾佰
   if (isMenuEnabled('ccs-fastqa-root')) {
-    const fastqaConfig = await loadFastAnswersConfig();
+    const fastqaConfig = await fastqaConfigPromise;
     const fastqaChildren = [];
 
     if (isMenuEnabled('ccs-fastqa-open-all')) {
@@ -1018,7 +1035,7 @@ async function getPopupMenuStructure() {
 
   // 5.3 优化提示词
   if (isMenuEnabled('ccs-optimize-root')) {
-    const optimizeConfig = await loadOptimizedPromptConfig();
+    const optimizeConfig = await optimizeConfigPromise;
     const optimizeChildren = [];
 
     if (optimizeConfig && optimizeConfig.categories) {
@@ -1081,7 +1098,7 @@ async function getPopupMenuStructure() {
 
   // 5.4 封面生成器（扁平：风格直接做叶子，跳过引擎子菜单——单引擎场景下省 1 次点击）
   if (isMenuEnabled('ccs-cover-root')) {
-    const coverConfig = await loadCoverPromptConfig();
+    const coverConfig = await coverConfigPromise;
     const coverChildren = [];
     const coverPresets = [];
 

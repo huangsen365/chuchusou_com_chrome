@@ -3,6 +3,9 @@
  * 点击扩展icon时显示与右键菜单相同的层级菜单
  */
 
+const POPUP_MENU_CACHE_KEY = 'ccs_popup_menu_structure_cache';
+const POPUP_MENU_FALLBACK_DELAY_MS = 700;
+
 class PopupMenuRenderer {
   constructor() {
     this.config = null;
@@ -14,50 +17,13 @@ class PopupMenuRenderer {
 
   async init() {
     try {
-      // C 档重构：CCSKeywordClient（shared/keywordClient.js）统一关键字获取。
-      // popup-open 意图启用 storage 瞬时缓存：onInstant 在拿到 storage 缓存时立刻渲染，
-      // 后续 fresh 真值回来再覆盖。这解决"popup 抢焦点 → 当前 tab 失焦 → selection 被清"
-      // 导致的"打开瞬间空白徽章"问题（5 分钟 TTL，下次同 tab 打开能秒显）。
-      const keywordPromise = CCSKeywordClient.requestKeyword(
-        CCSKeywordClient.INTENTS.POPUP_OPEN,
-        {
-          instantFromStorage: true,
-          onInstant: (cached) => {
-            // 仅在 config 已加载完成（DOM 已构建）才能直接更新徽章。
-            // 如果 config 还没好，先缓在 _pendingInstantKeyword，等 render() 用上。
-            if (this.config && cached && cached.text) {
-              this.keyword = cached;
-              this._renderKeyword();
-            } else if (cached && cached.text) {
-              this._pendingInstantKeyword = cached;
-            }
-          }
-        }
-      );
-
-      const [config, freshKeyword] = await Promise.all([
-        this.loadMenuConfig(),
-        keywordPromise
-      ]);
-
-      this.config = config;
-      // 优先级：fresh 真值 > pending instant > 空。如果 fresh 有内容就用 fresh；
-      // 否则用 instant 兜底；都没有就空。
-      if (freshKeyword.text) {
-        this.keyword = freshKeyword;
-      } else if (this._pendingInstantKeyword && this._pendingInstantKeyword.text) {
-        this.keyword = this._pendingInstantKeyword;
-      } else {
-        this.keyword = freshKeyword;
-      }
-
-      this.render();
-      // 与 sidepanel pin 同源：读 chrome.storage.local 的置顶记录，把用户选的那一个风格做成
-      // popup 顶部的一键启动卡片。和菜单渲染并行无依赖关系，挂在 render 之后即可。
-      this.initPinnedCover();
+      this.loadVersion();
       this.bindEvents();
       this.initSettings();
-      this.loadVersion();
+      this.startKeywordLoad();
+      this.startMenuLoad();
+      // 与 sidepanel pin 同源：非首屏关键路径，独立异步加载，避免拖慢菜单渲染。
+      this.initPinnedCover();
     } catch (error) {
       console.error('[触触搜] Popup 初始化失败:', error);
       this.showError('加载失败，请重试');
@@ -88,6 +54,135 @@ class PopupMenuRenderer {
         }
       });
     });
+  }
+
+  startMenuLoad() {
+    let fallbackTimer = null;
+
+    this.readCachedMenuStructure().then((cached) => {
+      if (this.config || !this.isValidMenuStructure(cached)) return;
+      this.config = cached;
+      this.render();
+    }).catch(() => {});
+
+    fallbackTimer = setTimeout(() => {
+      if (this.config) return;
+      this.config = this.getFallbackMenuStructure();
+      this.render();
+    }, POPUP_MENU_FALLBACK_DELAY_MS);
+
+    this.loadMenuConfig().then((config) => {
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      if (!this.isValidMenuStructure(config)) {
+        throw new Error('菜单配置为空');
+      }
+      this.config = config;
+      this.render();
+      this.writeCachedMenuStructure(config);
+    }).catch((error) => {
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      console.error('[触触搜] 菜单配置加载失败:', error);
+      if (!this.config) {
+        this.showError('菜单加载失败，请重试');
+      }
+    });
+  }
+
+  startKeywordLoad() {
+    // keyword 不属于首屏菜单结构，不能阻塞 popup 打开。storage 命中时先渲染，
+    // background 新鲜值回来后再更新；如果 fresh 为空且已有缓存，沿用缓存兜底。
+    CCSKeywordClient.requestKeyword(
+      CCSKeywordClient.INTENTS.POPUP_OPEN,
+      {
+        instantFromStorage: true,
+        onInstant: (cached) => {
+          if (!cached || !cached.text) return;
+          this.applyKeyword(cached);
+        }
+      }
+    ).then((fresh) => {
+      if (fresh?.text || !this.keyword?.text) {
+        this.applyKeyword(fresh || { text: '', raw: '' });
+      }
+    }).catch((error) => {
+      console.warn('[触触搜] 关键字加载失败:', error);
+    });
+  }
+
+  applyKeyword(keyword) {
+    this.keyword = {
+      text: keyword?.text || '',
+      raw: keyword?.raw || keyword?.text || ''
+    };
+    this._renderKeyword();
+  }
+
+  isValidMenuStructure(structure) {
+    return !!(structure && Array.isArray(structure.groups) && structure.groups.length > 0);
+  }
+
+  readCachedMenuStructure() {
+    return new Promise((resolve) => {
+      try {
+        chrome.storage.local.get([POPUP_MENU_CACHE_KEY], (result) => {
+          const entry = result?.[POPUP_MENU_CACHE_KEY];
+          const version = chrome.runtime.getManifest()?.version || '';
+          if (!entry || entry.version !== version || !this.isValidMenuStructure(entry.structure)) {
+            resolve(null);
+            return;
+          }
+          resolve(entry.structure);
+        });
+      } catch (_) {
+        resolve(null);
+      }
+    });
+  }
+
+  writeCachedMenuStructure(structure) {
+    if (!this.isValidMenuStructure(structure)) return;
+    try {
+      chrome.storage.local.set({
+        [POPUP_MENU_CACHE_KEY]: {
+          version: chrome.runtime.getManifest()?.version || '',
+          ts: Date.now(),
+          structure
+        }
+      });
+    } catch (_) { /* cache best effort */ }
+  }
+
+  getFallbackMenuStructure() {
+    return {
+      groups: [
+        {
+          id: 'search',
+          separator: 'after',
+          items: [
+            { id: 'ccs-baidu', title: '百度', icon: '🔍', type: 'search', urlPattern: 'https://www.baidu.com/s?wd=${KEYWORD}' },
+            { id: 'ccs-google', title: 'Google', icon: '🔍', type: 'search', urlPattern: 'https://www.google.com/search?q=${KEYWORD}' }
+          ]
+        },
+        {
+          id: 'ai',
+          separator: 'after',
+          items: [
+            { id: 'ccs-chatgpt', title: 'ChatGPT', icon: '🤖', type: 'ai-chat', urlPattern: 'https://chatgpt.com/?q=${KEYWORD}' },
+            { id: 'ccs-claude', title: 'Claude', icon: '🧠', type: 'ai-chat', urlPattern: 'https://claude.ai/new?q=${KEYWORD}' },
+            { id: 'ccs-google-ai-chat', title: 'Google AI', icon: '✨', type: 'ai-chat', urlPattern: 'https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${KEYWORD}' }
+          ]
+        },
+        {
+          id: 'general',
+          separator: 'none',
+          items: [
+            { id: 'ccs-zhihu', title: '知乎', icon: '📘', type: 'search', urlPattern: 'https://www.zhihu.com/search?q=${KEYWORD}' },
+            { id: 'ccs-weixin', title: '微信搜一搜', icon: '💬', type: 'search', urlPattern: 'https://weixin.sogou.com/weixin?query=${KEYWORD}' },
+            { id: 'ccs-google-translate', title: 'Google 翻译', icon: '🌐', type: 'translate', urlPattern: 'https://translate.google.com/?sl=auto&tl=zh-CN&text=${KEYWORD}' }
+          ]
+        }
+      ]
+    };
   }
 
   // C 档重构后：popup.js 不再直接发消息拿关键字，统一过 CCSKeywordClient。
