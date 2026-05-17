@@ -24,6 +24,7 @@ export interface KeywordRequestOptions {
 
 export const KEYWORD_STORAGE_PREFIX = "ccs_kw_"
 export const KEYWORD_STORAGE_TTL_MS = 5 * 60 * 1000
+const KEYWORD_REQUEST_TIMEOUT_MS = 1800
 
 function queryTabs(queryInfo: chrome.tabs.QueryInfo): Promise<chrome.tabs.Tab | null> {
   return new Promise((resolve) => {
@@ -124,6 +125,22 @@ export async function requestKeyword(
   }
 
   return new Promise((resolve) => {
+    let settled = false
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    const finalize = (payload: KeywordResult): void => {
+      if (settled) return
+      settled = true
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+      }
+      resolve(payload)
+    }
+    timeoutId = setTimeout(() => {
+      console.warn("[触触搜][KeywordClient] getKeyword timeout:", { intent, tabId: activeTab.id })
+      finalize({ text: "", raw: "" })
+    }, KEYWORD_REQUEST_TIMEOUT_MS)
+
     try {
       chrome.runtime.sendMessage(
         {
@@ -134,13 +151,14 @@ export async function requestKeyword(
           intent
         },
         (response?: Partial<KeywordResult>) => {
+          if (settled) return
           freshResolved = true
           if (chrome.runtime.lastError) {
-            resolve({ text: "", raw: "" })
+            finalize({ text: "", raw: "" })
             return
           }
 
-          resolve({
+          finalize({
             text: response?.text || "",
             raw: response?.raw || response?.text || ""
           })
@@ -149,7 +167,7 @@ export async function requestKeyword(
     } catch (error) {
       freshResolved = true
       console.warn("[触触搜][KeywordClient] sendMessage 异常:", error)
-      resolve({ text: "", raw: "" })
+      finalize({ text: "", raw: "" })
     }
   })
 }

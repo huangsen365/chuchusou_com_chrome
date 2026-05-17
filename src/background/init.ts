@@ -25,6 +25,11 @@ export const INIT_CONFIG = {
   autoCleanup: true,
   enablePerformanceMonitoring: false
 } as const
+const DEFAULT_LOCAL_STORAGE_VALUES: Record<string, unknown> = {
+  enabled: true,
+  ccs_debug: false,
+  ccs_voice_enabled: false
+}
 
 export interface PerformanceMetrics {
   initStartTime: number
@@ -152,6 +157,7 @@ export class InitOrchestrator {
         await this.initializeMenuSystem()
         if (INIT_CONFIG.autoCleanup) this.setupCleanupTasks()
         if (details.reason === "install") {
+          this.ensureStorageDefaults()
           console.log("[Init] 🎉 触触搜扩展安装成功！")
         } else if (details.reason === "update") {
           console.log(`[Init] 🔄 触触搜扩展已更新至 v${runtime.getManifest().version}`)
@@ -190,6 +196,27 @@ export class InitOrchestrator {
       sw.addEventListener("unhandledrejection", (event) => {
         console.error("[Init] 未处理的 Promise 错误:", (event as { reason?: unknown })?.reason)
       })
+    }
+  }
+
+  private ensureStorageDefaults(): void {
+    try {
+      const ch = (globalThis as unknown as { chrome?: { storage?: { local?: { get: (keys: string[], cb: (v: Record<string, unknown>) => void) => void; set: (v: Record<string, unknown>) => void } } } }).chrome
+      const local = ch?.storage?.local
+      if (!local) return
+      const keys = Object.keys(DEFAULT_LOCAL_STORAGE_VALUES)
+      local.get(keys, (current) => {
+        const patch: Record<string, unknown> = {}
+        keys.forEach((k) => {
+          if (typeof current?.[k] === "undefined") patch[k] = DEFAULT_LOCAL_STORAGE_VALUES[k]
+        })
+        if (Object.keys(patch).length > 0) {
+          local.set(patch)
+          console.log("[Init] ✅ storage 默认值已补齐:", Object.keys(patch))
+        }
+      })
+    } catch (error) {
+      console.warn("[Init] storage 默认值初始化失败:", error)
     }
   }
 }
