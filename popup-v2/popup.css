@@ -77,21 +77,46 @@ body {
 }
 .pin-edit:hover { background: #fff; }
 
-/* Menu */
-.menu { padding: 4px 0; }
-.item {
+/* Menu —— 兼容 prebuild-popup-menu.mjs 注入的 23 项 HTML 结构 */
+.menu-container { padding: 4px 0; }
+.menu-item {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 9px 12px;
   cursor: pointer;
   user-select: none;
+  position: relative;
 }
-.item:hover { background: #f4f6f9; }
-.item:active { background: #e8eef5; }
-.icon { font-size: 16px; width: 18px; text-align: center; }
-.label { flex: 1; }
-.sep { height: 1px; background: #f0f0f0; margin: 4px 0; }
+.menu-item:hover { background: #f4f6f9; }
+.menu-item:active { background: #e8eef5; }
+.item-icon { font-size: 16px; width: 18px; text-align: center; flex-shrink: 0; }
+.item-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-arrow {
+  font-size: 10px;
+  color: #999;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.menu-item.expanded > .item-arrow { transform: rotate(90deg); }
+.menu-separator { height: 1px; background: #f0f0f0; margin: 4px 0; }
+
+/* Submenu —— prebuild-popup-menu 输出的子菜单结构 */
+.submenu {
+  background: #fafbfc;
+  border-left: 2px solid #e0e6ed;
+  margin-left: 22px;
+  overflow: hidden;
+  max-height: 1000px;
+  transition: max-height 200ms ease-out;
+}
+.submenu.collapsed {
+  max-height: 0;
+  transition: max-height 150ms ease-in;
+}
+.submenu-item.level-1 { padding-left: 18px; }
+.submenu-item.level-2 { padding-left: 26px; }
+.submenu-item.level-3 { padding-left: 34px; }
 
 /* Quick toggles */
 .quick {

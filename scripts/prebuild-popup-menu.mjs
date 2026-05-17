@@ -227,6 +227,15 @@ function main() {
       console.warn("[prebuild-popup-menu] ⚠ popup/popup.html 找不到 menuContainer 标记，跳过注入")
     }
   }
+  // popup-v2 共用同一份 hierarchical 菜单 HTML（容器 id/class 与旧 popup 完全一致）
+  const popupV2Path = path.join(buildDir, "popup-v2/popup.html")
+  if (fs.existsSync(popupV2Path)) {
+    if (injectStaticMenu(popupV2Path, renderStaticMenu(structure))) {
+      console.log("[prebuild-popup-menu] ✓ 静态菜单注入 → popup-v2/popup.html (data-static-built)")
+    } else {
+      console.warn("[prebuild-popup-menu] ⚠ popup-v2/popup.html 找不到 menuContainer 标记，跳过注入")
+    }
+  }
   const sidepanelPath = path.join(buildDir, "sidepanel/sidepanel.html")
   if (fs.existsSync(sidepanelPath)) {
     if (injectStaticMenu(sidepanelPath, renderSidepanelMenu(structure), {

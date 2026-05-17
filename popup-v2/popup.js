@@ -26,7 +26,6 @@
   // ===== 常量 =====
   const TTL_MS = 5 * 60 * 1000;
   const KW_PREFIX = 'ccs_kw_';
-  const URL_HARD_CAP = 1900;
   const STORAGE_KEYS = [
     'ccs_sidepanel_pinned_action',
     'ccs_cover_aspect_ratio',
@@ -38,7 +37,7 @@
   // ===== DOM refs =====
   const $kw = document.getElementById('kw');
   const $copy = document.getElementById('copy');
-  const $menu = document.getElementById('menu');
+  const $menu = document.getElementById('menuContainer');
   const $pin = document.getElementById('pin');
   const $pinBtn = document.getElementById('pinBtn');
   const $pinEdit = document.getElementById('pinEdit');
@@ -214,21 +213,82 @@
     labelEl.textContent = active ? onText : offText;
   }
 
+  // ===== Submenu 展开/折叠 =====
+  // prebuild-popup-menu.mjs 输出格式：
+  //   <div class="menu-item has-children" data-menu-id="X">...</div>
+  //   <div class="submenu collapsed" data-parent-id="X">...children...</div>
+  function toggleSubmenu(parentEl) {
+    const parentId = parentEl.dataset.menuId;
+    if (!parentId) return;
+    // 自己手转义 quote / backslash 避免 selector 注入（CSS.escape 在 popup 上下文中 ESLint 会标 no-undef）
+    const safeId = parentId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const submenu = $menu.querySelector(`.submenu[data-parent-id="${safeId}"]`);
+    if (!submenu) return;
+    submenu.classList.toggle('collapsed');
+    parentEl.classList.toggle('expanded');
+  }
+
   // ===== 事件绑定 =====
   function bindEvents() {
-    // 菜单点击
-    $menu.addEventListener('click', (e) => {
-      const item = e.target.closest('.item');
-      if (!item) return;
+    // 菜单点击委托：识别 prebuild-popup-menu.mjs 输出的 data-* 字段
+    // - has-children 节点：toggle 子菜单展开/折叠
+    // - leaf 节点：sendMessage(executeMenuAction) 让 background 处理（与旧 popup 一致）
+    //   因为 fastqa/top100/optimize 要拼 prompt，tool 要做剪贴板/编码 —— 都必须经 background
+    $menu.addEventListener('click', async (e) => {
+      const itemEl = e.target.closest('.menu-item[data-menu-id]');
+      if (!itemEl || !$menu.contains(itemEl)) return;
+
+      // 父节点：toggle 子菜单
+      if (itemEl.classList.contains('has-children')) {
+        toggleSubmenu(itemEl);
+        return;
+      }
+
+      // Leaf 节点：发消息给 background
       if (!currentKw) { flash('请先选中文字'); return; }
-      let url = item.dataset.tpl || '';
-      if (!url) return;
-      url = url.replace('${KW}', encodeURIComponent(currentKw));
-      if (url.length > URL_HARD_CAP) url = url.slice(0, URL_HARD_CAP);
+      const item = {
+        id: itemEl.dataset.menuId || '',
+        type: itemEl.dataset.menuType || '',
+        urlPattern: itemEl.dataset.urlPattern || '',
+        action: itemEl.dataset.action || '',
+        engineId: itemEl.dataset.engineId || '',
+        purpose: itemEl.dataset.purpose || ''
+      };
       try {
-        chrome.tabs.create({ url });
-        setTimeout(() => window.close(), 30);
-      } catch (err) { console.warn('[popup-v2] tabs.create:', err); }
+        const payload = {
+          action: 'executeMenuAction',
+          menuItemId: item.id,
+          menuType: item.type,
+          keyword: currentKw,
+          urlPattern: item.urlPattern,
+          actionType: item.action,
+          engineId: item.engineId,
+          purpose: item.purpose
+        };
+        // 优先用 CCSRuntimeClient（timeout + retry），fallback 裸 sendMessage
+        const client = globalThis.CCSRuntimeClient;
+        if (client?.sendRuntimeMessage) {
+          const result = await client.sendRuntimeMessage(payload, { timeoutMs: 5000, retries: 1 });
+          if (!result.ok) {
+            console.warn('[popup-v2] executeMenuAction 失败:', result.error);
+            flash('操作失败');
+            return;
+          }
+          const resp = result.data || {};
+          if (resp.success) {
+            setTimeout(() => window.close(), 30);
+          } else if (resp.error === 'no-keyword') {
+            flash('没有可用关键字');
+          }
+        } else {
+          chrome.runtime.sendMessage(payload, (resp) => {
+            if (resp && resp.success) setTimeout(() => window.close(), 30);
+          });
+        }
+      } catch (err) {
+        console.warn('[popup-v2] sendMessage 失败:', err);
+        flash('操作失败');
+      }
     });
 
     // 复制
