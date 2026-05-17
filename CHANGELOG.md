@@ -1,5 +1,26 @@
 # 更新日志
 
+## v1.6.17 (2026-05-17)
+
+**纯技术建设版本，用户感知行为与 v1.6.16 完全一致**——生产代码（manifest / background / popup / sidepanel / content）一行未改。本次主要把 Plasmo 迁移 Phase 2 + Phase 3 的可纯函数化模块全部 port 到 TypeScript，并加上 dual-run 验证脚本守护 SSoT 不漂移。详细见 [releases/v1.6.17.md](./releases/v1.6.17.md)。
+
+### 🛠 技术改动
+
+- **9 个共享/纯工具模块 port 到 TypeScript**（约 2700 行 TS，**不替换 legacy 生产路径**）：
+  - `shared/menuStructureBuilder.js` → `src/shared/menuStructureBuilder.ts`（popup 菜单结构构建器）
+  - `shared/keywordClient.js` → `src/shared/keywordClient.ts`
+  - `background/utils/Constants.js` → `src/background/utils/Constants.ts`（15 张纯数据常量表）
+  - `background/utils/TextUtils.js` → `src/background/utils/TextUtils.ts`（11 个纯函数）
+  - `background/utils/TextLimits.js` → `src/background/utils/TextLimits.ts`（保留 `TEXT_LIMITS_ENABLED=false` 总闸）
+  - `background/Logger.js` → `src/background/Logger.ts`
+  - `background/menuIds.js` → `src/background/menuIds.ts`
+  - `background/URLBuilder.js` → `src/background/URLBuilder.ts`
+  - `background/MenuRegistry.js` → `src/background/MenuRegistry.ts`
+  - `background/tasks/AITaskRegistry.js` → `src/background/tasks/AITaskRegistry.ts`
+- **新增 SSoT 守护脚本**：`verify-menu-structure-builder-dual` / `verify-background-utils-dual` / `verify-background-pure-modules-dual` 全部接入 `npm test`，legacy 与 TS 双跑 deep-equal 不一致即 CI 失败。`npm test` 现跑 7 道关。
+- **新增冷启动性能诊断工具**：`scripts/perf-cold-popup.mjs` 静态扫描 popup 启动链 + `scripts/test-perf.sh` 一键启动干净 Chrome Canary 测真实 wall-clock 时间，Service Worker 真冷启动场景下 popup 首帧实测 34ms（接近 Plasmo demo 物理极限），sidepanel 首帧 104ms。
+- **Plasmo build pipeline 进一步守护**：`scripts/verify-plasmo-package.mjs` 校验 plasmo package zip 包含必需 manifest 入口 + 不含 `src/` / `docs/` / 源码目录。
+
 ## v1.6.16 (2026-05-17)
 
 Popup / Sidepanel 首帧"零 JS"——核心菜单直接预渲染在 HTML 里，HTML 一解析完就能点。详细见 [releases/v1.6.16.md](./releases/v1.6.16.md)。
