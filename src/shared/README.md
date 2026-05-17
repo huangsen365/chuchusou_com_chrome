@@ -12,6 +12,7 @@ Current rule during migration:
 - `src/assets-json/**` contains Plasmo-importable mirrors of those SSoT files.
 - `scripts/verify-shared-config.mjs` fails if any mirror drifts from the root SSoT.
 - `src/shared/configAssets.ts` imports the mirrors and `src/shared/config.ts` exposes typed helpers for new Plasmo/React/TS entrypoints.
+- `src/shared/keywordClient.ts` is the named-export TypeScript mirror of `shared/keywordClient.js`; keep the legacy global file until popup/sidepanel consumers migrate.
 
 Why this layer exists:
 
