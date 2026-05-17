@@ -739,7 +739,85 @@ async function main() {
   assert(sharedState2.raw === "initial", "inactive-tab reject keeps state.raw unchanged")
   assert(calls2.length === 0, "inactive-tab reject 不触发 refresh/sendMessage")
 
-  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator OK")
+  // menuActions.ts: refreshMenuTitle + refreshContextMenu + copyTextInTab
+  const tsMa = loadTs(path.join(root, "src/background/menuActions.ts"))
+  assert(typeof tsMa.refreshMenuTitle === "function", "refreshMenuTitle exists")
+  assert(typeof tsMa.refreshContextMenu === "function", "refreshContextMenu exists")
+  assert(typeof tsMa.copyTextInTab === "function", "copyTextInTab exists")
+
+  // refreshContextMenu: 触发 refresh + log
+  let refreshCalled = 0
+  const refreshLogs = []
+  await tsMa.refreshContextMenu({
+    contextMenus: { refresh: () => refreshCalled++ },
+    logMenuEvent: (stage, payload) => refreshLogs.push({ stage, payload })
+  })
+  assert(refreshCalled === 1, "refresh called once")
+  assert(refreshLogs.length === 1 && refreshLogs[0].stage === "context-menu-refreshed", "refresh log emitted")
+
+  // copyTextInTab: 路径 1 成功 (sendMessage)
+  let smCount = 0
+  const r1 = await tsMa.copyTextInTab({ id: 7 }, "hi", {
+    tabs: { sendMessage: async () => { smCount++; return undefined } },
+    scripting: { executeScript: async () => { throw new Error("should not call") } }
+  })
+  assert(r1 === true && smCount === 1, "copyTextInTab path 1 (sendMessage) success")
+
+  // copyTextInTab: sendMessage 失败 → fallback executeScript
+  let exCount = 0
+  let dbgCount = 0
+  const r2 = await tsMa.copyTextInTab({ id: 8 }, "fallback", {
+    tabs: { sendMessage: async () => { throw new Error("no content script") } },
+    scripting: { executeScript: async () => { exCount++ } },
+    onDebug: () => { dbgCount++ }
+  })
+  assert(r2 === true && exCount === 1 && dbgCount === 1, "copyTextInTab path 2 (executeScript fallback) success")
+
+  // copyTextInTab: 两路都失败 → false
+  const r3 = await tsMa.copyTextInTab({ id: 9 }, "none", {
+    tabs: { sendMessage: async () => { throw new Error("x") } },
+    scripting: { executeScript: async () => { throw new Error("y") } },
+    onDebug: () => {}
+  })
+  assert(r3 === false, "copyTextInTab both paths fail → false")
+
+  // copyTextInTab: 空参数防御
+  assert((await tsMa.copyTextInTab(null, "x", {})) === false, "copy null tab → false")
+  assert((await tsMa.copyTextInTab({ id: 1 }, "", {})) === false, "copy empty text → false")
+
+  // refreshMenuTitle: 触发 computeSearchTextForTab → setMenuState
+  let csCalled = 0
+  const refreshState = { raw: "", normalized: "", display: "", tabId: null, url: "" }
+  const refreshLogs2 = []
+  await tsMa.refreshMenuTitle({ id: 5, url: "https://t.test", title: "T" }, "selected", {
+    computeSearchTextForTab: async (input) => {
+      csCalled++
+      assert(input.tabId === 5 && input.selectionText === "selected", "compute called with right input")
+      return { raw: "selected", normalized: "selected" }
+    },
+    setMenuStateDeps: {
+      currentMenuState: refreshState,
+      formatMenuTitle: (s) => s,
+      tabs: { query: async () => [{ id: 5 }] },
+      contextMenus: { update: (id, p, cb) => cb() },
+      contextMenusRefresh: { refresh: () => {} },
+      runtimeSendMessage: { sendMessage: async () => {} },
+      action: {},
+      runtime: { lastError: null },
+      menuDefinitions: { "ccs-main": { icon: "🔍", text: "触触搜" } },
+      dynamicSearchMenuItems: [],
+      logMenuEvent: (stage, payload) => refreshLogs2.push({ stage, payload }),
+      keywordSyncManager: null,
+      refreshDelayMs: 1,
+      setTimeoutFn: (cb) => cb()
+    }
+  })
+  // refreshMenuTitle 内部 fire-and-forget，需要等待 microtask 让 setMenuState 完成
+  await new Promise((r) => setTimeout(r, 50))
+  assert(csCalled === 1, "computeSearchTextForTab called once")
+  assert(refreshState.raw === "selected", "refreshMenuTitle propagates to setMenuState")
+
+  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions OK")
 }
 
 main().catch((err) => {
