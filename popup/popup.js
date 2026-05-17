@@ -913,12 +913,15 @@ class PopupMenuRenderer {
         if (blacklist.length === 0) {
           listEl.innerHTML = '<div class="blacklist-empty">黑名单为空</div>';
         } else {
-          listEl.innerHTML = blacklist.map(host => `
-            <div class="blacklist-item" data-host="${host}">
-              <span class="blacklist-host">${host}</span>
-              <button class="blacklist-remove" data-host="${host}">移除</button>
+          listEl.innerHTML = blacklist.map(host => {
+            const safe = this._escapeHtml(host);
+            return `
+            <div class="blacklist-item" data-host="${safe}">
+              <span class="blacklist-host">${safe}</span>
+              <button class="blacklist-remove" data-host="${safe}">移除</button>
             </div>
-          `).join('');
+          `;
+          }).join('');
 
           listEl.querySelectorAll('.blacklist-remove').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -934,6 +937,16 @@ class PopupMenuRenderer {
         clearBtn.onclick = () => this.clearAllBlacklist();
       }
     });
+  }
+
+  /**
+   * HTML 转义。blacklist host 来自 chrome.storage，渲染前必须过这层
+   * （与 PromptLibraryManager._escapeHtml / SettingsManager._escapeHtml 同实现）。
+   */
+  _escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text == null ? '' : String(text);
+    return div.innerHTML;
   }
 
   removeFromBlacklist(host) {
