@@ -11,6 +11,94 @@
  * —— 完整菜单看 build/ 产物，dev 用最常用功能。
  */
 
+// ============================================================================
+// v1.6.22 诊断录像（IIFE 在 popup.js 顶层即刻执行）
+// ============================================================================
+// 设计：popup.js 一被解析就启动"录像"，比 class 实例化 / init() 还早。
+// 哪怕 init() 整个卡 3 秒，期间的 long tasks / console errors 都进了 buffer。
+// 用户点 ⚙️ → 🩺 一键诊断时只是把已有 buffer 格式化复制走。
+(function setupDiagRecording() {
+  performance.mark('ccs-diag-script-start');
+
+  const buffer = {
+    scriptStartTs: Date.now(),
+    scriptStartPerf: performance.now(),
+    longTasks: [],
+    errors: [],
+    swPings: [] // 填充：{ sentAt, swNow, rttMs, error? }
+  };
+
+  // 长任务监听：>50ms 主线程阻塞全部录进来
+  try {
+    if (typeof PerformanceObserver !== 'undefined') {
+      const observer = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (buffer.longTasks.length < 100) {
+            buffer.longTasks.push({
+              name: entry.name,
+              startTime: entry.startTime,
+              duration: entry.duration
+            });
+          }
+        }
+      });
+      observer.observe({ type: 'longtask', buffered: true });
+      buffer._longTaskObserver = observer;
+    }
+  } catch (e) {
+    buffer.errors.push({ ts: Date.now(), type: 'longtask-observer-init', msg: String(e?.message || e) });
+  }
+
+  // console.error / console.warn 环形缓冲（最近 50 条）
+  const wrapConsole = (level) => {
+    const orig = console[level];
+    console[level] = function (...args) {
+      try {
+        const msg = args.map((a) => {
+          if (a instanceof Error) return `${a.name}: ${a.message}\n${a.stack || ''}`;
+          if (typeof a === 'object') {
+            try { return JSON.stringify(a); } catch (_) { return String(a); }
+          }
+          return String(a);
+        }).join(' ');
+        if (buffer.errors.length >= 50) buffer.errors.shift();
+        buffer.errors.push({
+          ts: Date.now(),
+          perf: performance.now(),
+          level,
+          msg: msg.slice(0, 500) // 单条上限
+        });
+      } catch (_) { /* ignore wrap errors */ }
+      return orig.apply(console, args);
+    };
+  };
+  wrapConsole('error');
+  wrapConsole('warn');
+
+  // window 级错误
+  window.addEventListener('error', (e) => {
+    if (buffer.errors.length >= 50) buffer.errors.shift();
+    buffer.errors.push({
+      ts: Date.now(),
+      perf: performance.now(),
+      level: 'window-error',
+      msg: `${e.message} @ ${e.filename}:${e.lineno}:${e.colno}`
+    });
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    if (buffer.errors.length >= 50) buffer.errors.shift();
+    buffer.errors.push({
+      ts: Date.now(),
+      perf: performance.now(),
+      level: 'unhandled-rejection',
+      msg: String(e.reason?.stack || e.reason?.message || e.reason)
+    });
+  });
+
+  // 暴露给 PopupMenuRenderer.copyDiagnosticReport() 用
+  globalThis.__CCS_DIAG_BUFFER__ = buffer;
+})();
+
 class PopupMenuRenderer {
   constructor() {
     this.keyword = { text: '', raw: '' };
@@ -492,6 +580,14 @@ class PopupMenuRenderer {
         if (!itemEl || !menuContainer.contains(itemEl)) return;
         const item = this.itemFromElement(itemEl);
         if (!item?.id) return;
+        // BUGFIX v1.6.23：has-children 项要展开子菜单，不是发 executeMenuAction。
+        // v1.6.19 把菜单改静态 HTML 后忘了加这条分支——click delegation 让所有 menu-item
+        // 都走 handleClick→sendMessage menuType='submenu'，SW 收到不知道怎么处理，结果
+        // 子菜单永远不展开（"百问/速答/优化/封面 点了没反应"）。
+        if (itemEl.classList.contains('has-children')) {
+          this.toggleSubmenu(itemEl, item.id);
+          return;
+        }
         this.handleClick(item);
       });
     }
@@ -754,6 +850,9 @@ class PopupMenuRenderer {
         break;
       case 'export-menu-state':
         this.exportMenuState();
+        break;
+      case 'diagnose':
+        this.copyDiagnosticReport();
         break;
       case 'shortcut-settings':
         this.toggleShortcutSettings();
@@ -1073,6 +1172,269 @@ class PopupMenuRenderer {
         });
       });
     });
+  }
+
+  // v1.6.22 一键诊断：把顶部录像 IIFE 攒下的所有信号 + 实时探测
+  // (WebGL renderer / SW ping / storage 白名单) 格式化成 Markdown 复制到剪贴板。
+  async copyDiagnosticReport() {
+    const btn = document.querySelector('[data-action="diagnose"]');
+    const label = btn?.querySelector('.setting-label');
+    const originalLabel = label?.textContent || '一键诊断';
+    if (btn) {
+      btn.disabled = true;
+      if (label) label.textContent = '收集中...';
+    }
+    try {
+      const report = await this._collectDiagnostics();
+      await navigator.clipboard.writeText(report);
+      const kb = (report.length / 1024).toFixed(1);
+      if (label) label.textContent = `✓ 已复制 ${kb}KB`;
+      this.showToast(`诊断信息已复制（${kb}KB），粘贴给开发者即可`);
+    } catch (err) {
+      console.error('[触触搜] 诊断收集失败:', err);
+      this.showToast('诊断复制失败：' + (err?.message || String(err)));
+      if (label) label.textContent = '❌ 失败';
+    } finally {
+      setTimeout(() => {
+        if (btn) btn.disabled = false;
+        if (label) label.textContent = originalLabel;
+      }, 2000);
+    }
+  }
+
+  async _collectDiagnostics() {
+    const buffer = globalThis.__CCS_DIAG_BUFFER__ || { longTasks: [], errors: [], swPings: [] };
+    const now = performance.now();
+    const wallNow = Date.now();
+
+    // 1. SW round-trip ping —— 测 SW 冷启状态
+    let swPing = null;
+    try {
+      const sentAt = Date.now();
+      const sentPerf = performance.now();
+      const result = await Promise.race([
+        chrome.runtime.sendMessage({ action: 'ccsDiagPing' }),
+        new Promise((resolve) => setTimeout(() => resolve({ __timeout: true }), 3000))
+      ]);
+      const rtt = performance.now() - sentPerf;
+      if (result?.__timeout) {
+        swPing = { error: 'SW 3 秒内无响应（冷启严重 / 挂掉）', rttMs: '>3000' };
+      } else if (result?.ok) {
+        swPing = {
+          rttMs: rtt.toFixed(1),
+          swVersion: result.swVersion,
+          clockSkewMs: result.swNow - sentAt - rtt / 2  // 粗略：SW 与 popup 的时间差（应 ~0）
+        };
+      } else {
+        swPing = { error: 'SW 响应异常', raw: JSON.stringify(result).slice(0, 200) };
+      }
+    } catch (e) {
+      swPing = { error: e?.message || String(e) };
+    }
+
+    // 2. WebGL renderer —— 一行判 HW 加速
+    let webgl = null;
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (gl) {
+        const ext = gl.getExtension('WEBGL_debug_renderer_info');
+        if (ext) {
+          webgl = {
+            vendor: gl.getParameter(ext.UNMASKED_VENDOR_WEBGL),
+            renderer: gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)
+          };
+        } else {
+          webgl = {
+            vendor: gl.getParameter(gl.VENDOR),
+            renderer: gl.getParameter(gl.RENDERER),
+            note: 'WEBGL_debug_renderer_info 扩展不可用，上述是 masked 版本'
+          };
+        }
+      } else {
+        webgl = { error: 'WebGL 上下文创建失败（可能 GPU 进程崩溃 / 完全禁用）' };
+      }
+    } catch (e) {
+      webgl = { error: e?.message || String(e) };
+    }
+
+    // 3. 当前 storage 状态（白名单，避免泄漏敏感）
+    let storageState = null;
+    try {
+      storageState = await new Promise((resolve) => {
+        chrome.storage.local.get([
+          'enabled', 'ccs_debug', 'ccs_voice_enabled',
+          'ccs_sidepanel_pinned_action', 'ccs_cover_aspect_ratio',
+          'ccs_cover_custom_selected_line'
+        ], (r) => resolve(r || {}));
+      });
+    } catch (e) {
+      storageState = { error: e?.message || String(e) };
+    }
+
+    // 4. 当前活动 tab（去除 query string + hash 避免泄漏）
+    let activeTab = null;
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab) {
+        let cleanUrl = tab.url || '';
+        try {
+          const u = new URL(cleanUrl);
+          cleanUrl = `${u.protocol}//${u.host}${u.pathname}`;
+        } catch (_) { /* keep raw */ }
+        activeTab = { id: tab.id, url: cleanUrl, title: (tab.title || '').slice(0, 80) };
+      }
+    } catch (e) {
+      activeTab = { error: e?.message || String(e) };
+    }
+
+    // 5. performance 时间线（mark + measure + navigation）
+    const perfMarks = performance.getEntriesByType('mark').map((m) => ({
+      name: m.name, startTime: m.startTime.toFixed(1)
+    }));
+    const perfMeasures = performance.getEntriesByType('measure').map((m) => ({
+      name: m.name, startTime: m.startTime.toFixed(1), duration: m.duration.toFixed(1)
+    }));
+    const navEntry = performance.getEntriesByType('navigation')[0];
+    const navInfo = navEntry ? {
+      domContentLoaded: navEntry.domContentLoadedEventEnd?.toFixed(1),
+      loadEventEnd: navEntry.loadEventEnd?.toFixed(1),
+      domInteractive: navEntry.domInteractive?.toFixed(1),
+      responseEnd: navEntry.responseEnd?.toFixed(1)
+    } : null;
+
+    // 6. UA + 设备信息
+    const manifest = chrome.runtime.getManifest();
+    const ua = navigator.userAgent;
+    const chromeMatch = ua.match(/Chrome\/([\d.]+)/);
+    const env = {
+      extVersion: manifest.version,
+      extName: manifest.name,
+      chromeVersion: chromeMatch ? chromeMatch[1] : '未知',
+      ua,
+      platform: navigator.platform,
+      deviceMemory: navigator.deviceMemory != null ? `${navigator.deviceMemory} GB` : 'N/A',
+      hardwareConcurrency: navigator.hardwareConcurrency || 'N/A',
+      connection: navigator.connection ? {
+        effectiveType: navigator.connection.effectiveType,
+        downlink: navigator.connection.downlink,
+        rtt: navigator.connection.rtt,
+        saveData: navigator.connection.saveData
+      } : null,
+      screen: `${screen.width}×${screen.height}`,
+      viewport: `${window.innerWidth}×${window.innerHeight}`,
+      language: navigator.language,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      cookieEnabled: navigator.cookieEnabled
+    };
+
+    // 7. 格式化成 Markdown
+    const lines = [];
+    const fence = '```';
+    lines.push(`# 触触搜诊断报告`);
+    lines.push(``);
+    lines.push(`生成时间: ${new Date(wallNow).toISOString()}`);
+    lines.push(`popup 录像时长: ${(now - (buffer.scriptStartPerf || 0)).toFixed(1)}ms (从 popup.js 顶层执行到点诊断按钮)`);
+    lines.push(``);
+
+    lines.push(`## 1. 环境`);
+    lines.push(fence + 'json');
+    lines.push(JSON.stringify(env, null, 2));
+    lines.push(fence);
+    lines.push(``);
+
+    lines.push(`## 2. GPU / 硬件加速`);
+    lines.push(fence + 'json');
+    lines.push(JSON.stringify(webgl, null, 2));
+    lines.push(fence);
+    if (webgl?.renderer) {
+      const r = webgl.renderer.toLowerCase();
+      if (r.includes('swiftshader') || r.includes('software') || r.includes('llvmpipe')) {
+        lines.push(`> ⚠️ 检测到软件渲染（${webgl.renderer}）—— HW 加速 OFF`);
+      } else {
+        lines.push(`> ✓ 看起来是真 GPU（${webgl.renderer}）`);
+      }
+    }
+    lines.push(``);
+
+    lines.push(`## 3. SW 连通性 / round-trip`);
+    lines.push(fence + 'json');
+    lines.push(JSON.stringify(swPing, null, 2));
+    lines.push(fence);
+    if (swPing?.rttMs && !isNaN(parseFloat(swPing.rttMs))) {
+      const rttN = parseFloat(swPing.rttMs);
+      if (rttN > 500) lines.push(`> ⚠️ SW round-trip ${rttN}ms（可能冷启动 / SW 卡）`);
+      else if (rttN > 100) lines.push(`> 🟡 SW round-trip ${rttN}ms（偏高但能接受）`);
+      else lines.push(`> ✓ SW round-trip ${rttN}ms`);
+    }
+    lines.push(``);
+
+    lines.push(`## 4. Performance 时间线`);
+    lines.push(`### 4.1 navigation timing`);
+    lines.push(fence + 'json');
+    lines.push(JSON.stringify(navInfo, null, 2));
+    lines.push(fence);
+    lines.push(``);
+    lines.push(`### 4.2 performance.mark (${perfMarks.length})`);
+    lines.push(fence);
+    perfMarks.forEach((m) => lines.push(`${m.startTime.padStart(8)}ms  ${m.name}`));
+    lines.push(fence);
+    lines.push(``);
+    lines.push(`### 4.3 performance.measure (${perfMeasures.length})`);
+    lines.push(fence);
+    perfMeasures.forEach((m) => lines.push(`${m.duration.padStart(8)}ms  ${m.name} (start ${m.startTime}ms)`));
+    lines.push(fence);
+    lines.push(``);
+
+    lines.push(`## 5. 主线程长任务 >50ms (${buffer.longTasks.length})`);
+    if (buffer.longTasks.length === 0) {
+      lines.push(`> 无长任务捕获 —— 主线程在录像期间没有 >50ms 阻塞 ✓`);
+    } else {
+      lines.push(fence);
+      buffer.longTasks.forEach((t) => {
+        lines.push(`${t.duration.toFixed(1).padStart(7)}ms @ ${t.startTime.toFixed(1).padStart(7)}ms  ${t.name}`);
+      });
+      lines.push(fence);
+    }
+    lines.push(``);
+
+    lines.push(`## 6. 控制台错误 / 警告 (${buffer.errors.length})`);
+    if (buffer.errors.length === 0) {
+      lines.push(`> 无错误捕获 ✓`);
+    } else {
+      lines.push(fence);
+      buffer.errors.forEach((e) => {
+        const t = (e.perf || 0).toFixed(0).padStart(6);
+        lines.push(`[+${t}ms] ${e.level}: ${e.msg}`);
+      });
+      lines.push(fence);
+    }
+    lines.push(``);
+
+    lines.push(`## 7. 扩展状态`);
+    lines.push(`### 7.1 storage (白名单)`);
+    lines.push(fence + 'json');
+    lines.push(JSON.stringify(storageState, null, 2));
+    lines.push(fence);
+    lines.push(`### 7.2 active tab`);
+    lines.push(fence + 'json');
+    lines.push(JSON.stringify(activeTab, null, 2));
+    lines.push(fence);
+    lines.push(``);
+
+    lines.push(`## 8. manifest 摘要`);
+    lines.push(fence + 'json');
+    lines.push(JSON.stringify({
+      name: manifest.name,
+      version: manifest.version,
+      manifest_version: manifest.manifest_version,
+      minimum_chrome_version: manifest.minimum_chrome_version,
+      permissions: manifest.permissions,
+      host_permissions: manifest.host_permissions
+    }, null, 2));
+    lines.push(fence);
+
+    return lines.join('\n');
   }
 
   async exportMenuState() {

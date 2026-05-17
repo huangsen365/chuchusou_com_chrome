@@ -54,6 +54,20 @@ async function prefetchMenuState(tab, reason = 'unknown') {
           url
         });
       }
+      // v1.6.23 (perf)：同步写 ccs_kw_<tabId> storage，让 popup/sidepanel 下次打开能
+      // 立即从 storage 读到（不再走 sendMessage 兜底链）。之前只有 popup-open intent
+      // 才写缓存，新 tab 上还没人发过 popup-open，cache 永远 miss，导致每次打开 popup
+      // 都要等 SW round-trip。
+      //
+      // URL 一起入库，readInstantCache 时强校验，URL 不一致视为 stale。
+      // 失败不影响主流程；prefetch 频繁触发，写失败属正常 (storage 限流等)。
+      if (globalThis.KeywordService?._writeStorageCache) {
+        globalThis.KeywordService._writeStorageCache(tabId, {
+          text: normalized || keywords,
+          raw: keywords,
+          url
+        }).catch(() => { /* ignore */ });
+      }
     } else if (reason === 'tab-loading' && (tab.active || currentMenuState.tabId === tabId)) {
       setMenuState('', '', { tabId, url });
     }
@@ -405,6 +419,18 @@ async function ccsSendTabMessageWithFallback(tabId, message, reason) {
 
 // 监听来自content script和popup的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  // v1.6.22 诊断 ping：极轻量，仅用于测 popup → SW 端到端 round-trip。
+  // popup 发送时记 sentAt，收到响应时 Date.now() - sentAt = SW round-trip 含冷启。
+  if (request.action === 'ccsDiagPing') {
+    try {
+      sendResponse?.({
+        ok: true,
+        swNow: Date.now(),
+        swVersion: chrome.runtime.getManifest().version
+      });
+    } catch (_) { /* sendResponse race */ }
+    return false;
+  }
   if (request.action === 'ccs-log-menu-icons') {
     const requestId = ccsGetRequestId(request, 'ccs-log-menu-icons');
     const respond = ccsCreateSafeResponder(sendResponse, 'ccs-log-menu-icons', requestId, 4000);
@@ -1217,8 +1243,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           tabId,
           url: sender.tab.url || ''
         });
+        // v1.6.23 (perf)：同步写 ccs_kw_<tabId> storage，让 popup/sidepanel 一打开
+        // 就能从 storage 读到，不再走 sendMessage 兜底链。之前 selectionChanged 只
+        // 更内存（selectedTextByTab），popup 下次开 read storage 还是空，被迫等
+        // SW round-trip。
+        if (globalThis.KeywordService?._writeStorageCache) {
+          globalThis.KeywordService._writeStorageCache(tabId, {
+            text: normalizedSelection || rawText,
+            raw: rawText,
+            url: sender.tab.url || ''
+          }).catch(() => { /* ignore */ });
+        }
       } else {
         delete selectedTextByTab[tabId];
+        // 注意：不主动清 ccs_kw_<tabId> storage cache。
+        // cache 可能是 prefetch 从 URL/title 算出来的兜底关键字（baidu.com?wd=foo 之类），
+        // 用户即使没在页面选文字，这个兜底也是有用的。让 cache 自然 TTL 过期（5min）
+        // 或被 prefetch 新值覆盖，或被 KeywordService.clearTab 在 tab 关闭时统一清。
       }
 
       const preserve = shouldPreserveMenuStateForTab(sender.tab);

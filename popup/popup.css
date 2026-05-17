@@ -378,7 +378,7 @@ body::-webkit-scrollbar-thumb:hover,
 .submenu {
   overflow: hidden;
   transition: max-height 0.2s ease-out;
-  max-height: 800px;
+  max-height: 0;
   background: #fafbfc;
 }
 
@@ -386,8 +386,12 @@ body::-webkit-scrollbar-thumb:hover,
   max-height: 0;
 }
 
-/* 展开状态的子菜单允许内容溢出以支持嵌套 */
+/* 展开状态：max-height 给一个远超实际内容的上限，防止"用户同时展开多个 level-2
+ * 子分类后 level-1 box 高度被 800px 裁掉、底部子项被切掉"。优化提示词那块
+ * 8 个分类 × 6 个 engine 全展开极端情况下 ~1800px，给 5000px 足够余量。
+ * overflow:visible 让嵌套层正常显示，外层 body 自己的 overflow-y:auto 负责滚。 */
 .submenu:not(.collapsed) {
+  max-height: 5000px;
   overflow: visible;
 }
 

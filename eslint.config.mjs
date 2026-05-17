@@ -27,6 +27,8 @@ export default [
         MutationObserver: "readonly",
         ResizeObserver: "readonly",
         IntersectionObserver: "readonly",
+        PerformanceObserver: "readonly",
+        screen: "readonly",
         requestAnimationFrame: "readonly",
         cancelAnimationFrame: "readonly",
         getComputedStyle: "readonly",
