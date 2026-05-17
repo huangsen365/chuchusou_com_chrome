@@ -32,7 +32,33 @@ function absoluteUrl(relPath: string): string {
   return runtime?.getURL?.(relPath) ?? relPath
 }
 
-// 与 legacy background/index.js 1:1 顺序：第 1 层工具 → 2 层核心管理器 → 3 层业务 → 3.5 AI → 4 层菜单/事件 → 5 层 init
+// ============================================================
+// ⚠️ 顺序非常关键 —— 不要随意交换
+// ============================================================
+// legacy events.js 顶层（importScripts 时立刻执行）会引用
+// `createContextMenus`、`globalThis.setMenuState`、`formatMenuTitle` 等。
+// 它们的 legacy 提供方（base.js / menuBuilder.js / menuHandlers.js /
+// voiceOffscreenBridge.js / Logger.js / init.js）已从 importScripts 列表里 drop，
+// 改由 TS attach* 提供。
+//
+// 所以 4 个 attach 必须 **前置** 到 importScripts 之前，
+// 这样 events.js 顶层引用到的 globalThis.X 已存在：
+//   attachBaseBridge()       → setMenuState / applyMenuTitle / logMenuEvent / ...
+//   attachMenuBuilder()      → createContextMenus / COVER_PIN_MENU_ID
+//   attachMenuHandlers()     → chrome.contextMenus.onClicked 监听器
+//   autoRegisterVoiceBridge()→ chrome.runtime.onMessage voice bridge
+//
+// 注意：attachInit 必须放在 importScripts **之后**，因为它在 attach 时直接读
+// g.MenuSystem / g.initKeywordSyncSystem / g.createContextMenus —— 前两个由
+// 第 2/3 层 legacy importScripts 提供，第三个由 attachMenuBuilder 已经提供。
+// ============================================================
+
+attachBaseBridge()
+attachMenuBuilder()
+attachMenuHandlers()
+autoRegisterVoiceBridge()
+
+// 与 legacy background/index.js 1:1 顺序：第 1 层工具 → 2 层核心管理器 → 3 层业务 → 3.5 AI → 4 层菜单/事件
 sw.importScripts(
   // 第 1 层：基础工具
   absoluteUrl("background/utils/Constants.js"),
@@ -65,27 +91,12 @@ sw.importScripts(
   // ↓ background/menuBuilder.js 已被 src/background/menuBuilderAttach.ts 取代 ↓
   // ↓ background/menuHandlers.js 已被 src/background/menuHandlersAttach.ts 取代 ↓
   // ↓ background/voiceOffscreenBridge.js 已被 src/background/voiceOffscreenBridge.ts 取代 ↓
-  absoluteUrl("background/events.js"),
-
+  absoluteUrl("background/events.js")
   // 第 5 层：初始化 ↓ background/init.js 已被 src/background/initAttach.ts 取代 ↓
 )
 
-// 在所有 legacy importScripts 完成后，覆盖 globalThis 上的 base.js 同名函数为
-// TS port 版本 —— 让 setMenuState / applyMenuTitle / updateMainMenuTitle 等
-// 关键路径走 src/background/*.ts 的 SSoT 实现。
-attachBaseBridge()
-
-// 替代 legacy menuBuilder.js：注册 createContextMenus / resolveCoverPinTarget /
-// COVER_PIN_MENU_ID 到 globalThis + 装 chrome.storage.onChanged 同步监听器
-attachMenuBuilder()
-
-// 注册 chrome.contextMenus.onClicked 监听器（替代 legacy menuHandlers.js）
-attachMenuHandlers()
-
-// 注册 voice offscreen bridge 监听器（替代 legacy voiceOffscreenBridge.js）
-autoRegisterVoiceBridge()
-
-// 注册 chrome.runtime.onInstalled / onStartup（替代 legacy init.js）
+// 必须在 importScripts 之后调用：依赖 g.MenuSystem (menuSystem.js) /
+// g.initKeywordSyncSystem (keywords.js) 已就位
 attachInit()
 
 console.log("[触触搜][Plasmo] background SW bootstrap complete via importScripts bridge + TS baseBridge + TS menuHandlers")
