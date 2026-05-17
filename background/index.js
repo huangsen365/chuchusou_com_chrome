@@ -20,7 +20,7 @@ importScripts(
   './keywords.js',
   './keywordResolver.js',
   './KeywordService.js',
-  './base.js',
+  // ↓ base.js 已被 src/background/baseBridge.ts 完全替代 (TS port) ↓
 
   // ==================== 第3.5层：AI 任务统一抽象 ====================
   './tasks/AITaskRegistry.js',

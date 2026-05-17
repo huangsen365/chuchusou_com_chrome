@@ -48,7 +48,7 @@ import {
   createMenuIconSupportState,
   type MenuIconSupportState
 } from "./bootstrap"
-import { logMenuEvent as tsLogMenuEvent } from "./Logger"
+import { logMenuEvent as tsLogMenuEvent, buildLogPayload as tsBuildLogPayload } from "./Logger"
 
 // 把 globalThis 视作可变 record
 type GlobalRecord = Record<string, unknown> & { chrome?: any }
@@ -128,6 +128,10 @@ function getTabStateCache(): TabStateCache {
 // ============================================
 
 export function attachBaseBridge(): void {
+
+// --- 日志（base.js 重写过 Logger.js 的 logMenuEvent，TS 版本对齐生产行为）---
+G.logMenuEvent = tsLogMenuEvent
+G.buildLogPayload = tsBuildLogPayload
 
 // --- 状态写入/读取 ---
 G.updateLatestTabTitle = (tabId: number, pageTitle: string) => {

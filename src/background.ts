@@ -51,7 +51,7 @@ sw.importScripts(
   absoluteUrl("background/keywords.js"),
   absoluteUrl("background/keywordResolver.js"),
   absoluteUrl("background/KeywordService.js"),
-  absoluteUrl("background/base.js"),
+  // ↓ background/base.js 已被 src/background/baseBridge.ts 完全替代 ↓
 
   // 第 3.5 层：AI 任务统一抽象
   absoluteUrl("background/tasks/AITaskRegistry.js"),
