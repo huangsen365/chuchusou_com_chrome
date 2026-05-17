@@ -24,43 +24,54 @@
     
     // 开始监测页面变化
     startMonitoring() {
+      // 幂等：第二次调用 init / startMonitoring 时直接 return，
+      // 避免 observer / popstate listener / history wrap 叠加
+      if (this._monitoring) return;
+      this._monitoring = true;
+
       // 监测URL变化
       this.monitorInterval = setInterval(() => {
         this.checkForChanges();
       }, this.CHECK_INTERVAL);
-      
-      // 监听标题变化
-      const titleObserver = new MutationObserver(() => {
+
+      // 监听标题变化（引用存到 this._titleObserver，stopMonitoring 时 disconnect）
+      this._titleObserver = new MutationObserver(() => {
         if (document.title !== this.lastObservedTitle) {
           this.lastObservedTitle = document.title;
           this.scheduleUpdate();
         }
       });
-      
-      titleObserver.observe(document.querySelector('title') || document.head, {
+
+      this._titleObserver.observe(document.querySelector('title') || document.head, {
         childList: true,
         characterData: true,
         subtree: true
       });
-      
-      // 监听历史状态变化（单页应用）
-      window.addEventListener('popstate', () => {
-        this.checkForChanges();
-      });
-      
+
+      // 监听历史状态变化（单页应用）—— 引用存好以便后续 remove
+      this._onPopState = () => { this.checkForChanges(); };
+      window.addEventListener('popstate', this._onPopState);
+
       // 监听 pushState 和 replaceState
-      const originalPushState = history.pushState;
-      const originalReplaceState = history.replaceState;
-      
-      history.pushState = function(...args) {
-        originalPushState.apply(history, args);
-        setTimeout(() => RealtimeUpdate.checkForChanges(), 0);
-      };
-      
-      history.replaceState = function(...args) {
-        originalReplaceState.apply(history, args);
-        setTimeout(() => RealtimeUpdate.checkForChanges(), 0);
-      };
+      // 守卫：如果 history.pushState 已被本模块包过，跳过；避免第二次 init 嵌套包装
+      if (!history.pushState.__ccs_wrapped) {
+        this._origPushState = history.pushState;
+        this._origReplaceState = history.replaceState;
+
+        const wrappedPush = function(...args) {
+          RealtimeUpdate._origPushState.apply(history, args);
+          setTimeout(() => RealtimeUpdate.checkForChanges(), 0);
+        };
+        wrappedPush.__ccs_wrapped = true;
+        history.pushState = wrappedPush;
+
+        const wrappedReplace = function(...args) {
+          RealtimeUpdate._origReplaceState.apply(history, args);
+          setTimeout(() => RealtimeUpdate.checkForChanges(), 0);
+        };
+        wrappedReplace.__ccs_wrapped = true;
+        history.replaceState = wrappedReplace;
+      }
     },
     
     // 检查页面是否有变化
@@ -140,14 +151,39 @@
     
     // 停止监测
     stopMonitoring() {
+      this._monitoring = false;
+
       if (this.monitorInterval) {
         clearInterval(this.monitorInterval);
         this.monitorInterval = null;
       }
-      
+
       if (this.realtimeUpdateTimer) {
         clearTimeout(this.realtimeUpdateTimer);
         this.realtimeUpdateTimer = null;
+      }
+
+      // 解绑 title observer，避免 orphan
+      if (this._titleObserver) {
+        try { this._titleObserver.disconnect(); } catch (_) { /* ignore */ }
+        this._titleObserver = null;
+      }
+
+      // 解绑 popstate
+      if (this._onPopState) {
+        try { window.removeEventListener('popstate', this._onPopState); } catch (_) { /* ignore */ }
+        this._onPopState = null;
+      }
+
+      // 还原 history.pushState / replaceState
+      // 只在确实是本模块包过的情况下还原（避免覆盖其它扩展的包装）
+      if (this._origPushState && history.pushState && history.pushState.__ccs_wrapped) {
+        history.pushState = this._origPushState;
+        this._origPushState = null;
+      }
+      if (this._origReplaceState && history.replaceState && history.replaceState.__ccs_wrapped) {
+        history.replaceState = this._origReplaceState;
+        this._origReplaceState = null;
       }
     },
     
