@@ -19,6 +19,7 @@
 import { attachBaseBridge } from "./background/baseBridge"
 import { attachMenuHandlers } from "./background/menuHandlersAttach"
 import { autoRegisterVoiceBridge } from "./background/voiceOffscreenBridge"
+import { attachInit } from "./background/initAttach"
 
 const sw = self as unknown as {
   importScripts: (...urls: string[]) => void
@@ -65,8 +66,7 @@ sw.importScripts(
   // ↓ background/voiceOffscreenBridge.js 已被 src/background/voiceOffscreenBridge.ts 取代 ↓
   absoluteUrl("background/events.js"),
 
-  // 第 5 层：初始化
-  absoluteUrl("background/init.js")
+  // 第 5 层：初始化 ↓ background/init.js 已被 src/background/initAttach.ts 取代 ↓
 )
 
 // 在所有 legacy importScripts 完成后，覆盖 globalThis 上的 base.js 同名函数为
@@ -81,6 +81,9 @@ attachMenuHandlers()
 
 // 注册 voice offscreen bridge 监听器（替代 legacy voiceOffscreenBridge.js）
 autoRegisterVoiceBridge()
+
+// 注册 chrome.runtime.onInstalled / onStartup（替代 legacy init.js）
+attachInit()
 
 console.log("[触触搜][Plasmo] background SW bootstrap complete via importScripts bridge + TS baseBridge + TS menuHandlers")
 

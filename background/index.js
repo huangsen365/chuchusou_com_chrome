@@ -33,5 +33,5 @@ importScripts(
   './events.js',
 
   // ==================== 第5层：初始化 ====================
-  './init.js'
+  // ↓ init.js 已被 src/background/initAttach.ts 取代 ↓
 );

@@ -89,7 +89,8 @@ if (fs.existsSync(swBundlePath)) {
   assert(/\.importScripts\s*\(/.test(bundle), "SW bundle 里找不到 .importScripts(...) 调用 — Plasmo 可能 tree-shake 掉了")
   // 至少抽样验证 Constants.js 的引用还在
   assert(bundle.includes("background/utils/Constants.js"), "SW bundle 里缺少 background/utils/Constants.js 引用")
-  assert(bundle.includes("background/init.js"), "SW bundle 里缺少 background/init.js 引用")
+  // init.js 已被 src/background/initAttach.ts 取代，不再 importScripts
+  assert(bundle.includes("attachInit"), "SW bundle 里缺少 attachInit 引用（initAttach.ts 未 bundle）")
   console.log(`[verify-sw-bridge] ✓ SW bundle 包含 self.importScripts + 关键 target 引用`)
 } else {
   console.warn(`[verify-sw-bridge] ⚠ SW bundle 不存在，跳过 bundle 内容检查（跑 npm run plasmo:build 后再试）`)
