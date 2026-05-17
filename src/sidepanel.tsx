@@ -62,7 +62,7 @@ function SidepanelApp() {
       </header>
 
       <main className="sp-main">
-        {/* PinnedAction 区域 - 仍由 legacy sidepanel.js 接管 */}
+        {/* PinnedAction 区域 - 由 src/sidepanel/PinnedAction.ts 接管 */}
         <section className="sp-pin" id="spPin" hidden>
           <span className="sp-pin-corner-ratio" id="spPinRatio" title="当前画面比例"></span>
           <button className="sp-pin-action" id="spPinAction" type="button">
@@ -75,6 +75,52 @@ function SidepanelApp() {
           </button>
           <button className="sp-pin-edit" id="spPinEdit" type="button" title="编辑置顶风格">✏️</button>
           <div className="sp-pin-task-popover" id="spPinTaskPopover" hidden></div>
+        </section>
+
+        {/* PinnedAction picker dialog */}
+        <section className="sp-pin-picker" id="spPinPicker" hidden>
+          <div className="sp-pin-picker-header">
+            <h3>编辑置顶封面风格</h3>
+          </div>
+          <div className="sp-pin-options" id="spPinOptions"></div>
+
+          <div className="sp-pin-custom" id="spPinCustom" hidden>
+            <label htmlFor="spPinCustomInput">
+              自定义风格描述（多行预设，每行一种风格）
+              <span className="sp-pin-custom-counter">
+                <span id="spPinCustomCounter">0</span>/5000
+              </span>
+            </label>
+            <textarea
+              id="spPinCustomInput"
+              maxLength={5000}
+              rows={4}
+              placeholder="每行一个风格预设，如：日系动漫风格、椰树牌、极简留白…"
+            />
+            <label htmlFor="spPinCustomSelect">当前应用：</label>
+            <select id="spPinCustomSelect"></select>
+            <div className="sp-pin-custom-help">
+              <button type="button" id="spPinCustomHelp">💡 不知道填什么？(1) 让 ChatGPT 列 30 个</button>
+              <button type="button" id="spPinCustomHelp2">💡 不知道填什么？(2) Google 搜 "ChatGPT Images 2.0 提示词"</button>
+            </div>
+          </div>
+
+          <div className="sp-pin-ratio">
+            <label htmlFor="spPinRatioSelect">封面画面比例（全局生效）</label>
+            <select id="spPinRatioSelect"></select>
+            <div className="sp-pin-ratio-custom" id="spPinRatioCustom" hidden>
+              <input type="text" id="spPinRatioInput" placeholder="如 2.35:1" />
+              <button type="button" id="spPinRatioAdd">添加</button>
+            </div>
+            <div className="sp-pin-ratio-hint" id="spPinRatioHint" hidden>
+              格式：宽:高（数字，可带小数）
+            </div>
+          </div>
+
+          <div className="sp-pin-picker-actions">
+            <button type="button" id="spPinCancel">取消</button>
+            <button type="button" id="spPinSave">保存</button>
+          </div>
         </section>
 
         <div className="sp-menu" id="spMenu">

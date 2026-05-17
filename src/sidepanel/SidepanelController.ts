@@ -1,23 +1,21 @@
 /**
- * Sidepanel 主控制器 (TypeScript port - 核心生命周期)
+ * Sidepanel 主控制器 (TypeScript port)
  *
- * Port 自 sidepanel/sidepanel.js 的 SidePanelRenderer class 主流程。
+ * Port 自 sidepanel/sidepanel.js 的 SidePanelRenderer class。
  *
  * 包含：
  *   - init + alive port + tab refresh listeners + runtime messages
  *   - keyword 加载 / 刷新（含 chrome:// 等内置页的退避重试）
  *   - 静态菜单 binding + handleClick
  *   - 复制关键字 / 剪贴板读取兜底
+ *   - PinnedAction (cover 风格 + ratio 选择) —— 见 PinnedAction.ts
  *
- * 故意不迁的内容（留 legacy 直到下一会话完整 port）：
- *   - PinnedAction class (~544 行，含 cover 风格 + ratio 选择)
- *   - VoicePanel / VoiceRecognizer / OffscreenSpeechRecognizer (~470 行实验性语音功能)
- *
- * 这两块在 legacy sidepanel.js 里是独立 class，本 controller 通过引用 globalThis 上的
- * 旧实现兜底（生产仍走 legacy 入口），等下一会话完整迁。
+ * 故意不迁的：VoicePanel / VoiceRecognizer / OffscreenSpeechRecognizer
+ *   实验性语音功能（默认关），等用户激活时再 dynamic import。
  */
 
 import { requestKeyword, getActiveTab, KEYWORD_INTENTS, type KeywordResult } from "../shared/keywordClient"
+import { PinnedAction } from "./PinnedAction"
 
 interface ChromeLike {
   windows?: { getCurrent: () => Promise<{ id?: number }> }
@@ -74,12 +72,17 @@ export class SidepanelController {
   currentTabUrl = ""
   keywordSetManually = false
   voiceEnabled = false
+  pinned: PinnedAction
 
   private _tabRefreshListenersBound = false
   private _runtimeMessagesBound = false
   private _staticMenuItemsBound = false
   private _refreshDebounceTimer: ReturnType<typeof setTimeout> | null = null
   private _refreshRetryTimer: ReturnType<typeof setTimeout> | null = null
+
+  constructor() {
+    this.pinned = new PinnedAction(this)
+  }
 
   async init(): Promise<void> {
     this.setupAlivePort()
@@ -91,8 +94,10 @@ export class SidepanelController {
     this.bindTabRefreshListeners()
     this.bindRuntimeMessages()
 
-    // PinnedAction 仍走 legacy（globalThis 上的 PinnedAction 类实例化）
-    // 等下一会话完整 port
+    // PinnedAction 独立初始化，失败不影响主菜单
+    this.pinned.init().catch((err) => {
+      console.warn("[触触搜] PinnedAction init failed:", err)
+    })
 
     this.loadMenuConfig().then((config) => {
       this.config = config
