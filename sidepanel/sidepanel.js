@@ -1158,7 +1158,15 @@ class SidePanelRenderer {
   }
 
   async init() {
-    this.setupAlivePort();
+    // v1.6.19：setupAlivePort 推迟到 idle —— chrome.runtime.connect 会唤醒 SW
+    // 跟 sidepanel 首屏抢 CPU。首屏完成后再建立长连接（其用途是保持 SW alive，
+    // 不影响首屏体验）。
+    const idleSchedule = (fn) => {
+      const ric = globalThis.requestIdleCallback;
+      if (typeof ric === 'function') ric(fn, { timeout: 1500 });
+      else setTimeout(fn, 600);
+    };
+    idleSchedule(() => this.setupAlivePort());
     this.voiceEnabled = false;
     this.voicePanel = null;
     this.renderKeyword();
@@ -1182,15 +1190,41 @@ class SidePanelRenderer {
       // 保留 HTML 静态核心菜单，不用错误块覆盖首屏可用入口。
     });
 
+    // v1.6.19：首屏不发 sendMessage('getKeyword') —— 与 popup 同款解耦。
+    // 流程：先读 storage cache（不需要 SW 醒）→ 显示；同时挂 onChanged 监听
+    // 等 SW 写新值。SW 在 selectionChanged/页面切换时会写 ccs_kw_<tabId>。
+    // tab 切换/url 变化时 bindTabRefreshListeners 会触发 scheduleRefresh 走
+    // 兜底的 sendMessage 路径（用户已感知 sidepanel 已开，1500ms 等待 OK）。
     try {
       const tabInfo = await this.getActiveTab();
       this.currentTabUrl = tabInfo.url || '';
-      this.keyword = await this.getCurrentKeyword(tabInfo);
-      this.renderKeyword();
-
-      // 如果 init 一次性 fetch 拿到空 + URL 非空（说明在某个页面但没拿到 keyword），
-      // 触发 scheduleRefresh 走带重试的路径。专治"用户正好在 chrome:// 上打开 sidepanel"
-      // 的竞态（init 比 onUpdated 早，没机会重试）。
+      this._activeTabId = tabInfo?.id ?? null;
+      // 1. 先读 storage cache
+      if (tabInfo?.id != null) {
+        const cached = await CCSKeywordClient.readInstantCache(tabInfo.id, tabInfo.url);
+        if (cached?.text) {
+          this.keyword = cached;
+          this.renderKeyword();
+        }
+        // 2. 监听 SW 后续写 ccs_kw_<tabId>
+        const storageKey = `ccs_kw_${tabInfo.id}`;
+        if (!this._kwStorageListener) {
+          this._kwStorageListener = (changes, areaName) => {
+            if (areaName !== 'local') return;
+            const change = changes[storageKey];
+            if (!change?.newValue) return;
+            if (change.newValue.url && this.currentTabUrl && change.newValue.url !== this.currentTabUrl) return;
+            this.keyword = {
+              text: change.newValue.text || '',
+              raw: change.newValue.raw || change.newValue.text || ''
+            };
+            this.renderKeyword();
+            if (typeof this.renderMenu === 'function' && this.config) this.renderMenu();
+          };
+          try { chrome.storage.onChanged.addListener(this._kwStorageListener); } catch (_) { /* ignore */ }
+        }
+      }
+      // 3. cache 空 + URL 非空 → scheduleRefresh 走带重试 sendMessage 路径
       if (!this.keyword.text && (tabInfo.url || '').length > 0) {
         this.scheduleRefresh();
       }
@@ -1360,19 +1394,51 @@ class SidePanelRenderer {
   }
 
   async loadMenuConfig() {
-    return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ action: 'getMenuStructure' }, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error('Config load failed'));
-          return;
+    // v1.6.19：与 popup 一致——优先读编译期预生成的 popup-menu-prebuilt.json，
+    // 不再发 sendMessage('getMenuStructure') 触发 SW 冷启动。命中失败时退化
+    // 到 fetch 6 个 JSON + 客户端构建（不依赖 SW）。
+    try {
+      const data = await this._fetchJSON('popup/popup-menu-prebuilt.json');
+      if (data) {
+        const currentVersion = chrome.runtime.getManifest()?.version;
+        if (!data.version || !currentVersion || data.version === currentVersion) {
+          const s = data.structure;
+          if (s && Array.isArray(s.groups) && s.groups.length > 0) {
+            if (data.coverConfig) this._cachedCoverConfig = data.coverConfig;
+            return s;
+          }
         }
-        if (response && response.success) {
-          resolve(response.structure);
-        } else {
-          reject(new Error(response?.error || 'Config load failed'));
-        }
-      });
+      }
+    } catch (_) { /* fallthrough */ }
+
+    // Fallback：6 个本地 fetch + builder（同 popup）
+    if (typeof CCSMenuStructureBuilder !== 'object' || typeof CCSMenuStructureBuilder.build !== 'function') {
+      throw new Error('CCSMenuStructureBuilder 未加载');
+    }
+    const [unifiedConfig, top100, fastqa, optimize, cover, engines] = await Promise.all([
+      this._fetchJSON('config/unifiedMenuConfig.json'),
+      this._fetchJSON('prompts/topQuestionsPrompts.json'),
+      this._fetchJSON('prompts/fastAnswersPrompts.json'),
+      this._fetchJSON('prompts/optimizedPrompts.json'),
+      this._fetchJSON('prompts/coverPrompts.json'),
+      this._fetchJSON('config/engines.json')
+    ]);
+    if (!unifiedConfig) throw new Error('unifiedMenuConfig 加载失败');
+    if (cover) this._cachedCoverConfig = cover;
+    return CCSMenuStructureBuilder.build({
+      unifiedConfig,
+      enginesConfig: engines,
+      top100Config: top100,
+      fastqaConfig: fastqa,
+      optimizeConfig: optimize,
+      coverConfig: cover
     });
+  }
+
+  _fetchJSON(path) {
+    return fetch(chrome.runtime.getURL(path))
+      .then((r) => r.ok ? r.json() : null)
+      .catch(() => null);
   }
 
   // C 档重构：统一过 CCSKeywordClient（shared/keywordClient.js），与 popup 共用同一客户端。

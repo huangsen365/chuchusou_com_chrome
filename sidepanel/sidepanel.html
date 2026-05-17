@@ -201,8 +201,10 @@
     </div>
   </div>
 
-  <!-- 共享：popup + sidepanel 共用的关键字获取客户端（必须在 sidepanel.js 之前） -->
-  <script src="../shared/keywordClient.js"></script>
-  <script src="sidepanel.js"></script>
+  <!-- v1.6.19: defer 让脚本与 HTML 解析并行（维持执行顺序，DOMContentLoaded 前完成）。
+       fetch fallback 路径需要 menuStructureBuilder，因此加进来作 SSoT。 -->
+  <script src="../shared/keywordClient.js" defer></script>
+  <script src="../shared/menuStructureBuilder.js" defer></script>
+  <script src="sidepanel.js" defer></script>
 </body>
 </html>
