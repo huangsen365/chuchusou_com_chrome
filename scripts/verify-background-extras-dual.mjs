@@ -659,7 +659,87 @@ async function main() {
   assert(captured[0].id === "ccs-main" && captured[0].props.title === '🔍 触触搜: "hello"', "main menu title")
   assert(captured[1].icon.title === '🔍 触触搜: "hello"', "icon title")
 
-  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater OK")
+  // menuStateOrchestrator.ts: 端到端 mock chrome.* 跑通 setMenuState
+  const tsMso = loadTs(path.join(root, "src/background/menuStateOrchestrator.ts"))
+  assert(typeof tsMso.setMenuState === "function", "setMenuState exists")
+  assert(typeof tsMso.applyMenuTitle === "function", "applyMenuTitle exists")
+
+  // 端到端：模拟一次完整状态更新，验证状态写入 + tabState 更新 + chrome.* 调用
+  const msoCalls = []
+  const sharedState = { raw: "", normalized: "", display: "", tabId: null, url: "" }
+  const tabKeywords = {}
+  const msoFakeChrome = {
+    contextMenus: {
+      update: (id, props, cb) => { msoCalls.push({ k: "menu-update", id, title: props.title }); cb() },
+      refresh: () => { msoCalls.push({ k: "menu-refresh" }) }
+    },
+    tabs: { query: async () => [{ id: 42 }] },
+    runtime: {
+      sendMessage: async (msg) => { msoCalls.push({ k: "sendMessage", msg }) },
+      lastError: null
+    },
+    action: { setTitle: (props) => msoCalls.push({ k: "icon-title", title: props.title }) }
+  }
+  const logs = []
+  await tsMso.setMenuState("hello world", "hello world", { tabId: 42, url: "https://x.com" }, {
+    currentMenuState: sharedState,
+    formatMenuTitle: (s) => s.length > 20 ? s.substring(0, 20) + "..." : s,
+    tabs: msoFakeChrome.tabs,
+    contextMenus: msoFakeChrome.contextMenus,
+    contextMenusRefresh: msoFakeChrome.contextMenus,
+    runtimeSendMessage: msoFakeChrome.runtime,
+    action: msoFakeChrome.action,
+    runtime: msoFakeChrome.runtime,
+    menuDefinitions: {
+      "ccs-main": { icon: "🔍", text: "触触搜" },
+      "ccs-search-label": { text: "搜索引擎" },
+      "ccs-top100-label": { text: "百问" }
+    },
+    dynamicSearchMenuItems: [],
+    updateLatestTabKeyword: (tabId, keyword, normalized) => { tabKeywords[tabId] = { keyword, normalized } },
+    keywordSyncManager: null,
+    logMenuEvent: (stage, payload) => logs.push({ stage, payload }),
+    refreshDelayMs: 1,
+    setTimeoutFn: (cb) => cb()
+  })
+  assert(sharedState.raw === "hello world", "currentMenuState.raw written")
+  assert(sharedState.normalized === "hello world", "currentMenuState.normalized written")
+  assert(sharedState.display === "hello world", "currentMenuState.display written")
+  assert(sharedState.tabId === 42, "currentMenuState.tabId written")
+  assert(sharedState.url === "https://x.com", "currentMenuState.url written")
+  assert(tabKeywords[42]?.keyword === "hello world", "updateLatestTabKeyword called")
+  const stages = logs.map((l) => l.stage)
+  assert(stages.includes("state-update"), "state-update log")
+  assert(stages.includes("keyword-sync-old-system-forced"), "keyword-sync-old-system-forced log")
+  assert(stages.includes("context-menu-refreshed-delayed"), "context-menu-refreshed-delayed log")
+  assert(msoCalls.some((c) => c.k === "menu-update" && c.id === "ccs-main"), "ccs-main updated")
+  assert(msoCalls.some((c) => c.k === "menu-refresh"), "chrome.contextMenus.refresh called")
+  assert(msoCalls.some((c) => c.k === "sendMessage" && c.msg.action === "keywordUpdated"), "keywordUpdated broadcast")
+  assert(msoCalls.some((c) => c.k === "icon-title"), "chrome.action.setTitle called")
+
+  // Edge: inactive tab → reject, state 不变
+  const sharedState2 = { raw: "initial", normalized: "initial", display: "initial", tabId: 99, url: "" }
+  const calls2 = []
+  await tsMso.setMenuState("rejected", "rejected", { tabId: 1, url: "" }, {
+    currentMenuState: sharedState2,
+    formatMenuTitle: (s) => s,
+    tabs: { query: async () => [{ id: 999 }] },
+    contextMenus: { update: (id, p, cb) => cb() },
+    contextMenusRefresh: { refresh: () => calls2.push("refresh") },
+    runtimeSendMessage: { sendMessage: async () => calls2.push("send") },
+    action: {},
+    runtime: { lastError: null },
+    menuDefinitions: { "ccs-main": { icon: "🔍", text: "触触搜" } },
+    dynamicSearchMenuItems: [],
+    logMenuEvent: () => {},
+    keywordSyncManager: null,
+    refreshDelayMs: 1,
+    setTimeoutFn: (cb) => cb()
+  })
+  assert(sharedState2.raw === "initial", "inactive-tab reject keeps state.raw unchanged")
+  assert(calls2.length === 0, "inactive-tab reject 不触发 refresh/sendMessage")
+
+  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator OK")
 }
 
 main().catch((err) => {
