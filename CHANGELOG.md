@@ -1,5 +1,28 @@
 # 更新日志
 
+## v1.6.23 (2026-05-18)
+
+**修复 popup 子分类菜单点击无响应 + 进一步缓解新打开网页时 popup / sidepanel 慢 + 新增 🩺 一键诊断工具**。详细见 [releases/v1.6.23.md](./releases/v1.6.23.md)。
+
+### 🐛 修复
+
+- **popup 子菜单点击没反应**：点击"触触搜百问 / 速答壹拾佰 / 优化提示词 / 封面生成器"四个 has-children 顶级菜单项时，子菜单永远不展开。v1.6.19 把菜单从 JS 渲染改成静态 HTML 后，popup.js 的 click 事件代理没区分"叶子项 / 子菜单父项"，把所有点击都当成 executeMenuAction 发给 SW，SW 不知道怎么处理 `menuType='submenu'` 直接丢掉。本版加上 `has-children` 分支：点子菜单父项走 `toggleSubmenu` 展开/折叠，点叶子项才发执行消息。
+- **子菜单展开时部分子项被裁掉**：CSS `.submenu` 的 `max-height: 800px` 上限，在用户同时展开多个 level-2 优化分类时（8 个优化分类 × 6 个引擎全展开 ~1800px）会被 box 高度限制裁掉底部子项。调成 5000px 上限，覆盖所有实际场景。
+
+### 🔧 改进
+
+- **新打开网页 popup / sidepanel 关键字徽章首屏立即显示**：之前 `selectionChanged`（用户在页面选文字）和 `prefetchMenuState`（新 tab 加载完）只把关键字写进 SW 内存（`selectedTextByTab` / `fallbackKeywordByTab`），popup / sidepanel 读 `ccs_kw_<tabId>` storage 永远 miss → 必须走 sendMessage 兜底链等 SW round-trip（300-1500ms）。本版同步把两条路径算出的关键字写进 storage cache，popup / sidepanel 一打开就能从 storage 立即读到，不再依赖 SW 醒着。URL 强校验防止 stale。
+
+### ✨ 新功能（隐藏在设置面板）
+
+- **🩺 一键诊断按钮**（popup → ⚙️ 设置 → 🩺 一键诊断）：从 popup.js 顶层 IIFE 起开始"录像"——`PerformanceObserver` 抓所有 >50ms 主线程长任务、ring buffer 收集最近 50 条 console.error/warn、window error / unhandled rejection。用户点诊断时收集：WebGL renderer 字串（一行判 HW 加速）、SW round-trip 延迟（含冷启）、所有 performance.mark/measure、navigation timing、白名单 storage、活跃 tab、manifest 摘要。一键复制 Markdown 报告（~5-15KB）到剪贴板，粘贴给开发者即可定位卡顿原因。设计用于低配 Windows 用户报告问题，不收集任何敏感数据（黑名单关键字 / 选区文本等均不入报告）。
+
+### 🛠 技术改动
+
+- 新增 `background/events.js` 里 `ccsDiagPing` action handler（轻量，仅返回 `Date.now()` 测 popup → SW round-trip）。
+- `eslint.config.mjs` 加 `PerformanceObserver` + `screen` 到 browser globals。
+- 改动均在 popup / background/events 层，未触及 SW bridge / Plasmo bundle / sidepanel 主路径。
+
 ## v1.6.22 (2026-05-18)
 
 **性能优化：低配 Windows 上 popup / sidepanel 打开慢、"后台启动较慢，请重试" 等卡顿场景的系统性优化**。一句话：让首屏只做"必须现在做的事"，把所有能等的都推迟到浏览器空闲后。详细见 [releases/v1.6.22.md](./releases/v1.6.22.md)。
