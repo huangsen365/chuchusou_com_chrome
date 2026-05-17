@@ -3,7 +3,10 @@
  *
  * 与 background/keywordResolver.js 1:1 行为对等。
  * 所有 chrome.* + 全局状态依赖（selectedTextByTab / fallbackKeywordByTab / currentMenuState）通过 deps 注入。
+ * 复用 src/background/utils/TextUtils.ts 的 isGenericHostKeyword / pickFirstMeaningfulText（去重）。
  */
+
+import { isGenericHostKeyword, pickFirstMeaningfulText } from "./utils/TextUtils"
 
 export interface ResolverInput {
   tabId?: number | null
@@ -61,31 +64,7 @@ function logResolver(deps: KeywordResolverDeps, stage: string, payload: Record<s
   }
 }
 
-function isGenericQuickHostKeyword(hostname: string, keyword: string | null | undefined): boolean {
-  if (!hostname || !keyword) return false
-  const value = keyword.trim().toLowerCase()
-  if (!value) return true
-  if (hostname.includes("chatgpt.com")) {
-    if (value === "chatgpt" || value === "chatgpt.com" || value.startsWith("chatgpt.com/")) return true
-    if (value === "www.chatgpt.com") return true
-  }
-  if (hostname.includes("claude.ai")) {
-    if (value === "claude" || value === "claude.ai" || value.startsWith("claude.ai/")) return true
-    if (value === "www.claude.ai") return true
-  }
-  return false
-}
-
-function pickFirstMeaningfulText(candidates: string[]): { raw: string; trimmed: string } {
-  for (const candidate of candidates) {
-    if (typeof candidate !== "string") continue
-    const trimmed = candidate.trim()
-    if (trimmed.length > 0) {
-      return { raw: candidate, trimmed }
-    }
-  }
-  return { raw: "", trimmed: "" }
-}
+// isGenericHostKeyword / pickFirstMeaningfulText 已从 ./utils/TextUtils 导入，去重
 
 export async function computeSearchTextForTab(
   input: ResolverInput,
@@ -221,7 +200,7 @@ export async function computeSearchTextForTab(
       try { targetHostname = tabUrl ? new URL(tabUrl).hostname : "" } catch (_) { /* noop */ }
 
       const allowPreserve = sameUrl && sameTab && preserveByUrl
-      if (allowPreserve && !isGenericQuickHostKeyword(targetHostname, preservedRaw)) {
+      if (allowPreserve && !isGenericHostKeyword(targetHostname, preservedRaw)) {
         candidates.push(preservedRaw)
         logResolver(deps, "candidate", {
           source: "current-menu-state", value: preservedRaw,

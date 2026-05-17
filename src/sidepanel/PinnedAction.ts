@@ -7,47 +7,21 @@
  * chrome.* 依赖通过 globalThis 防御性访问。
  */
 
-const PIN_STORAGE_KEY = "ccs_sidepanel_pinned_action"
-const CUSTOM_PURPOSE_KEY = "ccs_cover_custom_purpose"
-const CUSTOM_LINE_KEY = "ccs_cover_custom_selected_line"
-const CUSTOM_PURPOSE_MAX = 5000
-const CUSTOM_LINE_PREVIEW_MAX = 15
-const DEFAULT_PIN = { taskId: "cover", categoryId: "anime-cute" }
+// 共享常量 + 辅助函数（同 PopupController 共用，src/shared/coverPinConstants.ts 为 SSoT）
+import {
+  PIN_STORAGE_KEY, CUSTOM_PURPOSE_KEY, CUSTOM_LINE_KEY, CUSTOM_PURPOSE_MAX,
+  DEFAULT_PIN, RATIO_KEY, RATIO_CUSTOM_LIST_KEY, RATIO_CUSTOM_MAX,
+  DEFAULT_RATIO, RATIO_RE, RATIO_PRESETS, RATIO_CUSTOM_TRIGGER,
+  parseCustomLines, truncateLine,
+  type PinSnapshot
+} from "../shared/coverPinConstants"
 
-const RATIO_KEY = "ccs_cover_aspect_ratio"
-const RATIO_CUSTOM_LIST_KEY = "ccs_cover_custom_ratios"
-const RATIO_CUSTOM_MAX = 5
-const DEFAULT_RATIO = "5:2"
-const RATIO_RE = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/
-const RATIO_PRESETS = [
-  { value: "5:2",    label: "5:2 · 横幅封面（默认）" },
-  { value: "6:2",    label: "6:2 · X (Twitter / 推特) 个人主页 Banner（1500×500）" },
-  { value: "2.35:1", label: "2.35:1 · 微信公众号头图 / 电影宽屏" },
-  { value: "2:1",    label: "2:1 · 横幅卡片（Twitter / 知乎）" },
-  { value: "16:9",   label: "16:9 · 通用横屏（YouTube / B 站 / 视频号）" },
-  { value: "3:2",    label: "3:2 · 头条号 / 摄影标准" },
-  { value: "4:3",    label: "4:3 · 传统媒体 / PPT" },
-  { value: "1:1",    label: "1:1 · 方形（Instagram / 微博 / 朋友圈）" },
-  { value: "4:5",    label: "4:5 · 竖版图文（Instagram 推荐）" },
-  { value: "3:4",    label: "3:4 · 竖版封面（小红书原生 / Pinterest）" },
-  { value: "9:16",   label: "9:16 · 手机竖屏（抖音 / TikTok / Reels / 视频号）" }
-]
-const RATIO_CUSTOM_TRIGGER = "__custom__"
+export type { PinSnapshot } from "../shared/coverPinConstants"
 
 const COVER_STYLE_REFERENCE_URL = "https://chatgpt.com/?prompt=" + encodeURIComponent(
   '为"封面图设计风格参考"生成 30 个风格，每行一个。'
 )
 const COVER_STYLE_REFERENCE_URL_2 = "https://www.google.com/search?q=ChatGPT%20Images%202.0%20%E6%8F%90%E7%A4%BA%E8%AF%8D"
-
-function parseCustomLines(text: string): string[] {
-  if (typeof text !== "string") return []
-  return text.split(/\r?\n/).map((s) => s.trim()).filter((s) => s.length > 0)
-}
-
-function truncateLine(s: string, max: number = CUSTOM_LINE_PREVIEW_MAX): string {
-  if (typeof s !== "string") return ""
-  return s.length > max ? s.slice(0, max) + "…" : s
-}
 
 interface ChromeLike {
   storage?: {
@@ -76,11 +50,6 @@ export interface CoverCategory {
 
 export interface CoverConfig {
   categories?: CoverCategory[]
-}
-
-export interface PinSnapshot {
-  taskId: string
-  categoryId: string
 }
 
 export interface SidepanelRendererLike {
@@ -432,7 +401,7 @@ export class PinnedAction {
         items: this.draftCustomRatios.map((v) => ({ value: v, label: `${v} · 自定义` }))
       })
     }
-    groups.push({ label: "预设", items: RATIO_PRESETS })
+    groups.push({ label: "预设", items: RATIO_PRESETS as ReadonlyArray<{ value: string; label: string }> as Array<{ value: string; label: string }> })
 
     for (const g of groups) {
       const og = document.createElement("optgroup")

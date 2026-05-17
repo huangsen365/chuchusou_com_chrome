@@ -9,6 +9,10 @@
 
 import { CCSMenuStructureBuilder, type MenuStructure, type MenuStructureItem } from "../shared/menuStructureBuilder"
 import { requestKeyword, KEYWORD_INTENTS, type KeywordResult } from "../shared/keywordClient"
+import {
+  PIN_STORAGE_KEY, CUSTOM_LINE_KEY, CUSTOM_PURPOSE_KEY, RATIO_KEY,
+  DEFAULT_PIN, DEFAULT_RATIO
+} from "../shared/coverPinConstants"
 // PromptLibraryManager 改为 dynamic import —— 用户点设置→提示词库时才加载，
 // 不进入首屏 popup bundle，节省 ~485 行 TS 的 parse 时间
 import type { PromptLibraryManager as PromptLibraryManagerType } from "./modules/PromptLibraryManager"
@@ -76,12 +80,7 @@ export class PopupController {
   private _cachedEnabled = true
   private _menuDelegationBound = false
 
-  static readonly PIN_STORAGE_KEY = "ccs_sidepanel_pinned_action"
-  static readonly CUSTOM_LINE_KEY = "ccs_cover_custom_selected_line"
-  static readonly CUSTOM_PURPOSE_KEY = "ccs_cover_custom_purpose"
-  static readonly RATIO_KEY = "ccs_cover_aspect_ratio"
-  static readonly DEFAULT_PIN = { taskId: "cover", categoryId: "anime-cute" }
-  static readonly DEFAULT_RATIO = "5:2"
+  // 常量已迁到 src/shared/coverPinConstants.ts，PopupController + PinnedAction 共享
 
   async init(): Promise<void> {
     performance.mark("ccs-popup-start")
@@ -377,16 +376,16 @@ export class PopupController {
       ])
       if (!coverConfig?.categories || coverConfig.categories.length === 0) return
 
-      let pin = storage.pin && storage.pin.taskId === "cover" ? storage.pin : { ...PopupController.DEFAULT_PIN }
+      let pin = storage.pin && storage.pin.taskId === "cover" ? storage.pin : { ...DEFAULT_PIN }
       const cat = coverConfig.categories.find((c) => c.id === pin.categoryId)
-      if (!cat) pin = { ...PopupController.DEFAULT_PIN }
+      if (!cat) pin = { ...DEFAULT_PIN }
       const customLine = (storage.customLine || "").trim()
-      if (pin.categoryId === "custom" && !customLine) pin = { ...PopupController.DEFAULT_PIN }
+      if (pin.categoryId === "custom" && !customLine) pin = { ...DEFAULT_PIN }
 
       this.pinnedCover = {
         pin,
         category: coverConfig.categories.find((c) => c.id === pin.categoryId) as PinSnapshot["category"],
-        ratio: storage.ratio || PopupController.DEFAULT_RATIO,
+        ratio: storage.ratio || DEFAULT_RATIO,
         customLine
       }
       this.renderPinnedCover()
@@ -401,17 +400,17 @@ export class PopupController {
       try {
         getChrome().storage?.local.get(
           [
-            PopupController.PIN_STORAGE_KEY,
-            PopupController.CUSTOM_LINE_KEY,
-            PopupController.CUSTOM_PURPOSE_KEY,
-            PopupController.RATIO_KEY
+            PIN_STORAGE_KEY,
+            CUSTOM_LINE_KEY,
+            CUSTOM_PURPOSE_KEY,
+            RATIO_KEY
           ],
           (result) => {
-            const pin = (result?.[PopupController.PIN_STORAGE_KEY] as { taskId: string; categoryId: string } | undefined) || null
-            const customLineRaw = (result?.[PopupController.CUSTOM_LINE_KEY] as string | undefined) || ""
-            const customPurposeFirstLine = (result?.[PopupController.CUSTOM_PURPOSE_KEY] as string | undefined)?.split(/\r?\n/)[0]?.trim() || ""
+            const pin = (result?.[PIN_STORAGE_KEY] as { taskId: string; categoryId: string } | undefined) || null
+            const customLineRaw = (result?.[CUSTOM_LINE_KEY] as string | undefined) || ""
+            const customPurposeFirstLine = (result?.[CUSTOM_PURPOSE_KEY] as string | undefined)?.split(/\r?\n/)[0]?.trim() || ""
             const customLine = customLineRaw || customPurposeFirstLine
-            const ratioRaw = result?.[PopupController.RATIO_KEY]
+            const ratioRaw = result?.[RATIO_KEY]
             resolve({
               pin,
               customLine,
@@ -450,7 +449,7 @@ export class PopupController {
       styleEl.textContent = category.label || category.id
       styleEl.title = ""
     }
-    if (ratioEl) ratioEl.textContent = ratio || PopupController.DEFAULT_RATIO
+    if (ratioEl) ratioEl.textContent = ratio || DEFAULT_RATIO
     ;(section as HTMLElement & { hidden: boolean }).hidden = false
   }
 

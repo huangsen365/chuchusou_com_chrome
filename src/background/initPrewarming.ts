@@ -1,0 +1,213 @@
+/**
+ * SW 初始化预热 (TypeScript port)
+ *
+ * Port 自 background/init.js 的 prewarmPromptConfigs / prewarmPopupMenuStructure /
+ * clearStaleSidepanelStates 三个函数。
+ *
+ * 这是 onInstalled / onStartup 触发的预热逻辑：在 SW 启动后台并行加载所有 config，
+ * 把完整菜单结构写入 chrome.storage.local 的 ccs_popup_menu_prewarm 键，让 popup
+ * 打开时 ~5ms 命中缓存而无需 6 个 fetch。
+ *
+ * 所有依赖通过 deps 参数注入，便于测试。
+ */
+
+import {
+  CCSMenuStructureBuilder,
+  type MenuStructure
+} from "../shared/menuStructureBuilder"
+import type {
+  UnifiedMenuConfig,
+  EnginesConfig,
+  PromptConfig
+} from "../shared/types"
+
+export const POPUP_MENU_PREWARM_KEY = "ccs_popup_menu_prewarm"
+
+export interface PrewarmConfigsResult {
+  ok: number
+  total: number
+  ms: number
+}
+
+export interface PrewarmDeps {
+  /** 6 个 loader (返回 config 或 null) */
+  loaders: {
+    unified: () => Promise<UnifiedMenuConfig | null>
+    engines: () => Promise<EnginesConfig | null>
+    top100: () => Promise<PromptConfig | null>
+    fastqa: () => Promise<PromptConfig | null>
+    optimize: () => Promise<PromptConfig | null>
+    cover: () => Promise<PromptConfig | null>
+  }
+  /** chrome.storage.local 注入 */
+  storageGet: (keys: string[] | null) => Promise<Record<string, unknown>>
+  storageSet: (data: Record<string, unknown>) => Promise<void>
+  storageRemove: (keys: string[]) => Promise<void>
+  /** chrome.runtime.getManifest().version */
+  getManifestVersion: () => string
+  /** 调试日志（可选） */
+  debug?: (...args: unknown[]) => void
+}
+
+/**
+ * 并行预热 6 个 config loader。loader 内部会 cache 结果，后续 popup 打开时是 cache hit。
+ * 幂等：重复调用零成本（loader 自己 cache check）。
+ */
+export async function prewarmPromptConfigs(
+  deps: PrewarmDeps
+): Promise<PrewarmConfigsResult> {
+  const startedAt = Date.now()
+  const tasks = [
+    deps.loaders.optimize().catch(() => null),
+    deps.loaders.cover().catch(() => null),
+    deps.loaders.top100().catch(() => null),
+    deps.loaders.fastqa().catch(() => null),
+    deps.loaders.unified().catch(() => null),
+    deps.loaders.engines().catch(() => null)
+  ]
+  const results = await Promise.allSettled(tasks)
+  const ok = results.filter((r) => r.status === "fulfilled" && r.value !== null).length
+  const total = results.length
+  const ms = Date.now() - startedAt
+  deps.debug?.(`[Init] 🔥 prompt 缓存预热完成 (${ok}/${total}, ${ms}ms)`)
+  return { ok, total, ms }
+}
+
+/**
+ * 把完整的 popup 菜单结构构建一次，写入 chrome.storage.local。
+ * popup 打开时优先读这个 key，命中后 ~5ms 直接 render。
+ *
+ * cache miss / version 不匹配 → popup 自动 fallback 到 6 fetch + builder 路径。
+ */
+export async function prewarmPopupMenuStructure(deps: PrewarmDeps): Promise<MenuStructure | null> {
+  try {
+    const [unifiedConfig, top100Config, fastqaConfig, optimizeConfig, coverConfig, enginesConfig] =
+      await Promise.all([
+        deps.loaders.unified().catch(() => null),
+        deps.loaders.top100().catch(() => null),
+        deps.loaders.fastqa().catch(() => null),
+        deps.loaders.optimize().catch(() => null),
+        deps.loaders.cover().catch(() => null),
+        deps.loaders.engines().catch(() => null)
+      ])
+
+    if (!unifiedConfig) return null
+
+    const structure = CCSMenuStructureBuilder.build({
+      unifiedConfig,
+      enginesConfig,
+      top100Config,
+      fastqaConfig,
+      optimizeConfig,
+      coverConfig
+    })
+
+    if (!structure || !Array.isArray(structure.groups) || structure.groups.length === 0) {
+      return null
+    }
+
+    await deps.storageSet({
+      [POPUP_MENU_PREWARM_KEY]: {
+        version: deps.getManifestVersion(),
+        ts: Date.now(),
+        structure
+      }
+    })
+    deps.debug?.("[Init] 🔥 popup 菜单结构预热完成", structure.groups.map((g) => g.id).join(","))
+    return structure
+  } catch (e) {
+    console.warn("[Init] popup 菜单预热失败:", e)
+    return null
+  }
+}
+
+/**
+ * 清理上一次浏览器会话遗留的 sidepanel 状态键（onInstalled 时调用）。
+ *
+ * sidepanel 状态 = `ccs_sp_open_<windowId>` 键。如果上次 Chrome 异常退出，
+ * 这些键可能残留，污染本次 popup 显示的"开/关侧边栏"按钮状态。
+ */
+export async function clearStaleSidepanelStates(deps: PrewarmDeps): Promise<number> {
+  try {
+    const all = await deps.storageGet(null)
+    const keys = Object.keys(all).filter((k) => k.startsWith("ccs_sp_open_"))
+    if (keys.length > 0) {
+      await deps.storageRemove(keys)
+      deps.debug?.(`[Init] 🧹 清理了 ${keys.length} 个旧 sidepanel 状态键`)
+    }
+    return keys.length
+  } catch (_) {
+    return 0
+  }
+}
+
+/**
+ * 默认 deps 工厂：从 chrome.* + globalThis loaders 构造。
+ * 生产 SW 直接 `runPrewarming(createDefaultPrewarmDeps())`。
+ */
+export function createDefaultPrewarmDeps(): PrewarmDeps {
+  const ch = (globalThis as unknown as {
+    chrome?: {
+      runtime?: { getManifest?: () => { version?: string } }
+      storage?: {
+        local?: {
+          get: (keys: string[] | null, cb: (r: Record<string, unknown>) => void) => void
+          set: (data: Record<string, unknown>, cb: () => void) => void
+          remove: (keys: string[], cb: () => void) => void
+        }
+      }
+    }
+  }).chrome
+
+  const localFns = ch?.storage?.local
+
+  const safeLoader = (name: string) => async (): Promise<null> => {
+    const fn = (globalThis as unknown as Record<string, unknown>)[name]
+    if (typeof fn !== "function") return null
+    try { return (await (fn as () => Promise<unknown>)()) as null } catch (_) { return null }
+  }
+
+  return {
+    loaders: {
+      unified: safeLoader("loadUnifiedMenuConfig") as () => Promise<UnifiedMenuConfig | null>,
+      engines: safeLoader("loadEnginesConfig") as () => Promise<EnginesConfig | null>,
+      top100: safeLoader("loadTopQuestionsConfig") as () => Promise<PromptConfig | null>,
+      fastqa: safeLoader("loadFastAnswersConfig") as () => Promise<PromptConfig | null>,
+      optimize: safeLoader("loadOptimizedPromptConfig") as () => Promise<PromptConfig | null>,
+      cover: safeLoader("loadCoverPromptConfig") as () => Promise<PromptConfig | null>
+    },
+    storageGet: (keys) => new Promise((resolve) => {
+      if (!localFns) { resolve({}); return }
+      localFns.get(keys as string[] | null, (r) => resolve(r))
+    }),
+    storageSet: (data) => new Promise((resolve) => {
+      if (!localFns) { resolve(); return }
+      localFns.set(data, () => resolve())
+    }),
+    storageRemove: (keys) => new Promise((resolve) => {
+      if (!localFns) { resolve(); return }
+      localFns.remove(keys, () => resolve())
+    }),
+    getManifestVersion: () => ch?.runtime?.getManifest?.()?.version || "0.0.0",
+    debug: (...args) => console.log(...args)
+  }
+}
+
+/**
+ * 一站式入口：跑完整预热流程（onInstalled 触发用）。
+ */
+export async function runFullPrewarming(deps?: PrewarmDeps): Promise<void> {
+  const d = deps || createDefaultPrewarmDeps()
+  await prewarmPromptConfigs(d)
+  await prewarmPopupMenuStructure(d)
+  await clearStaleSidepanelStates(d)
+}
+
+export default {
+  POPUP_MENU_PREWARM_KEY,
+  prewarmPromptConfigs,
+  prewarmPopupMenuStructure,
+  clearStaleSidepanelStates,
+  createDefaultPrewarmDeps,
+  runFullPrewarming
+}
