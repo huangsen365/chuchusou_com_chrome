@@ -1,0 +1,74 @@
+{
+  "version": "1.0",
+  "description": "触触搜 AI 引擎统一配置",
+
+  "engines": {
+    "chatgpt": {
+      "id": "chatgpt",
+      "label": "ChatGPT",
+      "icon": "🤖",
+      "urlPattern": "https://chatgpt.com/?q=${PROMPT}",
+      "searchUrlPattern": "https://chatgpt.com/?q=${KEYWORD}",
+      "description": "OpenAI ChatGPT"
+    },
+    "claude": {
+      "id": "claude",
+      "label": "Claude",
+      "icon": "🧠",
+      "urlPattern": "https://claude.ai/new?q=${PROMPT}",
+      "searchUrlPattern": "https://claude.ai/new?q=${KEYWORD}",
+      "description": "Anthropic Claude"
+    },
+    "grok": {
+      "id": "grok",
+      "label": "Grok",
+      "icon": "🦊",
+      "urlPattern": "https://grok.com/?q=${PROMPT}",
+      "searchUrlPattern": "https://grok.com/?q=${KEYWORD}",
+      "description": "xAI Grok"
+    },
+    "yiyan": {
+      "id": "yiyan",
+      "label": "文心一言",
+      "icon": "🧠",
+      "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}",
+      "searchUrlPattern": "https://yiyan.baidu.com/?q=${KEYWORD}",
+      "description": "百度文心一言"
+    },
+    "google-ai": {
+      "id": "google-ai",
+      "label": "Google AI 模式",
+      "icon": "✨",
+      "urlPattern": "https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${PROMPT}",
+      "searchUrlPattern": "https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${KEYWORD}",
+      "description": "Google AI Mode（搜索形态，长 prompt 可能被截断）"
+    },
+    "chatgpt-images": {
+      "id": "chatgpt-images",
+      "label": "ChatGPT Images 2.0",
+      "icon": "🎨",
+      "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}",
+      "searchUrlPattern": "https://chatgpt.com/?prompt=${KEYWORD}",
+      "description": "OpenAI ChatGPT Images 2.0（封面/图像生成）"
+    }
+  },
+
+  "presets": {
+    "topQuestions": {
+      "description": "触触搜百问引擎列表",
+      "engines": ["chatgpt", "claude", "grok", "yiyan", "google-ai"]
+    },
+    "fastAnswers": {
+      "description": "速答壹拾佰引擎列表",
+      "engines": ["chatgpt", "claude", "grok", "yiyan", "google-ai"]
+    },
+    "optimizePrompts": {
+      "description": "优化提示词引擎列表",
+      "engines": ["chatgpt", "claude", "google-ai"]
+    },
+    "fastQaQuick": {
+      "description": "速答快捷菜单引擎列表",
+      "engines": ["chatgpt", "claude", "grok", "yiyan", "google-ai"]
+    }
+  }
+}

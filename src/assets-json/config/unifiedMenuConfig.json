@@ -1,0 +1,498 @@
+{
+  "version": "2.0",
+  "description": "触触搜统一菜单配置 - 整合所有菜单定义",
+
+  "constants": {
+    "maxParamLength": 80,
+    "maxDisplayLength": 20,
+    "defaultContexts": ["selection", "page"],
+    "editableContexts": ["selection", "page", "editable"]
+  },
+
+  "syncRules": {
+    "autoDetect": true,
+    "labelPattern": "-label$",
+    "templatePattern": "\\$\\{keyword\\}",
+    "defaultFormat": "${icon} ${title}: \"${keyword}\""
+  },
+
+  "root": {
+    "id": "ccs-main",
+    "title": "触触搜",
+    "icon": "🔍",
+    "contexts": ["all"],
+    "dynamicTitle": true,
+    "titleTemplate": "${icon} ${title}: \"${keyword}\"",
+    "syncGroup": "main",
+    "autoSync": true
+  },
+
+  "groups": [
+    {
+      "id": "fastQaQuick",
+      "name": "快速问答快捷菜单",
+      "position": "top",
+      "separator": "after",
+      "items": [
+        {
+          "id": "ccs-fastqa-chatgpt-quick",
+          "type": "fastqa-quick",
+          "title": "触触搜 · 速答壹拾佰 - ChatGPT",
+          "icon": "🤖",
+          "engineId": "chatgpt",
+          "titleKey": "chatgpt",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page", "editable"],
+          "urlPattern": "https://chatgpt.com/?q=${PROMPT}",
+          "enabled": true
+        },
+        {
+          "id": "ccs-fastqa-claude-quick",
+          "type": "fastqa-quick",
+          "title": "触触搜 · 速答壹拾佰 - Claude",
+          "icon": "🧠",
+          "engineId": "claude",
+          "titleKey": "claude",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page", "editable"],
+          "urlPattern": "https://claude.ai/new?q=${PROMPT}",
+          "enabled": true
+        },
+        {
+          "id": "ccs-fastqa-grok-quick",
+          "type": "fastqa-quick",
+          "title": "触触搜 · 速答壹拾佰 - Grok",
+          "icon": "🦊",
+          "engineId": "grok",
+          "titleKey": "grok",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page", "editable"],
+          "urlPattern": "https://grok.com/?q=${PROMPT}",
+          "enabled": true
+        },
+        {
+          "id": "ccs-fastqa-yiyan-quick",
+          "type": "fastqa-quick",
+          "title": "触触搜 · 速答壹拾佰 - 文心一言",
+          "icon": "🧠",
+          "engineId": "yiyan",
+          "titleKey": "yiyan",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page", "editable"],
+          "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}",
+          "enabled": true
+        },
+        {
+          "id": "ccs-fastqa-google-ai-quick",
+          "type": "fastqa-quick",
+          "title": "触触搜 · 速答壹拾佰 - Google AI 模式",
+          "icon": "✨",
+          "engineId": "google-ai",
+          "titleKey": "google-ai",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page", "editable"],
+          "urlPattern": "https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${PROMPT}",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "search",
+      "name": "搜索引擎组",
+      "position": "middle",
+      "separator": "after",
+      "items": [
+        {
+          "id": "ccs-baidu",
+          "type": "search",
+          "title": "百度搜索",
+          "icon": "🐼",
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://www.baidu.com/s?wd=${KEYWORD}",
+          "enabled": true
+        },
+        {
+          "id": "ccs-google",
+          "type": "search",
+          "title": "Google 搜索",
+          "icon": "🔎",
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://www.google.com/search?q=${KEYWORD}",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ai",
+      "name": "AI 对话组",
+      "position": "middle",
+      "separator": "none",
+      "items": [
+        {
+          "id": "ccs-chatgpt",
+          "type": "ai-chat",
+          "title": "ChatGPT",
+          "icon": "🤖",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://chatgpt.com/?q=${KEYWORD}",
+          "enabled": true
+        },
+        {
+          "id": "ccs-claude",
+          "type": "ai-chat",
+          "title": "Claude",
+          "icon": "🧠",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://claude.ai/new?q=${KEYWORD}",
+          "enabled": true
+        },
+        {
+          "id": "ccs-grok",
+          "type": "ai-chat",
+          "title": "Grok",
+          "icon": "🦊",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://grok.com/?q=${KEYWORD}",
+          "enabled": true
+        },
+        {
+          "id": "ccs-yiyan",
+          "type": "ai-search",
+          "title": "文心一言",
+          "icon": "🧠",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://yiyan.baidu.com/?q=${KEYWORD}",
+          "enabled": true
+        },
+        {
+          "id": "ccs-google-ai-chat",
+          "type": "ai-chat",
+          "title": "Google AI 模式",
+          "icon": "✨",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${KEYWORD}",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "general",
+      "name": "通用搜索组",
+      "position": "middle",
+      "separator": "before",
+      "items": [
+        {
+          "id": "ccs-zhihu",
+          "type": "search",
+          "title": "知乎搜索",
+          "icon": "💡",
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://www.zhihu.com/search?q=${KEYWORD}",
+          "enabled": true
+        },
+        {
+          "id": "ccs-weixin",
+          "type": "search",
+          "title": "微信搜一搜",
+          "icon": "💬",
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://weixin.sogou.com/weixin?query=${KEYWORD}",
+          "enabled": true
+        },
+        {
+          "id": "ccs-taobao",
+          "type": "ecommerce",
+          "title": "淘宝搜索",
+          "icon": "🛒",
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://s.taobao.com/search?q=${KEYWORD}",
+          "enabled": true
+        },
+        {
+          "id": "ccs-jd",
+          "type": "ecommerce",
+          "title": "京东搜索",
+          "icon": "🛍️",
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://search.jd.com/Search?keyword=${KEYWORD}",
+          "enabled": true
+        },
+        {
+          "id": "ccs-sov2ex",
+          "type": "search",
+          "title": "V2EX (sov2ex)",
+          "icon": "💻",
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://www.sov2ex.com/?q=${KEYWORD}",
+          "enabled": true
+        },
+        {
+          "id": "ccs-google-translate",
+          "type": "translate",
+          "title": "Google 翻译",
+          "icon": "🔁",
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://translate.google.com/?sl=auto&tl=zh-CN&text=${KEYWORD}",
+          "enabled": true
+        },
+        {
+          "id": "ccs-chuchusou",
+          "type": "portal",
+          "title": "更多搜索引擎...",
+          "icon": "🌐",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://chuchusou.com/#/?keyword=${KEYWORD}",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "advanced",
+      "name": "高级功能组",
+      "position": "bottom",
+      "separator": "before",
+      "conditional": true,
+      "items": [
+        {
+          "id": "ccs-top100-root",
+          "type": "submenu",
+          "title": "触触搜百问",
+          "icon": "💯",
+          "contexts": ["selection", "page"],
+          "enabled": true,
+          "children": [
+            {
+              "id": "ccs-top100-open-all",
+              "type": "action",
+              "title": "打开以下全部",
+              "icon": "🚀",
+              "contexts": ["selection", "page"]
+            },
+            {
+              "id": "ccs-top100-yiyan",
+              "type": "top100",
+              "title": "文心一言",
+              "icon": "🧠",
+              "engineId": "yiyan",
+              "titleKey": "yiyan",
+              "dynamicTitle": true,
+              "contexts": ["selection", "page"],
+              "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}",
+              "enabled": true
+            }
+          ]
+        },
+        {
+          "id": "ccs-fastqa-root",
+          "type": "submenu",
+          "title": "速答壹拾佰",
+          "icon": "⚡",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page"],
+          "enabled": true,
+          "children": [
+            {
+              "id": "ccs-fastqa-open-all",
+              "type": "action",
+              "title": "打开以下全部",
+              "icon": "🚀",
+              "contexts": ["selection", "page"]
+            },
+            {
+              "id": "ccs-fastqa-yiyan",
+              "type": "fastqa",
+              "title": "触触搜 · 速答壹拾佰 - 文心一言",
+              "icon": "🧠",
+              "engineId": "yiyan",
+              "titleKey": "yiyan",
+              "dynamicTitle": true,
+              "contexts": ["selection", "page"],
+              "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}",
+              "enabled": true
+            }
+          ]
+        },
+        {
+          "id": "ccs-optimize-root",
+          "type": "submenu",
+          "title": "优化提示词",
+          "icon": "🧠",
+          "contexts": ["selection", "page"],
+          "enabled": true,
+          "children": []
+        },
+        {
+          "id": "ccs-cover-root",
+          "type": "submenu",
+          "title": "封面生成器",
+          "icon": "🎨",
+          "contexts": ["selection", "page"],
+          "enabled": true,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "tools",
+      "name": "工具组",
+      "position": "bottom",
+      "separator": "before",
+      "items": [
+        {
+          "id": "ccs-copy",
+          "type": "tool",
+          "title": "复制文本",
+          "icon": "📋",
+          "contexts": ["selection"],
+          "action": "copy",
+          "enabled": false
+        },
+        {
+          "id": "ccs-base64",
+          "type": "tool",
+          "title": "Base64 编码",
+          "icon": "🔤",
+          "contexts": ["selection"],
+          "action": "base64-encode",
+          "enabled": false
+        },
+        {
+          "id": "ccs-md5",
+          "type": "tool",
+          "title": "MD5 哈希",
+          "icon": "🔐",
+          "contexts": ["selection"],
+          "action": "md5-hash",
+          "enabled": false
+        },
+        {
+          "id": "ccs-url-encode",
+          "type": "tool",
+          "title": "URL 编码",
+          "icon": "🔗",
+          "contexts": ["selection"],
+          "action": "url-encode",
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "id": "transform",
+      "name": "文本转换组",
+      "position": "bottom",
+      "separator": "before",
+      "items": [
+        {
+          "id": "ccs-upper",
+          "type": "transform",
+          "title": "转换为大写",
+          "icon": "🔠",
+          "contexts": ["selection"],
+          "action": "to-uppercase",
+          "enabled": false
+        },
+        {
+          "id": "ccs-lower",
+          "type": "transform",
+          "title": "转换为小写",
+          "icon": "🔡",
+          "contexts": ["selection"],
+          "action": "to-lowercase",
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "id": "panel",
+      "name": "面板控制",
+      "position": "bottom",
+      "separator": "before",
+      "items": [
+        {
+          "id": "ccs-show-popover",
+          "type": "action",
+          "title": "打开触触搜面板 (Alt+S)",
+          "icon": "🪟",
+          "contexts": ["all"],
+          "action": "show-popover",
+          "enabled": false
+        }
+      ]
+    }
+  ],
+
+  "optimizeCategories": {
+    "deep-research": {
+      "id": "deep-research",
+      "label": "深度研究",
+      "icon": "📚",
+      "purpose": "深度研究"
+    },
+    "general-conversation": {
+      "id": "general-conversation",
+      "label": "普通对话",
+      "icon": "💬",
+      "purpose": "普通对话"
+    },
+    "code-writing": {
+      "id": "code-writing",
+      "label": "代码编写",
+      "icon": "💻",
+      "purpose": "代码编写"
+    },
+    "content-creation": {
+      "id": "content-creation",
+      "label": "内容创作",
+      "icon": "📝",
+      "purpose": "内容创作"
+    },
+    "data-analysis": {
+      "id": "data-analysis",
+      "label": "数据分析",
+      "icon": "📊",
+      "purpose": "数据分析"
+    },
+    "problem-solving": {
+      "id": "problem-solving",
+      "label": "问题解答",
+      "icon": "🧩",
+      "purpose": "问题解答"
+    },
+    "brainstorm": {
+      "id": "brainstorm",
+      "label": "头脑风暴",
+      "icon": "💡",
+      "purpose": "头脑风暴"
+    },
+    "description-polish": {
+      "id": "description-polish",
+      "label": "优化描述",
+      "icon": "✨",
+      "purpose": "优化描述"
+    }
+  },
+
+  "optimizeEngines": {
+    "chatgpt": {
+      "id": "chatgpt",
+      "label": "ChatGPT",
+      "icon": "🤖"
+    },
+    "claude": {
+      "id": "claude",
+      "label": "Claude (默认 Sonnet 4.5)",
+      "icon": "🧠"
+    },
+    "grok": {
+      "id": "grok",
+      "label": "Grok (默认 Grok 3)",
+      "icon": "🦊"
+    }
+  }
+}

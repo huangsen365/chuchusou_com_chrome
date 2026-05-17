@@ -1,0 +1,84 @@
+{
+  "_comment": "${input} = 选中文本；${purpose} = 风格指令（来自 categories[i].purpose 或 sidepanel 自定义覆盖）；${ratio} = 用户在 sidepanel 选的比例，运行时由 AITaskHandler 从 chrome.storage.local 注入（缺省 5:2）。",
+  "templateLines": [
+    "生成一张 ${ratio} 比例的吸睛大标题图片（image）：",
+    "",
+    "内容：",
+    "${input}",
+    "",
+    "风格：",
+    "${purpose}",
+    "",
+    "注意：",
+    "不要出现任何品牌名称或侵权素材",
+    "",
+    "---",
+    "（以下仅供用户阅读，AI 请忽略本段，专心按上方要求生成图片）",
+    "⚠️ 关于封面生成器，图片生成后，建议截图另存新图再使用，避免被识别为AI产出。",
+    "（直接下载的图片带有 AI 生成标识，自媒体平台可能检测到；推荐用系统截图工具保存：Mac ⇧⌘4 / Win ⊞+Shift+S，或任意截图工具）",
+    "",
+    "💡 如果生成图片效果不满意，请回到侧边栏调整「自定义风格」字眼后再试（风格关键词越具体，渲染越准）。"
+  ],
+  "categories": [
+    {
+      "id": "anime-cute",
+      "label": "二次元可爱",
+      "purpose": "日系二次元可爱风格（随机各种）",
+      "engines": [
+        {
+          "id": "chatgpt-images",
+          "label": "ChatGPT Images 2.0",
+          "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}"
+        }
+      ]
+    },
+    {
+      "id": "xiaohongshu",
+      "label": "小红书封面",
+      "purpose": "小红书的那个封面风格（颜色格调考虑：黄绿蓝红 随机搭配 ，或者选其一）",
+      "engines": [
+        {
+          "id": "chatgpt-images",
+          "label": "ChatGPT Images 2.0",
+          "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}"
+        }
+      ]
+    },
+    {
+      "id": "coconut",
+      "label": "椰树牌风格",
+      "purpose": "椰树牌风格",
+      "engines": [
+        {
+          "id": "chatgpt-images",
+          "label": "ChatGPT Images 2.0",
+          "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}"
+        }
+      ]
+    },
+    {
+      "id": "minimal",
+      "label": "极简的留白",
+      "purpose": "极简留白风格：整体大面积留白、克制的装饰元素、黑白灰为主、低饱和、细线条、强调呼吸感与高级感；但请在标题文字中随机挑选 1～2 个关键字眼（或一个核心词组），用一种鲜明饱和的非黑白灰颜色（如朱红 / 橙黄 / 钴蓝 / 草绿 / 紫罗兰 / 桃粉 / 柠檬黄 等任选其一）作为重点色加以强调，形成「通篇克制 + 一点鲜活」的视觉焦点；其余文字、装饰与背景一律保持黑白灰极简调性，不要让重点色蔓延到非关键字之外",
+      "engines": [
+        {
+          "id": "chatgpt-images",
+          "label": "ChatGPT Images 2.0",
+          "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}"
+        }
+      ]
+    },
+    {
+      "id": "custom",
+      "label": "自定义风格",
+      "purpose": "（用户自定义，由 sidepanel 输入框运行时覆盖）",
+      "engines": [
+        {
+          "id": "chatgpt-images",
+          "label": "ChatGPT Images 2.0",
+          "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}"
+        }
+      ]
+    }
+  ]
+}

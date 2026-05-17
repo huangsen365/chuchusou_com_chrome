@@ -8,8 +8,10 @@ pnpm-debug.log*
 # Build outputs
 /dist/
 /build/
+/.plasmo/
 *.crx
 *.zip
+*.tsbuildinfo
 
 # Editor / OS junk
 .DS_Store

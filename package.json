@@ -2,13 +2,20 @@
   "name": "chuchusou_com_chrome",
   "version": "1.6.16",
   "description": "**触触搜** —— 基于 ChatGPT Images 2.0 的封面生成器（二次元可爱 / 小红书 / 椰树牌 / 极简留白）+ 多 AI 速答 / 提示词优化 / 选中文本快速搜索处理。",
-  "main": "content.js",
   "directories": {
     "doc": "docs"
   },
   "scripts": {
     "lint": "eslint .",
-    "test": "npm run lint"
+    "test": "npm run lint && npm run typecheck && npm run verify:shared-config && npm run verify:menu-structure-builder",
+    "plasmo:dev": "plasmo dev --target=chrome-mv3 --src-path=src",
+    "plasmo:build": "plasmo build --target=chrome-mv3 --src-path=src && node scripts/plasmo-compat-postbuild.mjs && npm run plasmo:verify",
+    "plasmo:package": "npm run plasmo:build && plasmo package --target=chrome-mv3 --src-path=src && npm run plasmo:verify-package",
+    "plasmo:verify": "node scripts/verify-plasmo-compat-build.mjs",
+    "plasmo:verify-package": "node scripts/verify-plasmo-package.mjs",
+    "typecheck": "tsc --noEmit",
+    "verify:shared-config": "node scripts/verify-shared-config.mjs",
+    "verify:menu-structure-builder": "node scripts/verify-menu-structure-builder.mjs"
   },
   "repository": {
     "type": "git",
@@ -17,12 +24,47 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/huangsen365/chuchusou_com_chrome/issues"
   },
   "homepage": "https://github.com/huangsen365/chuchusou_com_chrome#readme",
   "devDependencies": {
-    "eslint": "^9.39.2"
+    "@types/chrome": "^0.0.258",
+    "@types/node": "^20.11.5",
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "@types/scheduler": "^0.16.8",
+    "eslint": "^9.39.2",
+    "prettier": "^3.2.4",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "plasmo": "^0.90.5",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "displayName": "触触搜 - ChatGPT Images 2.0 封面生成器 / 多 AI 速答 / 提示词优化",
+  "manifest": {
+    "name": "触触搜 - ChatGPT Images 2.0 封面生成器 / 多 AI 速答 / 提示词优化",
+    "description": "基于 ChatGPT Images 2.0 的封面生成器（二次元可爱 / 小红书 / 椰树牌 / 极简留白）+ 多 AI 速答 + 文本快速搜索处理",
+    "homepage_url": "https://chuchusou.com",
+    "permissions": [
+      "activeTab",
+      "tabs",
+      "clipboardWrite",
+      "clipboardRead",
+      "storage",
+      "contextMenus",
+      "scripting",
+      "sidePanel",
+      "offscreen"
+    ],
+    "host_permissions": [
+      "<all_urls>"
+    ],
+    "action": {
+      "default_title": "触触搜"
+    },
+    "minimum_chrome_version": "114"
   }
 }
