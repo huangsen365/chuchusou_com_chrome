@@ -1150,7 +1150,50 @@ async function main() {
   assert(reinj4 === false, "exception → false")
   assert(reinjErrLogs[0].stage === "selection-sync-reinject-error", "error logged")
 
-  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure + menuDebugInfo + bootstrap + menuClickClassifier + menuBuilderHelpers + eventHelpers OK")
+  // contextMenuForTab.ts: updateContextMenuForTab → setMenuState 串联
+  const tsCmft = loadTs(path.join(root, "src/background/contextMenuForTab.ts"))
+  assert(typeof tsCmft.updateContextMenuForTab === "function", "updateContextMenuForTab exists")
+
+  let extractCalls = 0
+  let normalizeCalls = 0
+  const cmftState = { raw: "", normalized: "", display: "", tabId: null, url: "" }
+  await tsCmft.updateContextMenuForTab(
+    { id: 7, url: "https://example.test/?q=tab+kw", title: "Tab" },
+    {
+      extractSearchKeywords: async (url, tab) => {
+        extractCalls++
+        assert(url === "https://example.test/?q=tab+kw", "extractSearchKeywords gets url")
+        assert(tab.id === 7, "extractSearchKeywords gets tab")
+        return "tab kw"
+      },
+      normalizeSearchText: (s) => { normalizeCalls++; return s.toLowerCase() },
+      setMenuStateDeps: {
+        currentMenuState: cmftState,
+        formatMenuTitle: (s) => s,
+        tabs: { query: async () => [{ id: 7 }] },
+        contextMenus: { update: (id, p, cb) => cb() },
+        contextMenusRefresh: { refresh: () => {} },
+        runtimeSendMessage: { sendMessage: async () => {} },
+        action: {},
+        runtime: { lastError: null },
+        menuDefinitions: { "ccs-main": { icon: "🔍", text: "触触搜" } },
+        dynamicSearchMenuItems: [],
+        logMenuEvent: () => {},
+        keywordSyncManager: null,
+        refreshDelayMs: 1,
+        setTimeoutFn: (cb) => cb()
+      }
+    }
+  )
+  // setMenuState fire-and-forget, 等 microtask 完成
+  await new Promise((r) => setTimeout(r, 30))
+  assert(extractCalls === 1, "extractSearchKeywords called once")
+  assert(normalizeCalls === 1, "normalize called once")
+  assert(cmftState.raw === "tab kw", "raw propagated to setMenuState")
+  assert(cmftState.normalized === "tab kw", "normalized propagated")
+  assert(cmftState.tabId === 7, "tabId propagated")
+
+  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure + menuDebugInfo + bootstrap + menuClickClassifier + menuBuilderHelpers + eventHelpers + contextMenuForTab OK")
 }
 
 main().catch((err) => {
