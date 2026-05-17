@@ -318,7 +318,10 @@ export class SidepanelController {
     ch.storage?.local.get([VOICE_ENABLED_KEY], (result) => {
       this.voiceEnabled = !!result?.[VOICE_ENABLED_KEY]
       this.renderKeyword()
-      // legacy VoicePanel 实例化仍由 globalThis 上的旧代码处理；下一会话再迁
+      // 启用时 dynamic import VoicePanel —— 默认关闭不加载，保证 sidepanel 首屏不被语音模块拖慢
+      if (this.voiceEnabled) {
+        void this._activateVoicePanel()
+      }
     })
 
     try {
@@ -327,8 +330,32 @@ export class SidepanelController {
         const next = !!changes[VOICE_ENABLED_KEY].newValue
         this.voiceEnabled = next
         this.renderKeyword()
+        if (next) void this._activateVoicePanel()
       })
     } catch (_) { /* noop */ }
+  }
+
+  private async _activateVoicePanel(): Promise<void> {
+    // 若 legacy VoicePanel 已挂载（manifest 仍指 sidepanel/sidepanel.js），让 legacy 接管
+    const w = window as unknown as { CCSSidepanel?: { voicePanel?: unknown } }
+    if (w.CCSSidepanel?.voicePanel) return
+    try {
+      const mod = await import("./Voice")
+      const controller = this
+      const panel = new mod.VoicePanel({
+        get voiceEnabled() { return controller.voiceEnabled },
+        get config() { return controller.config },
+        get keyword() { return { text: controller.keyword.text, raw: controller.keyword.raw } },
+        showToast: (msg: string) => controller.showToast(msg),
+        handleClick: (item) => {
+          void controller.handleClick(item as unknown as Parameters<typeof controller.handleClick>[0])
+        }
+      } as unknown as ConstructorParameters<typeof mod.VoicePanel>[0])
+      if (!w.CCSSidepanel) (w as { CCSSidepanel?: { voicePanel?: unknown } }).CCSSidepanel = {}
+      ;(w.CCSSidepanel as { voicePanel?: unknown }).voicePanel = panel
+    } catch (err) {
+      console.warn("[触触搜] VoicePanel dynamic import 失败:", err)
+    }
   }
 
   bindCopyKeywordButton(): void {
