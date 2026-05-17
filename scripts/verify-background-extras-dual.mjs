@@ -983,7 +983,40 @@ async function main() {
   await Promise.all([p1, p2])
   assert(concurrentCalls === 1, "concurrent calls dedupe to single storage.get")
 
-  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure + menuDebugInfo + bootstrap OK")
+  // menuClickClassifier.ts: 纯函数分类 menuId → ClickIntent
+  const tsMcc = loadTs(path.join(root, "src/background/menuClickClassifier.ts"))
+  assert(typeof tsMcc.classifyMenuClick === "function", "classifyMenuClick exists")
+  assert(typeof tsMcc.clickRequiresKeyword === "function", "clickRequiresKeyword exists")
+
+  // 各分类校验
+  const cases = [
+    { in: "ccs-show-popover", cat: "show-popover", req: false, ai: false, sfx: "" },
+    { in: "ccs-cover-pinned", cat: "cover-pin", req: true, ai: true, sfx: "" },
+    { in: "ccs-top100-open-all", cat: "top100-open-all", req: true, ai: true, sfx: "" },
+    { in: "ccs-top100-chatgpt", cat: "top100-engine", req: true, ai: true, sfx: "chatgpt" },
+    { in: "ccs-fastqa-open-all", cat: "fastqa-open-all", req: true, ai: true, sfx: "" },
+    { in: "ccs-fastqa-baidu", cat: "fastqa-engine", req: true, ai: true, sfx: "baidu" },
+    { in: "ccs-optimize-deep-research-chatgpt", cat: "optimize", req: true, ai: true, sfx: "deep-research-chatgpt" },
+    { in: "ccs-baidu", cat: "unknown", req: false, ai: false, sfx: "" },
+    { in: "", cat: "unknown", req: false, ai: false, sfx: "" },
+    { in: null, cat: "unknown", req: false, ai: false, sfx: "" }
+  ]
+  for (const c of cases) {
+    const got = tsMcc.classifyMenuClick(c.in)
+    assert(got.category === c.cat, `${c.in} → category=${c.cat} (got ${got.category})`)
+    assert(got.requiresKeyword === c.req, `${c.in} → requiresKeyword=${c.req}`)
+    assert(got.isAITask === c.ai, `${c.in} → isAITask=${c.ai}`)
+    assert(got.suffix === c.sfx, `${c.in} → suffix="${c.sfx}" (got "${got.suffix}")`)
+  }
+  // clickRequiresKeyword 短路
+  assert(tsMcc.clickRequiresKeyword("ccs-show-popover") === false, "show-popover no keyword needed")
+  assert(tsMcc.clickRequiresKeyword("ccs-top100-chatgpt") === true, "top100 keyword needed")
+
+  // 自定义 coverPinId
+  const custom = tsMcc.classifyMenuClick("ccs-custom-pin", { coverPinId: "ccs-custom-pin" })
+  assert(custom.category === "cover-pin", "custom coverPinId works")
+
+  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure + menuDebugInfo + bootstrap + menuClickClassifier OK")
 }
 
 main().catch((err) => {
