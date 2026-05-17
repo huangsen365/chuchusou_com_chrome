@@ -14,6 +14,7 @@
 
 import {
   prewarmPromptConfigs,
+  prewarmUiDocuments,
   clearStaleSidepanelStates,
   type PrewarmDeps
 } from "./initPrewarming"
@@ -155,6 +156,7 @@ export class InitOrchestrator {
 
   /** prewarm：仅预热 prompt configs loader cache（popup 菜单结构 prewarm 已废弃 v1.6.19） */
   async runFullPrewarming(): Promise<void> {
+    void prewarmUiDocuments()
     await prewarmPromptConfigs(this.deps)
   }
 
@@ -191,6 +193,7 @@ export class InitOrchestrator {
           this.debug = false  // 启动时关 debug 提升性能（与 legacy 一致）
           await this.initializeMenuSystem()
           if (INIT_CONFIG.autoCleanup) this.setupCleanupTasks()
+          void prewarmUiDocuments()
           void prewarmPromptConfigs(this.deps)
         } catch (error) {
           console.error("[Init] ❌ 初始化失败:", error)

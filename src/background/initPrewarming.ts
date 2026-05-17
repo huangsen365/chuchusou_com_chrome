@@ -25,6 +25,9 @@ export interface PrewarmConfigsResult {
   ms: number
 }
 
+const UI_PREWARM_PATH = "offscreen/prewarm.html"
+let uiPrewarmPromise: Promise<boolean> | null = null
+
 export interface PrewarmDeps {
   /** 6 个 loader (返回 config 或 null) */
   loaders: {
@@ -90,6 +93,91 @@ export async function clearStaleSidepanelStates(deps: PrewarmDeps): Promise<numb
 }
 
 /**
+ * 预热 popup / sidepanel UI 脚本 loader。
+ *
+ * 用户给的 Windows 诊断已经证明：同一个扩展 JS 文件 fetch 只要 ~7ms，但作为
+ * `<script>` 首次执行前可能被 Chrome / AV / SmartScreen 拖 4-10s。这里用临时
+ * offscreen document 在后台先加载这些脚本，把慢路径从用户点击 popup 前移到安装 /
+ * 启动 / SW 唤醒之后。
+ */
+export function prewarmUiDocuments(timeoutMs = 15000): Promise<boolean> {
+  if (uiPrewarmPromise) return uiPrewarmPromise
+  uiPrewarmPromise = prewarmUiDocumentsOnce(timeoutMs).finally(() => {
+    uiPrewarmPromise = null
+  })
+  return uiPrewarmPromise
+}
+
+async function prewarmUiDocumentsOnce(timeoutMs: number): Promise<boolean> {
+  const ch = (globalThis as unknown as {
+    chrome?: {
+      offscreen?: {
+        createDocument?: (opts: { url: string; reasons: string[]; justification: string }) => Promise<void>
+        closeDocument?: () => Promise<void>
+      }
+      runtime?: {
+        getURL?: (path: string) => string
+        getContexts?: (query: { contextTypes?: string[]; documentUrls?: string[] }) => Promise<Array<{ documentUrl?: string; url?: string }>>
+        onMessage?: {
+          addListener?: (listener: (message: unknown) => boolean | void) => void
+          removeListener?: (listener: (message: unknown) => boolean | void) => void
+        }
+      }
+    }
+  }).chrome
+
+  const offscreen = ch?.offscreen
+  const runtime = ch?.runtime
+  if (!offscreen?.createDocument || !runtime?.getURL) return false
+
+  const prewarmUrl = runtime.getURL(UI_PREWARM_PATH)
+
+  try {
+    const existing = await runtime.getContexts?.({ contextTypes: ["OFFSCREEN_DOCUMENT"] })
+    if (Array.isArray(existing) && existing.length > 0) {
+      const hasPrewarm = existing.some((ctx) => (ctx.documentUrl || ctx.url) === prewarmUrl)
+      if (!hasPrewarm) return false
+    }
+  } catch (_) {
+    // getContexts is best-effort; createDocument will still fail safely if busy.
+  }
+
+  let created = false
+  let timer: ReturnType<typeof setTimeout> | null = null
+  let listener: ((message: unknown) => boolean | void) | null = null
+
+  const done = new Promise<boolean>((resolve) => {
+    listener = (message: unknown) => {
+      const msg = message as { action?: string }
+      if (msg?.action !== "ccsUiPrewarmDone") return false
+      resolve(true)
+      return false
+    }
+    runtime.onMessage?.addListener?.(listener)
+    timer = setTimeout(() => resolve(false), timeoutMs)
+  })
+
+  try {
+    await offscreen.createDocument({
+      url: UI_PREWARM_PATH,
+      reasons: ["DOM_PARSER"],
+      justification: "Preload popup and sidepanel scripts before the user opens the extension UI."
+    })
+    created = true
+    return await done
+  } catch (error) {
+    console.warn("[Init] UI 脚本 offscreen 预热失败:", (error as Error)?.message || error)
+    return false
+  } finally {
+    if (timer) clearTimeout(timer)
+    if (listener) runtime.onMessage?.removeListener?.(listener)
+    if (created) {
+      try { await offscreen.closeDocument?.() } catch (_) { /* ignore */ }
+    }
+  }
+}
+
+/**
  * 默认 deps 工厂：从 chrome.* + globalThis loaders 构造。
  * 生产 SW 直接 `runPrewarming(createDefaultPrewarmDeps())`。
  */
@@ -147,12 +235,14 @@ export function createDefaultPrewarmDeps(): PrewarmDeps {
  */
 export async function runFullPrewarming(deps?: PrewarmDeps): Promise<void> {
   const d = deps || createDefaultPrewarmDeps()
+  void prewarmUiDocuments()
   await prewarmPromptConfigs(d)
   await clearStaleSidepanelStates(d)
 }
 
 export default {
   prewarmPromptConfigs,
+  prewarmUiDocuments,
   clearStaleSidepanelStates,
   createDefaultPrewarmDeps,
   runFullPrewarming

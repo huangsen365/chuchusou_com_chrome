@@ -1,7 +1,16 @@
 export default [
   {
+    ignores: [
+      "node_modules/**",
+      "legacy/**",
+      "build/**",
+      ".plasmo/**",
+      "popup/*.bundle.js",
+      "sidepanel/*.bundle.js"
+    ]
+  },
+  {
     files: ["**/*.js"],
-    ignores: ["node_modules/**", "legacy/**", "build/**", ".plasmo/**"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "script",
