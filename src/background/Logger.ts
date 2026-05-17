@@ -322,21 +322,63 @@ export function registerLoggerDebug(globalTarget: Record<string, unknown> = glob
 }
 
 // ============================================
-// 兼容函数：logMenuEvent
+// 菜单事件日志（与 legacy base.js 的 logMenuEvent 行为对齐）
 // ============================================
+//
+// 历史问题：Logger.js 和 base.js 各有一份 logMenuEvent。importScripts 顺序让
+// base.js 的覆盖 Logger.js 的，所以生产用的是 base.js 那套（含 seq + monotonicMs +
+// LOG_PREFIX，无 BG_DEBUG 守门）。此处把 Logger.ts 的实现重写成与 base.js 1:1，
+// 让 Logger.ts 成为 logMenuEvent 的 SSoT，base.js port 完毕后可以直接删那一份。
+
+const LOG_PREFIX_LOCAL = "[触触搜][MENU]"
+let LOG_SEQUENCE = 0
+
+export interface LogPayload {
+  timestamp: string
+  timeMs: number
+  monotonicMs: number | null
+  seq: number
+  [k: string]: unknown
+}
+
+export function buildLogPayload(payload: Record<string, unknown> | null | undefined): LogPayload {
+  const now = new Date()
+  const monotonicMs = (typeof performance !== "undefined" && performance.now)
+    ? Math.round(performance.now())
+    : null
+  return Object.assign({
+    timestamp: now.toISOString(),
+    timeMs: now.getTime(),
+    monotonicMs,
+    seq: ++LOG_SEQUENCE
+  }, payload || {})
+}
 
 export function logMenuEvent(
-  eventName: string,
-  data: Record<string, unknown> = {},
-  options: { enabled?: boolean } = {}
+  stage: string,
+  payload: Record<string, unknown> = {}
 ): void {
-  const debugEnabled =
-    options.enabled ??
-    ((globalThis as { BG_DEBUG?: boolean }).BG_DEBUG ?? false)
-  if (!debugEnabled) return
+  try {
+    const enriched = buildLogPayload(payload)
+    const summaryParts: string[] = []
+    if (typeof enriched.match === "boolean") summaryParts.push(`match=${enriched.match ? "true" : "false"}`)
+    if (typeof enriched.source === "string" && enriched.source) summaryParts.push(`source=${enriched.source}`)
+    if (typeof enriched.keyword === "string" && enriched.keyword) summaryParts.push(`keyword="${enriched.keyword}"`)
+    if (typeof enriched.title === "string" && enriched.title) summaryParts.push(`title="${enriched.title}"`)
+    if (typeof enriched.menuDisplay === "string" && enriched.menuDisplay) summaryParts.push(`menuDisplay="${enriched.menuDisplay}"`)
+    if (typeof enriched.menuRaw === "string" && enriched.menuRaw) summaryParts.push(`menuRaw="${enriched.menuRaw}"`)
+    const summary = summaryParts.join(" | ")
+    if (summary) {
+      console.info(`${LOG_PREFIX_LOCAL} ${stage}`, summary, enriched)
+    } else {
+      console.info(`${LOG_PREFIX_LOCAL} ${stage}`, enriched)
+    }
+  } catch (_) { /* ignore */ }
+}
 
-  const logger = loggers.menuSystem || new Logger("MenuSystem")
-  logger.debug(`[${eventName}]`, data)
+/** 测试用：重置全局 LOG_SEQUENCE（在 verifier 里清零） */
+export function _resetLogSequence(): void {
+  LOG_SEQUENCE = 0
 }
 
 export default Logger
