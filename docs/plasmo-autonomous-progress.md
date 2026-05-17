@@ -90,3 +90,32 @@
   1. 安排一次 Chrome unpacked build 手动验收（用 `npm run perf:test` 一键启动 Canary），把当前 v1.6.16 的全部交互路径过一遍，建立"已验"基线。
   2. 然后在 baseline 之上**逐个切 entry**：先 privacy（最简单）→ welcome → members → voice-permission → offscreen → popup → sidepanel → content → background。每切一个 manifest 入口都要 chrome 浏览器跑全套回归。
   3. 全部 entry 切完 + 验过后，删 legacy 同名文件，进入 Phase 8（替换 build pipeline，把 `./build.sh` 删了走 `plasmo:package`）。
+
+## 2026-05-17 第二批（popup 真实化）
+
+- 本轮目标：把 `popup/popup.js` (1262 行) 真正 port 到 Plasmo entry，让 `src/popup.tsx` 不再是 smoke test。
+- 改动：
+  - **`src/popup/PopupController.ts` (~1060 行)**：PopupMenuRenderer class 1:1 行为 port，复用 CCSMenuStructureBuilder / requestKeyword / PromptLibraryManager。完整菜单渲染 + 子菜单 + Pinned cover + 设置面板 + 侧边栏开关 + 关键字徽章。所有 chrome.* 通过 globalThis 防御性访问。
+  - **`src/popup.tsx` (~245 行)**：取代 v1.6.16 占位 smoke test，渲染与 legacy popup.html 完全一致的 HTML 结构（含 8 个静态预渲染菜单项，保留 v1.6.16 首帧零 JS 性能优化），useEffect mount 时实例化 PopupController.init()。
+- 验证：
+  - `npm test` 全绿
+  - `npm run plasmo:build` 通过
+- Commit：`4d4b2fa` (`refactor(popup): port popup/popup.js 1262 行 → ...`)
+- 关键状态：
+  - **Plasmo build 现在能输出真实的 React popup**（不再是占位 smoke test）
+  - 生产 manifest 仍指向 legacy popup/popup.html
+  - 切换路径：等 Chrome 真机验证完成 → 修改 `package.json` 的 manifest.action.default_popup → 删除 legacy popup/* 文件
+
+## 剩余 entry roadmap（需要 Chrome 真机回归才能完成）
+
+| Entry | 行数 | TS 是否已 port |
+|---|---|---|
+| popup | 1262 | ✅ PopupController.ts + popup.tsx |
+| sidepanel | 1664 | ❌ 待 port（VoiceRecognizer / OffscreenSpeechRecognizer / VoicePanel / PinnedAction / SidePanelRenderer 5 个类） |
+| content.js + dockbar.js | ~600 | ❌ 待 port |
+| background/* SW 入口（base / events / init / menuBuilder / menuHandlers / menuSystem / index / config / keywordResolver / icons / AITaskHandler / KeywordService / KeywordSyncManager） | ~10000 | ❌ 待 port |
+
+下一会话建议优先级：
+1. 先 port sidepanel 主体（PinnedAction + SidePanelRenderer ~800 行），voice 部分留 legacy（实验性，用户可关）
+2. 然后 port content.js + dockbar.js
+3. 最后处理 background SW（最难，因为 importScripts 全局命名空间纠缠最深）
