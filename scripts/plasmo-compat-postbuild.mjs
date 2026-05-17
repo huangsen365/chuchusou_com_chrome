@@ -113,13 +113,27 @@ function main() {
 
   const legacyManifest = readJson("manifest.json")
   const packageJson = readJson("package.json")
+  const plasmoManifestPath = path.join(buildDir, "manifest.json")
+  const plasmoManifest = fs.existsSync(plasmoManifestPath)
+    ? JSON.parse(fs.readFileSync(plasmoManifestPath, "utf8"))
+    : null
+
+  // SW entry：让 Plasmo 接管（src/background.ts → static/background/index.js），
+  // 它运行时 importScripts 加载 legacy 模块，行为与之前一致但 SW 入口归 Plasmo 管
+  const plasmoServiceWorker = plasmoManifest?.background?.service_worker
+  const background = plasmoServiceWorker
+    ? { service_worker: plasmoServiceWorker, type: plasmoManifest?.background?.type }
+    : legacyManifest.background
 
   const compatManifest = {
     ...legacyManifest,
     version: packageJson.version || legacyManifest.version,
     minimum_chrome_version:
-      packageJson.manifest?.minimum_chrome_version || legacyManifest.minimum_chrome_version || "114"
+      packageJson.manifest?.minimum_chrome_version || legacyManifest.minimum_chrome_version || "114",
+    background
   }
+  // 删除 type 若为 undefined（避免 manifest 里出现 "type": undefined）
+  if (!compatManifest.background?.type) delete compatManifest.background?.type
 
   writeJson(path.join(buildDir, "manifest.json"), compatManifest)
 

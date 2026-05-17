@@ -48,7 +48,17 @@ function main() {
   assert(buildManifest.version === packageJson.version, `Build version ${buildManifest.version} != package version ${packageJson.version}`)
   assert(buildManifest.name === legacyManifest.name, "Build manifest name drifted from legacy manifest")
   assert(buildManifest.description === legacyManifest.description, "Build manifest description drifted from legacy manifest")
-  assert(buildManifest.background?.service_worker === legacyManifest.background?.service_worker, "Background entrypoint drifted")
+  // SW 入口允许两种合法值：
+  //   1. legacy `background/index.js`（manifest 未切到 Plasmo 时）
+  //   2. Plasmo 的 `static/background/index.js`（src/background.ts 已接管 SW）
+  // 不允许其它路径漂移。无论哪种，SW 文件必须真实存在于 build dir。
+  const sw = buildManifest.background?.service_worker
+  const allowedSw = new Set([
+    legacyManifest.background?.service_worker,
+    "static/background/index.js"
+  ])
+  assert(sw && allowedSw.has(sw), `Background entrypoint drifted: ${sw}`)
+  assert(fs.existsSync(path.join(buildDir, sw)), `Background SW file missing: ${sw}`)
   assert(buildManifest.action?.default_popup === legacyManifest.action?.default_popup, "Popup entrypoint drifted")
   assert(buildManifest.side_panel?.default_path === legacyManifest.side_panel?.default_path, "Side panel entrypoint drifted")
 
