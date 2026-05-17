@@ -177,12 +177,113 @@ body {
 }
 .sp-pin-edit:hover { background: #fff; }
 
-/* ===== 封面 picker（batch 2 实现）===== */
+/* ===== 封面 picker ===== */
 .sp-pin-picker {
   padding: 10px 12px;
   background: #fafbfc;
   border-bottom: 1px solid #eaeaea;
+  font-size: 12px;
 }
+.sp-pin-picker-title { margin: 0 0 8px; font-size: 13px; }
+.sp-pin-options { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.sp-pin-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+}
+.sp-pin-option:hover { background: #f5f5f5; }
+.sp-pin-option input[type="radio"] { margin: 0; }
+.sp-pin-option-label { flex: 1; }
+
+.sp-pin-custom {
+  margin-bottom: 8px;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+}
+.sp-pin-custom-header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 4px; }
+.sp-pin-custom-label { color: #555; flex: 1; min-width: 100%; }
+.sp-pin-custom-help {
+  background: #f4f6f9;
+  border: 1px solid #d5dde6;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #1a5a9e;
+}
+.sp-pin-custom-help:hover { background: #e8eef5; }
+.sp-pin-custom-input {
+  width: 100%;
+  padding: 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 12px;
+  resize: vertical;
+  margin-bottom: 4px;
+}
+.sp-pin-custom-pick { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.sp-pin-custom-pick-label { color: #555; font-size: 11px; }
+.sp-pin-custom-select {
+  flex: 1;
+  padding: 4px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 11px;
+}
+.sp-pin-custom-meta { display: flex; justify-content: space-between; font-size: 11px; color: #888; }
+
+.sp-pin-ratio-block { margin-bottom: 8px; }
+.sp-pin-ratio-label { display: block; color: #555; margin-bottom: 4px; }
+.sp-pin-ratio-select {
+  width: 100%;
+  padding: 4px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.sp-pin-ratio-custom { display: flex; gap: 4px; margin-bottom: 4px; }
+.sp-pin-ratio-input {
+  flex: 1;
+  padding: 4px 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.sp-pin-ratio-input.invalid { border-color: #d33; }
+.sp-pin-ratio-add {
+  background: #e8f4ff;
+  border: 1px solid #b8d7f0;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #1a5a9e;
+}
+.sp-pin-ratio-hint { font-size: 11px; color: #888; }
+.sp-pin-ratio-hint.error { color: #d33; }
+
+.sp-pin-picker-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.sp-pin-cancel, .sp-pin-save {
+  padding: 5px 12px;
+  border: 1px solid #d5d5d5;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.sp-pin-cancel { background: #fafafa; color: #555; }
+.sp-pin-cancel:hover { background: #f0f0f0; }
+.sp-pin-save { background: #e8f4ff; border-color: #b8d7f0; color: #1a5a9e; }
+.sp-pin-save:hover { background: #d8eaff; }
+.sp-pin-save:disabled { background: #f0f0f0; border-color: #ddd; color: #aaa; cursor: not-allowed; }
 
 /* ===== 语音面板（batch 4 实现，内部 DOM 由 voice.js 注入）===== */
 .sp-voice {

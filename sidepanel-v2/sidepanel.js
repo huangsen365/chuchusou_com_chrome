@@ -18,6 +18,45 @@
   const KW_PREFIX = 'ccs_kw_';
   const TAB_REFRESH_DEBOUNCE_MS = 50;
 
+  // 封面相关 storage keys（与旧 sidepanel + popup-v2 + background 完全一致）
+  const PIN_STORAGE_KEY = 'ccs_sidepanel_pinned_action';
+  const CUSTOM_PURPOSE_KEY = 'ccs_cover_custom_purpose';
+  const CUSTOM_LINE_KEY = 'ccs_cover_custom_selected_line';
+  const RATIO_KEY = 'ccs_cover_aspect_ratio';
+  const RATIO_CUSTOM_LIST_KEY = 'ccs_cover_custom_ratios';
+  const CUSTOM_PURPOSE_MAX = 5000;
+  const CUSTOM_LINE_PREVIEW_MAX = 15;
+  const RATIO_CUSTOM_MAX = 5;
+  const DEFAULT_PIN = { taskId: 'cover', categoryId: 'anime-cute' };
+  const DEFAULT_RATIO = '5:2';
+  const RATIO_CUSTOM_TRIGGER = '__custom__';
+  const RATIO_RE = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/;
+  const RATIO_PRESETS = [
+    { value: '5:2',    label: '5:2 · 横幅封面（默认）' },
+    { value: '6:2',    label: '6:2 · X (Twitter) 个人主页 Banner（1500×500）' },
+    { value: '2.35:1', label: '2.35:1 · 微信公众号头图 / 电影宽屏' },
+    { value: '2:1',    label: '2:1 · 横幅卡片' },
+    { value: '16:9',   label: '16:9 · 通用横屏（YouTube / B 站）' },
+    { value: '3:2',    label: '3:2 · 头条号 / 摄影标准' },
+    { value: '4:3',    label: '4:3 · 传统媒体 / PPT' },
+    { value: '1:1',    label: '1:1 · 方形（Instagram / 微博）' },
+    { value: '4:5',    label: '4:5 · 竖版图文（Instagram 推荐）' },
+    { value: '3:4',    label: '3:4 · 竖版封面（小红书 / Pinterest）' },
+    { value: '9:16',   label: '9:16 · 手机竖屏（抖音 / TikTok）' }
+  ];
+  // 「💡 不知道填什么？」帮助链接 —— 跳 ChatGPT / Google 找风格灵感
+  const COVER_HELP_URL_1 = 'https://chatgpt.com/?prompt=' + encodeURIComponent('为"封面图设计风格参考"生成 30 个风格，每行一个');
+  const COVER_HELP_URL_2 = 'https://www.google.com/search?q=' + encodeURIComponent('ChatGPT Images 2.0 提示词');
+
+  function parseCustomLines(text) {
+    if (typeof text !== 'string') return [];
+    return text.split(/\r?\n/).map((s) => s.trim()).filter((s) => s.length > 0);
+  }
+  function truncateLine(s, max = CUSTOM_LINE_PREVIEW_MAX) {
+    if (typeof s !== 'string') return '';
+    return s.length > max ? s.slice(0, max) + '…' : s;
+  }
+
   // ===== DOM refs =====
   const $kw = document.getElementById('spKeyword');
   const $kwCopy = document.getElementById('spKeywordCopy');
@@ -30,11 +69,46 @@
   const $tipClose = document.getElementById('spPinTipClose');
   const $menu = document.getElementById('spMenu');
 
+  // 封面卡片
+  const $pin = document.getElementById('spPin');
+  const $pinAction = document.getElementById('spPinAction');
+  const $pinEdit = document.getElementById('spPinEdit');
+  const $pinStyle = document.getElementById('spPinStyle');
+  const $pinRatio = document.getElementById('spPinRatio');
+
+  // Picker
+  const $picker = document.getElementById('spPinPicker');
+  const $pickerOptions = document.getElementById('spPinOptions');
+  const $pickerCustom = document.getElementById('spPinCustom');
+  const $pickerCustomInput = document.getElementById('spPinCustomInput');
+  const $pickerCustomSelect = document.getElementById('spPinCustomSelect');
+  const $pickerCustomCounter = document.getElementById('spPinCustomCounter');
+  const $pickerCustomHelp = document.getElementById('spPinCustomHelp');
+  const $pickerCustomHelp2 = document.getElementById('spPinCustomHelp2');
+  const $pickerRatioSelect = document.getElementById('spPinRatioSelect');
+  const $pickerRatioCustom = document.getElementById('spPinRatioCustom');
+  const $pickerRatioInput = document.getElementById('spPinRatioInput');
+  const $pickerRatioAdd = document.getElementById('spPinRatioAdd');
+  const $pickerRatioHint = document.getElementById('spPinRatioHint');
+  const $pickerCancel = document.getElementById('spPinCancel');
+  const $pickerSave = document.getElementById('spPinSave');
+
   // ===== 状态 =====
   let currentKw = '';
   let currentTabId = null;
   let currentTabUrl = '';
   let refreshTimer = null;
+
+  // 封面状态
+  let coverConfig = null;
+  let pinCurrent = { ...DEFAULT_PIN };
+  let pinCustomPurpose = '';
+  let pinCustomSelectedLine = '';
+  let pinRatio = DEFAULT_RATIO;
+  let pinCustomRatios = [];
+  // picker 内的 draft（取消时丢弃）
+  let pickerDraft = null;
+  let pickerLastDropdownLines = [];
 
   // ===== 工具 =====
   function showToast(message) {
@@ -66,6 +140,353 @@
     }
     // 通知后续 batch（cover / voice）状态变化
     document.dispatchEvent(new CustomEvent('sp-keyword-change', { detail: { keyword: currentKw } }));
+  }
+
+  // ===== Pin / Cover Picker =====
+  function findCategory(id, cfg = coverConfig) {
+    if (!cfg || !Array.isArray(cfg.categories)) return null;
+    return cfg.categories.find((c) => c.id === id) || null;
+  }
+
+  // 初始化封面：并行读 5 个 storage key + fetch coverPrompts.json，然后渲染卡片
+  async function initPin() {
+    const [stored, customPurpose, customLine, ratioInfo, cover] = await Promise.all([
+      chrome.storage.local.get([PIN_STORAGE_KEY]).then((r) => r[PIN_STORAGE_KEY] || null).catch(() => null),
+      chrome.storage.local.get([CUSTOM_PURPOSE_KEY]).then((r) => r[CUSTOM_PURPOSE_KEY] || '').catch(() => ''),
+      chrome.storage.local.get([CUSTOM_LINE_KEY]).then((r) => r[CUSTOM_LINE_KEY] || '').catch(() => ''),
+      chrome.storage.local.get([RATIO_KEY, RATIO_CUSTOM_LIST_KEY]).then((r) => ({
+        ratio: (typeof r[RATIO_KEY] === 'string' && RATIO_RE.test(r[RATIO_KEY].trim())) ? r[RATIO_KEY].trim() : DEFAULT_RATIO,
+        custom: Array.isArray(r[RATIO_CUSTOM_LIST_KEY]) ? r[RATIO_CUSTOM_LIST_KEY].filter((x) => typeof x === 'string' && RATIO_RE.test(x)) : []
+      })).catch(() => ({ ratio: DEFAULT_RATIO, custom: [] })),
+      fetch('../prompts/coverPrompts.json').then((r) => r.ok ? r.json() : null).catch(() => null)
+    ]);
+
+    coverConfig = cover;
+    pinCustomPurpose = customPurpose || '';
+    pinCustomSelectedLine = customLine || (parseCustomLines(pinCustomPurpose)[0] || '');
+    pinRatio = ratioInfo.ratio;
+    pinCustomRatios = ratioInfo.custom;
+    if (stored && findCategory(stored.categoryId)) {
+      pinCurrent = (stored.categoryId === 'custom' && !pinCustomSelectedLine) ? { ...DEFAULT_PIN } : stored;
+    } else {
+      pinCurrent = { ...DEFAULT_PIN };
+    }
+
+    if (!coverConfig || !coverConfig.categories || coverConfig.categories.length === 0) return;
+    $pin.hidden = false;
+    renderPin();
+  }
+
+  function renderPin() {
+    const cat = findCategory(pinCurrent.categoryId);
+    if (!cat) return;
+    if ($pinRatio) $pinRatio.textContent = pinRatio || DEFAULT_RATIO;
+    if (!$pinStyle) return;
+    if (cat.id === 'custom') {
+      const line = (pinCustomSelectedLine || '').trim();
+      const preview = truncateLine(line);
+      $pinStyle.textContent = preview ? `🖌️ ${preview}` : '🖌️ 自定义风格';
+      $pinStyle.title = line || '';
+    } else {
+      $pinStyle.textContent = cat.label || cat.id;
+      $pinStyle.title = '';
+    }
+  }
+
+  // 🎨 卡片 click → 走 executeMenuAction sendMessage 让 background 拼 prompt 开 URL
+  async function executePin() {
+    const cat = findCategory(pinCurrent.categoryId);
+    if (!cat) return;
+    const engine = (cat.engines || [])[0];
+    if (!engine) { showToast('该风格暂无可用引擎'); return; }
+
+    let purpose = cat.purpose || cat.label;
+    if (cat.id === 'custom') {
+      const userText = (pinCustomSelectedLine || '').trim();
+      if (!userText) { showToast('请先点 ✏️ 填写自定义风格'); return; }
+      purpose = userText;
+    }
+    if (!currentKw) { showToast('请先选中文字'); return; }
+    const payload = {
+      action: 'executeMenuAction',
+      menuItemId: `ccs-cover-${cat.id}-${engine.id}`,
+      menuType: 'cover',
+      keyword: currentKw,
+      urlPattern: engine.urlPattern,
+      engineId: engine.id,
+      purpose,
+      categoryId: cat.id
+    };
+    try {
+      const client = globalThis.CCSRuntimeClient;
+      if (client?.sendRuntimeMessage) {
+        const result = await client.sendRuntimeMessage(payload, { timeoutMs: 5000, retries: 1 });
+        if (!result.ok) { showToast('操作失败'); return; }
+        const resp = result.data || {};
+        if (resp.error === 'no-keyword') showToast('没有选中文本或无法提取关键词');
+      } else {
+        chrome.runtime.sendMessage(payload).catch(() => {});
+      }
+    } catch (_) { showToast('操作失败'); }
+  }
+
+  // ===== Picker =====
+  function openPicker() {
+    pickerDraft = { ...pinCurrent };
+    pickerDraft.customPurpose = pinCustomPurpose;
+    pickerDraft.customSelectedLine = pinCustomSelectedLine;
+    pickerDraft.ratio = pinRatio;
+    pickerDraft.customRatios = [...pinCustomRatios];
+    pickerLastDropdownLines = parseCustomLines(pickerDraft.customPurpose);
+
+    // 分类 radio
+    $pickerOptions.innerHTML = '';
+    (coverConfig?.categories || []).forEach((cat) => {
+      const optId = `pin-opt-${cat.id}`;
+      const checked = cat.id === pickerDraft.categoryId ? 'checked' : '';
+      const label = document.createElement('label');
+      label.className = 'sp-pin-option';
+      label.htmlFor = optId;
+      const labelText = cat.id === 'custom' ? `🖌️ ${cat.label || cat.id}` : (cat.label || cat.id);
+      label.innerHTML = `<input type="radio" name="pinStyle" id="${optId}" value="${cat.id}" ${checked}><span class="sp-pin-option-label"></span>`;
+      label.querySelector('.sp-pin-option-label').textContent = labelText;
+      $pickerOptions.appendChild(label);
+    });
+
+    // textarea
+    if ($pickerCustomInput) $pickerCustomInput.value = pickerDraft.customPurpose;
+
+    refreshPickerCustomVisibility();
+    refreshPickerCounter();
+    rebuildCustomDropdown();
+    rebuildRatioDropdown();
+    refreshSaveBtn();
+    $picker.hidden = false;
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (_) { window.scrollTo(0, 0); }
+  }
+
+  function closePicker() {
+    $picker.hidden = true;
+    pickerDraft = null;
+    pickerLastDropdownLines = [];
+  }
+
+  function refreshPickerCustomVisibility() {
+    if (!$pickerCustom) return;
+    $pickerCustom.hidden = pickerDraft?.categoryId !== 'custom';
+  }
+
+  function refreshPickerCounter() {
+    if (!$pickerCustomCounter) return;
+    $pickerCustomCounter.textContent = String((pickerDraft?.customPurpose || '').length);
+  }
+
+  function activateCustomCategory() {
+    if (!pickerDraft || pickerDraft.categoryId === 'custom') return;
+    pickerDraft.categoryId = 'custom';
+    const radio = $pickerOptions.querySelector('input[name="pinStyle"][value="custom"]');
+    if (radio) radio.checked = true;
+    refreshPickerCustomVisibility();
+  }
+
+  function rebuildCustomDropdown() {
+    if (!$pickerCustomSelect) return;
+    const lines = parseCustomLines(pickerDraft?.customPurpose || '');
+    $pickerCustomSelect.innerHTML = '';
+    if (lines.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '（请先在上方填写至少 1 行预设）';
+      opt.disabled = true;
+      $pickerCustomSelect.appendChild(opt);
+      $pickerCustomSelect.disabled = true;
+      if (pickerDraft) pickerDraft.customSelectedLine = '';
+      pickerLastDropdownLines = [];
+      return;
+    }
+    $pickerCustomSelect.disabled = false;
+    const added = [...lines].reverse().find((l) => !pickerLastDropdownLines.includes(l));
+    let chosen;
+    if (added) chosen = added;
+    else if (lines.includes(pickerDraft.customSelectedLine)) chosen = pickerDraft.customSelectedLine;
+    else chosen = lines[0];
+    lines.forEach((line) => {
+      const opt = document.createElement('option');
+      opt.value = line;
+      opt.textContent = truncateLine(line);
+      opt.title = line;
+      if (line === chosen) opt.selected = true;
+      $pickerCustomSelect.appendChild(opt);
+    });
+    $pickerCustomSelect.value = chosen;
+    pickerDraft.customSelectedLine = chosen;
+    pickerLastDropdownLines = [...lines];
+  }
+
+  function rebuildRatioDropdown() {
+    if (!$pickerRatioSelect) return;
+    $pickerRatioSelect.innerHTML = '';
+    const groups = [];
+    if (pickerDraft.customRatios.length > 0) {
+      groups.push({ label: '自定义', items: pickerDraft.customRatios.map((v) => ({ value: v, label: `${v} · 自定义` })) });
+    }
+    groups.push({ label: '预设', items: RATIO_PRESETS });
+    for (const g of groups) {
+      const og = document.createElement('optgroup');
+      og.label = g.label;
+      for (const it of g.items) {
+        const opt = document.createElement('option');
+        opt.value = it.value;
+        opt.textContent = it.label;
+        if (it.value === pickerDraft.ratio) opt.selected = true;
+        og.appendChild(opt);
+      }
+      $pickerRatioSelect.appendChild(og);
+    }
+    const trigger = document.createElement('option');
+    trigger.value = RATIO_CUSTOM_TRIGGER;
+    trigger.textContent = '➕ 自定义比例…';
+    $pickerRatioSelect.appendChild(trigger);
+    if (![...$pickerRatioSelect.options].some((o) => o.value === pickerDraft.ratio && o.value !== RATIO_CUSTOM_TRIGGER)) {
+      pickerDraft.ratio = DEFAULT_RATIO;
+      [...$pickerRatioSelect.options].forEach((o) => { o.selected = o.value === DEFAULT_RATIO; });
+    }
+  }
+
+  function refreshSaveBtn() {
+    if (!$pickerSave) return;
+    const blocked = pickerDraft?.categoryId === 'custom' && !(pickerDraft.customSelectedLine || '').trim();
+    $pickerSave.disabled = !!blocked;
+  }
+
+  async function savePicker() {
+    if (!pickerDraft) { closePicker(); return; }
+    if (pickerDraft.categoryId === 'custom' && !(pickerDraft.customSelectedLine || '').trim()) {
+      showToast('请先填写至少 1 行自定义风格');
+      return;
+    }
+    pinCurrent = { taskId: 'cover', categoryId: pickerDraft.categoryId };
+    const writes = { [PIN_STORAGE_KEY]: pinCurrent };
+    if (pickerDraft.categoryId === 'custom') {
+      const cleanLines = parseCustomLines(pickerDraft.customPurpose);
+      const fullText = cleanLines.join('\n').slice(0, CUSTOM_PURPOSE_MAX);
+      const selectedLine = (pickerDraft.customSelectedLine || '').trim();
+      pinCustomPurpose = fullText;
+      pinCustomSelectedLine = selectedLine;
+      writes[CUSTOM_PURPOSE_KEY] = fullText;
+      writes[CUSTOM_LINE_KEY] = selectedLine;
+    }
+    const ratio = (typeof pickerDraft.ratio === 'string' && RATIO_RE.test(pickerDraft.ratio)) ? pickerDraft.ratio : DEFAULT_RATIO;
+    pinRatio = ratio;
+    pinCustomRatios = [...pickerDraft.customRatios];
+    writes[RATIO_KEY] = ratio;
+    writes[RATIO_CUSTOM_LIST_KEY] = pinCustomRatios;
+    try { await chrome.storage.local.set(writes); } catch (_) {}
+    renderPin();
+    closePicker();
+    showToast('已保存置顶风格');
+  }
+
+  function bindPickerEvents() {
+    if ($pinAction) $pinAction.addEventListener('click', executePin);
+    if ($pinEdit) $pinEdit.addEventListener('click', openPicker);
+    if ($pickerCancel) $pickerCancel.addEventListener('click', closePicker);
+    if ($pickerSave) $pickerSave.addEventListener('click', savePicker);
+
+    // 分类 radio change
+    if ($pickerOptions) {
+      $pickerOptions.addEventListener('change', (e) => {
+        const t = e.target;
+        if (t && t.name === 'pinStyle') {
+          pickerDraft.categoryId = t.value;
+          refreshPickerCustomVisibility();
+          refreshSaveBtn();
+        }
+      });
+    }
+    // textarea input
+    if ($pickerCustomInput) {
+      $pickerCustomInput.addEventListener('input', () => {
+        if (!pickerDraft) return;
+        pickerDraft.customPurpose = $pickerCustomInput.value || '';
+        activateCustomCategory();
+        refreshPickerCounter();
+        rebuildCustomDropdown();
+        refreshSaveBtn();
+      });
+    }
+    // dropdown change
+    if ($pickerCustomSelect) {
+      $pickerCustomSelect.addEventListener('change', () => {
+        if (!pickerDraft) return;
+        pickerDraft.customSelectedLine = $pickerCustomSelect.value || '';
+        activateCustomCategory();
+        refreshSaveBtn();
+      });
+    }
+    // help links
+    if ($pickerCustomHelp) {
+      $pickerCustomHelp.addEventListener('click', () => {
+        try { chrome.tabs.create({ url: COVER_HELP_URL_1 }); } catch (_) {}
+      });
+    }
+    if ($pickerCustomHelp2) {
+      $pickerCustomHelp2.addEventListener('click', () => {
+        try { chrome.tabs.create({ url: COVER_HELP_URL_2 }); } catch (_) {}
+      });
+    }
+
+    // Ratio select / 自定义比例输入
+    if ($pickerRatioSelect) {
+      $pickerRatioSelect.addEventListener('change', () => {
+        const v = $pickerRatioSelect.value;
+        if (v === RATIO_CUSTOM_TRIGGER) {
+          $pickerRatioCustom.hidden = false;
+          $pickerRatioHint.hidden = false;
+          $pickerRatioHint.textContent = '格式：宽:高（数字，可带小数）';
+          $pickerRatioHint.classList.remove('error');
+          $pickerRatioInput.focus();
+        } else {
+          $pickerRatioCustom.hidden = true;
+          $pickerRatioHint.hidden = true;
+          pickerDraft.ratio = v;
+        }
+      });
+    }
+    if ($pickerRatioInput) {
+      $pickerRatioInput.addEventListener('input', () => {
+        $pickerRatioInput.classList.remove('invalid');
+        $pickerRatioHint.classList.remove('error');
+        $pickerRatioHint.textContent = '格式：宽:高（数字，可带小数）';
+      });
+      $pickerRatioInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); $pickerRatioAdd.click(); }
+      });
+    }
+    if ($pickerRatioAdd) {
+      $pickerRatioAdd.addEventListener('click', () => {
+        const raw = ($pickerRatioInput.value || '').trim();
+        if (!RATIO_RE.test(raw)) {
+          $pickerRatioInput.classList.add('invalid');
+          $pickerRatioHint.classList.add('error');
+          $pickerRatioHint.textContent = '格式不对，应为 宽:高（如 2.35:1）';
+          return;
+        }
+        if (RATIO_PRESETS.some((p) => p.value === raw) || pickerDraft.customRatios.includes(raw)) {
+          pickerDraft.ratio = raw;
+        } else {
+          pickerDraft.customRatios.unshift(raw);
+          if (pickerDraft.customRatios.length > RATIO_CUSTOM_MAX) {
+            pickerDraft.customRatios = pickerDraft.customRatios.slice(0, RATIO_CUSTOM_MAX);
+          }
+          pickerDraft.ratio = raw;
+        }
+        $pickerRatioInput.value = '';
+        $pickerRatioCustom.hidden = true;
+        $pickerRatioHint.hidden = true;
+        rebuildRatioDropdown();
+      });
+    }
   }
 
   // 拿 active tab（用 CCSKeywordClient 的 3 段 fallback）
@@ -264,5 +685,7 @@
 
   // ===== 启动 =====
   bindEvents();
+  bindPickerEvents();
   queryActiveTab().then(loadKeyword);
+  initPin();   // 并行拉 storage + coverPrompts.json，启动后渲染封面卡片
 })();

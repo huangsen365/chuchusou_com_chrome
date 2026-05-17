@@ -58,8 +58,42 @@
     <section class="sp-voice" id="spVoice" hidden></section>
   </div>
 
-  <!-- 封面 picker（默认隐藏，点 ✏️ 展开） —— batch 2 填充内部 DOM -->
-  <div class="sp-pin-picker" id="spPinPicker" hidden></div>
+  <!-- 封面 picker（默认隐藏，点 ✏️ 展开）-->
+  <div class="sp-pin-picker" id="spPinPicker" hidden>
+    <h3 class="sp-pin-picker-title">选择置顶风格</h3>
+    <div class="sp-pin-options" id="spPinOptions"></div>
+    <div class="sp-pin-custom" id="spPinCustom" hidden>
+      <div class="sp-pin-custom-header">
+        <label class="sp-pin-custom-label" for="spPinCustomInput">自定义预设（每行一个，可保存多个）：</label>
+        <button type="button" class="sp-pin-custom-help" id="spPinCustomHelp" title="让 ChatGPT 给你列 30 个封面风格参考">💡 不知道填什么？(1)</button>
+        <button type="button" class="sp-pin-custom-help" id="spPinCustomHelp2" title="Google 搜「ChatGPT Images 2.0 提示词」">💡 不知道填什么？(2)</button>
+      </div>
+      <textarea class="sp-pin-custom-input" id="spPinCustomInput"
+        placeholder="一行一个风格预设，例如：&#10;莫兰迪色调，低饱和度&#10;极简主义，留白构图"
+        maxlength="5000" rows="5"></textarea>
+      <div class="sp-pin-custom-pick">
+        <label class="sp-pin-custom-pick-label" for="spPinCustomSelect">当前应用：</label>
+        <select class="sp-pin-custom-select" id="spPinCustomSelect"></select>
+      </div>
+      <div class="sp-pin-custom-meta">
+        <span class="sp-pin-custom-hint">每行=一个预设，dropdown 选哪行就用哪行</span>
+        <span class="sp-pin-custom-counter"><span id="spPinCustomCounter">0</span> / 5000</span>
+      </div>
+    </div>
+    <div class="sp-pin-ratio-block">
+      <label class="sp-pin-ratio-label" for="spPinRatioSelect">比例（适用所有封面调用）：</label>
+      <select class="sp-pin-ratio-select" id="spPinRatioSelect"></select>
+      <div class="sp-pin-ratio-custom" id="spPinRatioCustom" hidden>
+        <input type="text" class="sp-pin-ratio-input" id="spPinRatioInput" placeholder="例如：2.35:1（宽:高）" maxlength="16">
+        <button type="button" class="sp-pin-ratio-add" id="spPinRatioAdd">添加</button>
+      </div>
+      <div class="sp-pin-ratio-hint" id="spPinRatioHint" hidden>格式：宽:高（数字，可带小数）</div>
+    </div>
+    <div class="sp-pin-picker-actions">
+      <button class="sp-pin-cancel" id="spPinCancel" type="button">取消</button>
+      <button class="sp-pin-save" id="spPinSave" type="button">保存</button>
+    </div>
+  </div>
 
   <!-- 菜单容器：源码内嵌 8 项作 fallback；build 时 prebuild-popup-menu.mjs 替换为完整 19 项 -->
   <div class="sp-menu" id="spMenu">
