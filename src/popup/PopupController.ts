@@ -594,12 +594,23 @@ export class PopupController {
     } catch (_) { isOpen = false }
     updateLabel()
 
+    // v1.6.19: SW 校正消息推迟到 idle，先让 popup 完成首屏渲染再唤醒 SW
     if (typeof windowId === "number") {
-      getChrome().runtime?.sendMessage({ action: "getSidePanelState", windowId }, (resp) => {
-        const ch = getChrome()
-        if (ch.runtime?.lastError) return
-        const r = resp as { isOpen?: boolean } | undefined
-        if (r && !!r.isOpen !== isOpen) { isOpen = !!r.isOpen; updateLabel() }
+      const wid = windowId
+      const idleSchedule = (fn: () => void) => {
+        const ric = (globalThis as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback
+        if (typeof ric === "function") ric(fn, { timeout: 1200 })
+        else setTimeout(fn, 800)
+      }
+      idleSchedule(() => {
+        try {
+          getChrome().runtime?.sendMessage({ action: "getSidePanelState", windowId: wid }, (resp) => {
+            const ch = getChrome()
+            if (ch.runtime?.lastError) return
+            const r = resp as { isOpen?: boolean } | undefined
+            if (r && !!r.isOpen !== isOpen) { isOpen = !!r.isOpen; updateLabel() }
+          })
+        } catch (_) { /* ignore */ }
       })
     }
 

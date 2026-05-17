@@ -688,15 +688,26 @@ class PopupMenuRenderer {
     }
     updateLabel();
 
-    // SW 异步校正：storage 数据可能陈旧（SW 死过没来得及更新），
-    // 发个消息让 SW 给权威答案。如果不一致就更新 label，不阻塞首屏。
+    // v1.6.19: SW 校正消息推迟 800ms。先让 popup 完成首屏渲染，再去唤醒
+    // SW（商店生产环境 SW 冷启动 ~500ms-2s，跟首屏抢 CPU 是用户报的卡顿
+    // 主因）。storage 值 99% 情况下就是对的，校正只在 SW 死过没来得及写
+    // 时才有差异。用户点关闭/打开时也会重新拿一次状态做权威判断。
     if (typeof windowId === 'number') {
-      chrome.runtime.sendMessage({ action: 'getSidePanelState', windowId }, (resp) => {
-        if (chrome.runtime.lastError) return;
-        if (resp && !!resp.isOpen !== isOpen) {
-          isOpen = !!resp.isOpen;
-          updateLabel();
-        }
+      const idleSchedule = (fn) => {
+        const ric = globalThis.requestIdleCallback;
+        if (typeof ric === 'function') ric(fn, { timeout: 1200 });
+        else setTimeout(fn, 800);
+      };
+      idleSchedule(() => {
+        try {
+          chrome.runtime.sendMessage({ action: 'getSidePanelState', windowId }, (resp) => {
+            if (chrome.runtime.lastError) return;
+            if (resp && !!resp.isOpen !== isOpen) {
+              isOpen = !!resp.isOpen;
+              updateLabel();
+            }
+          });
+        } catch (_) { /* ignore */ }
       });
     }
 
