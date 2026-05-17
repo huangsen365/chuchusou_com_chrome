@@ -2,17 +2,19 @@
  * 触触搜 - Toast 通知组件 (TypeScript port)
  *
  * 与 content/ToastUI.js 1:1 行为对等。**零 chrome.* 依赖**（纯 DOM API）。
+ * 颜色 + 位置 + z-index + 字体栈复用 `src/shared/Toast.ts` SSoT。
  */
 
-export type ToastPosition =
-  | "bottom-right"
-  | "bottom-left"
-  | "top-right"
-  | "top-left"
-  | "bottom-center"
-  | "top-center"
+import {
+  type ToastType,
+  type ToastPosition,
+  TOAST_INLINE_COLORS,
+  TOAST_POSITION_CSS,
+  TOAST_Z_INDEX,
+  TOAST_FONT_FAMILY
+} from "../shared/Toast"
 
-export type ToastType = "info" | "success" | "error" | "warning"
+export type { ToastType, ToastPosition }
 
 export interface ToastOptions {
   duration?: number
@@ -69,14 +71,8 @@ export class Toast {
   showContextMenuToast(message: string): void { this.info(message) }
 
   private _applyStyles(toast: HTMLElement, type: ToastType): void {
-    const colors: Record<ToastType, { bg: string; color: string }> = {
-      info:    { bg: "rgba(0, 0, 0, 0.85)",     color: "#fff" },
-      success: { bg: "rgba(39, 174, 96, 0.95)", color: "#fff" },
-      error:   { bg: "rgba(231, 76, 60, 0.95)", color: "#fff" },
-      warning: { bg: "rgba(241, 196, 15, 0.95)", color: "#333" }
-    }
-    const { bg, color } = colors[type] || colors.info
-    const positionStyles = this._getPositionStyles()
+    const { bg, color } = TOAST_INLINE_COLORS[type] || TOAST_INLINE_COLORS.info
+    const positionStyles = TOAST_POSITION_CSS[this.position] || TOAST_POSITION_CSS["bottom-right"]
 
     toast.style.cssText = `
       position: fixed;
@@ -86,9 +82,9 @@ export class Toast {
       padding: 12px 20px;
       border-radius: 8px;
       font-size: 14px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: ${TOAST_FONT_FAMILY};
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      z-index: 2147483647;
+      z-index: ${TOAST_Z_INDEX};
       opacity: 0;
       transform: translateY(10px);
       transition: opacity 0.2s ease, transform 0.2s ease;
@@ -96,18 +92,6 @@ export class Toast {
       word-wrap: break-word;
       pointer-events: none;
     `
-  }
-
-  private _getPositionStyles(): string {
-    const positions: Record<ToastPosition, string> = {
-      "bottom-right":  "bottom: 20px; right: 20px;",
-      "bottom-left":   "bottom: 20px; left: 20px;",
-      "top-right":     "top: 20px; right: 20px;",
-      "top-left":      "top: 20px; left: 20px;",
-      "bottom-center": "bottom: 20px; left: 50%; transform: translateX(-50%);",
-      "top-center":    "top: 20px; left: 50%; transform: translateX(-50%);"
-    }
-    return positions[this.position] || positions["bottom-right"]
   }
 }
 

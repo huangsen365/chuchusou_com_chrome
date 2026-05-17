@@ -2,9 +2,11 @@
  * 触触搜 Popup - Toast 通知助手 (TypeScript port)
  *
  * 与 popup/modules/ToastHelper.js 1:1 行为对等。**零 chrome.* 依赖**。
+ * ToastType 类型复用 `src/shared/Toast.ts` SSoT。
  */
 
-export type ToastType = "info" | "success" | "error" | "warning"
+import type { ToastType } from "../../shared/Toast"
+export type { ToastType }
 
 export interface ToastHelperOptions {
   duration?: number

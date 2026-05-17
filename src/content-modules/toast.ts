@@ -2,7 +2,15 @@
  * Content script - Toast 模块 (TypeScript port)
  *
  * 与 modules/toast.js 1:1 行为对等。**零 chrome.* 依赖**（纯 DOM）。
+ * 颜色 + z-index + 位置解析复用 `src/shared/Toast.ts` SSoT。
  */
+
+import {
+  TOAST_BRIGHT_COLORS,
+  TOAST_Z_INDEX,
+  resolvePositionCss,
+  type ToastType
+} from "../shared/Toast"
 
 export interface ToastOptions {
   duration?: number
@@ -24,14 +32,13 @@ export class CCSContentToast {
     toast.textContent = message
     toast.style.cssText = `
       position: fixed;
-      ${config.position.includes("bottom") ? "bottom: 20px;" : "top: 20px;"}
-      ${config.position.includes("right") ? "right: 20px;" : "left: 20px;"}
+      ${resolvePositionCss(config.position)}
       background: rgba(0, 0, 0, 0.8);
       color: white;
       padding: 12px 20px;
       border-radius: 6px;
       font-size: 14px;
-      z-index: 2147483647;
+      z-index: ${TOAST_Z_INDEX};
       opacity: 0;
       transform: translateX(20px);
       transition: all 0.3s ease-out;
@@ -64,29 +71,16 @@ export class CCSContentToast {
     return toast
   }
 
-  success(message: string, options: ToastOptions = {}): HTMLElement {
+  private _withColor(type: ToastType, message: string, options: ToastOptions): HTMLElement {
     const toast = this.show(message, options)
-    toast.style.background = "rgba(34, 139, 34, 0.9)"
+    toast.style.background = TOAST_BRIGHT_COLORS[type]
     return toast
   }
 
-  error(message: string, options: ToastOptions = {}): HTMLElement {
-    const toast = this.show(message, options)
-    toast.style.background = "rgba(220, 20, 60, 0.9)"
-    return toast
-  }
-
-  warning(message: string, options: ToastOptions = {}): HTMLElement {
-    const toast = this.show(message, options)
-    toast.style.background = "rgba(255, 140, 0, 0.9)"
-    return toast
-  }
-
-  info(message: string, options: ToastOptions = {}): HTMLElement {
-    const toast = this.show(message, options)
-    toast.style.background = "rgba(30, 144, 255, 0.9)"
-    return toast
-  }
+  success(message: string, options: ToastOptions = {}): HTMLElement { return this._withColor("success", message, options) }
+  error(message: string, options: ToastOptions = {}): HTMLElement { return this._withColor("error", message, options) }
+  warning(message: string, options: ToastOptions = {}): HTMLElement { return this._withColor("warning", message, options) }
+  info(message: string, options: ToastOptions = {}): HTMLElement { return this._withColor("info", message, options) }
 
   showContextMenuToast(message: string): void {
     const toast = document.createElement("div")
