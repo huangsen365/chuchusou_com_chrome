@@ -1078,7 +1078,79 @@ async function main() {
   })
   assert(cbCalled === 1, "callback-style removeAll called")
 
-  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure + menuDebugInfo + bootstrap + menuClickClassifier + menuBuilderHelpers OK")
+  // eventHelpers.ts: snapshotMenuTitles + reinjectContentForTab + MENU_TITLE_DEBUG_IDS
+  const tsEh = loadTs(path.join(root, "src/background/eventHelpers.ts"))
+  assert(Array.isArray(tsEh.MENU_TITLE_DEBUG_IDS) && tsEh.MENU_TITLE_DEBUG_IDS.length === 8, "MENU_TITLE_DEBUG_IDS 8 entries")
+
+  // snapshotMenuTitles: 成功路径
+  const snapLogs = []
+  tsEh.snapshotMenuTitles("test-reason", {
+    contextMenus: {
+      get: (id, cb) => cb({ title: `T-${id}`, contexts: ["selection"], enabled: true })
+    },
+    runtime: { lastError: null },
+    logMenuEvent: (stage, payload) => snapLogs.push({ stage, payload }),
+    menuIds: ["m1", "m2"]
+  })
+  assert(snapLogs.length === 2 && snapLogs[0].stage === "menu-title-snapshot", "snapshot success → 2 logs")
+  assert(snapLogs[0].payload.title === "T-m1", "title captured")
+
+  // snapshotMenuTitles: 失败路径（runtime.lastError）
+  const snapErrLogs = []
+  tsEh.snapshotMenuTitles("err-reason", {
+    contextMenus: { get: (id, cb) => cb(null) },
+    runtime: { lastError: { message: "menu missing" } },
+    logMenuEvent: (stage, payload) => snapErrLogs.push({ stage, payload }),
+    menuIds: ["m1"]
+  })
+  assert(snapErrLogs[0].stage === "menu-title-snapshot-failed", "lastError → failed log")
+  assert(snapErrLogs[0].payload.error === "menu missing", "error captured")
+
+  // snapshotMenuTitles: 异常路径
+  const snapExcLogs = []
+  tsEh.snapshotMenuTitles("exc-reason", {
+    contextMenus: { get: () => { throw new Error("api broken") } },
+    runtime: { lastError: null },
+    logMenuEvent: (stage, payload) => snapExcLogs.push({ stage, payload }),
+    menuIds: ["m1"]
+  })
+  assert(snapExcLogs[0].stage === "menu-title-snapshot-exception", "throw → exception log")
+
+  // reinjectContentForTab: 成功
+  let exFiles = null
+  const reinjLogs = []
+  const reinj1 = await tsEh.reinjectContentForTab(42, "selection-lost", {
+    scripting: { executeScript: async (opts) => { exFiles = opts.files } },
+    logMenuEvent: (stage, payload) => reinjLogs.push({ stage, payload })
+  })
+  assert(reinj1 === true && exFiles[0] === "content.js", "reinject success returns true + default files")
+  assert(reinjLogs[0].stage === "selection-sync-reinject", "reinject log")
+
+  // reinjectContentForTab: 自定义 files
+  const reinj2 = await tsEh.reinjectContentForTab(43, "custom", {
+    scripting: { executeScript: async (opts) => { exFiles = opts.files } },
+    logMenuEvent: () => {},
+    files: ["custom.js", "extra.js"]
+  })
+  assert(reinj2 === true && exFiles.length === 2 && exFiles[0] === "custom.js", "custom files honored")
+
+  // reinjectContentForTab: tabId null → false
+  const reinj3 = await tsEh.reinjectContentForTab(null, "no-tab", {
+    scripting: { executeScript: async () => {} },
+    logMenuEvent: () => {}
+  })
+  assert(reinj3 === false, "null tabId returns false")
+
+  // reinjectContentForTab: scripting 抛错 → false + 错误日志
+  const reinjErrLogs = []
+  const reinj4 = await tsEh.reinjectContentForTab(99, "broken", {
+    scripting: { executeScript: async () => { throw new Error("inject blocked") } },
+    logMenuEvent: (stage, payload) => reinjErrLogs.push({ stage, payload })
+  })
+  assert(reinj4 === false, "exception → false")
+  assert(reinjErrLogs[0].stage === "selection-sync-reinject-error", "error logged")
+
+  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure + menuDebugInfo + bootstrap + menuClickClassifier + menuBuilderHelpers + eventHelpers OK")
 }
 
 main().catch((err) => {
