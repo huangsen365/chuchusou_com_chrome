@@ -118,14 +118,14 @@ function main() {
     ? JSON.parse(fs.readFileSync(plasmoManifestPath, "utf8"))
     : null
 
-  // SW entry：Plasmo 接管（src/background.ts → static/background/index.js），
-  // 运行时 importScripts 加载 legacy 模块，行为与之前一致但入口归 Plasmo
-  const plasmoServiceWorker = plasmoManifest?.background?.service_worker
-  const background = plasmoServiceWorker
-    ? { service_worker: plasmoServiceWorker, type: plasmoManifest?.background?.type }
-    : legacyManifest.background
-
-  // ⚠️ Popup / Sidepanel / Content scripts 暂时回退到 legacy。
+  // ⚠️ 全部 4 个 manifest 入口都回退到 legacy（包括 SW）。
+  // 原因：user 加载 build/chrome-mv3-prod/ 报"显示页面不全"。虽然 SW Plasmo 桥接
+  // verifier 证明加载列表等同 legacy index.js，但未经 Chrome 真机回归确认。
+  // 用户需要的是"先恢复到已知能 work 的状态"，再增量切。
+  // Plasmo bundle 已生成（static/background/index.js / popup.html / sidepanel.html /
+  // content.{hash}.js）作为预备态，但 manifest 不指向它们。
+  const background = legacyManifest.background
+  // Popup / Sidepanel / Content scripts 暂时回退到 legacy。
   // 原因：TS port 不完整（sidepanel.js 1664 → SidepanelController 455 行只 27%，缺 17 个 DOM ID；
   //       popup.js 1262 → PopupController 1038 行 82%；content.ts 已聚合但未 Chrome 验证）
   // Plasmo bundle 已生成（popup.html / sidepanel.html / content.{hash}.js）作为预备态，
