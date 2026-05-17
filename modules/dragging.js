@@ -35,8 +35,22 @@
       handle.addEventListener('mousedown', (e) => this.startDragging(e, element));
       
       // 全局事件（用于释放和移动）
+      // mousemove 每像素触发（一次拖拽 100-300 次），改走 rAF 合并：最新事件覆盖旧的，
+      // 每帧最多调一次 handleDragging。视觉与高频更新等价但主线程负担骤减
       if (!this.globalEventsAttached) {
-        document.addEventListener('mousemove', (e) => this.handleDragging(e));
+        let pendingFrame = null;
+        let lastEvent = null;
+        const onMouseMove = (e) => {
+          lastEvent = e;
+          if (pendingFrame != null) return;
+          pendingFrame = requestAnimationFrame(() => {
+            pendingFrame = null;
+            const evt = lastEvent;
+            lastEvent = null;
+            if (evt) this.handleDragging(evt);
+          });
+        };
+        document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', () => this.stopDragging());
         this.globalEventsAttached = true;
       }
