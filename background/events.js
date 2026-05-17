@@ -316,9 +316,99 @@ chrome.runtime.onConnect.addListener((port) => {
   }
 });
 
+function ccsCreateRequestId(action) {
+  return `${action || 'msg'}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function ccsGetRequestId(request, action) {
+  return request?.requestId || ccsCreateRequestId(action);
+}
+
+function ccsLogMessage(phase, action, requestId, payload, level = 'debug') {
+  const shouldLog = level === 'warn' || level === 'error' || BG_DEBUG;
+  if (!shouldLog) return;
+  const line = `[extension][background][${phase}][${requestId || '-'}] ${action || 'message'}`;
+  if (level === 'error') console.error(line, payload || '');
+  else if (level === 'warn') console.warn(line, payload || '');
+  else console.log(line, payload || '');
+}
+
+function ccsAttachRequestId(payload, requestId) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return payload;
+  if (Object.prototype.hasOwnProperty.call(payload, 'requestId')) return payload;
+  return { ...payload, requestId };
+}
+
+function ccsCreateSafeResponder(sendResponse, action, requestId, timeoutMs = 5000) {
+  let responded = false;
+  const startedAt = Date.now();
+  const timer = setTimeout(() => {
+    if (responded) return;
+    responded = true;
+    ccsLogMessage('timeout', action, requestId, { timeoutMs }, 'warn');
+    try {
+      sendResponse?.({
+        success: false,
+        ok: false,
+        error: 'timeout',
+        code: 'TIMEOUT',
+        requestId,
+        elapsedMs: Date.now() - startedAt
+      });
+    } catch (_) { /* port closed */ }
+  }, timeoutMs);
+
+  return (payload) => {
+    if (responded) return;
+    responded = true;
+    clearTimeout(timer);
+    const nextPayload = ccsAttachRequestId(payload, requestId);
+    ccsLogMessage('response', action, requestId, {
+      elapsedMs: Date.now() - startedAt,
+      success: nextPayload?.success,
+      ok: nextPayload?.ok,
+      error: nextPayload?.error || nextPayload?.code
+    });
+    try { sendResponse?.(nextPayload); } catch (_) { /* port closed */ }
+  };
+}
+
+async function ccsSendTabMessageWithFallback(tabId, message, reason) {
+  if (tabId == null) {
+    return { ok: false, code: 'NO_TAB', error: 'missing tabId' };
+  }
+  try {
+    await chrome.tabs.sendMessage(tabId, message);
+    return { ok: true };
+  } catch (error) {
+    const firstError = error?.message || String(error);
+    if (!/Receiving end does not exist|Could not establish connection|message port closed/i.test(firstError)) {
+      return { ok: false, code: 'CONTENT_MESSAGE_FAILED', error: firstError };
+    }
+    const reinjected = await reinjectContentForTab(tabId, reason || 'message-fallback');
+    if (!reinjected) {
+      return { ok: false, code: 'CONTENT_UNAVAILABLE', error: firstError };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    try {
+      await chrome.tabs.sendMessage(tabId, message);
+      return { ok: true, reinjected: true };
+    } catch (retryError) {
+      return {
+        ok: false,
+        code: 'CONTENT_UNAVAILABLE',
+        error: retryError?.message || String(retryError)
+      };
+    }
+  }
+}
+
 // 监听来自content script和popup的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'ccs-log-menu-icons') {
+    const requestId = ccsGetRequestId(request, 'ccs-log-menu-icons');
+    const respond = ccsCreateSafeResponder(sendResponse, 'ccs-log-menu-icons', requestId, 4000);
+    ccsLogMessage('request', 'ccs-log-menu-icons', requestId);
     loadMenuIconConfig().then((config) => {
       const info = {
         BG_DEBUG,
@@ -329,10 +419,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         timestamp: Date.now()
       };
       console.log('[触触搜][BG][ICON] 状态报告', info);
-      sendResponse?.({ ok: true, info });
+      respond({ ok: true, info });
     }).catch((err) => {
       console.warn('[触触搜][BG][ICON] 状态报告失败', err);
-      sendResponse?.({ ok: false, error: err?.message || String(err) });
+      respond({ ok: false, error: err?.message || String(err) });
     });
     return true;
   }
@@ -358,6 +448,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // intent 决定 background 的获取策略（policy 表见 background/KeywordService.js）。
   // 同时仍保留 'getSearchText' 作为旧消息名兼容入口，下面那段。
   if (request.action === 'getKeyword') {
+    const requestId = ccsGetRequestId(request, 'getKeyword');
+    const respond = ccsCreateSafeResponder(sendResponse, 'getKeyword', requestId, 2500);
+    ccsLogMessage('request', 'getKeyword', requestId, {
+      tabId: request.tabId,
+      intent: request.intent,
+      hasUrl: !!request.url
+    });
     const { tabId, url, title, selectionText, intent } = request;
     KeywordService.getKeyword({
       tabId,
@@ -366,14 +463,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       intent: intent || KEYWORD_INTENTS.LEGACY,
       selectionText
     }).then((result) => {
-      sendResponse?.({ text: result.text, raw: result.raw, source: result.source, intent: result.intent });
+      respond({ text: result.text, raw: result.raw, source: result.source, intent: result.intent });
     }).catch((error) => {
       console.error('[触触搜][BG] getKeyword 失败:', error);
-      sendResponse?.({ text: '', raw: '' });
+      respond({ text: '', raw: '', error: error?.message || String(error), code: 'KEYWORD_FAILED' });
     });
     return true;
   }
   if (request.action === 'getSearchText') {
+    const requestId = ccsGetRequestId(request, 'getSearchText');
+    const respond = ccsCreateSafeResponder(sendResponse, 'getSearchText', requestId, 2500);
     // 兼容入口：通过 KeywordService 处理，intent 视 forceFresh 而定，行为与旧逻辑一致
     const { tabId, url, title, selectionText, forceFresh } = request;
     KeywordService.getKeyword({
@@ -383,10 +482,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       intent: forceFresh ? KEYWORD_INTENTS.LEGACY : KEYWORD_INTENTS.PAGE_CHANGED,
       selectionText
     }).then((result) => {
-      sendResponse?.({ text: result.text, raw: result.raw });
+      respond({ text: result.text, raw: result.raw });
     }).catch((error) => {
       console.error('[触触搜][BG] 获取搜索文本失败:', error);
-      sendResponse?.({ text: '', raw: '' });
+      respond({ text: '', raw: '', error: error?.message || String(error), code: 'KEYWORD_FAILED' });
     });
     return true;
   }
@@ -398,48 +497,62 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
   // 处理popup的关键词提取请求
   if (request.action === 'extractKeywords') {
+    const requestId = ccsGetRequestId(request, 'extractKeywords');
+    const respond = ccsCreateSafeResponder(sendResponse, 'extractKeywords', requestId, 2500);
     extractSearchKeywords(request.url, { title: request.title })
       .then(keywords => {
-        sendResponse({ keywords });
+        respond({ keywords });
       })
       .catch(error => {
         console.error('Error extracting keywords:', error);
-        sendResponse({ keywords: null });
+        respond({ keywords: null, error: error?.message || String(error), code: 'EXTRACT_FAILED' });
       });
     return true; // 异步响应
   }
   // 处理popup的菜单调试信息导出请求
   if (request.action === 'getMenuDebugInfo') {
+    const requestId = ccsGetRequestId(request, 'getMenuDebugInfo');
+    const respond = ccsCreateSafeResponder(sendResponse, 'getMenuDebugInfo', requestId, 5000);
     const tabId = request.tabId;
     getMenuDebugInfo(tabId)
       .then(data => {
-        sendResponse({ success: true, data });
+        respond({ success: true, data });
       })
       .catch(error => {
         console.error('[触触搜][BG] 获取菜单调试信息失败:', error);
-        sendResponse({ success: false, error: error?.message || String(error) });
+        respond({ success: false, error: error?.message || String(error), code: 'MENU_DEBUG_FAILED' });
       });
     return true; // 异步响应
   }
 
   // 处理popup获取菜单结构请求（与右键菜单保持一致）
   if (request.action === 'getMenuStructure') {
+    const requestId = ccsGetRequestId(request, 'getMenuStructure');
+    const respond = ccsCreateSafeResponder(sendResponse, 'getMenuStructure', requestId, 3500);
     getPopupMenuStructure()
       .then(structure => {
-        sendResponse({ success: true, structure });
+        respond({ success: true, structure });
       })
       .catch(error => {
         console.error('[触触搜][BG] 获取菜单结构失败:', error);
-        sendResponse({ success: false, error: error?.message || String(error) });
+        respond({ success: false, error: error?.message || String(error), code: 'MENU_STRUCTURE_FAILED' });
       });
     return true; // 异步响应
   }
 
   // 处理popup菜单项点击（复用右键菜单逻辑）
   if (request.action === 'executeMenuAction') {
+    const requestId = ccsGetRequestId(request, 'executeMenuAction');
+    const safeSendResponse = ccsCreateSafeResponder(sendResponse, 'executeMenuAction', requestId, 6000);
+    ccsLogMessage('request', 'executeMenuAction', requestId, {
+      menuItemId: request.menuItemId,
+      menuType: request.menuType,
+      hasKeyword: !!request.keyword
+    });
     const { menuItemId, menuType, keyword, urlPattern, actionType, engineId } = request;
 
     (async () => {
+      const sendResponse = safeSendResponse;
       try {
         // 获取当前标签页
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -525,17 +638,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               if (actionType === 'copy') {
                 const ok = await copyTextInTab(tab, keyword);
                 if (!ok) {
-                  chrome.tabs.sendMessage(tabId, {
+                  await ccsSendTabMessageWithFallback(tabId, {
                     action: 'showToast',
                     message: '复制失败，请检查页面权限'
-                  }).catch(() => {});
+                  }, 'copy-failed-toast');
+                  sendResponse({ success: false, error: 'copy-failed', code: 'COPY_FAILED' });
+                  return;
                 }
               } else if (command) {
-                chrome.tabs.sendMessage(tabId, {
+                const sent = await ccsSendTabMessageWithFallback(tabId, {
                   action: 'processCommand',
                   command: command,
                   text: keyword
-                }).catch(() => {});
+                }, 'process-command');
+                if (!sent.ok) {
+                  sendResponse({
+                    success: false,
+                    error: sent.error || 'content-unavailable',
+                    code: sent.code || 'CONTENT_UNAVAILABLE'
+                  });
+                  return;
+                }
               }
               sendResponse({ success: true });
             } else {
@@ -695,10 +818,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
           case 'action':
             if (actionType === 'show-popover' && tabId) {
-              chrome.tabs.sendMessage(tabId, {
+              const sent = await ccsSendTabMessageWithFallback(tabId, {
                 action: 'showPopover',
                 text: keyword || ''
-              }).catch(() => {});
+              }, 'show-popover');
+              if (!sent.ok) {
+                sendResponse({
+                  success: false,
+                  error: sent.error || 'content-unavailable',
+                  code: sent.code || 'CONTENT_UNAVAILABLE'
+                });
+                return;
+              }
               sendResponse({ success: true });
             } else if (menuItemId === 'ccs-top100-open-all' && keyword) {
               // 打开所有触触搜百问引擎

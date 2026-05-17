@@ -29,6 +29,7 @@
 
   const STORAGE_PREFIX = 'ccs_kw_';
   const STORAGE_TTL_MS = 5 * 60 * 1000; // 必须和 background/KeywordService.js 的 KEYWORD_STORAGE_TTL_MS 一致
+  const REQUEST_TIMEOUT_MS = 1500;
 
   // 三段兜底拿 active tab：
   // 1) currentWindow:true（popup 上下文稳，sidepanel 偶发返回空数组）
@@ -132,31 +133,57 @@
       });
     }
 
-    return new Promise((resolve) => {
-      try {
-        chrome.runtime.sendMessage({
-          action: 'getKeyword',
-          tabId: activeTab.id,
-          url: activeTab.url,
-          title: activeTab.title,
-          intent
-        }, (response) => {
-          freshResolved = true;
-          if (chrome.runtime.lastError) {
-            resolve({ text: '', raw: '' });
-            return;
-          }
-          resolve({
-            text: response?.text || '',
-            raw: response?.raw || response?.text || ''
-          });
+    const request = {
+      action: 'getKeyword',
+      tabId: activeTab.id,
+      url: activeTab.url,
+      title: activeTab.title,
+      intent
+    };
+
+    try {
+      const client = globalThis.CCSRuntimeClient;
+      if (client?.sendRuntimeMessage) {
+        const result = await client.sendRuntimeMessage(request, {
+          timeoutMs: options.timeoutMs || REQUEST_TIMEOUT_MS,
+          retries: options.retries ?? 1
         });
-      } catch (e) {
         freshResolved = true;
-        console.warn('[触触搜][KeywordClient] sendMessage 异常:', e);
-        resolve({ text: '', raw: '' });
+        if (!result.ok) {
+          globalThis.CCSLogger?.warn?.('keyword', 'request-failed', result.requestId, result.error?.code || 'KEYWORD_FAILED', result.error);
+          return { text: '', raw: '' };
+        }
+        const response = result.data || {};
+        return {
+          text: response?.text || '',
+          raw: response?.raw || response?.text || ''
+        };
       }
-    });
+
+      return await new Promise((resolve) => {
+        try {
+          chrome.runtime.sendMessage(request, (response) => {
+            freshResolved = true;
+            if (chrome.runtime.lastError) {
+              resolve({ text: '', raw: '' });
+              return;
+            }
+            resolve({
+              text: response?.text || '',
+              raw: response?.raw || response?.text || ''
+            });
+          });
+        } catch (e) {
+          freshResolved = true;
+          console.warn('[触触搜][KeywordClient] sendMessage 异常:', e);
+          resolve({ text: '', raw: '' });
+        }
+      });
+    } catch (e) {
+      freshResolved = true;
+      console.warn('[触触搜][KeywordClient] requestKeyword 异常:', e);
+      return { text: '', raw: '' };
+    }
   }
 
   globalThis.CCSKeywordClient = {

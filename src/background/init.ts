@@ -28,7 +28,21 @@ export const INIT_CONFIG = {
 const DEFAULT_LOCAL_STORAGE_VALUES: Record<string, unknown> = {
   enabled: true,
   ccs_debug: false,
-  ccs_voice_enabled: false
+  ccs_voice_enabled: false,
+  ccs_schema_version: 1,
+  ccs_settings: {
+    mode: "normal",
+    theme: "default",
+    opacity: 1,
+    position: null,
+    layout: "float",
+    globalDock: false,
+    barClosed: false,
+    blacklist: [],
+    isBlacklisted: false,
+    miniButtons: ["baidu", "google", "chuchusou", "copy", "lowercase"],
+    shortcutKey: "Alt+S"
+  }
 }
 
 export interface PerformanceMetrics {
@@ -201,18 +215,29 @@ export class InitOrchestrator {
 
   private ensureStorageDefaults(): void {
     try {
-      const ch = (globalThis as unknown as { chrome?: { storage?: { local?: { get: (keys: string[], cb: (v: Record<string, unknown>) => void) => void; set: (v: Record<string, unknown>) => void } } } }).chrome
+      const ch = (globalThis as unknown as { chrome?: { runtime?: { lastError?: { message?: string } | null }; storage?: { local?: { get: (keys: string[], cb: (v: Record<string, unknown>) => void) => void; set: (v: Record<string, unknown>, cb?: () => void) => void } } } }).chrome
       const local = ch?.storage?.local
       if (!local) return
       const keys = Object.keys(DEFAULT_LOCAL_STORAGE_VALUES)
       local.get(keys, (current) => {
+        const readError = ch?.runtime?.lastError?.message
+        if (readError) {
+          console.warn("[Init] storage 默认值读取失败:", readError)
+          return
+        }
         const patch: Record<string, unknown> = {}
         keys.forEach((k) => {
           if (typeof current?.[k] === "undefined") patch[k] = DEFAULT_LOCAL_STORAGE_VALUES[k]
         })
         if (Object.keys(patch).length > 0) {
-          local.set(patch)
-          console.log("[Init] ✅ storage 默认值已补齐:", Object.keys(patch))
+          local.set(patch, () => {
+            const writeError = ch?.runtime?.lastError?.message
+            if (writeError) {
+              console.warn("[Init] storage 默认值写入失败:", writeError)
+              return
+            }
+            console.log("[Init] ✅ storage 默认值已补齐:", Object.keys(patch))
+          })
         }
       })
     } catch (error) {

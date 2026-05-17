@@ -22,7 +22,10 @@ class PopupMenuRenderer {
 
   async init() {
     performance.mark('ccs-popup-start');
+    const initRequestId = globalThis.CCSLogger?.createRequestId?.('popup-init') || `popup-init-${Date.now()}`;
+    globalThis.CCSLogger?.info?.('popup', 'init-start', initRequestId, 'popup init started');
     try {
+      void globalThis.CCSStorageDefaults?.ensureDefaults?.({ source: 'popup', requestId: initRequestId });
       this.loadVersion();
       this.bindEvents();
       this.startKeywordLoad();
@@ -36,7 +39,9 @@ class PopupMenuRenderer {
         const m = performance.getEntriesByName('ccs-popup-ttfb')[0];
         if (m) console.log(`[触触搜][PERF] popup TTFB: ${m.duration.toFixed(1)}ms`);
       } catch (_) { /* perf 失败无所谓 */ }
+      globalThis.CCSLogger?.info?.('popup', 'first-paint', initRequestId, 'popup first paint complete');
     } catch (error) {
+      globalThis.CCSLogger?.error?.('popup', 'init-error', initRequestId, error?.message || String(error), { stack: error?.stack });
       console.error('[触触搜] Popup 初始化失败:', error);
       this.showError('加载失败，请重试');
     }
@@ -99,7 +104,10 @@ class PopupMenuRenderer {
     if (this.keyword.raw || this.keyword.text) return this.keyword;
     try {
       const fresh = await Promise.race([
-        CCSKeywordClient.requestKeyword(CCSKeywordClient.INTENTS.POPUP_OPEN),
+        CCSKeywordClient.requestKeyword(CCSKeywordClient.INTENTS.POPUP_OPEN, {
+          timeoutMs: 1200,
+          retries: 0
+        }),
         new Promise((resolve) => setTimeout(() => resolve(null), 1500))
       ]);
       if (fresh?.text) this.applyKeyword(fresh);
@@ -113,6 +121,36 @@ class PopupMenuRenderer {
       raw: keyword?.raw || keyword?.text || ''
     };
     this._renderKeyword();
+  }
+
+  async sendRuntimeAction(message, options = {}) {
+    const client = globalThis.CCSRuntimeClient;
+    if (client?.sendRuntimeMessage) {
+      return client.sendRuntimeMessage(message, {
+        timeoutMs: options.timeoutMs || 4000,
+        retries: options.retries ?? 1
+      });
+    }
+    const startedAt = Date.now();
+    try {
+      const data = await chrome.runtime.sendMessage(message);
+      return { ok: true, data, elapsedMs: Date.now() - startedAt };
+    } catch (error) {
+      return {
+        ok: false,
+        error: { code: 'SEND_FAILED', message: error?.message || String(error) },
+        elapsedMs: Date.now() - startedAt
+      };
+    }
+  }
+
+  runtimeErrorMessage(error) {
+    const code = error?.code || '';
+    if (code === 'TIMEOUT') return '后台启动较慢，请重试';
+    if (code === 'SW_UNAVAILABLE') return '后台服务暂不可用，请重试';
+    if (code === 'CONTENT_UNAVAILABLE') return '当前页面暂不支持直接操作，可刷新页面或使用剪贴板关键字';
+    if (code === 'PERMISSION_DENIED') return '当前页面权限受限，无法执行该操作';
+    return '操作失败，请重试';
   }
 
   // 设置面板首屏不展示，只在用户点 ⚙️ 时才完整 initSettings。
@@ -328,7 +366,7 @@ class PopupMenuRenderer {
     const keyword = this.keyword.raw || this.keyword.text;
     const menuItemId = `ccs-cover-${category.id}-${engine.id}`;
     try {
-      const response = await chrome.runtime.sendMessage({
+      const result = await this.sendRuntimeAction({
         action: 'executeMenuAction',
         menuItemId,
         menuType: 'cover',
@@ -337,7 +375,12 @@ class PopupMenuRenderer {
         engineId: engine.id,
         purpose,
         categoryId: category.id
-      });
+      }, { timeoutMs: 5000, retries: 1 });
+      if (!result.ok) {
+        this.showToast(this.runtimeErrorMessage(result.error));
+        return;
+      }
+      const response = result.data;
       if (response && response.success) {
         window.close();
       } else if (response && response.error === 'no-keyword') {
@@ -355,7 +398,7 @@ class PopupMenuRenderer {
 
     // 发送消息给 background 执行
     try {
-      const response = await chrome.runtime.sendMessage({
+      const result = await this.sendRuntimeAction({
         action: 'executeMenuAction',
         menuItemId: item.id,
         menuType: item.type,
@@ -364,7 +407,12 @@ class PopupMenuRenderer {
         actionType: item.action,
         engineId: item.engineId,
         purpose: item.purpose  // 优化提示词需要 purpose 参数
-      });
+      }, { timeoutMs: 5000, retries: 1 });
+      if (!result.ok) {
+        this.showToast(this.runtimeErrorMessage(result.error));
+        return;
+      }
+      const response = result.data;
 
       if (response && response.success) {
         // 关闭 popup
@@ -485,15 +533,17 @@ class PopupMenuRenderer {
         else setTimeout(fn, 800);
       };
       idleSchedule(() => {
-        try {
-          chrome.runtime.sendMessage({ action: 'getSidePanelState', windowId }, (resp) => {
-            if (chrome.runtime.lastError) return;
-            if (resp && !!resp.isOpen !== isOpen) {
-              isOpen = !!resp.isOpen;
-              updateLabel();
-            }
-          });
-        } catch (_) { /* ignore */ }
+        this.sendRuntimeAction({ action: 'getSidePanelState', windowId }, {
+          timeoutMs: 1200,
+          retries: 0
+        }).then((result) => {
+          if (!result.ok) return;
+          const resp = result.data;
+          if (resp && !!resp.isOpen !== isOpen) {
+            isOpen = !!resp.isOpen;
+            updateLabel();
+          }
+        }).catch(() => {});
       });
     }
 
@@ -508,14 +558,9 @@ class PopupMenuRenderer {
 
   async closeSidePanel(windowId) {
     try {
-      await new Promise((resolve) => {
-        chrome.runtime.sendMessage(
-          { action: 'closeSidePanel', windowId },
-          (resp) => {
-            if (chrome.runtime.lastError) resolve(null);
-            else resolve(resp);
-          }
-        );
+      await this.sendRuntimeAction({ action: 'closeSidePanel', windowId }, {
+        timeoutMs: 1200,
+        retries: 0
       });
       window.close();
     } catch (error) {
@@ -1003,21 +1048,24 @@ class PopupMenuRenderer {
 
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      chrome.runtime.sendMessage({
+      const result = await this.sendRuntimeAction({
         action: 'getMenuDebugInfo',
         tabId: tab?.id
-      }, (response) => {
-        if (response && response.success) {
-          this.showMenuDebugInfo(response.data);
-        } else {
-          this.showToast('获取菜单状态失败');
-        }
-        if (btn) {
-          btn.disabled = false;
-          const label = btn.querySelector('.setting-label');
-          label.textContent = '导出菜单状态';
-        }
-      });
+      }, { timeoutMs: 5000, retries: 0 });
+      if (result.ok && result.data && result.data.success) {
+        const trace = await globalThis.CCSLogger?.getTraceBuffer?.();
+        this.showMenuDebugInfo({
+          ...result.data.data,
+          runtimeTrace: Array.isArray(trace) ? trace : []
+        });
+      } else {
+        this.showToast('获取菜单状态失败');
+      }
+      if (btn) {
+        btn.disabled = false;
+        const label = btn.querySelector('.setting-label');
+        label.textContent = '导出菜单状态';
+      }
     } catch (error) {
       this.showToast('获取菜单状态失败');
       if (btn) {

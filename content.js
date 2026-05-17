@@ -240,35 +240,52 @@
         const candidate = pickPreferredText(request.text);
         if (!candidate) {
           showErrorToast('没有可复制的内容');
-          return;
+          sendResponse?.({ ok: false, error: 'no-text' });
+          return true;
         }
         copyToClipboard(candidate)
-          .then(() => showInfoToast('已复制到剪贴板'))
-          .catch(() => showErrorToast('复制失败，请稍后重试'));
-        return;
+          .then(() => {
+            showInfoToast('已复制到剪贴板');
+            sendResponse?.({ ok: true });
+          })
+          .catch((error) => {
+            showErrorToast('复制失败，请稍后重试');
+            sendResponse?.({ ok: false, error: error?.message || 'copy-failed' });
+          });
+        return true;
       }
       case 'processCommand': {
         const text = pickPreferredText(request.text);
         if (!text) {
           showErrorToast('没有可处理的内容');
-          return;
+          sendResponse?.({ ok: false, error: 'no-text' });
+          return true;
         }
         const result = runCommand(request.command, text);
         if (result == null) {
           showErrorToast('暂不支持此操作');
-          return;
+          sendResponse?.({ ok: false, error: 'unsupported-command' });
+          return true;
         }
         copyToClipboard(result)
-          .then(() => showInfoToast(`处理完成并已复制: ${truncateForToast(result)}`))
-          .catch(() => showErrorToast('结果复制失败'));
-        return;
+          .then(() => {
+            showInfoToast(`处理完成并已复制: ${truncateForToast(result)}`);
+            sendResponse?.({ ok: true });
+          })
+          .catch((error) => {
+            showErrorToast('结果复制失败');
+            sendResponse?.({ ok: false, error: error?.message || 'copy-result-failed' });
+          });
+        return true;
       }
       case 'showPopover':
         showInfoToast('底部面板功能已暂停，若需恢复请查看 legacy 目录。');
-        return;
+        sendResponse?.({ ok: true });
+        return true;
       case 'showToast':
         showInfoToast(request.message || '');
-        return;
+        sendResponse?.({ ok: true });
+        return true;
       case 'fetchSelectionSnapshot': {
         const preferEmpty = !!request.preferEmpty;
         const live = readCurrentSelection();

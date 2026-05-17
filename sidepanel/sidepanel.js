@@ -836,7 +836,7 @@ class PinnedAction {
     const keyword = this.renderer.keyword.raw || this.renderer.keyword.text;
     const menuItemId = `ccs-cover-${cat.id}-${engine.id}`;
     try {
-      const response = await chrome.runtime.sendMessage({
+      const result = await this.renderer.sendRuntimeAction({
         action: 'executeMenuAction',
         menuItemId,
         menuType: 'cover',
@@ -845,7 +845,12 @@ class PinnedAction {
         engineId: engine.id,
         purpose,
         categoryId: cat.id
-      });
+      }, { timeoutMs: 5000, retries: 1 });
+      if (!result.ok) {
+        this.renderer.showToast(this.renderer.runtimeErrorMessage(result.error));
+        return;
+      }
+      const response = result.data;
       if (response && response.error === 'no-keyword') {
         this.renderer.showToast('没有选中文本或无法提取关键词');
       }
@@ -1157,7 +1162,40 @@ class SidePanelRenderer {
     this.keywordSetManually = false;
   }
 
+  async sendRuntimeAction(message, options = {}) {
+    const client = globalThis.CCSRuntimeClient;
+    if (client?.sendRuntimeMessage) {
+      return client.sendRuntimeMessage(message, {
+        timeoutMs: options.timeoutMs || 4000,
+        retries: options.retries ?? 1
+      });
+    }
+    const startedAt = Date.now();
+    try {
+      const data = await chrome.runtime.sendMessage(message);
+      return { ok: true, data, elapsedMs: Date.now() - startedAt };
+    } catch (error) {
+      return {
+        ok: false,
+        error: { code: 'SEND_FAILED', message: error?.message || String(error) },
+        elapsedMs: Date.now() - startedAt
+      };
+    }
+  }
+
+  runtimeErrorMessage(error) {
+    const code = error?.code || '';
+    if (code === 'TIMEOUT') return '后台启动较慢，请重试';
+    if (code === 'SW_UNAVAILABLE') return '后台服务暂不可用，请重试';
+    if (code === 'CONTENT_UNAVAILABLE') return '当前页面暂不支持直接操作，可刷新页面或使用剪贴板关键字';
+    if (code === 'PERMISSION_DENIED') return '当前页面权限受限，无法执行该操作';
+    return '操作失败，请重试';
+  }
+
   async init() {
+    const initRequestId = globalThis.CCSLogger?.createRequestId?.('sidepanel-init') || `sidepanel-init-${Date.now()}`;
+    globalThis.CCSLogger?.info?.('sidepanel', 'init-start', initRequestId, 'sidepanel init started');
+    void globalThis.CCSStorageDefaults?.ensureDefaults?.({ source: 'sidepanel', requestId: initRequestId });
     // v1.6.19：setupAlivePort 推迟到 idle —— chrome.runtime.connect 会唤醒 SW
     // 跟 sidepanel 首屏抢 CPU。首屏完成后再建立长连接（其用途是保持 SW alive，
     // 不影响首屏体验）。
@@ -1224,7 +1262,9 @@ class SidePanelRenderer {
       if (!this.keyword.text && (tabInfo.url || '').length > 0) {
         this.scheduleRefresh();
       }
+      globalThis.CCSLogger?.info?.('sidepanel', 'first-paint', initRequestId, 'sidepanel first paint complete');
     } catch (error) {
+      globalThis.CCSLogger?.error?.('sidepanel', 'init-error', initRequestId, error?.message || String(error), { stack: error?.stack });
       console.error('[触触搜] Side panel keyword init failed:', error);
     }
   }
@@ -1397,7 +1437,11 @@ class SidePanelRenderer {
     const intent = isRefresh
       ? CCSKeywordClient.INTENTS.SIDEPANEL_REFRESH
       : CCSKeywordClient.INTENTS.SIDEPANEL_INIT;
-    return CCSKeywordClient.requestKeyword(intent, { tab: tabInfo });
+    return CCSKeywordClient.requestKeyword(intent, {
+      tab: tabInfo,
+      timeoutMs: 1200,
+      retries: 0
+    });
   }
 
   renderKeyword() {
@@ -1627,7 +1671,7 @@ class SidePanelRenderer {
       : (this.keyword.raw || this.keyword.text);
 
     try {
-      const response = await chrome.runtime.sendMessage({
+      const result = await this.sendRuntimeAction({
         action: 'executeMenuAction',
         menuItemId: item.id,
         menuType: item.type,
@@ -1636,7 +1680,12 @@ class SidePanelRenderer {
         actionType: item.action,
         engineId: item.engineId,
         purpose: item.purpose
-      });
+      }, { timeoutMs: 5000, retries: 1 });
+      if (!result.ok) {
+        this.showToast(this.runtimeErrorMessage(result.error));
+        return;
+      }
+      const response = result.data;
 
       if (response && response.error === 'no-keyword') {
         this.showToast('没有选中文本或无法提取关键词');
