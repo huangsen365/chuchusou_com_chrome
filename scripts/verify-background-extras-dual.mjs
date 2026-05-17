@@ -897,7 +897,93 @@ async function main() {
   assert(dbg2.activeTab.error === "tab not found", "tab.get error captured")
   assert(dbg2.menuRegistry.available === false, "menuRegistry available=false when undefined")
 
-  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure + menuDebugInfo OK")
+  // bootstrap.ts: initKeywordSyncSystem + ensureMenuIconSupportLoaded
+  const tsBoot = loadTs(path.join(root, "src/background/bootstrap.ts"))
+  assert(typeof tsBoot.initKeywordSyncSystem === "function", "initKeywordSyncSystem exists")
+  assert(typeof tsBoot.ensureMenuIconSupportLoaded === "function", "ensureMenuIconSupportLoaded exists")
+
+  // initKeywordSyncSystem: 缺 menuRegistry → no-menu-registry
+  const boot1 = tsBoot.initKeywordSyncSystem({ log: () => {}, warn: () => {} })
+  assert(boot1.created === false && boot1.error === "no-menu-registry", "no menuRegistry returns no-menu-registry")
+
+  // initKeywordSyncSystem: 缺 KeywordSyncManagerClass → no-ctor
+  const boot2 = tsBoot.initKeywordSyncSystem({
+    menuRegistry: { getStats: () => ({ total: 3 }) },
+    log: () => {}, warn: () => {}
+  })
+  assert(boot2.created === false && boot2.error === "no-ctor", "no class returns no-ctor")
+
+  // initKeywordSyncSystem: 完整路径 → created=true
+  let ctorCalled = 0
+  class FakeKSM {
+    constructor(reg) { ctorCalled++; this.reg = reg }
+    getStats() { return { managed: 5 } }
+  }
+  const boot3 = tsBoot.initKeywordSyncSystem({
+    menuRegistry: { getStats: () => ({ total: 3 }) },
+    KeywordSyncManagerClass: FakeKSM,
+    log: () => {}, warn: () => {}
+  })
+  assert(boot3.created === true && ctorCalled === 1, "new instance created")
+  assert(boot3.instance instanceof FakeKSM, "instance is FakeKSM")
+
+  // initKeywordSyncSystem: existingInstance → 不重复构造
+  const existing = new FakeKSM({ getStats: () => ({}) })
+  ctorCalled = 0
+  const boot4 = tsBoot.initKeywordSyncSystem({
+    menuRegistry: { getStats: () => ({}) },
+    KeywordSyncManagerClass: FakeKSM,
+    existingInstance: existing,
+    log: () => {}, warn: () => {}
+  })
+  assert(boot4.created === false && boot4.instance === existing && ctorCalled === 0, "existing instance reused")
+
+  // ensureMenuIconSupportLoaded: 首次调 → storage.get 跑一次 → loaded=true
+  const state = tsBoot.createMenuIconSupportState()
+  let storageCalls = 0
+  let debugSet = null
+  const bootLogs = []
+  await tsBoot.ensureMenuIconSupportLoaded({
+    state,
+    storage: {
+      get: (keys, cb) => {
+        storageCalls++
+        cb({ ccs_debug: true, ccs_menu_icon_support: false })
+      }
+    },
+    storageKey: "ccs_menu_icon_support",
+    setDebug: (v) => { debugSet = v },
+    logMenuEvent: (stage, payload) => bootLogs.push({ stage, payload })
+  })
+  assert(state.loaded === true, "state.loaded after first call")
+  assert(state.supported === false, "supported persisted as false")
+  assert(debugSet === true, "BG_DEBUG set from storage")
+  assert(bootLogs[0]?.stage === "icon-skip", "icon-skip logged")
+  assert(storageCalls === 1, "storage.get called once")
+
+  // ensureMenuIconSupportLoaded: 再次调 → 直接 resolve，不再访问 storage
+  await tsBoot.ensureMenuIconSupportLoaded({
+    state,
+    storage: { get: () => { storageCalls++ } },
+    storageKey: "ccs_menu_icon_support"
+  })
+  assert(storageCalls === 1, "second call skips storage (idempotent)")
+
+  // ensureMenuIconSupportLoaded: 并发调 → 同一个 Promise
+  const state2 = tsBoot.createMenuIconSupportState()
+  let concurrentCalls = 0
+  const storage2 = {
+    get: (keys, cb) => {
+      concurrentCalls++
+      setTimeout(() => cb({}), 5)
+    }
+  }
+  const p1 = tsBoot.ensureMenuIconSupportLoaded({ state: state2, storage: storage2, storageKey: "x" })
+  const p2 = tsBoot.ensureMenuIconSupportLoaded({ state: state2, storage: storage2, storageKey: "x" })
+  await Promise.all([p1, p2])
+  assert(concurrentCalls === 1, "concurrent calls dedupe to single storage.get")
+
+  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure + menuDebugInfo + bootstrap OK")
 }
 
 main().catch((err) => {
