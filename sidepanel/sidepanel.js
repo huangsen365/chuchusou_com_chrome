@@ -1258,9 +1258,10 @@ class SidePanelRenderer {
           try { chrome.storage.onChanged.addListener(this._kwStorageListener); } catch (_) { /* ignore */ }
         }
       }
-      // 3. cache 空 + URL 非空 → scheduleRefresh 走带重试 sendMessage 路径
+      // 3. cache 空 + URL 非空 → idle 后再走 sendMessage 路径。先把侧栏
+      // 首屏交还给浏览器，低配 Windows 上不要和页面 load / SW 冷启动抢 CPU。
       if (!this.keyword.text && (tabInfo.url || '').length > 0) {
-        this.scheduleRefresh();
+        this.scheduleRefresh({ delayMs: 700 });
       }
       globalThis.CCSLogger?.info?.('sidepanel', 'first-paint', initRequestId, 'sidepanel first paint complete');
     } catch (error) {
@@ -1372,14 +1373,15 @@ class SidePanelRenderer {
     }
   }
 
-  // scheduleRefresh：debounce 50ms 合并连续事件
+  // scheduleRefresh：debounce 合并连续事件
   // （chrome:// 上 url / title / status 事件常常在几十 ms 内连发，避免一次跳转跑 3 次 refresh）
-  scheduleRefresh() {
+  scheduleRefresh(options = {}) {
     if (this._refreshDebounceTimer) clearTimeout(this._refreshDebounceTimer);
+    const delayMs = Number.isFinite(options.delayMs) ? options.delayMs : 150;
     this._refreshDebounceTimer = setTimeout(() => {
       this._refreshDebounceTimer = null;
       this.refresh();
-    }, 50);
+    }, delayMs);
   }
 
   async refresh() {

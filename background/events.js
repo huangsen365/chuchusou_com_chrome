@@ -1080,7 +1080,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         selectionText: ''
       }, {
             forceFetchSelection: false,
-            skipCurrentMenuFallback: false
+            skipCurrentMenuFallback: false,
+            allowFallbackSelectionFetch: false
           });
           if (fallback?.raw) {
             previewText = fallback.raw;
@@ -1549,6 +1550,7 @@ if (chrome.contextMenus.onShown) {
               selectionText: ''
             }, {
               forceFetchSelection: false,
+              allowFallbackSelectionFetch: false,
               // BUGFIX: Only skip fallback if currentMenuState is from a different tab
               // This allows using cached selection for the same tab after switching back
               skipCurrentMenuFallback: isCurrentMenuStateStale
@@ -1577,7 +1579,8 @@ if (chrome.contextMenus.onShown) {
                       selectionText: ''
                     }, {
                       forceFetchSelection: false,
-                      skipCurrentMenuFallback: false
+                      skipCurrentMenuFallback: false,
+                      allowFallbackSelectionFetch: false
                     });
 
                     const retryRaw = retryResult?.raw || '';

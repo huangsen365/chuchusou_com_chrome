@@ -96,7 +96,8 @@ async function computeSearchTextForTab({
 }, options = {}) {
   const {
     forceFetchSelection = false,
-    skipCurrentMenuFallback = false
+    skipCurrentMenuFallback = false,
+    allowFallbackSelectionFetch = true
   } = options || {};
   const candidates = [];
   logResolver('start', {
@@ -194,7 +195,7 @@ async function computeSearchTextForTab({
 }
 
 
-  if (!candidates.length && tabId != null) {
+  if (!forceFetchSelection && allowFallbackSelectionFetch && !candidates.length && tabId != null) {
     const fetched = await fetchSelectionFromTab(tabId);
     if (typeof fetched === 'string' && fetched.trim().length > 0) {
       candidates.push(fetched);

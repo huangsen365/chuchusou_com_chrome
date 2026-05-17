@@ -68,6 +68,7 @@ export interface KeywordResult {
 export interface ComputeOptions {
   forceFetchSelection?: boolean
   skipCurrentMenuFallback?: boolean
+  allowFallbackSelectionFetch?: boolean
 }
 
 export interface ComputeResult {
@@ -161,7 +162,11 @@ export class KeywordService {
         selectionText: hydrated.selectionText
       }, {
         forceFetchSelection: policy.forceFetchSelection,
-        skipCurrentMenuFallback: policy.skipCurrentMenuFallback
+        skipCurrentMenuFallback: policy.skipCurrentMenuFallback,
+        // Avoid the legacy second-chance selection probe. forceFetchSelection
+        // already performs the explicit user-facing probe; passive intents
+        // should not inject into the active tab at all.
+        allowFallbackSelectionFetch: false
       })
     } catch (error) {
       console.error("[触触搜][KeywordService] compute failed:", error)

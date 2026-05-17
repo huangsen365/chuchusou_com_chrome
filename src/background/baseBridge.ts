@@ -190,7 +190,7 @@ G.applyMenuTitle = (normalized: string, raw: string = "", meta?: { tabId?: numbe
 G.refreshMenuTitle = async (tab: { id?: number; url?: string; title?: string } | undefined, selectionText: string = "") => {
   const computeSearchTextForTab = G.computeSearchTextForTab as (input: {
     tabId?: number; tabUrl?: string; tabTitle: string; selectionText: string
-  }) => Promise<{ raw: string; normalized: string }>
+  }, options?: { allowFallbackSelectionFetch?: boolean }) => Promise<{ raw: string; normalized: string }>
   if (typeof computeSearchTextForTab !== "function") return
   await tsRefreshMenuTitle(tab, selectionText, {
     computeSearchTextForTab,

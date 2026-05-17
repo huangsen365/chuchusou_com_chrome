@@ -626,6 +626,8 @@ async function refreshMenuTitle(tab, selectionText = '') {
       tabUrl: tab?.url,
       tabTitle: tab?.title || '',
       selectionText
+    }, {
+      allowFallbackSelectionFetch: false
     });
     applyMenuTitle(result.normalized, result.raw, {
       tabId: tab?.id ?? null,

@@ -128,7 +128,12 @@ class KeywordService {
         selectionText: hydratedCtx.selectionText
       }, {
         forceFetchSelection: policy.forceFetchSelection,
-        skipCurrentMenuFallback: policy.skipCurrentMenuFallback
+        skipCurrentMenuFallback: policy.skipCurrentMenuFallback,
+        // Popup/sidepanel explicit refresh already does the direct selection probe
+        // through forceFetchSelection. Do not run the older second-chance probe,
+        // which doubles chrome.scripting.executeScript cost on pages with no
+        // selection and is very visible on low-spec Windows machines.
+        allowFallbackSelectionFetch: false
       });
     } catch (error) {
       console.error('[触触搜][KeywordService] compute failed:', error);

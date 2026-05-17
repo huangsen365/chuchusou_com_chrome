@@ -18,6 +18,7 @@ export interface ResolverInput {
 export interface ResolverOptions {
   forceFetchSelection?: boolean
   skipCurrentMenuFallback?: boolean
+  allowFallbackSelectionFetch?: boolean
 }
 
 export interface ResolverResult {
@@ -79,7 +80,8 @@ export async function computeSearchTextForTab(
   } = input
   const {
     forceFetchSelection = false,
-    skipCurrentMenuFallback = false
+    skipCurrentMenuFallback = false,
+    allowFallbackSelectionFetch = true
   } = options || {}
 
   const candidates: string[] = []
@@ -157,7 +159,7 @@ export async function computeSearchTextForTab(
   }
 
   // 5. 若所有 candidate 都空 + 有 tabId → fetch tab 选区做兜底
-  if (!candidates.length && tabId != null) {
+  if (!forceFetchSelection && allowFallbackSelectionFetch && !candidates.length && tabId != null) {
     const fetched = await deps.fetchSelectionFromTab(tabId)
     if (typeof fetched === "string" && fetched.trim().length > 0) {
       candidates.push(fetched)

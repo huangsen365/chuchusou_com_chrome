@@ -46,9 +46,13 @@ export interface ComputeSearchTextResult {
   [k: string]: unknown
 }
 
+export interface ComputeSearchTextOptions {
+  allowFallbackSelectionFetch?: boolean
+}
+
 export interface MenuRefreshDeps {
   /** 从 KeywordService 来的 computeSearchTextForTab */
-  computeSearchTextForTab: (input: ComputeSearchTextInput) => Promise<ComputeSearchTextResult>
+  computeSearchTextForTab: (input: ComputeSearchTextInput, options?: ComputeSearchTextOptions) => Promise<ComputeSearchTextResult>
   /** setMenuState orchestrator deps（refreshMenuTitle 会调 applyMenuTitle = setMenuState） */
   setMenuStateDeps: MenuStateOrchestratorDeps
   /** 失败时的 warning 钩子（默认 console.warn） */
@@ -71,6 +75,11 @@ export async function refreshMenuTitle(
       tabUrl: tab?.url,
       tabTitle: tab?.title || "",
       selectionText
+    }, {
+      // Passive tab/title refreshes should update menu labels from cached
+      // selection or URL/title only. Probing the page here competes with popup
+      // and sidepanel startup on low-end machines.
+      allowFallbackSelectionFetch: false
     })
     const meta: MenuStateMeta = {
       tabId: tab?.id ?? null,

@@ -114,7 +114,7 @@ export class SidepanelController {
       this.renderKeyword()
 
       if (!this.keyword.text && (tabInfo.url || "").length > 0) {
-        this.scheduleRefresh()
+        this.scheduleRefresh({ delayMs: 700 })
       }
     } catch (error) {
       console.error("[触触搜] Side panel keyword init failed:", error)
@@ -204,12 +204,13 @@ export class SidepanelController {
     }
   }
 
-  scheduleRefresh(): void {
+  scheduleRefresh(options: { delayMs?: number } = {}): void {
     if (this._refreshDebounceTimer) clearTimeout(this._refreshDebounceTimer)
+    const delayMs = Number.isFinite(options.delayMs) ? options.delayMs! : 150
     this._refreshDebounceTimer = setTimeout(() => {
       this._refreshDebounceTimer = null
       this.refresh()
-    }, 50)
+    }, delayMs)
   }
 
   async refresh(): Promise<void> {

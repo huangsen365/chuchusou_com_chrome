@@ -95,13 +95,13 @@ class PopupMenuRenderer {
         // SW work, then refresh the badge in the background with a bounded request.
         const scheduleFreshKeyword = (fn) => {
           const ric = globalThis.requestIdleCallback;
-          if (typeof ric === 'function') ric(fn, { timeout: 300 });
-          else setTimeout(fn, 120);
+          if (typeof ric === 'function') ric(fn, { timeout: cached?.text ? 500 : 1200 });
+          else setTimeout(fn, cached?.text ? 250 : 900);
         };
         scheduleFreshKeyword(() => {
           this.refreshKeyword({
-            timeoutMs: cached?.text ? 900 : 1500,
-            retries: cached?.text ? 0 : 1
+            timeoutMs: cached?.text ? 900 : 1200,
+            retries: 0
           }).catch((error) => {
             globalThis.CCSLogger?.warn?.(
               'popup',
