@@ -125,33 +125,14 @@ function main() {
     ? { service_worker: plasmoServiceWorker, type: plasmoManifest?.background?.type }
     : legacyManifest.background
 
-  // Side panel：Plasmo 接管（src/sidepanel.tsx → sidepanel.html）
-  const plasmoSidePanel = plasmoManifest?.side_panel?.default_path
-  const sidePanel = plasmoSidePanel
-    ? { ...legacyManifest.side_panel, default_path: plasmoSidePanel }
-    : legacyManifest.side_panel
-
-  // Popup：Plasmo 接管（src/popup.tsx → popup.html）
-  // 注意：legacy popup.html 静态预渲染 + 0 JS 首屏 (34ms)，
-  // 切到 Plasmo React shell 后冷启动会涨到 ~50-80ms（仍在"流畅"区间）
-  const plasmoPopup = plasmoManifest?.action?.default_popup
-  const action = plasmoPopup
-    ? { ...legacyManifest.action, default_popup: plasmoPopup }
-    : legacyManifest.action
-
-  // Content scripts：Plasmo 接管（src/content.ts 聚合 20 个 TS 模块 → 单 bundle 97KB）
-  // Plasmo 自动生成 hashed filename，由它声明 js 字段。CSS / run_at / all_frames 沿用 legacy
-  const plasmoContentScripts = plasmoManifest?.content_scripts
-  let contentScripts = legacyManifest.content_scripts
-  if (Array.isArray(plasmoContentScripts) && plasmoContentScripts.length > 0) {
-    const plasmoCs = plasmoContentScripts[0]
-    const legacyCs = (legacyManifest.content_scripts || [{}])[0]
-    contentScripts = [{
-      ...legacyCs,
-      js: plasmoCs.js || legacyCs.js,
-      css: (plasmoCs.css && plasmoCs.css.length > 0) ? plasmoCs.css : (legacyCs.css || ["content.css"])
-    }]
-  }
+  // ⚠️ Popup / Sidepanel / Content scripts 暂时回退到 legacy。
+  // 原因：TS port 不完整（sidepanel.js 1664 → SidepanelController 455 行只 27%，缺 17 个 DOM ID；
+  //       popup.js 1262 → PopupController 1038 行 82%；content.ts 已聚合但未 Chrome 验证）
+  // Plasmo bundle 已生成（popup.html / sidepanel.html / content.{hash}.js）作为预备态，
+  // 等 TS port 补齐到 1:1 + Chrome 真机回归后再逐个切。
+  const sidePanel = legacyManifest.side_panel
+  const action = legacyManifest.action
+  const contentScripts = legacyManifest.content_scripts
 
   const compatManifest = {
     ...legacyManifest,
