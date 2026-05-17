@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>触触搜</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header class="hdr">
+    <span class="brand">🔍 触触搜</span>
+    <span class="kw" id="kw" title=""></span>
+    <button class="copy" id="copy" type="button" title="复制关键字" hidden>📋</button>
+  </header>
+
+  <div class="menu" id="menu" role="menu">
+    <div class="item" role="menuitem" data-id="ccs-fastqa-chatgpt-quick" data-tpl="https://chatgpt.com/?q=${KW}">
+      <span class="icon">🤖</span><span class="label">速答 · ChatGPT</span>
+    </div>
+    <div class="item" role="menuitem" data-id="ccs-fastqa-claude-quick" data-tpl="https://claude.ai/new?q=${KW}">
+      <span class="icon">🧠</span><span class="label">速答 · Claude</span>
+    </div>
+    <div class="sep"></div>
+    <div class="item" role="menuitem" data-id="ccs-baidu" data-tpl="https://www.baidu.com/s?wd=${KW}">
+      <span class="icon">🐼</span><span class="label">百度搜索</span>
+    </div>
+    <div class="item" role="menuitem" data-id="ccs-google" data-tpl="https://www.google.com/search?q=${KW}">
+      <span class="icon">🔎</span><span class="label">Google 搜索</span>
+    </div>
+    <div class="sep"></div>
+    <div class="item" role="menuitem" data-id="ccs-chatgpt" data-tpl="https://chatgpt.com/?q=${KW}">
+      <span class="icon">🤖</span><span class="label">ChatGPT</span>
+    </div>
+    <div class="item" role="menuitem" data-id="ccs-claude" data-tpl="https://claude.ai/new?q=${KW}">
+      <span class="icon">🧠</span><span class="label">Claude</span>
+    </div>
+    <div class="item" role="menuitem" data-id="ccs-google-ai-chat" data-tpl="https://www.google.com/search?udm=50&amp;ie=UTF-8&amp;oe=UTF-8&amp;q=${KW}">
+      <span class="icon">✨</span><span class="label">Google AI 模式</span>
+    </div>
+    <div class="sep"></div>
+    <div class="item" role="menuitem" data-id="ccs-google-translate" data-tpl="https://translate.google.com/?sl=auto&amp;tl=zh-CN&amp;text=${KW}">
+      <span class="icon">🔁</span><span class="label">Google 翻译</span>
+    </div>
+  </div>
+
+  <footer class="ftr">
+    <a href="../popup/popup.html" target="_blank" rel="noopener" class="legacy" title="百问 / 优化 / 黑名单 / 调试 等">⚙️ 高级设置</a>
+    <a href="https://chuchusou.com" target="_blank" rel="noopener" class="site">chuchusou.com</a>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>
