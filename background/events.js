@@ -1229,8 +1229,54 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// 监听标签页更新，动态更新菜单标题
+// v1.6.22 性能实验：onUpdated 精简模式开关。
+//
+// 背景：低配 Windows 新开网页时复现"后台启动较慢，请重试"。溯源链路是
+// chrome.tabs.onUpdated 在单次跳转里会触发 3 次（title / loading / complete），
+// 每次都跑 prefetchMenuState + refreshMenuTitle，加上 complete 阶段会调
+// syncSelectionFromTab，新页面 content.js 尚未注入 → reinject 兜底 → 再 sendMessage
+// 重试，最后还有一个 setTimeout 300ms 延迟二次 prefetch。SW 持续忙 3-6 秒，期间
+// popup/sidepanel 发出的 executeMenuAction 排队，runtimeClient 5000ms × 2 retry
+// 仍可能撞上忙窗口超时，触发 popup.js:176 / sidepanel.js:734 的 TIMEOUT 文案。
+//
+// LITE=true（默认）：
+//   - title 变化只刷 in-memory cache，不再 prefetch / refreshMenuTitle
+//   - loading 只清 selection / fallback 缓存，不 prefetch
+//   - complete 只跑一次 prefetch + refreshMenuTitle，跳过 syncSelectionFromTab
+//     content.js 在 manifest run_at:document_start 已自动注入，它读到 selection
+//     后会主动发 selectionChanged 上来，无需 SW 这边主动 fetch + reinject
+//   - 删除 setTimeout 300ms 延迟二次 prefetch（SPA 站点菜单标题最坏延迟一次轮询）
+// LITE=false：恢复 v1.6.21 完整行为，所有事件路径原样执行
+//
+// 若上架低配 Windows 后右键菜单标题/关键字同步出问题，把这里改成 false 即可回滚。
+const BG_TABS_ONUPDATED_LITE = true;
+
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (BG_TABS_ONUPDATED_LITE) {
+    if (typeof changeInfo.title === 'string') {
+      updateLatestTabTitle(tabId, changeInfo.title);
+    }
+    if (changeInfo.status === 'loading') {
+      delete selectedTextByTab[tabId];
+      delete fallbackKeywordByTab[tabId];
+    }
+    if (changeInfo.status === 'complete' && tab.url) {
+      const candidateUrl = changeInfo.url || tab.url;
+      const mergedTab = Object.assign({}, tab, { id: tabId, url: candidateUrl });
+      await prefetchMenuState(mergedTab, 'tab-complete');
+      const stored = selectedTextByTab[tabId];
+      const hasStoredSelection =
+        stored && typeof stored.text === 'string' && stored.text.trim().length > 0;
+      const preserve = shouldPreserveMenuStateForUrl(candidateUrl);
+      if (preserve && hasStoredSelection && stored.url === (candidateUrl || stored.url)) {
+        return;
+      }
+      await refreshMenuTitle(mergedTab);
+    }
+    return;
+  }
+
+  // ===== 原始完整行为（BG_TABS_ONUPDATED_LITE=false 时走这里）=====
   if (typeof changeInfo.title === 'string') {
     updateLatestTabTitle(tabId, changeInfo.title);
     const mergedForTitle = Object.assign({}, tab, {
@@ -1270,13 +1316,10 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     }
     await refreshMenuTitle(mergedTab);
 
-    // BUGFIX: Delayed title refresh to catch late-updating titles
-    // Some pages (especially SPAs) update their title after 'complete' status
     setTimeout(async () => {
       try {
         const freshTab = await chrome.tabs.get(tabId);
         if (freshTab && freshTab.url === candidateUrl) {
-          // Update title cache if title has changed
           if (freshTab.title && freshTab.title !== (tab.title || '')) {
             updateLatestTabTitle(tabId, freshTab.title);
             logMenuEvent('delayed-title-update', {
@@ -1286,17 +1329,15 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
               url: candidateUrl
             });
           }
-          // Refresh keywords with the latest title
           await prefetchMenuState(freshTab, 'delayed-title-refresh');
         }
       } catch (err) {
-        // Tab may have been closed, ignore
         logMenuEvent('delayed-title-refresh-failed', {
           tabId,
           error: err?.message
         });
       }
-    }, 300); // 300ms delay to catch late title updates
+    }, 300);
   }
 });
 

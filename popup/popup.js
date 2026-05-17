@@ -29,9 +29,15 @@ class PopupMenuRenderer {
       this.loadVersion();
       this.bindEvents();
       this.startKeywordLoad();
-      this._preloadEnableState();
-      // initPinnedCover 自己 fetch coverPrompts.json（不依赖任何缓存/SW）
-      this.initPinnedCover();
+      // v1.6.22：initPinnedCover 推迟到 idle —— 内部串了 storage.get + fetch(coverPrompts.json)
+      // + DOM render + 事件绑定。popupPin 默认 hidden=true，init 完才 hidden=false，
+      // 不影响首屏菜单 + 关键字徽章可见。
+      const idleSchedule = (fn) => {
+        const ric = globalThis.requestIdleCallback;
+        if (typeof ric === 'function') ric(fn, { timeout: 1200 });
+        else setTimeout(fn, 200);
+      };
+      idleSchedule(() => { this.initPinnedCover(); });
       this._renderKeyword();
       performance.mark('ccs-popup-rendered');
       try {
@@ -172,14 +178,6 @@ class PopupMenuRenderer {
     if (code === 'CONTENT_UNAVAILABLE') return '当前页面暂不支持直接操作，可刷新页面或使用剪贴板关键字';
     if (code === 'PERMISSION_DENIED') return '当前页面权限受限，无法执行该操作';
     return '操作失败，请重试';
-  }
-
-  // 设置面板首屏不展示，只在用户点 ⚙️ 时才完整 initSettings。
-  // 但启用/禁用状态可能影响顶层 UI（如 toast 区别 etc.），轻量预读。
-  _preloadEnableState() {
-    chrome.storage.local.get(['enabled'], (r) => {
-      this._cachedEnabled = r.enabled !== false;
-    });
   }
 
   // C 档重构后：popup.js 不再直接发消息拿关键字，统一过 CCSKeywordClient。
