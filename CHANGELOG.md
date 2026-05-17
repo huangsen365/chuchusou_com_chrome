@@ -1,5 +1,16 @@
 # 更新日志
 
+## v1.6.21 (2026-05-17)
+
+**内部 v2 沉淀版本，用户感知行为与 v1.6.20 完全一致**。生产仍走旧 popup / 旧 sidepanel；新建的 popup-v2 / sidepanel-v2 完整实现作为储备方案保留在仓库 + zip 里，未来可一行 manifest 切换激活。详细见 [releases/v1.6.21.md](./releases/v1.6.21.md)。
+
+### 🛠 技术改动
+
+- **从零重写的 popup-v2 完整版**（HTML 189 / CSS 466 / JS 692 = 1347 行，vs 旧 popup 1077 JS + 复杂 HTML 约 1/3 体量）：与旧 popup 功能 1:1（关键字 fallback chain / 23 项菜单 / 8 个设置 / 黑名单 / 提示词库 / 调试导出 / 快捷键 / 封面快捷启动 / 侧边栏入口 / 欢迎页），但代码组织更清爽（0 React / 0 Plasmo bundle / 0 sendMessage 首屏 / 复用 shared/keywordClient + runtimeClient + logger 三件套）。**不激活**，文件保留作未来重新切的预备态。
+- **从零重写的 sidepanel-v2 完整版**（HTML 119 / CSS 402 / sidepanel.js 843 / voice.js 386 = 1750 行，vs 旧 sidepanel 3299 行约 53%）：与旧 sidepanel 功能 1:1（关键字 fallback / AI 提示 banner + popover / 剪贴板兜底 / 完整封面 picker [5 分类 + 11 比例 + custom 风格行管理] / 19 项菜单 / 标签 onActivated/onUpdated debounce 刷新 / alive port + 重连 / Voice 模块 lazy load [13 引擎别名 + Levenshtein 融合排序 + history boost]）。同样**不激活**作储备。
+- **共享 build 基础设施**：`scripts/prebuild-popup-menu.mjs` 同时注入静态菜单到旧 popup / popup-v2 / 旧 sidepanel / sidepanel-v2 四个 build 路径；`scripts/plasmo-compat-postbuild.mjs` 的 copyDirs 加入两个 v2 目录。即使 manifest 不指向 v2，build/ 也照常生成完整文件。
+- **manifest 入口**：本版 `action.default_popup` 仍为 `popup/popup.html`，`side_panel.default_path` 仍为 `sidepanel/sidepanel.html` —— 与 v1.6.20 完全一致，**用户感知零差异**。
+
 ## v1.6.20 (2026-05-17)
 
 **内容脚本加固 + 小安全修补**。修 6 处长期潜在隐患：扩展 reload 时事件监听器叠加、底栏关闭后仍空转 2s 心跳、SPA 监控 observer 泄漏、黑名单管理 XSS 隐患、拖动悬浮面板掉帧、sidepanel 消息 handler 缺兜底。详细见 [releases/v1.6.20.md](./releases/v1.6.20.md)。
