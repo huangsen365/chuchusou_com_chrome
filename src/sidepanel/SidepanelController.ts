@@ -46,6 +46,7 @@ function getChrome(): ChromeLike {
 }
 
 const VOICE_ENABLED_KEY = "ccs_voice_enabled"
+const MENU_STRUCTURE_TIMEOUT_MS = 2000
 
 export interface MenuItemPayload {
   id: string
@@ -260,14 +261,33 @@ export class SidepanelController {
         reject(new Error("chrome.runtime unavailable"))
         return
       }
+      let settled = false
+      const finishResolve = (value: MenuStructure): void => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeoutId)
+        resolve(value)
+      }
+      const finishReject = (error: Error): void => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeoutId)
+        reject(error)
+      }
+      const timeoutId = setTimeout(() => {
+        console.warn("[触触搜][sidepanel] menu config timeout, fallback to static menu")
+        finishResolve({ groups: [] })
+      }, MENU_STRUCTURE_TIMEOUT_MS)
       ch.runtime.sendMessage({ action: "getMenuStructure" }, (response: unknown) => {
+        if (settled) return
         if (ch.runtime?.lastError) {
-          reject(new Error("Config load failed"))
+          console.warn("[触触搜][sidepanel] menu config load failed:", ch.runtime.lastError.message || "unknown")
+          finishResolve({ groups: [] })
           return
         }
         const r = response as { success?: boolean; structure?: MenuStructure; error?: string } | undefined
-        if (r?.success && r.structure) resolve(r.structure)
-        else reject(new Error(r?.error || "Config load failed"))
+        if (r?.success && r.structure) finishResolve(r.structure)
+        else finishResolve({ groups: [] })
       })
     })
   }

@@ -75,6 +75,7 @@ export class PopupController {
   private _cachedEnabled = true
   private _menuDelegationBound = false
   private _cachedCoverConfig: CoverConfigShape | null = null
+  private readonly _initTimeoutMs = 2200
 
   // 常量已迁到 src/shared/coverPinConstants.ts，PopupController + PinnedAction 共享
 
@@ -87,16 +88,20 @@ export class PopupController {
       this.startKeywordLoad()
       this._preloadEnableState()
 
-      let menuStructure = await this._tryReadPrebuilt()
+      let menuStructure = await this._withTimeout(this._tryReadPrebuilt(), this._initTimeoutMs, null)
       if (menuStructure) {
         renderSource = "prebuilt-json"
       } else {
-        menuStructure = await this._buildMenuFromFetch()
+        menuStructure = await this._withTimeout(this._buildMenuFromFetch(), this._initTimeoutMs, null)
         renderSource = "local-fetch"
       }
       // pinned cover 在 prebuilt 之后起，复用 _cachedCoverConfig 避免重复 fetch
       this.initPinnedCover()
-      if (!menuStructure) throw new Error("菜单结构构建失败")
+      if (!menuStructure) {
+        // 降级：保留 popup.tsx 里的静态骨架菜单，避免首开白屏
+        console.warn("[触触搜][popup] menu structure unavailable, keep static skeleton")
+        return
+      }
 
       this.config = menuStructure
       this.render()
@@ -111,6 +116,27 @@ export class PopupController {
       this.showError("加载失败，请重试")
       return
     }
+  }
+
+  private async _withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+    return new Promise((resolve) => {
+      let settled = false
+      let timeoutId: ReturnType<typeof setTimeout> | null = null
+      const done = (value: T): void => {
+        if (settled) return
+        settled = true
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+          timeoutId = null
+        }
+        resolve(value)
+      }
+      timeoutId = setTimeout(() => {
+        console.warn("[触触搜][popup] init timeout fallback")
+        done(fallback)
+      }, timeoutMs)
+      promise.then((value) => done(value)).catch(() => done(fallback))
+    })
   }
 
   private async _tryReadPrebuilt(): Promise<MenuStructure | null> {
