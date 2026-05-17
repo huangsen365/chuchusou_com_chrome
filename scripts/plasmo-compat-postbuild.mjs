@@ -118,13 +118,20 @@ function main() {
     ? JSON.parse(fs.readFileSync(plasmoManifestPath, "utf8"))
     : null
 
-  // ⚠️ 全部 4 个 manifest 入口都回退到 legacy（包括 SW）。
-  // 原因：user 加载 build/chrome-mv3-prod/ 报"显示页面不全"。虽然 SW Plasmo 桥接
-  // verifier 证明加载列表等同 legacy index.js，但未经 Chrome 真机回归确认。
-  // 用户需要的是"先恢复到已知能 work 的状态"，再增量切。
-  // Plasmo bundle 已生成（static/background/index.js / popup.html / sidepanel.html /
-  // content.{hash}.js）作为预备态，但 manifest 不指向它们。
-  const background = legacyManifest.background
+  // ⚠️ SW 入口必须指 Plasmo bundle `static/background/index.js`。
+  // 历史：之前回退到 legacy `background/index.js` 是出于 Chrome 真机回归未做的谨慎。
+  // 但 commits 9437c35..725b45d 已经把 base.js / Logger.js / menuBuilder.js /
+  // menuHandlers.js / voiceOffscreenBridge.js / init.js 从 legacy index.js 的
+  // importScripts 列表里 drop 掉了（由 src/background/*.ts 取代）。如果 manifest 仍
+  // 指 legacy index.js，events.js 顶层 `addListener(createContextMenus)` 会拿到
+  // undefined → SW Status 15 注册失败。
+  // Plasmo bundle (`src/background.ts` 编译产物) 是唯一能跑通的入口：它顶层
+  // import 5 个 attach* TS 模块，再 importScripts 17 个剩余 legacy 文件。
+  // 其它 3 个 popup/sidepanel/content_scripts 入口保持 legacy，等单独 port 完整再切。
+  const background = {
+    ...legacyManifest.background,
+    service_worker: "static/background/index.js"
+  }
   // Popup / Sidepanel / Content scripts 暂时回退到 legacy。
   // 原因：TS port 不完整（sidepanel.js 1664 → SidepanelController 455 行只 27%，缺 17 个 DOM ID；
   //       popup.js 1262 → PopupController 1038 行 82%；content.ts 已聚合但未 Chrome 验证）
