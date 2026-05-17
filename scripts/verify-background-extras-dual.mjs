@@ -623,7 +623,43 @@ async function main() {
   const lookup = tsMenuTitles.createMenuTitleLookup(customDefs)
   assert(lookup.getTitle("x") === "🔥 Hot", "lookup factory")
 
-  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles OK")
+  // menuTitleUpdater.ts: 结构 + FIXED_SUBMENU_LABEL_IDS + 模拟 chrome.contextMenus 调用
+  const tsMtu = loadTs(path.join(root, "src/background/menuTitleUpdater.ts"))
+  assert(typeof tsMtu.updateSearchMenuTitles === "function", "updateSearchMenuTitles")
+  assert(typeof tsMtu.updateMainMenuTitle === "function", "updateMainMenuTitle")
+  assert(typeof tsMtu.updateSearchLabelTitle === "function", "updateSearchLabelTitle")
+  assert(typeof tsMtu.updateSubmenuLabels === "function", "updateSubmenuLabels")
+  assert(Array.isArray(tsMtu.FIXED_SUBMENU_LABEL_IDS) && tsMtu.FIXED_SUBMENU_LABEL_IDS.length === 10, "FIXED_SUBMENU_LABEL_IDS 10 entries")
+  // 关键 IDs 含 top100 / fastqa / 8 个 optimize 子分类
+  const labelIds = new Set(tsMtu.FIXED_SUBMENU_LABEL_IDS)
+  for (const must of ["ccs-top100-label", "ccs-fastqa-label",
+    "ccs-optimize-deep-research-label", "ccs-optimize-general-conversation-label",
+    "ccs-optimize-code-writing-label", "ccs-optimize-content-creation-label",
+    "ccs-optimize-data-analysis-label", "ccs-optimize-problem-solving-label",
+    "ccs-optimize-brainstorm-label", "ccs-optimize-description-polish-label"]) {
+    assert(labelIds.has(must), `FIXED_SUBMENU_LABEL_IDS missing ${must}`)
+  }
+  // 模拟一次 chrome.contextMenus.update 走通：捕获调用
+  const captured = []
+  const mtuFakeChrome = {
+    contextMenus: { update: (id, props, cb) => { captured.push({ id, props }); cb() } },
+    action: { setTitle: (props) => captured.push({ icon: props }) },
+    runtime: { lastError: null }
+  }
+  await tsMtu.updateMainMenuTitle("hello", {
+    contextMenus: mtuFakeChrome.contextMenus,
+    action: mtuFakeChrome.action,
+    runtime: mtuFakeChrome.runtime,
+    menuDefinitions: { "ccs-main": { icon: "🔍", text: "触触搜" } },
+    dynamicSearchMenuItems: [],
+    formatMenuTitle: (s) => s,
+    logMenuEvent: () => {}
+  })
+  assert(captured.length === 2, `updateMainMenuTitle captures 2 calls (menu + icon), got ${captured.length}`)
+  assert(captured[0].id === "ccs-main" && captured[0].props.title === '🔍 触触搜: "hello"', "main menu title")
+  assert(captured[1].icon.title === '🔍 触触搜: "hello"', "icon title")
+
+  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater OK")
 }
 
 main().catch((err) => {
