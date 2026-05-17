@@ -1,5 +1,29 @@
 # 更新日志
 
+## v1.6.22 (2026-05-18)
+
+**性能优化：低配 Windows 上 popup / sidepanel 打开慢、"后台启动较慢，请重试" 等卡顿场景的系统性优化**。一句话：让首屏只做"必须现在做的事"，把所有能等的都推迟到浏览器空闲后。详细见 [releases/v1.6.22.md](./releases/v1.6.22.md)。
+
+### 🔧 改进
+
+- **侧边栏打开更快**：sidepanel.js 解析体积 73KB → 57KB（-21.5%）。语音模块（VoicePanel / 别名表 / Levenshtein 融合排序，共 ~500 行）拆到独立 `sidepanel/voice.js`，**默认不下载也不解析**；仅当用户开启语音设置 + 点 🎤 时才动态注入。绝大多数用户从不用语音，首屏不再付这部分代码的解析成本。
+- **AI 提示滚动条不再常驻 CPU**：顶部 marquee（"图片生成后建议截图另存"那条横向滚动文案）之前一直跑 `requestAnimationFrame`，即使 banner 滚出视口 / 浏览器切到后台也照吃 CPU。改成 `IntersectionObserver` + `visibilitychange` 双闸门：不在视口或页面后台时 0 CPU。低配机的常驻税消失。
+- **错峰首屏，不和后台抢 CPU**：popup 的封面快捷启动卡片初始化（含 `fetch(coverPrompts.json)` + 多个 storage 读取）和 sidepanel 的同款 + alive port，统一推迟到 `requestIdleCallback` —— 用户先看到菜单和关键字，封面卡片和后台保活晚 100-300ms 出现，**主观无感但低配 CPU 大幅减压**。
+- **首屏关键字取数更稳**：popup / sidepanel 拿不到缓存关键字时不再立刻打 SW，而是错峰 700ms 后再请求；同时降低重试次数和单次超时，避免与 SW 冷启动重叠造成"后台启动较慢，请重试"。
+
+### 🐛 修复
+
+- **新开网页时菜单偶发卡顿**：低配 Windows 上每次新开网页，`chrome.tabs.onUpdated` 在单次跳转里会触发 3 次（title / loading / complete），原逻辑每次都跑 prefetch + 刷新菜单标题 + sync selection + reinject content.js + setTimeout 二次 prefetch，SW 持续忙 3-6s。新增"LITE 模式"（默认开）：title 变化只更新内存缓存；loading 只清空选区缓存；complete 只跑一次 prefetch + 标题刷新，跳过 content.js 主动 sync（content.js 在 document_start 已注入，会主动上报选区）。删除 300ms 二次 prefetch。SW 忙窗口收窄到单次事件，popup / sidepanel 发出的 menu action 不再撞超时。
+- **菜单标题被动刷新不再发额外探测**：右键菜单显示时如果选区为空，原会再发一次 `chrome.scripting.executeScript` 探测；现在被动刷新路径关掉这个 fallback（显式刷新仍保留），减少 SW 上不必要的注入。
+
+### 🛠 技术改动
+
+- 新增 `sidepanel/voice.js`（502 行）—— IIFE 包裹注册 `globalThis.CCSSidepanelVoice = { VoicePanel }`，HTML 不 eager 引用，由 `SidePanelRenderer._ensureVoiceLoaded()` dynamic `<script>` 注入。`VoicePanel.bind()` 不再绑 `spKeywordVoice` click（主文件已绑 lazy 触发器，避免双绑）。
+- `sidepanel/sidepanel.js` 新增 `performance.mark('ccs-sidepanel-start' / 'ccs-sidepanel-rendered')` + `measure('ccs-sidepanel-ttfb')` + console.log 输出，与 popup 同款打点。开发者 / 用户可在 DevTools console 看真实 TTFB。
+- `popup/popup.js` 删除 dead code `_preloadEnableState`（设置但永远不读 `_cachedEnabled`）。
+- `background/events.js` `BG_TABS_ONUPDATED_LITE = true` 总闸：若上架后真机发现菜单标题 / 关键字同步出问题，把这一行改 `false` 即可一行回滚到 v1.6.21 完整行为。
+- 显式声明 `sharp` 为 dependency（Plasmo 构建链 native module，之前作为 Plasmo 间接依赖，darwin-arm64 binary 偶发缺失导致 build 挂；显式声明 + `npm install --include=optional` 确保跨平台 lock 完整）。
+
 ## v1.6.21 (2026-05-17)
 
 **内部 v2 沉淀版本，用户感知行为与 v1.6.20 完全一致**。生产仍走旧 popup / 旧 sidepanel；新建的 popup-v2 / sidepanel-v2 完整实现作为储备方案保留在仓库 + zip 里，未来可一行 manifest 切换激活。详细见 [releases/v1.6.21.md](./releases/v1.6.21.md)。
