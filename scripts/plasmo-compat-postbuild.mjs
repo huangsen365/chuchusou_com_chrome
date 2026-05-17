@@ -125,12 +125,21 @@ function main() {
     ? { service_worker: plasmoServiceWorker, type: plasmoManifest?.background?.type }
     : legacyManifest.background
 
+  // Side panel：让 Plasmo 接管（src/sidepanel.tsx → sidepanel.html）
+  // 注意 popup 没切：popup 走静态预渲染 + 0 JS 首屏的路径（v1.6.16 实测 34ms），
+  // 不切到 Plasmo React shell，避免 cold start 回归
+  const plasmoSidePanel = plasmoManifest?.side_panel?.default_path
+  const sidePanel = plasmoSidePanel
+    ? { ...legacyManifest.side_panel, default_path: plasmoSidePanel }
+    : legacyManifest.side_panel
+
   const compatManifest = {
     ...legacyManifest,
     version: packageJson.version || legacyManifest.version,
     minimum_chrome_version:
       packageJson.manifest?.minimum_chrome_version || legacyManifest.minimum_chrome_version || "114",
-    background
+    background,
+    side_panel: sidePanel
   }
   // 删除 type 若为 undefined（避免 manifest 里出现 "type": undefined）
   if (!compatManifest.background?.type) delete compatManifest.background?.type
