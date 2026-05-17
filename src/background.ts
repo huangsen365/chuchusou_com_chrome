@@ -20,6 +20,7 @@ import { attachBaseBridge } from "./background/baseBridge"
 import { attachMenuHandlers } from "./background/menuHandlersAttach"
 import { autoRegisterVoiceBridge } from "./background/voiceOffscreenBridge"
 import { attachInit } from "./background/initAttach"
+import { attachMenuBuilder } from "./background/menuBuilderAttach"
 
 const sw = self as unknown as {
   importScripts: (...urls: string[]) => void
@@ -61,7 +62,7 @@ sw.importScripts(
   absoluteUrl("background/tasks/AITaskHandler.js"),
 
   // 第 4 层：菜单 + 事件
-  absoluteUrl("background/menuBuilder.js"),
+  // ↓ background/menuBuilder.js 已被 src/background/menuBuilderAttach.ts 取代 ↓
   // ↓ background/menuHandlers.js 已被 src/background/menuHandlersAttach.ts 取代 ↓
   // ↓ background/voiceOffscreenBridge.js 已被 src/background/voiceOffscreenBridge.ts 取代 ↓
   absoluteUrl("background/events.js"),
@@ -72,9 +73,11 @@ sw.importScripts(
 // 在所有 legacy importScripts 完成后，覆盖 globalThis 上的 base.js 同名函数为
 // TS port 版本 —— 让 setMenuState / applyMenuTitle / updateMainMenuTitle 等
 // 关键路径走 src/background/*.ts 的 SSoT 实现。
-// 注意：base.js 自己在末尾给 globalThis.X = X 做了一次赋值；attachBaseBridge
-// 在那之后跑，所以 TS 版本最终生效。
 attachBaseBridge()
+
+// 替代 legacy menuBuilder.js：注册 createContextMenus / resolveCoverPinTarget /
+// COVER_PIN_MENU_ID 到 globalThis + 装 chrome.storage.onChanged 同步监听器
+attachMenuBuilder()
 
 // 注册 chrome.contextMenus.onClicked 监听器（替代 legacy menuHandlers.js）
 attachMenuHandlers()

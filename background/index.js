@@ -27,7 +27,7 @@ importScripts(
   './tasks/AITaskHandler.js',
 
   // ==================== 第4层：菜单 + 事件 ====================
-  './menuBuilder.js',
+  // ↓ menuBuilder.js 已被 src/background/menuBuilderAttach.ts 取代 ↓
   // ↓ menuHandlers.js 已被 src/background/menuHandlersAttach.ts 取代 ↓
   // ↓ voiceOffscreenBridge.js 已被 src/background/voiceOffscreenBridge.ts 取代 ↓
   './events.js',
