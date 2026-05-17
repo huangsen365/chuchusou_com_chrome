@@ -500,7 +500,47 @@ async function main() {
   assert(typeof orch.metrics.initStartTime === "number", "metrics.initStartTime")
   assert(orch.metrics.initEndTime === null, "metrics.initEndTime starts null")
 
-  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init OK")
+  // KeywordSyncManager.ts: 实例化 + 主流程纯函数 vs 期望行为
+  const tsKsm = loadTs(path.join(root, "src/background/KeywordSyncManager.ts"))
+  assert(typeof tsKsm.KeywordSyncManager === "function", "KeywordSyncManager class")
+  const fakeRegistry = { syncAll: async () => ({ success: 0, failed: 0, total: 0 }), syncGroup: async () => ({ success: 0, failed: 0, total: 0 }) }
+  const ksm = new tsKsm.KeywordSyncManager({
+    menuRegistry: fakeRegistry,
+    selectedTextByTab: { 1: { text: "hello", url: "https://a.test" } },
+    fallbackKeywordByTab: { 2: { raw: "fb-kw" } },
+    latestTitleByTab: { 3: { title: "Page Title" } },
+    normalizeKeyword: (s) => (s || "").trim(),
+    formatMenuTitle: (s) => (s || "").slice(0, 50)
+  })
+  // 初始 state
+  assert(ksm.currentState.raw === "" && ksm.currentState.tabId === null, "initial state empty")
+  // 优先级：selection > fallback > title
+  assert(ksm.getKeywordForTab(1) === "hello", "selection priority")
+  assert(ksm.getKeywordForTab(2) === "fb-kw", "fallback priority")
+  assert(ksm.getKeywordForTab(3) === "Page Title", "title priority")
+  assert(ksm.getKeywordForTab(999) === "", "missing tab → empty")
+  // update + subscribe 走通
+  let received = null
+  const unsub = ksm.subscribe((state) => { received = state })
+  await ksm.update("test", null, { tabId: 42, source: "selection" })
+  assert(received && received.raw === "test" && received.tabId === 42, "subscribe + update")
+  unsub()
+  // clearTabCache 真删
+  ksm.clearTabCache(1)
+  assert(ksm.deps.selectedTextByTab[1] === undefined, "clearTabCache removes selection")
+  // refreshKeywordForTab 同步状态
+  await ksm.refreshKeywordForTab(3)
+  assert(ksm.currentState.raw === "Page Title" && ksm.currentState.source === "title", "refreshKeywordForTab from title")
+  // syncMenus 调用 menuRegistry.syncAll
+  let syncAllCalled = false
+  fakeRegistry.syncAll = async () => { syncAllCalled = true; return { success: 5, failed: 0, total: 5 } }
+  const syncResult = await ksm.syncMenus()
+  assert(syncAllCalled && syncResult.success === 5, "syncMenus calls registry.syncAll")
+  // clear 重置 state + subscribers
+  ksm.clear()
+  assert(ksm.currentState.raw === "" && ksm.subscribers.length === 0, "clear resets")
+
+  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager OK")
 }
 
 main().catch((err) => {
