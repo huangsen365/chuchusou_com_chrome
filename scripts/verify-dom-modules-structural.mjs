@@ -143,7 +143,78 @@ function main() {
     assert(typeof Renderer.prototype[m] === "function", `MenuRenderer.prototype.${m}`)
   }
 
-  console.log("[verify-dom-modules-structural] 6 DOM-bound TS modules OK (TextEncoder + ClipboardHelper + ToastUI + SelectionManager + ToastHelper + MenuRenderer)")
+  // ============ content-modules: blacklist / toast / commands / buttonDefinitions / textSync ============
+  const tsBlacklist = loadTs(path.join(root, "src/content-modules/blacklist.ts"))
+  const BlacklistMgr = tsBlacklist.BlacklistManager
+  assert(BlacklistMgr, "BlacklistManager must be exported")
+  for (const m of ["init", "check", "add", "remove", "toggle", "getCurrentStatus", "clear", "getList", "setList", "contains"]) {
+    assert(typeof BlacklistMgr.prototype[m] === "function", `BlacklistManager.${m}`)
+  }
+  // 跑纯函数（不需 window）：add / remove / getList / contains / setList
+  const bl = Object.create(BlacklistMgr.prototype)
+  bl.list = []
+  bl.isBlacklisted = false
+  bl.originalMode = "normal"
+  assert(bl.add("example.com") === true, "blacklist.add new")
+  assert(bl.add("example.com") === false, "blacklist.add dup")
+  assert(bl.contains("example.com") === true, "blacklist.contains")
+  assert(bl.remove("example.com") === true, "blacklist.remove")
+  assert(bl.remove("example.com") === false, "blacklist.remove dup")
+  assert(bl.setList(["a.com", "b.com"]) === true, "blacklist.setList")
+  assert(JSON.stringify(bl.getList()) === '["a.com","b.com"]', "blacklist.getList")
+
+  const tsContentToast = loadTs(path.join(root, "src/content-modules/toast.ts"))
+  const ContentToast = tsContentToast.CCSContentToast
+  assert(ContentToast, "CCSContentToast must be exported")
+  for (const m of ["show", "success", "error", "warning", "info", "showContextMenuToast", "clearAll"]) {
+    assert(typeof ContentToast.prototype[m] === "function", `CCSContentToast.${m}`)
+  }
+
+  const tsCommands = loadTs(path.join(root, "src/content-modules/commands.ts"))
+  const CmdMgr = tsCommands.CommandsManager
+  assert(CmdMgr, "CommandsManager must be exported")
+  const cm = new CmdMgr()
+  assert(cm.getCommandList().includes("base64"), "cm.getCommandList base64")
+  assert(cm.getCommandList().includes("md5"), "cm.getCommandList md5")
+  assert(cm.execute("upper", ["hello"]) === "HELLO", "cm upper")
+  assert(cm.execute("lower", ["HELLO"]) === "hello", "cm lower")
+  assert(cm.execute("base64", ["hello"]) === "aGVsbG8=", "cm base64")
+  assert(cm.execute("base64", ["-d", "aGVsbG8="]) === "hello", "cm base64 decode")
+  assert(cm.execute("url", ["a b"]) === "a%20b", "cm url enc")
+  assert(cm.execute("url", ["decode", "a%20b"]) === "a b", "cm url dec")
+  assert(cm.execute("nonexistent", []) === null, "cm unknown")
+  assert(cm.isValidCommand("base64") === true, "cm isValid")
+  assert(cm.isValidCommand("x") === false, "cm isValid x")
+  const p1 = cm.parseAndExecute("/upper hello", "")
+  assert(p1?.success === true && p1.result === "HELLO", "cm parse /upper")
+  const p2 = cm.parseAndExecute("/unknown")
+  assert(p2?.success === false, "cm parse unknown")
+  assert(cm.parseAndExecute("") === null, "cm parse empty")
+  assert(cm.parseAndExecute("not slash") === null, "cm parse not slash")
+
+  const tsBtnDef = loadTs(path.join(root, "src/content-modules/buttonDefinitions.ts"))
+  const BtnDefMgr = tsBtnDef.ButtonDefinitionsManager
+  assert(BtnDefMgr, "ButtonDefinitionsManager must be exported")
+  const bd = Object.create(BtnDefMgr.prototype)
+  assert(JSON.stringify(bd.getMiniModeButtons()) === '["baidu","google","chuchusou","copy","lowercase"]', "bd miniMode")
+  assert(JSON.stringify(bd.getNormalModeButtons()) === '["baidu","google","chatgpt","chuchusou","copy"]', "bd normalMode")
+  assert(bd.isSearchEngineButton("baidu") === true, "bd isSearchEngine")
+  assert(bd.isToolButton("copy") === true, "bd isTool")
+
+  const tsTextSync = loadTs(path.join(root, "src/content-modules/textSync.ts"))
+  const TSMgr = tsTextSync.TextSyncManager
+  assert(TSMgr, "TextSyncManager must be exported")
+  const ts2 = Object.create(TSMgr.prototype)
+  ts2.selectedText = ""
+  ts2.lastNonEmptySelection = ""
+  ts2.shadowRoot = null
+  assert(ts2.setSelectedText("hi") === "hi", "ts setSelectedText")
+  assert(ts2.getSelectedText() === "hi", "ts getSelectedText")
+  assert(ts2.setLastNonEmptySelection("foo") === "foo", "ts setLast")
+  assert(ts2.setLastNonEmptySelection("") === "foo", "ts setLast empty keep")
+  assert(ts2.getLastNonEmptySelection() === "foo", "ts getLast")
+
+  console.log("[verify-dom-modules-structural] 11 DOM/content TS modules OK")
 }
 
 main()
