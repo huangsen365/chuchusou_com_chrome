@@ -10,5 +10,5 @@
 - 验证：
   - `npm test` 通过。
   - `npm run plasmo:build` 通过；Plasmo build 后兼容层复制与 manifest/stable assets 校验通过。
-- Commit：`5f3899b` (`test: verify shared menu structure builder`)。
+- Commit：`856efac` (`test: verify shared menu structure builder`)。
 - 下一步建议：继续把 popup/menu 相关共享结构的契约固定下来，例如为 Plasmo 产物增加 popup/sidepanel 静态资源与消息入口 smoke 校验，或开始迁移纯函数型 shared builder 的 TypeScript 版本并做双跑对比。
