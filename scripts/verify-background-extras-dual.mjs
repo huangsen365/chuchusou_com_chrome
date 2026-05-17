@@ -473,7 +473,34 @@ async function main() {
   assert(cl.getEngineTitle("unknown", "fb") === "fb", "getEngineTitle fallback")
   assert(cl.getEngineTitle("unknown") === "unknown", "getEngineTitle no fallback returns id")
 
-  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config OK")
+  // init.ts: 结构 + INIT_CONFIG + POPUP_MENU_PREWARM_KEY 与 legacy 一致
+  const tsInit = loadTs(path.join(root, "src/background/init.ts"))
+  assert(typeof tsInit.InitOrchestrator === "function", "InitOrchestrator class")
+  assert(typeof tsInit.createInitOrchestrator === "function", "createInitOrchestrator factory")
+  assert(tsInit.INIT_CONFIG.useNewSystem === false, "INIT_CONFIG.useNewSystem=false")
+  assert(tsInit.POPUP_MENU_PREWARM_KEY === "ccs_popup_menu_prewarm", "POPUP_MENU_PREWARM_KEY const")
+  // 模拟最小 deps，验证 InitOrchestrator 实例方法签名
+  const mockDeps = {
+    initMenuSystem: async () => {},
+    createContextMenus: () => {},
+    initKeywordSyncSystem: () => {},
+    getURL: (p) => p,
+    fetch: async () => ({ ok: true, json: async () => ({}) }),
+    chrome: {
+      runtime: { getManifest: () => ({ version: "1.0.0" }) },
+      storage: { local: { set: () => Promise.resolve(), get: () => Promise.resolve({}), remove: () => Promise.resolve() } }
+    },
+    setInterval: () => 0
+  }
+  const orch = new tsInit.InitOrchestrator(mockDeps)
+  for (const m of ["initializeExtension", "initializeMenuSystem", "setupCleanupTasks", "runFullPrewarming", "installListeners"]) {
+    assert(typeof orch[m] === "function", `InitOrchestrator.${m}`)
+  }
+  // metrics 初始化
+  assert(typeof orch.metrics.initStartTime === "number", "metrics.initStartTime")
+  assert(orch.metrics.initEndTime === null, "metrics.initEndTime starts null")
+
+  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init OK")
 }
 
 main().catch((err) => {
