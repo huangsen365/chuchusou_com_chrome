@@ -127,6 +127,44 @@ function main() {
     assert(typeof Sel.prototype[m] === "function", `SelectionManager.prototype.${m}`)
   }
 
+  // ============ DockBar ============
+  const tsDock = loadTs(path.join(root, "src/content/DockBar.ts"))
+  const Dock = tsDock.DockBar || tsDock.default
+  assert(Dock, "DockBar must be exported")
+  for (const m of [
+    "init", "createDockBarHTML", "getStyles", "createDockMenuHTML",
+    "bindDockBarEvents", "bindDockToggleEvents",
+    "enableGlobalDock", "enableTempDock", "undock", "close",
+    "initDockBar", "ensureBottomBarVisible",
+    "shouldShowAsBottom", "isDocked", "getState", "setTempDock"
+  ]) {
+    assert(typeof Dock.prototype[m] === "function", `DockBar.prototype.${m}`)
+  }
+  // 跑纯函数 case：getState / setTempDock / shouldShowAsBottom / isDocked / enable / undock / close
+  // 不需要 DOM，只用对象状态
+  const dock = new Dock()
+  dock.init(
+    { globalDock: false, layout: "float", mode: "normal", isBlacklisted: false, barClosed: false },
+    {}
+  )
+  assert(dock.isDocked() === false, "DockBar.isDocked false")
+  assert(dock.shouldShowAsBottom() === false, "DockBar.shouldShowAsBottom false")
+  dock.enableGlobalDock()
+  assert(dock.isDocked() === true, "DockBar.isDocked after enableGlobalDock")
+  assert(dock.shouldShowAsBottom() === true, "DockBar.shouldShowAsBottom after enable")
+  assert(dock.getState().globalDock === true, "DockBar.getState globalDock")
+  dock.undock()
+  assert(dock.isDocked() === false, "DockBar.isDocked after undock")
+  assert(dock.getState().globalDock === false, "DockBar.getState after undock")
+  dock.setTempDock(true)
+  assert(dock.getState().isTempDock === true, "DockBar.setTempDock")
+  dock.close()
+  assert(dock.getState().barClosed === true, "DockBar.close → barClosed=true")
+  // createDockBarHTML / createDockMenuHTML 返回 string (不 require DOM)
+  assert(typeof dock.createDockBarHTML("", null) === "string", "DockBar.createDockBarHTML returns string")
+  assert(typeof dock.createDockMenuHTML() === "string", "DockBar.createDockMenuHTML returns string")
+  assert(typeof dock.getStyles() === "string", "DockBar.getStyles returns string")
+
   // ============ popup/modules/ToastHelper ============
   const tsPopupToast = loadTs(path.join(root, "src/popup/modules/ToastHelper.ts"))
   const PopupToast = tsPopupToast.ToastHelper || tsPopupToast.default
@@ -214,7 +252,7 @@ function main() {
   assert(ts2.setLastNonEmptySelection("") === "foo", "ts setLast empty keep")
   assert(ts2.getLastNonEmptySelection() === "foo", "ts getLast")
 
-  console.log("[verify-dom-modules-structural] 11 DOM/content TS modules OK")
+  console.log("[verify-dom-modules-structural] 12 DOM/content TS modules OK")
 }
 
 main()
