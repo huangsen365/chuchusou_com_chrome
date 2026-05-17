@@ -512,6 +512,67 @@ body {
   color: #cbd5e1;
 }
 
+/* ============ 📌 固定到工具栏提示 ============ */
+.pin-tip-card {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1px solid #93c5fd;
+  border-radius: 12px;
+  padding: 18px 22px;
+}
+
+.pin-tip-headline {
+  font-size: 14.5px;
+  color: #1e3a8a;
+  margin: 0 0 14px;
+  line-height: 1.6;
+}
+
+.pin-tip-steps {
+  margin: 0 0 14px 22px;
+  padding: 0;
+  color: #1e293b;
+  font-size: 14px;
+  line-height: 1.9;
+}
+
+.pin-tip-steps li {
+  margin-bottom: 6px;
+}
+
+.pin-tip-steps li::marker {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.pin-tip-steps strong {
+  color: #1e3a8a;
+}
+
+.pin-tip-kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  margin: 0 2px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  font-size: 14px;
+  vertical-align: 1px;
+}
+
+.pin-tip-note {
+  font-size: 13px;
+  color: #475569;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.pin-tip-note strong {
+  color: #1e3a8a;
+}
+
 /* ============ Responsive ============ */
 @media (max-width: 600px) {
   .container {
