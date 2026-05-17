@@ -1288,25 +1288,39 @@ class SidePanelRenderer {
     if (this._runtimeMessagesBound) return;
     this._runtimeMessagesBound = true;
     // Listen for real-time keyword updates from background
-    chrome.runtime.onMessage.addListener((message) => {
-      if (message.action === 'keywordUpdated' && message.keyword) {
-        this.keyword = {
-          text: message.keyword.text || '',
-          raw: message.keyword.raw || message.keyword.text || ''
-        };
-        this.renderKeyword();
-        return;
-      }
-      if (message.action === 'ccsVoicePermissionGranted' && this.voicePanel) {
-        this.voicePanel.showPermissionReady();
-        return;
-      }
-      if (message.action === 'ccsVoiceVisibleRecognized' && this.voicePanel) {
-        this.voicePanel.finishRecognition(Array.isArray(message.candidates) ? message.candidates : []);
-        return;
-      }
-      if (message.action === 'ccsVoiceVisibleError' && this.voicePanel) {
-        this.voicePanel.showVisibleRecognitionError(message.error || '');
+    // 完整签名 (message, sender, sendResponse) —— 之前缺 sender/sendResponse，
+    // 拿不到 sender.tab 做 origin 校验且没法对未知 action 返回错误回包
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      // 兜底守卫：handler 抛错不应让其它扩展 listener 受牵连
+      try {
+        if (!message || typeof message !== 'object') {
+          return false;
+        }
+        if (message.action === 'keywordUpdated' && message.keyword) {
+          this.keyword = {
+            text: message.keyword.text || '',
+            raw: message.keyword.raw || message.keyword.text || ''
+          };
+          this.renderKeyword();
+          return false;
+        }
+        if (message.action === 'ccsVoicePermissionGranted' && this.voicePanel) {
+          this.voicePanel.showPermissionReady();
+          return false;
+        }
+        if (message.action === 'ccsVoiceVisibleRecognized' && this.voicePanel) {
+          this.voicePanel.finishRecognition(Array.isArray(message.candidates) ? message.candidates : []);
+          return false;
+        }
+        if (message.action === 'ccsVoiceVisibleError' && this.voicePanel) {
+          this.voicePanel.showVisibleRecognitionError(message.error || '');
+          return false;
+        }
+        // 未知 action：sendpanel 不响应它，让其它 listener 继续处理
+        return false;
+      } catch (err) {
+        console.warn('[触触搜][SP] onMessage handler 抛错:', err);
+        return false;
       }
     });
   }
