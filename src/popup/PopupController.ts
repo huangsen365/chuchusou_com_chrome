@@ -46,11 +46,6 @@ function getChrome(): ChromeLike {
   return (globalThis as unknown as { chrome?: ChromeLike }).chrome || ({} as ChromeLike)
 }
 
-interface PrewarmEntry {
-  version?: string
-  structure?: MenuStructure
-}
-
 interface CoverConfigShape {
   categories?: Array<{
     id: string
@@ -92,13 +87,8 @@ export class PopupController {
       this.initPinnedCover()
       this._preloadEnableState()
 
-      let menuStructure = await this._tryReadPrewarm()
-      if (menuStructure) {
-        renderSource = "storage-prewarm"
-      } else {
-        menuStructure = await this._buildMenuFromFetch()
-        renderSource = "local-fetch"
-      }
+      const menuStructure = await this._buildMenuFromFetch()
+      renderSource = "local-fetch"
       if (!menuStructure) throw new Error("菜单结构构建失败")
 
       this.config = menuStructure
@@ -114,23 +104,6 @@ export class PopupController {
       this.showError("加载失败，请重试")
       return
     }
-  }
-
-  private async _tryReadPrewarm(): Promise<MenuStructure | null> {
-    try {
-      const ch = getChrome()
-      if (!ch.storage?.local || !ch.runtime?.getManifest) return null
-      const r = await new Promise<Record<string, unknown>>((resolve) => {
-        ch.storage!.local.get(["ccs_popup_menu_prewarm"], resolve)
-      })
-      const entry = r?.ccs_popup_menu_prewarm as PrewarmEntry | undefined
-      if (!entry) return null
-      const currentVersion = ch.runtime.getManifest!()?.version
-      if (entry.version !== currentVersion) return null
-      const s = entry.structure
-      if (!s || !Array.isArray(s.groups) || s.groups.length === 0) return null
-      return s
-    } catch (_) { return null }
   }
 
   private async _buildMenuFromFetch(): Promise<MenuStructure | null> {

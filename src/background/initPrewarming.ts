@@ -1,27 +1,23 @@
 /**
  * SW 初始化预热 (TypeScript port)
  *
- * Port 自 background/init.js 的 prewarmPromptConfigs / prewarmPopupMenuStructure /
- * clearStaleSidepanelStates 三个函数。
+ * Port 自 background/init.js 的 prewarmPromptConfigs / clearStaleSidepanelStates。
  *
- * 这是 onInstalled / onStartup 触发的预热逻辑：在 SW 启动后台并行加载所有 config，
- * 把完整菜单结构写入 chrome.storage.local 的 ccs_popup_menu_prewarm 键，让 popup
- * 打开时 ~5ms 命中缓存而无需 6 个 fetch。
+ * 这是 onInstalled / onStartup 触发的预热逻辑：在 SW 启动后台并行加载所有 config
+ * 让 loader 内 globalThis cache 命中，节省后续右键菜单/sidepanel 首次 RPC 的成本。
+ *
+ * v1.6.19：移除了 prewarmPopupMenuStructure —— SW idle 30s 被回收时，popup 反而
+ * 因为 prewarm 是空的而走 fallback fetch，写 prewarm 本身只为热路径加速但与卡顿场景
+ * 互斥。统一让 popup 走本地 fetch（不依赖 SW），冷热表现一致。
  *
  * 所有依赖通过 deps 参数注入，便于测试。
  */
 
-import {
-  CCSMenuStructureBuilder,
-  type MenuStructure
-} from "../shared/menuStructureBuilder"
 import type {
   UnifiedMenuConfig,
   EnginesConfig,
   PromptConfig
 } from "../shared/types"
-
-export const POPUP_MENU_PREWARM_KEY = "ccs_popup_menu_prewarm"
 
 export interface PrewarmConfigsResult {
   ok: number
@@ -71,54 +67,6 @@ export async function prewarmPromptConfigs(
   const ms = Date.now() - startedAt
   deps.debug?.(`[Init] 🔥 prompt 缓存预热完成 (${ok}/${total}, ${ms}ms)`)
   return { ok, total, ms }
-}
-
-/**
- * 把完整的 popup 菜单结构构建一次，写入 chrome.storage.local。
- * popup 打开时优先读这个 key，命中后 ~5ms 直接 render。
- *
- * cache miss / version 不匹配 → popup 自动 fallback 到 6 fetch + builder 路径。
- */
-export async function prewarmPopupMenuStructure(deps: PrewarmDeps): Promise<MenuStructure | null> {
-  try {
-    const [unifiedConfig, top100Config, fastqaConfig, optimizeConfig, coverConfig, enginesConfig] =
-      await Promise.all([
-        deps.loaders.unified().catch(() => null),
-        deps.loaders.top100().catch(() => null),
-        deps.loaders.fastqa().catch(() => null),
-        deps.loaders.optimize().catch(() => null),
-        deps.loaders.cover().catch(() => null),
-        deps.loaders.engines().catch(() => null)
-      ])
-
-    if (!unifiedConfig) return null
-
-    const structure = CCSMenuStructureBuilder.build({
-      unifiedConfig,
-      enginesConfig,
-      top100Config,
-      fastqaConfig,
-      optimizeConfig,
-      coverConfig
-    })
-
-    if (!structure || !Array.isArray(structure.groups) || structure.groups.length === 0) {
-      return null
-    }
-
-    await deps.storageSet({
-      [POPUP_MENU_PREWARM_KEY]: {
-        version: deps.getManifestVersion(),
-        ts: Date.now(),
-        structure
-      }
-    })
-    deps.debug?.("[Init] 🔥 popup 菜单结构预热完成", structure.groups.map((g) => g.id).join(","))
-    return structure
-  } catch (e) {
-    console.warn("[Init] popup 菜单预热失败:", e)
-    return null
-  }
 }
 
 /**
@@ -195,18 +143,16 @@ export function createDefaultPrewarmDeps(): PrewarmDeps {
 
 /**
  * 一站式入口：跑完整预热流程（onInstalled 触发用）。
+ * v1.6.19：去掉 prewarmPopupMenuStructure，popup 端不再依赖 storage prewarm。
  */
 export async function runFullPrewarming(deps?: PrewarmDeps): Promise<void> {
   const d = deps || createDefaultPrewarmDeps()
   await prewarmPromptConfigs(d)
-  await prewarmPopupMenuStructure(d)
   await clearStaleSidepanelStates(d)
 }
 
 export default {
-  POPUP_MENU_PREWARM_KEY,
   prewarmPromptConfigs,
-  prewarmPopupMenuStructure,
   clearStaleSidepanelStates,
   createDefaultPrewarmDeps,
   runFullPrewarming

@@ -31,16 +31,12 @@ class PopupMenuRenderer {
       this.initPinnedCover();
       this._preloadEnableState();
 
-      // 优先路径（v1.6.15）：storage 预热缓存（~5ms）。
-      // background 在 onInstalled / SW 冷启动时把完整 menu structure 写入 chrome.storage.local。
-      let menuStructure = await this._tryReadPrewarm();
-      if (menuStructure) {
-        renderSource = 'storage-prewarm';
-      } else {
-        // Fallback：v1.6.14 的 6 个本地 fetch + builder（~30-50ms）
-        menuStructure = await this._buildMenuFromFetch();
-        renderSource = 'local-fetch';
-      }
+      // v1.6.19：直接走 6 个本地 fetch + builder（~30-50ms）。
+      // 老的 storage-prewarm 路径删了 —— SW 30s idle 即被回收，prewarm 又得 SW
+      // 醒来才能写，正好和卡顿场景互斥。本地 fetch 不依赖 SW，命中扩展自带的
+      // packaged 资源，冷热表现一致。
+      const menuStructure = await this._buildMenuFromFetch();
+      renderSource = 'local-fetch';
 
       if (!menuStructure) {
         throw new Error('菜单结构构建失败');
@@ -65,25 +61,7 @@ class PopupMenuRenderer {
     // 但启用/禁用状态影响底部按钮配色，仍轻量预读一次。
   }
 
-  // v1.6.15：优先读 background 写入的预热菜单结构
-  async _tryReadPrewarm() {
-    try {
-      const r = await new Promise((resolve) =>
-        chrome.storage.local.get(['ccs_popup_menu_prewarm'], resolve));
-      const entry = r?.ccs_popup_menu_prewarm;
-      if (!entry) return null;
-      const currentVersion = chrome.runtime.getManifest()?.version;
-      if (entry.version !== currentVersion) return null;
-      if (!entry.structure || !Array.isArray(entry.structure.groups) || entry.structure.groups.length === 0) {
-        return null;
-      }
-      return entry.structure;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  // Fallback：v1.6.14 路径——6 个同源 fetch + builder
+  // 6 个同源 fetch + builder（不依赖 SW）
   async _buildMenuFromFetch() {
     const [unifiedConfig, top100, fastqa, optimize, cover, engines] = await Promise.all([
       this.fetchJSON('config/unifiedMenuConfig.json'),

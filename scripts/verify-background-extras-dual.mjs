@@ -473,12 +473,11 @@ async function main() {
   assert(cl.getEngineTitle("unknown", "fb") === "fb", "getEngineTitle fallback")
   assert(cl.getEngineTitle("unknown") === "unknown", "getEngineTitle no fallback returns id")
 
-  // init.ts: 结构 + INIT_CONFIG + POPUP_MENU_PREWARM_KEY 与 legacy 一致
+  // init.ts: 结构 + INIT_CONFIG 与 legacy 一致（v1.6.19 起 POPUP_MENU_PREWARM_KEY 已删）
   const tsInit = loadTs(path.join(root, "src/background/init.ts"))
   assert(typeof tsInit.InitOrchestrator === "function", "InitOrchestrator class")
   assert(typeof tsInit.createInitOrchestrator === "function", "createInitOrchestrator factory")
   assert(tsInit.INIT_CONFIG.useNewSystem === false, "INIT_CONFIG.useNewSystem=false")
-  assert(tsInit.POPUP_MENU_PREWARM_KEY === "ccs_popup_menu_prewarm", "POPUP_MENU_PREWARM_KEY const")
   // 模拟最小 deps，验证 InitOrchestrator 实例方法签名
   const mockDeps = {
     initMenuSystem: async () => {},

@@ -13,9 +13,7 @@
  */
 
 import {
-  POPUP_MENU_PREWARM_KEY,
   prewarmPromptConfigs,
-  prewarmPopupMenuStructure,
   clearStaleSidepanelStates,
   type PrewarmDeps
 } from "./initPrewarming"
@@ -136,10 +134,9 @@ export class InitOrchestrator {
     console.log("[Init] ✅ 自动清理任务已设置（每 5 分钟）")
   }
 
-  /** 串接 prewarm：先 prompt configs，再 popup 菜单结构 */
+  /** prewarm：仅预热 prompt configs loader cache（popup 菜单结构 prewarm 已废弃 v1.6.19） */
   async runFullPrewarming(): Promise<void> {
     await prewarmPromptConfigs(this.deps)
-    await prewarmPopupMenuStructure(this.deps)
   }
 
   /** 启动期：注册 onInstalled / onStartup hook */
@@ -196,8 +193,6 @@ export class InitOrchestrator {
     }
   }
 }
-
-export { POPUP_MENU_PREWARM_KEY }
 
 export function createInitOrchestrator(deps: InitDeps): InitOrchestrator {
   return new InitOrchestrator(deps)
