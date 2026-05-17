@@ -6,7 +6,8 @@
  *  1. popup bundle 字节数 ≤ 600KB（React + PopupController + 依赖）
  *  2. content bundle 字节数 ≤ 250KB（20 个聚合模块 + 主入口）
  *  3. sidepanel bundle 字节数 ≤ 600KB（含可能 lazy import 的 Voice）
- *  4. SW bundle 字节数 ≤ 50KB（Plasmo SW 入口本身极薄，只 importScripts legacy）
+ *  4. SW bundle 字节数 ≤ 150KB（v1.6.18+ 把 base.js / Logger.js / menuHandlers.js 等
+ *     legacy 模块 port 进 TS bundle，bundle 从 ~3KB 增长到 ~50KB+ 是正常的）
  *
  * 这些预算保守，目的是在 Plasmo bundle 失控（比如 React Native 误装、大 lib 误进）时拦下来。
  * 真实启动时序请跑 `npm run perf:cold-popup` 或在 Chrome devtools 看 cold start。
@@ -45,7 +46,7 @@ const BUDGETS = {
   POPUP_BUNDLE_MAX: 600 * 1024,     // Plasmo React popup
   CONTENT_BUNDLE_MAX: 250 * 1024,   // 20 个聚合模块 + 主入口
   SIDEPANEL_BUNDLE_MAX: 600 * 1024, // React + PinnedAction + dynamic Voice
-  SW_BUNDLE_MAX: 50 * 1024          // Plasmo SW 极薄（importScripts bridge）
+  SW_BUNDLE_MAX: 150 * 1024         // SW bundle 含 TS port baseBridge/menuHandlersAttach/等
 }
 
 /**
@@ -86,7 +87,7 @@ function checkSwBundle() {
   }
   const size = fs.statSync(swPath).size
   if (size > BUDGETS.SW_BUNDLE_MAX) {
-    fail(`SW bundle ${(size / 1024).toFixed(1)}KB 超出预算 ${(BUDGETS.SW_BUNDLE_MAX / 1024).toFixed(0)}KB（应只是 importScripts bridge，超出说明误塞了大依赖）`)
+    fail(`SW bundle ${(size / 1024).toFixed(1)}KB 超出预算 ${(BUDGETS.SW_BUNDLE_MAX / 1024).toFixed(0)}KB（v1.6.18+ 含 TS port，超出说明误塞了大依赖）`)
   }
   ok(`SW bundle static/background/index.js ${(size / 1024).toFixed(1)}KB ≤ ${(BUDGETS.SW_BUNDLE_MAX / 1024).toFixed(0)}KB`)
 }
