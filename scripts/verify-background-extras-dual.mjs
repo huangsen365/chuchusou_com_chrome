@@ -588,7 +588,42 @@ async function main() {
   cache3.getPageTitle(1)
   assert(logged?.stage === "cached-title-expired" && logged.p.tabId === 1, "logMenuEvent called on expiry")
 
-  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState OK")
+  // menuTitles.ts: 与 legacy base.js getMenuDefinition/Text/Title 行为对等
+  const tsMenuTitles = loadTs(path.join(root, "src/background/menuTitles.ts"))
+  assert(typeof tsMenuTitles.getMenuDefinition === "function", "menuTitles.getMenuDefinition")
+  assert(typeof tsMenuTitles.getMenuText === "function", "menuTitles.getMenuText")
+  assert(typeof tsMenuTitles.getMenuTitle === "function", "menuTitles.getMenuTitle")
+  // legacy MENU_DEFINITIONS 来自 Constants.js（已加载）
+  const legacyDefs = legacy.MENU_DEFINITIONS
+  assert(legacyDefs && typeof legacyDefs === "object", "legacy MENU_DEFINITIONS")
+  // 抽样几个 menuId dual-run
+  const testIds = ["ccs-baidu", "ccs-google", "ccs-chatgpt", "ccs-claude", "ccs-main"]
+  for (const id of testIds) {
+    const legacyText = legacy.getMenuText?.(id) ?? legacy.getMenuText?.bind(legacy)?.(id)
+    const tsText = tsMenuTitles.getMenuText(legacyDefs, id)
+    // legacy.getMenuText 可能没暴露，跳过比较时只验 TS 行为
+    if (typeof legacyText === "string") {
+      assert(tsText === legacyText, `getMenuText(${id}) diverges: legacy="${legacyText}" ts="${tsText}"`)
+    }
+    const legacyTitle = legacy.getMenuTitle?.(id) ?? ""
+    const tsTitle = tsMenuTitles.getMenuTitle(legacyDefs, id)
+    if (typeof legacyTitle === "string" && legacyTitle) {
+      assert(tsTitle === legacyTitle, `getMenuTitle(${id}) diverges: legacy="${legacyTitle}" ts="${tsTitle}"`)
+    }
+  }
+  // fallback 行为
+  assert(tsMenuTitles.getMenuText(legacyDefs, "non-existent", "fb") === "fb", "getMenuText fallback")
+  assert(tsMenuTitles.getMenuText(legacyDefs, "non-existent") === "non-existent", "getMenuText no-fallback returns id")
+  // getMenuTitle: 有 icon 时拼 "icon text"
+  const customDefs = { "x": { icon: "🔥", text: "Hot" }, "y": { text: "NoIcon" }, "z": { icon: "  ", text: "BlankIcon" } }
+  assert(tsMenuTitles.getMenuTitle(customDefs, "x") === "🔥 Hot", "getMenuTitle with icon")
+  assert(tsMenuTitles.getMenuTitle(customDefs, "y") === "NoIcon", "getMenuTitle no icon")
+  assert(tsMenuTitles.getMenuTitle(customDefs, "z") === "BlankIcon", "getMenuTitle blank icon trimmed")
+  // createMenuTitleLookup 工厂
+  const lookup = tsMenuTitles.createMenuTitleLookup(customDefs)
+  assert(lookup.getTitle("x") === "🔥 Hot", "lookup factory")
+
+  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles OK")
 }
 
 main().catch((err) => {
