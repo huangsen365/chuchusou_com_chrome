@@ -119,3 +119,42 @@
 1. 先 port sidepanel 主体（PinnedAction + SidePanelRenderer ~800 行），voice 部分留 legacy（实验性，用户可关）
 2. 然后 port content.js + dockbar.js
 3. 最后处理 background SW（最难，因为 importScripts 全局命名空间纠缠最深）
+
+## 2026-05-17 第三批（sidepanel 核心 + background runtime 收尾）
+
+- 本轮目标：sidepanel 核心生命周期 port + 3 个 background runtime 模块（AITaskHandler / icons / keywordResolver）port + popup 性能优化。
+- 改动：
+  - `src/sidepanel.tsx` + `src/sidepanel/SidepanelController.ts` (~475 行 TS)
+    sidepanel 核心生命周期 1:1 port：alive port / tab refresh listeners / runtime onMessage / keyword 加载刷新 / 静态菜单 binding / 复制 + 剪贴板兜底。PinnedAction + Voice classes 留 legacy 待下轮。
+  - `src/background/tasks/AITaskHandler.ts` (~210 行)
+    runAITask + runAITaskByMenuId + collectTaskVars，全部 chrome.* 依赖通过 deps 参数注入。
+  - `src/background/icons.ts` (~210 行)
+    createImageDataFromUrl + resolveMenuIconTargets + applyMenuIcons，OffscreenCanvas + ImageData + chrome.contextMenus.update。
+  - `src/background/keywordResolver.ts` (~245 行)
+    computeSearchTextForTab 8 级 candidate fallback + createChromeScriptingFetcher() 工厂。
+  - **`src/popup/PopupController.ts` 性能优化**：PromptLibraryManager 改为 dynamic import，~485 行 TS 不进首屏 popup bundle，节省 ~5-10ms parse 时间。
+- 验证：
+  - `npm test` 全绿
+  - `npm run plasmo:build` 通过
+- Commits：
+  - `4d4b2fa` popup 1262 行 1:1 port
+  - `79f746e` popup PromptLibrary 动态 import 性能优化
+  - `fab11a7` sidepanel 核心生命周期 port
+  - `b56bb88` AITaskHandler + icons + keywordResolver port
+- 当前累计：
+  - TS 文件 **57 个**
+  - TS 行数 **13337 行**
+  - 43 commits 自 v1.6.16 起
+- 关键性能保障（popup）：
+  - 静态 HTML 预渲染 8 个核心菜单项（首帧零 JS 可见）
+  - storage prewarm cache（~5ms）
+  - 6 fetch + builder fallback（~30-50ms）
+  - 600ms keyword race
+  - PromptLibraryManager 动态 import
+  - ccs-popup-rendered 性能 mark 保留
+- 下一步剩余：
+  1. sidepanel PinnedAction class (~544 行) 完整 port
+  2. sidepanel Voice classes (~470 行) port（实验性功能，可延后）
+  3. background SW 入口（base / events / init / menuBuilder / menuHandlers / menuSystem / index / config / KeywordService / KeywordSyncManager ~10000 行）
+  4. content.js + dockbar.js (~600 行) 主入口
+  5. manifest 切到 Plasmo 输出（必须 Chrome 真机回归验证）
