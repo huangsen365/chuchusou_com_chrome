@@ -7,7 +7,7 @@
   },
   "scripts": {
     "lint": "eslint .",
-    "test": "npm run lint && npm run typecheck && npm run verify:shared-config && npm run verify:menu-structure-builder && npm run verify:menu-structure-builder-dual && npm run verify:background-utils-dual && npm run verify:background-pure-modules-dual && npm run verify:background-extras-dual && npm run verify:dom-modules-structural && npm run plasmo:build && npm run verify:perf-budget",
+    "test": "npm run lint && npm run typecheck && npm run verify:shared-config && npm run verify:menu-structure-builder && npm run verify:menu-structure-builder-dual && npm run verify:background-utils-dual && npm run verify:background-pure-modules-dual && npm run verify:background-extras-dual && npm run verify:dom-modules-structural && npm run plasmo:build && npm run verify:perf-budget && npm run verify:sw-bridge",
     "plasmo:dev": "plasmo dev --target=chrome-mv3 --src-path=src",
     "plasmo:build": "plasmo build --target=chrome-mv3 --src-path=src && node scripts/plasmo-compat-postbuild.mjs && npm run plasmo:verify",
     "plasmo:package": "npm run plasmo:build && plasmo package --target=chrome-mv3 --src-path=src && npm run plasmo:verify-package",
@@ -22,6 +22,7 @@
     "verify:background-extras-dual": "node scripts/verify-background-extras-dual.mjs",
     "verify:dom-modules-structural": "node scripts/verify-dom-modules-structural.mjs",
     "verify:perf-budget": "node scripts/verify-perf-budget.mjs",
+    "verify:sw-bridge": "node scripts/verify-sw-bridge.mjs",
     "perf:cold-popup": "node scripts/perf-cold-popup.mjs",
     "perf:test": "bash scripts/test-perf.sh"
   },

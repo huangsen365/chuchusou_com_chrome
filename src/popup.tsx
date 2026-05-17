@@ -11,6 +11,9 @@
 
 import { useEffect, useRef } from "react"
 
+// CSS：复用 legacy popup/popup.css（Plasmo Parcel 会把它打进 popup.html）
+import "../popup/popup.css"
+
 import PopupController from "./popup/PopupController"
 
 function PopupApp() {

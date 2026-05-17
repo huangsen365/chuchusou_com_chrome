@@ -14,6 +14,9 @@
 
 import { useEffect, useRef } from "react"
 
+// CSS：复用 legacy sidepanel/sidepanel.css
+import "../sidepanel/sidepanel.css"
+
 import SidepanelController from "./sidepanel/SidepanelController"
 
 function SidepanelApp() {
