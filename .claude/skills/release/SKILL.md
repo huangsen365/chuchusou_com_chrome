@@ -80,22 +80,27 @@ node -e "JSON.parse(require('fs').readFileSync('package-lock.json'))"
 
 任一失败 → 修了再继续，**不要带着红 lint 发版**（之前 CI 红 5 个 commit 就是这个原因）。
 
-## Step 5：打 zip
+## Step 5：打 zip（基于 Plasmo）
 
 ```bash
 ./build.sh
 ```
 
-构建脚本自动从 `manifest.json` 读版本号，输出到**项目并列上层目录**：
-`../chuchusou_chrome_extension_vX.Y.Z.zip`
+**v1.6.18 起 build.sh 是 Plasmo 的 thin wrapper**：
+1. 调 `npm run plasmo:build`（Plasmo 编译 src/* + compat postbuild 复制 legacy + verify 33 个 manifest-ref 文件齐全）
+2. 把 build/chrome-mv3-prod/manifest.json 的 version 字段写为目标版本
+3. 把整个 build/chrome-mv3-prod/ 打成 zip 到 `../chuchusou_chrome_extension_vX.Y.Z.zip`
+
+**与旧脚本的关键差异**：旧 build.sh 直接 rsync 源目录，完全绕过 Plasmo；新版完全走 Plasmo build。这意味着任何 src/ 改动通过 npm run plasmo:build 编译后都会进入 zip，跟测试链一致。
 
 **验收检查**（眼看输出）：
-- 文件数与上一版同量级（v1.2.0 / v1.2.1 都是 92 文件）
-- ZIP 大小同量级（~210K）—— 突然暴增多半是误带了 `node_modules` / `.git` / `legacy/`
-- 顶层目录齐全：`background/ config/ content/ icons/ modules/ popup/ prompts/ sidepanel/ assets/`
-- 关键根文件：`manifest.json content.js content.css dockbar.js privacy.html`
+- 文件数 ~130 个（v1.6.18+ 含 Plasmo bundle 比 v1.6.17 多 40 个）
+- ZIP 大小 ~450K（v1.6.18+ 含 Plasmo bundle 比 v1.6.17 大约多 250K）
+- 顶层目录齐全：`background/ config/ content/ icons/ modules/ popup/ prompts/ sidepanel/ assets/ static/`
+- Plasmo 物证：根 `popup.html` / `sidepanel.html` / `content.{hash}.js` / `static/background/index.js`
+- 关键 legacy 根文件：`manifest.json content.js content.css dockbar.js privacy.html`
 
-历史 bug：`build.sh` 曾经漏复制 `background/` / `sidepanel/` / `config/` / `prompts/` / `content/` / `modules/` / `dockbar.js`，装上 service worker 直接挂。所以**目录核对不能省**。
+如果 verify-plasmo-compat-build 失败（33 个 manifest-referenced 文件缺一）→ build.sh 会立刻退出。
 
 ## Step 6：本地装一下试（强烈建议）
 

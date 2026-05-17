@@ -1,5 +1,21 @@
 # 更新日志
 
+## v1.6.18 (2026-05-17)
+
+**首个真正基于 Plasmo 框架发布的版本**。`./build.sh` 从 v1.6.0 时代的"直接 rsync 源目录"模式切到走 `npm run plasmo:build` 出 build/chrome-mv3-prod/ 再打 zip。同时修一个 YouTube 关键字识别 bug。详细见 [releases/v1.6.18.md](./releases/v1.6.18.md)。
+
+### 🐛 修复
+
+- **YouTube 关键字识别**：在 `youtube.com/watch?v=ID` 页面唤起菜单时，关键字不再被错误取为 11 字符 video ID（如 `IurBXe0jpVg`），改为正确取页面标题（剥掉 ` - YouTube` 后缀）。原因是启发式 fallback 把 video ID 的字符长度当成了"合理关键字"。HOSTS_SKIP_HEURISTIC 名单可扩展，未来遇到 spotify track id / twitter status id 等同类站直接加一行。
+
+### 🛠 技术改动
+
+- **build.sh 切到 Plasmo**：从「直接 rsync 源目录」改成「`npm run plasmo:build` → zip build/chrome-mv3-prod/」。同样的 zip 现在多出 ~40 个 Plasmo bundle 文件（root `popup.html` / `sidepanel.html` / `content.{hash}.js` / `static/background/index.js`），但 manifest 入口仍指向 legacy 文件（与 v1.6.16/v1.6.17 一致），所以**用户感知零差异**。下个 minor 版本计划把 manifest 切到 Plasmo bundle。
+- **5 个 background SW 模块 port 到 TS**：voiceOffscreenBridge / KeywordService / config / init / KeywordSyncManager（共 1581 legacy 行 → ~1120 TS 行，**减 29%**）。这些是纯 TS 增量，**不替换 legacy 生产路径**。
+- **新增 verify:sw-bridge 测试关**：锁住 src/background.ts 的 importScripts 列表与 legacy background/index.js 顺序敏感等价。
+- **dual-run verifier 扩展**：覆盖 StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager 8 个模块。
+- **YouTube fix dual-run 锁住**：scripts/verify-background-extras-dual.mjs 加 2 个 YouTube 用例（`www.youtube.com/watch?v=...` + `youtu.be/...`），未来 legacy 或 TS port 任一边漏改都会被 npm test 拦下来。
+
 ## v1.6.17 (2026-05-17)
 
 **纯技术建设版本，用户感知行为与 v1.6.16 完全一致**——生产代码（manifest / background / popup / sidepanel / content）一行未改。本次主要把 Plasmo 迁移 Phase 2 + Phase 3 的可纯函数化模块全部 port 到 TypeScript，并加上 dual-run 验证脚本守护 SSoT 不漂移。详细见 [releases/v1.6.17.md](./releases/v1.6.17.md)。
