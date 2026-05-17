@@ -76,6 +76,6 @@
     "128": "icons/128x128.png"
   },
   "side_panel": {
-    "default_path": "sidepanel/sidepanel.html"
+    "default_path": "sidepanel-v2/sidepanel.html"
   }
 }

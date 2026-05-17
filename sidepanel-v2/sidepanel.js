@@ -788,6 +788,42 @@
   // 关键字变化时刷新 🎤 按钮可见性
   document.addEventListener('sp-keyword-change', () => updateVoiceBtnVisibility());
 
+  // ===== Alive port =====
+  // sidepanel 打开时建一条 chrome.runtime.connect('sidepanel-alive') 长连接：
+  // - SW 在 sidepanel 开着的全程不会被 idle evict（消息往返保持唤醒）
+  // - 监听 background 推送 {action: 'close'} 自动 window.close()
+  // - port 断开后 500ms 重连（SW 重启 / 网络抖动 / chrome 内部 GC 等场景）
+  // - 推迟到 requestIdleCallback（800ms 兜底）执行，不和首屏争 CPU
+  let alivePort = null;
+  let aliveReconnectTimer = null;
+  function setupAlivePort() {
+    if (alivePort) return;
+    try {
+      alivePort = chrome.runtime.connect({ name: 'sidepanel-alive' });
+      alivePort.onMessage.addListener((msg) => {
+        if (msg && msg.action === 'close') {
+          try { window.close(); } catch (_) {}
+        }
+      });
+      alivePort.onDisconnect.addListener(() => {
+        alivePort = null;
+        if (aliveReconnectTimer) clearTimeout(aliveReconnectTimer);
+        aliveReconnectTimer = setTimeout(setupAlivePort, 500);
+      });
+    } catch (err) {
+      console.warn('[sp-v2] alive port 失败:', err);
+      alivePort = null;
+    }
+  }
+  function idleSchedule(fn, fallbackMs = 800) {
+    if (typeof globalThis.requestIdleCallback === 'function') {
+      globalThis.requestIdleCallback(fn, { timeout: fallbackMs });
+    } else {
+      setTimeout(fn, fallbackMs);
+    }
+  }
+  idleSchedule(setupAlivePort, 800);
+
   // ===== 启动 =====
   bindEvents();
   bindPickerEvents();
