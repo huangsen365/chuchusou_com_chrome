@@ -35,26 +35,38 @@ class PopupMenuRenderer {
       this._preloadEnableState();
       mark('preload');
 
-      // v1.6.19：优先读编译期预生成的 popup-menu-prebuilt.json（1 个 fetch ~5-15ms），
-      // 命中失败再 fallback 到 6 fetch + builder（~30-50ms）。两条路径都不依赖 SW，
-      // 冷热表现一致。Prebuilt 命中时同时填充 _cachedCoverConfig 给 initPinnedCover 共享。
-      let menuStructure = await this._tryReadPrebuilt();
-      if (menuStructure) {
-        renderSource = 'prebuilt-json';
+      // v1.6.19 Step 9：编译期已经把完整菜单 HTML 注入到 build/popup.html
+      // 的 menuContainer（data-static-built="true"）。生产环境直接命中 ——
+      // 不需要 fetch / 不需要 DOM 构建 / 不需要 JS render()。
+      const container = document.getElementById('menuContainer');
+      const staticBuilt = container?.dataset?.staticBuilt === 'true';
+      let menuStructure = null;
+      if (staticBuilt) {
+        renderSource = 'static-html';
+        // 仍 fetch prebuilt JSON 是为了拿 coverConfig 给 initPinnedCover（极少量额外开销）
+        await this._tryReadPrebuilt();
       } else {
-        menuStructure = await this._buildMenuFromFetch();
-        renderSource = 'local-fetch';
+        // dev / fallback 路径
+        menuStructure = await this._tryReadPrebuilt();
+        if (menuStructure) {
+          renderSource = 'prebuilt-json';
+        } else {
+          menuStructure = await this._buildMenuFromFetch();
+          renderSource = 'local-fetch';
+        }
       }
       mark('menu-fetched');
       // pinned cover 在 prebuilt 之后起，复用同一份 coverConfig 避免重复 fetch
       this.initPinnedCover();
 
-      if (!menuStructure) {
-        throw new Error('菜单结构构建失败');
+      if (staticBuilt) {
+        // 关键字徽章独立刷一次（不动 menu DOM）
+        this._renderKeyword();
+      } else {
+        if (!menuStructure) throw new Error('菜单结构构建失败');
+        this.config = menuStructure;
+        this.render();
       }
-
-      this.config = menuStructure;
-      this.render();
       mark('rendered');
       performance.mark('ccs-popup-rendered');
       try {
@@ -270,9 +282,10 @@ class PopupMenuRenderer {
     // 关键字徽章：与菜单容器独立，先刷
     this._renderKeyword();
 
-    // v1.6.19：先构建 DocumentFragment 完整 DOM，最后 replaceChildren 原子 swap。
-    // 这样 popup.html 的静态骨架在 fragment 准备好之前一直可见，避免老的
-    // `innerHTML='' + 逐个 append` 路径在慢网络/大配置下露出空白闪烁。
+    // v1.6.19 Step 9：静态菜单已注入，跳过 JS 重建（保留 HTML 中的完整菜单）
+    if (container?.dataset?.staticBuilt === 'true') return;
+
+    // dev / fallback 路径：先构建 DocumentFragment 完整 DOM，最后 replaceChildren 原子 swap
     if (!this.config || !this.config.groups) {
       container.replaceChildren(this._renderEmptyState());
       return;

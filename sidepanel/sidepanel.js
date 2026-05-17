@@ -1182,13 +1182,24 @@ class SidePanelRenderer {
       console.warn('[触触搜] Pinned action init failed:', err);
     });
 
-    this.loadMenuConfig().then((config) => {
-      this.config = config;
-      this.renderMenu();
-    }).catch((error) => {
-      console.error('[触触搜] Side panel menu config failed:', error);
-      // 保留 HTML 静态核心菜单，不用错误块覆盖首屏可用入口。
-    });
+    // v1.6.19 Step 9：编译期已经把完整菜单 HTML 注入到 build/sidepanel.html
+    // 的 spMenu（data-static-built="true"）。如果命中，跳过 fetch + renderMenu
+    // 节省启动开销。dev mode 仍走 fetch。
+    const spMenu = document.getElementById('spMenu');
+    if (spMenu?.dataset?.staticBuilt === 'true') {
+      // 仍 fetch prebuilt JSON 为了拿 coverConfig 给 pinned.init
+      this.loadMenuConfig().then((config) => {
+        this.config = config;
+        // 不调 renderMenu —— 静态 HTML 已经渲染好
+      }).catch(() => { /* 不重要，静态菜单已可用 */ });
+    } else {
+      this.loadMenuConfig().then((config) => {
+        this.config = config;
+        this.renderMenu();
+      }).catch((error) => {
+        console.error('[触触搜] Side panel menu config failed:', error);
+      });
+    }
 
     // v1.6.19：首屏不发 sendMessage('getKeyword') —— 与 popup 同款解耦。
     // 流程：先读 storage cache（不需要 SW 醒）→ 显示；同时挂 onChanged 监听
@@ -1592,6 +1603,8 @@ class SidePanelRenderer {
 
   renderMenu() {
     const container = document.getElementById('spMenu');
+    // v1.6.19 Step 9：静态菜单已注入，跳过 JS 重建（关键字变化不影响 menu DOM）
+    if (container?.dataset?.staticBuilt === 'true') return;
     container.innerHTML = '';
 
     if (!this.config || !this.config.groups) {
