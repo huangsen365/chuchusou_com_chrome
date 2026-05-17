@@ -8,15 +8,26 @@
 
 ⚠️ **改代码前先读这段**，避免走冤枉路：
 
-- **SW 双层架构**：Plasmo SW bundle (38KB, TS) + legacy `background/*.js` importScripts 桥接。
-  - **base.js / Logger.js 已脱离运行时**：`src/background/baseBridge.ts` (attachBaseBridge) 在
-    importScripts 之后跑，覆盖 globalThis 上的 18 个核心函数为 TS port 实现
-    （setMenuState / applyMenuTitle / getMenuDebugInfo / getPopupMenuStructure /
-    updateMainMenuTitle / refreshMenuTitle / copyTextInTab / updateLatestTabKeyword /
-    initKeywordSyncSystem / ensureMenuIconSupportLoaded / logMenuEvent / etc.)
-  - **剩余 listener 主体仍在 legacy**：`background/{events.js, menuBuilder.js, menuHandlers.js}`
-    包含 chrome.contextMenus.onClicked / chrome.tabs.onUpdated / chrome.runtime.onConnect
-    等监听器注册。port 这部分需要 Chrome 真机回归 ≥ 20 路径。
+- **SW 双层架构**：Plasmo SW bundle (60KB, TS) + legacy `background/*.js` importScripts 桥接。
+- **已脱离运行时的 5 个 legacy 文件**（2506 行）：
+  - `base.js` (889) → src/background/{baseBridge,tabState,menuTitles,menuTitleUpdater,
+    menuStateOrchestrator,menuActions,menuDebugInfo,popupMenuStructure,bootstrap}.ts
+  - `Logger.js` (458) → src/background/Logger.ts (via baseBridge)
+  - `menuHandlers.js` (611) → src/background/menuHandlersAttach.ts (TS chrome.contextMenus.onClicked listener)
+  - `voiceOffscreenBridge.js` (100) → src/background/voiceOffscreenBridge.ts (autoRegisterVoiceBridge)
+  - `init.js` (448) → src/background/{init,initAttach,initPrewarming}.ts
+- **剩余 2 个 listener 主体仍在 legacy**：`background/{events.js, menuBuilder.js}`
+  包含 chrome.tabs.onUpdated / chrome.runtime.onConnect / chrome.runtime.onMessage /
+  chrome.contextMenus.onShown / createContextMenus orchestrator。port 这部分需要
+  Chrome 真机回归 ≥ 20 路径。
+- **SW bundle 加载时序**（关键）：
+  1. Plasmo ESM 评估 → 顶层 import (baseBridge / menuHandlersAttach / voiceBridge / initAttach 全部 loaded)
+  2. importScripts 18 个 legacy 模块（Constants / TextUtils / TextLimits / menuStructureBuilder /
+     MenuRegistry / KeywordSyncManager / menuIds / StateManager / URLBuilder / menuSystem /
+     config / icons / keywords / keywordResolver / KeywordService / AITaskRegistry /
+     AITaskHandler / menuBuilder / events）
+  3. attachBaseBridge() / attachMenuHandlers() / autoRegisterVoiceBridge() / attachInit() 顺序调用
+     → globalThis.X 覆盖为 TS port 版本，listener 全部注册
 - **新架构已彻底删除**（v1.6.18+）：`MenuManager / menu/* / events/*` 共 7 个文件 3384 行已删（曾经放在 `legacy/_unactivated/`）。审计见 `docs/TECH_DEBT_AUDIT.md`。
 - **三个 SSoT 强制遵守**：
   - URL 模板 → `config/unifiedMenuConfig.json`（通过 `URLBuilder.loadFromConfig()` 装载，启动时即使兼容模式也装）
