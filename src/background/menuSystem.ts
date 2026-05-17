@@ -7,7 +7,7 @@
  * 当 useNewSystem=false 时（生产）只激活 StateManager + URLBuilder，
  * 把它们 expose 给 legacy 代码用（_menuSystemCompat / _stateManagerLegacy）。
  *
- * MenuManager 在 legacy 代码里已下线（搬到 legacy/_unactivated/），
+ * MenuManager 已删除（legacy/_unactivated/ 已清理），
  * 所以 useNewSystem=true 分支保留作未来扩展，本 TS 版本不实例化它。
  */
 
@@ -95,7 +95,7 @@ export async function initMenuSystem(options: MenuSystemInitOptions = {}): Promi
     }
 
     if (useNewSystem) {
-      // useNewSystem 分支：当前 legacy 已搬到 legacy/_unactivated，本 TS 版本不实例化 MenuManager。
+      // useNewSystem 分支：MenuManager 已删除，本 TS 版本不实例化。
       // 留作未来扩展（如果 SW 真切到 Plasmo entry 时要用新菜单系统）。
       console.warn("[MenuSystem] useNewSystem=true 但 MenuManager 已下线，仅 stateManager+urlBuilder 可用")
     } else {

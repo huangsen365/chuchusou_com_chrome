@@ -1,11 +1,10 @@
 /**
  * 触触搜 - 核心状态与函数
- * 注意：此文件正在逐步重构，许多功能已迁移至新模块：
- * - Constants.js: 常量定义
- * - TextUtils.js: 文本处理函数
+ * 已搬出的内容：
+ * - Constants.js / TextUtils.js / TextLimits.js: 常量 + 工具
  * - StateManager.js: 状态管理
- * - menu/MenuBuilder.js, MenuUpdater.js, MenuHandlers.js: 菜单模块
- * - events/TabEvents.js, MessageEvents.js, MenuEvents.js: 事件处理
+ * - MenuRegistry.js / KeywordSyncManager.js: 菜单同步协调
+ * - menuBuilder.js / menuHandlers.js / events.js: 菜单构建 + 事件处理
  */
 
 // 调试开关 - BG_DEBUG 和 BG_DBG 已在 Constants.js 中定义

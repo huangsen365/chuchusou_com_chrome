@@ -2,7 +2,7 @@
  * 触触搜扩展初始化 (TypeScript port)
  *
  * 与 background/init.js 1:1 行为对等，但**去屎山**：
- * - 删掉 `useNewSystem=true` 分支（dead code，MenuManager 已搬到 legacy/_unactivated/）
+ * - 删掉 `useNewSystem=true` 分支（dead code，MenuManager 已删除）
  * - prewarm 逻辑 100% 复用 src/background/initPrewarming.ts，去除 100 行 dup
  * - INIT_CONFIG 类型化 + 只读，performanceMetrics 内化到 InitOrchestrator 实例
  * - chrome.runtime.onInstalled / onStartup 注册收敛到 register() 入口（幂等）

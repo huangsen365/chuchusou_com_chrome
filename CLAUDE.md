@@ -9,7 +9,7 @@
 ⚠️ **改代码前先读这段**，避免走冤枉路：
 
 - **生产跑老流水线**：`background/{base.js, events.js, menuBuilder.js, menuHandlers.js}` 是主心脏。`INIT_CONFIG.useNewSystem = false`（写在 `background/init.js`），永远走兼容模式。
-- **新架构已下线但未删除**：`MenuManager / menu/* / events/*` 共 7 个文件已搬到 `legacy/_unactivated/`，**不要**在 `background/` 里找它们。详见 `docs/TECH_DEBT_AUDIT.md`。
+- **新架构已彻底删除**（v1.6.18+）：`MenuManager / menu/* / events/*` 共 7 个文件 3384 行已删（曾经放在 `legacy/_unactivated/`）。审计见 `docs/TECH_DEBT_AUDIT.md`。
 - **三个 SSoT 强制遵守**：
   - URL 模板 → `config/unifiedMenuConfig.json`（通过 `URLBuilder.loadFromConfig()` 装载，启动时即使兼容模式也装）
   - 引擎标题 → `config/engines.json`（通过 `globalThis.getEngineTitle(engineId, fallback)` 读取）
@@ -70,7 +70,7 @@ chuchusou_com_chrome/
 │   ├── topQuestionsPrompts.json
 │   ├── fastAnswersPrompts.json
 │   └── optimizedPrompts.json
-├── legacy/_unactivated/       # 🧟 未激活新架构存档（MenuManager / menu/* / events/*，零真实调用）
+├── legacy/                    # 🗑 历史 content panel fallback (content.panel-legacy.js)
 ├── docs/
 │   ├── TECH_DEBT_AUDIT.md    # 技术债审计（2026-04）
 │   └── archive/              # 历史设计文档
@@ -89,22 +89,15 @@ importScripts(
   './utils/TextLimits.js',
   './Logger.js',
   // 第2层：核心管理器
-  './MenuRegistry.js',
-  './KeywordSyncManager.js',
-  './menuIds.js',
-  './StateManager.js',
-  './URLBuilder.js',
-  // './MenuManager.js',   // 僵尸，已搬 legacy/_unactivated/
-  './menuSystem.js',
-  // 第3层：老业务（生产主流）
+  './MenuRegistry.js', './KeywordSyncManager.js',
+  './menuIds.js', './StateManager.js', './URLBuilder.js', './menuSystem.js',
+  // 第3层：业务
   './config.js', './icons.js', './keywords.js', './keywordResolver.js',
-  './base.js',
+  './KeywordService.js', './base.js',
   // 第3.5层：AI 任务统一抽象
   './tasks/AITaskRegistry.js', './tasks/AITaskHandler.js',
-  './menuBuilder.js', './menuHandlers.js', './events.js',
-  // 第4层：新架构 —— 全部已搬 legacy/_unactivated/，注释保留作恢复指引
-  // './menu/MenuBuilder.js', './menu/MenuUpdater.js', './menu/MenuHandlers.js',
-  // './events/TabEvents.js', './events/MessageEvents.js', './events/MenuEvents.js',
+  // 第4层：菜单 + 事件
+  './menuBuilder.js', './menuHandlers.js', './voiceOffscreenBridge.js', './events.js',
   // 第5层：初始化
   './init.js'
 );
