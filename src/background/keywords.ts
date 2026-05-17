@@ -49,6 +49,10 @@ export const COMMON_QUERY_KEYS = [
 export const PARAM_BLACKLIST =
   /^(utm_|ref|fbclid|gclid|tbm|hl|source|sourceid|ie|oe|biw|bih|sa|ved|ei|sclient|cs|aep|atvm|chrome_task)/i
 
+// 启发式跳过名单：这些站的 URL 参数不是用户关键字（如 youtube watch?v=ID 把 11 字符 video ID 误当关键字）
+// 命中后跳过 heuristicExtractFromParams，直接走 title fallback
+export const HOSTS_SKIP_HEURISTIC = ["youtube.com", "youtu.be"] as const
+
 export interface HeuristicMatch {
   key: string
   value: string
@@ -298,11 +302,17 @@ export async function extractSearchKeywords(
     }
 
     // 启发式兜底
-    const heuristic = heuristicExtractFromParams(searchParams)
-    if (heuristic) {
-      const kw = safeDecodeParam(heuristic.value)
-      dbg("[触触搜][BG][DEBUG] matched heuristic:", { hostname, key: heuristic.key, score: heuristic.score, kw })
-      return kw
+    // youtube 等 HOSTS_SKIP_HEURISTIC 跳过：避免把 watch?v=11 字符 ID 误当关键字，直接走 title fallback
+    const skipHeuristic = HOSTS_SKIP_HEURISTIC.some((h) => hostname.includes(h))
+    if (!skipHeuristic) {
+      const heuristic = heuristicExtractFromParams(searchParams)
+      if (heuristic) {
+        const kw = safeDecodeParam(heuristic.value)
+        dbg("[触触搜][BG][DEBUG] matched heuristic:", { hostname, key: heuristic.key, score: heuristic.score, kw })
+        return kw
+      }
+    } else {
+      dbg("[触触搜][BG][DEBUG] skip heuristic for host:", { hostname })
     }
 
     // 标题兜底

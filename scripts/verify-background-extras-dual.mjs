@@ -267,7 +267,10 @@ async function compareKeywords(legacy, tsKeywords) {
     ["https://chatgpt.com/?q=chatgpt", null, null],  // generic kw filtered
     ["https://www.zhihu.com/search?q=foo", null, "foo"],
     ["https://example.com/?foo=bar", { title: "Hello - GitHub" }, undefined],  // heuristic 会抓 'bar'，两边一致即可
-    ["https://noparams.test/", { title: "标题" }, "标题"]
+    ["https://noparams.test/", { title: "标题" }, "标题"],
+    // YouTube：watch?v=11char-id 不能被启发式当关键字；必须走 title fallback
+    ["https://www.youtube.com/watch?v=IurBXe0jpVg", { title: "Awesome Video Title - YouTube" }, "Awesome Video Title"],
+    ["https://youtu.be/dQw4w9WgXcQ", { title: "Never Gonna Give You Up - YouTube" }, "Never Gonna Give You Up"]
   ]
   for (const [url, tab, expected] of urls) {
     const a = await legacy.extractSearchKeywords(url, tab)
