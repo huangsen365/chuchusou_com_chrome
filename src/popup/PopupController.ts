@@ -87,8 +87,13 @@ export class PopupController {
       this.initPinnedCover()
       this._preloadEnableState()
 
-      const menuStructure = await this._buildMenuFromFetch()
-      renderSource = "local-fetch"
+      let menuStructure = await this._tryReadPrebuilt()
+      if (menuStructure) {
+        renderSource = "prebuilt-json"
+      } else {
+        menuStructure = await this._buildMenuFromFetch()
+        renderSource = "local-fetch"
+      }
       if (!menuStructure) throw new Error("菜单结构构建失败")
 
       this.config = menuStructure
@@ -104,6 +109,21 @@ export class PopupController {
       this.showError("加载失败，请重试")
       return
     }
+  }
+
+  private async _tryReadPrebuilt(): Promise<MenuStructure | null> {
+    try {
+      const data = await this.fetchJSON("popup/popup-menu-prebuilt.json") as
+        | { version?: string; structure?: MenuStructure }
+        | null
+      if (!data) return null
+      const ch = getChrome()
+      const currentVersion = ch.runtime?.getManifest?.()?.version
+      if (data.version && currentVersion && data.version !== currentVersion) return null
+      const s = data.structure
+      if (!s || !Array.isArray(s.groups) || s.groups.length === 0) return null
+      return s
+    } catch (_) { return null }
   }
 
   private async _buildMenuFromFetch(): Promise<MenuStructure | null> {

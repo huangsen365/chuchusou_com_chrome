@@ -87,6 +87,7 @@ function main() {
     "prompts/topQuestionsPrompts.json",
     "prompts/optimizedPrompts.json",
     "shared/menuStructureBuilder.js",
+    "popup/popup-menu-prebuilt.json",
     "offscreen/voice.html",
     "voice-permission/permission.html",
     "welcome/welcome.html",

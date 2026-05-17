@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "test": "npm run lint && npm run typecheck && npm run verify:shared-config && npm run verify:menu-structure-builder && npm run verify:menu-structure-builder-dual && npm run verify:background-utils-dual && npm run verify:background-pure-modules-dual && npm run verify:background-extras-dual && npm run verify:dom-modules-structural && npm run plasmo:build && npm run verify:perf-budget && npm run verify:sw-bridge",
     "plasmo:dev": "plasmo dev --target=chrome-mv3 --src-path=src",
-    "plasmo:build": "plasmo build --target=chrome-mv3 --src-path=src && node scripts/plasmo-compat-postbuild.mjs && npm run plasmo:verify",
+    "plasmo:build": "plasmo build --target=chrome-mv3 --src-path=src && node scripts/plasmo-compat-postbuild.mjs && node scripts/prebuild-popup-menu.mjs && npm run plasmo:verify",
     "plasmo:package": "npm run plasmo:build && plasmo package --target=chrome-mv3 --src-path=src && npm run plasmo:verify-package",
     "plasmo:verify": "node scripts/verify-plasmo-compat-build.mjs",
     "plasmo:verify-package": "node scripts/verify-plasmo-package.mjs",
