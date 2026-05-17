@@ -849,7 +849,55 @@ async function main() {
   })
   assert(ms2 && Array.isArray(ms2.groups), "errored loader 兜底返回 null，builder 仍返回 valid structure")
 
-  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure OK")
+  // menuDebugInfo.ts: 5 section + chrome.tabs.get mock
+  const tsMdi = loadTs(path.join(root, "src/background/menuDebugInfo.ts"))
+  assert(typeof tsMdi.getMenuDebugInfo === "function", "getMenuDebugInfo exists")
+
+  const debugInfo = await tsMdi.getMenuDebugInfo(42, {
+    currentMenuState: { raw: "r", normalized: "n", display: "d", tabId: 42, url: "https://t.test" },
+    selectedTextByTab: { 42: "selected" },
+    fallbackKeywordByTab: { 42: "fb" },
+    latestTitleByTab: { 42: { title: "T" } },
+    menuRegistry: {
+      getStats: () => ({ total: 5 }),
+      getAllMenuIds: () => ["ccs-main", "ccs-baidu"],
+      get: (id) => id === "ccs-main"
+        ? { title: "触触搜", icon: "🔍", titleTemplate: "${baseTitle}", syncGroup: "main", autoSync: true, parentId: null }
+        : { title: "百度" }
+    },
+    keywordSyncManager: {
+      getState: () => ({ keyword: "n" }),
+      getStats: () => ({ syncs: 10 })
+    },
+    tabs: { get: async (id) => ({ url: `https://tab${id}.test`, title: `Tab ${id}` }) }
+  })
+
+  // 必备字段
+  assert(typeof debugInfo.timestamp === "string", "timestamp")
+  assert(typeof debugInfo.generatedAt === "number", "generatedAt")
+  assert(debugInfo.activeTab.tabId === 42, "activeTab.tabId")
+  assert(debugInfo.activeTab.url === "https://tab42.test", "activeTab.url via chrome.tabs.get")
+  assert(debugInfo.activeTab.title === "Tab 42", "activeTab.title via chrome.tabs.get")
+  assert(debugInfo.currentMenuState.raw === "r", "currentMenuState.raw")
+  assert(debugInfo.globalCaches.selectedTextByTab[42] === "selected", "selectedTextByTab copied")
+  assert(debugInfo.globalCaches.fallbackKeywordByTab[42] === "fb", "fallbackKeywordByTab copied")
+  assert(debugInfo.globalCaches.latestTitleByTab[42].title === "T", "latestTitleByTab copied")
+  assert(debugInfo.menuRegistry.available === true, "menuRegistry available")
+  assert(debugInfo.menuRegistry.stats.total === 5, "menuRegistry.stats")
+  assert(debugInfo.menuRegistry.registeredMenus["ccs-main"].title === "触触搜", "registeredMenus filled")
+  assert(debugInfo.keywordSyncManager.available === true, "keywordSyncManager available")
+  assert(debugInfo.keywordSyncManager.stats.syncs === 10, "keywordSyncManager.stats")
+  assert(Array.isArray(debugInfo.dataFlow.steps) && debugInfo.dataFlow.steps.length === 11, "dataFlow 11 steps")
+
+  // Edge: tab.get 抛错 → error 落字段
+  const dbg2 = await tsMdi.getMenuDebugInfo(99, {
+    currentMenuState: { raw: "", normalized: "", display: "", tabId: null, url: "" },
+    tabs: { get: async () => { throw new Error("tab not found") } }
+  })
+  assert(dbg2.activeTab.error === "tab not found", "tab.get error captured")
+  assert(dbg2.menuRegistry.available === false, "menuRegistry available=false when undefined")
+
+  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure + menuDebugInfo OK")
 }
 
 main().catch((err) => {
