@@ -177,7 +177,11 @@ export async function copyTextInTab(
       })
       return true
     } catch (err) {
-      console.warn("[触触搜][BG][COPY] 注入复制脚本失败", err)
+      if (deps.onDebug) {
+        deps.onDebug("[触触搜][BG][COPY] 注入复制脚本失败", err)
+      } else {
+        console.warn("[触触搜][BG][COPY] 注入复制脚本失败", err)
+      }
     }
   }
   return false

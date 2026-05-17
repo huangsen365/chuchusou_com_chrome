@@ -817,7 +817,39 @@ async function main() {
   assert(csCalled === 1, "computeSearchTextForTab called once")
   assert(refreshState.raw === "selected", "refreshMenuTitle propagates to setMenuState")
 
-  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions OK")
+  // popupMenuStructure.ts: 6-loader 并行 + 落 CCSMenuStructureBuilder.build
+  const tsPms = loadTs(path.join(root, "src/background/popupMenuStructure.ts"))
+  assert(typeof tsPms.getPopupMenuStructure === "function", "getPopupMenuStructure exists")
+
+  // 模拟 6 个 loader，验证并发调用 + 拼参数正确
+  const loaderCalls = []
+  const ms = await tsPms.getPopupMenuStructure({
+    loaders: {
+      loadUnifiedMenuConfig: async () => { loaderCalls.push("unified"); return { groups: [] } },
+      loadTopQuestionsConfig: async () => { loaderCalls.push("top100"); return null },
+      loadFastAnswersConfig: async () => { loaderCalls.push("fastqa"); return null },
+      loadOptimizedPromptConfig: async () => { loaderCalls.push("optimize"); return null },
+      loadCoverPromptConfig: async () => { loaderCalls.push("cover"); return null },
+      loadEnginesConfig: async () => { loaderCalls.push("engines"); return { engines: {} } }
+    }
+  })
+  assert(loaderCalls.length === 6, `6 loaders called, got ${loaderCalls.length}`)
+  assert(ms && typeof ms === "object" && Array.isArray(ms.groups), "builder returns MenuStructure with groups[]")
+
+  // safeLoad: loader 抛错时不挂，返回 null 兜底
+  const ms2 = await tsPms.getPopupMenuStructure({
+    loaders: {
+      loadUnifiedMenuConfig: async () => { throw new Error("network down") },
+      loadTopQuestionsConfig: async () => null,
+      loadFastAnswersConfig: async () => null,
+      loadOptimizedPromptConfig: async () => null,
+      loadCoverPromptConfig: async () => null,
+      loadEnginesConfig: async () => null
+    }
+  })
+  assert(ms2 && Array.isArray(ms2.groups), "errored loader 兜底返回 null，builder 仍返回 valid structure")
+
+  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure OK")
 }
 
 main().catch((err) => {
