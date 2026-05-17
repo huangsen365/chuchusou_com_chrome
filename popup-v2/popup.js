@@ -121,14 +121,16 @@
     try { chrome.tabs.sendMessage(tabId, payload).catch(() => {}); } catch (_) {}
   }
 
-  // ===== 启动：并行读 storage + 拿 tab + fetch coverPrompts.json =====
+  // ===== 启动：并行读 storage + 找 tab + fetch coverPrompts.json + 获取关键字 =====
   async function bootstrap() {
+    // 1. tab 查询 + storage 批读 + coverPrompts 并行
     let tab = null;
     let store = {};
     let cover = null;
     try {
       [tab, store, cover] = await Promise.all([
-        queryActiveTab(),
+        // 用 keywordClient 提供的 3 段 fallback active tab 查询（不是裸的 chrome.tabs.query）
+        globalThis.CCSKeywordClient?.getActiveTab?.() || queryActiveTab(),
         chrome.storage.local.get(STORAGE_KEYS),
         fetch('../prompts/coverPrompts.json').then(r => r.ok ? r.json() : null).catch(() => null)
       ]);
@@ -136,30 +138,52 @@
       console.warn('[popup-v2] bootstrap 并行加载失败:', err);
     }
 
-    // 关键字：和 tab 关联，再拿一次 storage 取 ccs_kw_${tabId}
+    // 2. 关键字获取 —— 完整 fallback chain（与旧 popup 一致）：
+    //    a) storage 缓存命中 → 立刻渲染（首帧不等任何 IO）
+    //    b) 同时给 background 发 getKeyword 拿 fresh 值（背靠 KeywordService 多源融合：
+    //       selectedTextByTab / fallbackKeywordByTab / latestTitleByTab / 标题剥后缀 / heuristic ...）
+    //    c) fresh 回来覆盖 instant
+    //    d) onChanged 监听 storage 实时更新
     if (tab && tab.id != null) {
       currentTabId = tab.id;
       currentTabUrl = tab.url || '';
-      try {
-        const kwKey = KW_PREFIX + tab.id;
-        const d = await chrome.storage.local.get([kwKey]);
-        const entry = d && d[kwKey];
-        if (entry && typeof entry === 'object') {
-          if (Date.now() - (entry.ts || 0) <= TTL_MS) {
-            if (!currentTabUrl || !entry.url || entry.url === currentTabUrl) {
-              setKeyword(entry.text || entry.raw || '');
-            }
+
+      if (globalThis.CCSKeywordClient) {
+        // 用 shared/keywordClient.js 的标准 pattern：instantFromStorage + 并发 sendMessage
+        globalThis.CCSKeywordClient.requestKeyword('popup-open', {
+          tab,
+          instantFromStorage: true,
+          onInstant: (cached) => {
+            // storage 命中：用户体感"零等待"出关键字
+            if (!currentKw && cached?.text) setKeyword(cached.text);
           }
-        }
-      } catch (_) {}
+        }).then((fresh) => {
+          // fresh 值回来：可能比 instant 更新（background 重算 selectedText / 标题等）
+          if (fresh?.text) setKeyword(fresh.text);
+        }).catch((err) => {
+          console.warn('[popup-v2] requestKeyword 失败:', err);
+        });
+      } else {
+        // 极端 fallback：keywordClient 没加载（不应发生）→ 直接读 storage
+        try {
+          const kwKey = KW_PREFIX + tab.id;
+          const d = await chrome.storage.local.get([kwKey]);
+          const entry = d && d[kwKey];
+          if (entry && typeof entry === 'object'
+              && Date.now() - (entry.ts || 0) <= TTL_MS
+              && (!currentTabUrl || !entry.url || entry.url === currentTabUrl)) {
+            setKeyword(entry.text || entry.raw || '');
+          }
+        } catch (_) {}
+      }
     }
 
-    // Pin 渲染
+    // 3. Pin 渲染
     coverConfig = cover;
     customLine = (store['ccs_cover_custom_selected_line'] || '').trim();
     renderPin(store['ccs_sidepanel_pinned_action'], store['ccs_cover_aspect_ratio']);
 
-    // Toggle 状态：enabled 默认 true，ccs_debug 默认 false
+    // 4. Toggle 状态：enabled 默认 true，ccs_debug 默认 false
     renderToggle($qEnable, $qEnableLabel, store['enabled'] !== false, '已启用', '已停用');
     renderToggle($qDebug, $qDebugLabel, store['ccs_debug'] === true, '调试开', '调试关');
   }

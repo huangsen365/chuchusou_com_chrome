@@ -71,6 +71,13 @@
     <a href="../popup/popup.html" target="_blank" rel="noopener" class="legacy" title="黑名单 / 语音 / 提示词库 / 调试导出 / 快捷键 等">⚙️ 高级设置</a>
   </footer>
 
+  <!-- shared utilities (战斗过验证的工具，不是"baseline 风格"): -->
+  <!-- logger.js: 统一日志前缀 + debug 开关 -->
+  <!-- runtimeClient.js: sendMessage 包装（timeout + retry + lastError 处理）-->
+  <!-- keywordClient.js: 关键字获取多层 fallback（storage instant + sendMessage fresh）-->
+  <script src="../shared/logger.js"></script>
+  <script src="../shared/runtimeClient.js"></script>
+  <script src="../shared/keywordClient.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
