@@ -48,6 +48,18 @@
   const $qEnableLabel = document.getElementById('qEnableLabel');
   const $qDebugLabel = document.getElementById('qDebugLabel');
   const $openSP = document.getElementById('openSP');
+  const $settingsToggle = document.getElementById('settingsToggle');
+  const $settingsPanel = document.getElementById('settingsPanel');
+  const $backToMenu = document.getElementById('backToMenu');
+  const $quick = document.getElementById('quick');
+  const $sLabelEnable = document.getElementById('sLabelEnable');
+  const $sLabelDebug = document.getElementById('sLabelDebug');
+  const $sLabelVoice = document.getElementById('sLabelVoice');
+  const $blacklistSection = document.getElementById('blacklistSection');
+  const $shortcutSection = document.getElementById('shortcutSection');
+  const $promptLibrarySection = document.getElementById('promptLibrarySection');
+  const $debugSection = document.getElementById('debugSection');
+  const $versionNumber = document.getElementById('versionNumber');
 
   // ===== 状态 =====
   let currentKw = '';
@@ -58,6 +70,25 @@
   let coverConfig = null;        // coverPrompts.json，懒加载，并行 fetch
 
   // ===== 工具 =====
+  // 浮层 toast（与旧 popup 同行为：2s 自动消失）
+  function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'popup-toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add('fade-out');
+      setTimeout(() => toast.remove(), 300);
+    }, 2000);
+  }
+
+  // HTML 转义（blacklist host / prompt name 等用户输入渲染前过）
+  function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = s == null ? '' : String(s);
+    return div.innerHTML;
+  }
+
   function setKeyword(s) {
     currentKw = (s || '').trim();
     if (currentKw) {
@@ -185,6 +216,14 @@
     // 4. Toggle 状态：enabled 默认 true，ccs_debug 默认 false
     renderToggle($qEnable, $qEnableLabel, store['enabled'] !== false, '已启用', '已停用');
     renderToggle($qDebug, $qDebugLabel, store['ccs_debug'] === true, '调试开', '调试关');
+
+    // 5. 版本号从 manifest 读
+    try {
+      const mf = chrome.runtime.getManifest();
+      if (mf && mf.version && $versionNumber) {
+        $versionNumber.textContent = 'v' + mf.version;
+      }
+    } catch (_) {}
   }
 
   // ===== Pin 渲染 =====
@@ -227,6 +266,260 @@
     submenu.classList.toggle('collapsed');
     parentEl.classList.toggle('expanded');
   }
+
+  // ===== Settings panel show/hide =====
+  // 主面板与 settings 互斥：开 settings → 隐藏 menu/pin/quick；返回菜单 → 反过来
+  function showSettings() {
+    $menu.hidden = true;
+    $pin.dataset._wasShown = $pin.hidden ? '0' : '1';
+    $pin.hidden = true;
+    $quick.hidden = true;
+    $settingsPanel.hidden = false;
+    syncSettingLabels();
+  }
+  function showMenu() {
+    $settingsPanel.hidden = true;
+    hideAllSubPanels();
+    $menu.hidden = false;
+    if ($pin.dataset._wasShown === '1') $pin.hidden = false;
+    $quick.hidden = false;
+  }
+  function hideAllSubPanels() {
+    $blacklistSection.hidden = true;
+    $shortcutSection.hidden = true;
+    $promptLibrarySection.hidden = true;
+    $debugSection.hidden = true;
+  }
+  function openSubPanel(target) {
+    hideAllSubPanels();
+    target.hidden = false;
+  }
+
+  // 进入 settings 时刷新 8 个按钮标签状态
+  function syncSettingLabels() {
+    chrome.storage.local.get(['enabled', 'ccs_debug', 'ccs_voice_enabled'], (r) => {
+      $sLabelEnable.textContent = r.enabled === false ? '已停用' : '已启用';
+      $sLabelDebug.textContent = r.ccs_debug === true ? '调试日志：开' : '调试日志：关';
+      $sLabelVoice.textContent = r.ccs_voice_enabled === true ? '语音功能：开' : '语音功能：关';
+    });
+  }
+
+  // ===== Settings actions =====
+  function actionToggleEnable() {
+    chrome.storage.local.get(['enabled'], (r) => {
+      const next = r.enabled === false;  // 当前 false 就开，否则关（默认 true → 关）
+      chrome.storage.local.set({ enabled: next });
+      fireTab(currentTabId, { action: 'toggleExtension', enabled: next });
+      renderToggle($qEnable, $qEnableLabel, next, '已启用', '已停用');
+      $sLabelEnable.textContent = next ? '已启用' : '已停用';
+      showToast(next ? '已启用' : '已停用');
+    });
+  }
+
+  function actionToggleDebug() {
+    chrome.storage.local.get(['ccs_debug'], (r) => {
+      const next = !r.ccs_debug;
+      chrome.storage.local.set({ ccs_debug: next });
+      fireRuntime({ action: 'updateDebug', enabled: next });
+      fireTab(currentTabId, { action: 'updateDebug', enabled: next });
+      renderToggle($qDebug, $qDebugLabel, next, '调试开', '调试关');
+      $sLabelDebug.textContent = next ? '调试日志：开' : '调试日志：关';
+      showToast(next ? '调试日志已开启' : '调试日志已关闭');
+    });
+  }
+
+  function actionToggleVoice() {
+    chrome.storage.local.get(['ccs_voice_enabled'], (r) => {
+      const next = !r.ccs_voice_enabled;
+      chrome.storage.local.set({ ccs_voice_enabled: next });
+      $sLabelVoice.textContent = next ? '语音功能：开' : '语音功能：关';
+      showToast(next ? '语音功能已开启' : '语音功能已关闭');
+    });
+  }
+
+  function actionOpenWelcome() {
+    try {
+      chrome.tabs.create({ url: chrome.runtime.getURL('welcome/welcome.html') });
+      setTimeout(() => window.close(), 30);
+    } catch (err) { console.warn('[popup-v2] open welcome 失败:', err); }
+  }
+
+  // 黑名单：读 ccs_settings.blacklist 数组，渲染列表，单项移除 / 清空
+  function actionBlacklist() {
+    openSubPanel($blacklistSection);
+    loadBlacklist();
+  }
+  function loadBlacklist() {
+    chrome.storage.local.get(['ccs_settings'], (r) => {
+      const settings = r.ccs_settings || {};
+      const list = settings.blacklist || [];
+      const countEl = $blacklistSection.querySelector('.blacklist-count');
+      const listEl = $blacklistSection.querySelector('.blacklist-list');
+      if (countEl) countEl.textContent = list.length;
+      if (!listEl) return;
+      if (list.length === 0) {
+        listEl.innerHTML = '<div class="blacklist-empty">黑名单为空</div>';
+        return;
+      }
+      listEl.innerHTML = list.map((host) => {
+        const safe = escapeHtml(host);
+        return `<div class="blacklist-item" data-host="${safe}">`
+          + `<span class="blacklist-host">${safe}</span>`
+          + `<button class="blacklist-remove" type="button" data-host="${safe}">移除</button>`
+          + `</div>`;
+      }).join('');
+      listEl.querySelectorAll('.blacklist-remove').forEach((btn) => {
+        btn.addEventListener('click', () => removeFromBlacklist(btn.dataset.host));
+      });
+    });
+  }
+  function removeFromBlacklist(host) {
+    chrome.storage.local.get(['ccs_settings'], (r) => {
+      const settings = r.ccs_settings || {};
+      settings.blacklist = (settings.blacklist || []).filter((h) => h !== host);
+      chrome.storage.local.set({ ccs_settings: settings }, () => {
+        loadBlacklist();
+        showToast('已恢复');
+      });
+    });
+  }
+  function clearAllBlacklist() {
+    if (!confirm('确认清空全部黑名单？')) return;
+    chrome.storage.local.get(['ccs_settings'], (r) => {
+      const settings = r.ccs_settings || {};
+      settings.blacklist = [];
+      chrome.storage.local.set({ ccs_settings: settings }, () => {
+        loadBlacklist();
+        showToast('黑名单已清空');
+      });
+    });
+  }
+
+  // 快捷键设置
+  function actionShortcutSettings() {
+    openSubPanel($shortcutSection);
+    chrome.storage.local.get(['ccs_settings'], (r) => {
+      const cur = (r.ccs_settings && r.ccs_settings.shortcutKey) || 'Alt+S';
+      const sel = $shortcutSection.querySelector('.shortcut-key-select');
+      if (sel) sel.value = cur;
+    });
+  }
+  function saveShortcut() {
+    const sel = $shortcutSection.querySelector('.shortcut-key-select');
+    if (!sel) return;
+    const next = sel.value;
+    chrome.storage.local.get(['ccs_settings'], (r) => {
+      const settings = r.ccs_settings || {};
+      settings.shortcutKey = next;
+      chrome.storage.local.set({ ccs_settings: settings }, () => {
+        showToast('快捷键已更新：' + next);
+        // 广播给所有 tab 让 content script shortcuts 模块 update
+        chrome.tabs.query({}, (tabs) => {
+          tabs.forEach((t) => {
+            try { chrome.tabs.sendMessage(t.id, { action: 'updateShortcut', shortcutKey: next }).catch(() => {}); } catch (_) {}
+          });
+        });
+      });
+    });
+  }
+
+  // 提示词库（PromptLibraryManager lazy load）
+  let promptLibraryManager = null;
+  let promptLibraryLoadPromise = null;
+  function actionPromptLibrary() {
+    openSubPanel($promptLibrarySection);
+    ensurePromptLibrary().then(() => {
+      if (promptLibraryManager) promptLibraryManager.renderList();
+    });
+  }
+  function ensurePromptLibrary() {
+    if (promptLibraryManager) return Promise.resolve();
+    if (promptLibraryLoadPromise) return promptLibraryLoadPromise;
+    promptLibraryLoadPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = '../popup/modules/PromptLibraryManager.js';
+      s.onload = () => {
+        // PromptLibraryManager 类在全局或 window.CCSPopup 暴露（两种导出方式都兼容）
+        const Klass = window.PromptLibraryManager
+          || (window.CCSPopup && window.CCSPopup.PromptLibraryManager);
+        if (!Klass) { reject(new Error('PromptLibraryManager 未注册')); return; }
+        promptLibraryManager = new Klass({ onToast: showToast });
+        promptLibraryManager.init().then(resolve).catch(reject);
+      };
+      s.onerror = (e) => { promptLibraryLoadPromise = null; reject(e); };
+      document.head.appendChild(s);
+    });
+    return promptLibraryLoadPromise.catch((err) => {
+      console.error('[popup-v2] 加载提示词库失败:', err);
+      showToast('提示词库加载失败');
+      promptLibraryLoadPromise = null;
+    });
+  }
+
+  // 导出菜单状态
+  async function actionExportMenuState() {
+    const btn = $settingsPanel.querySelector('[data-action="export-menu-state"] .setting-label');
+    const origLabel = btn ? btn.textContent : '';
+    if (btn) btn.textContent = '获取中...';
+    try {
+      const tab = await queryActiveTab();
+      const client = globalThis.CCSRuntimeClient;
+      const payload = { action: 'getMenuDebugInfo', tabId: tab?.id };
+      let resp = null;
+      if (client?.sendRuntimeMessage) {
+        const result = await client.sendRuntimeMessage(payload, { timeoutMs: 5000, retries: 0 });
+        if (result.ok) resp = result.data;
+      } else {
+        resp = await new Promise((res) => {
+          try { chrome.runtime.sendMessage(payload, (r) => res(r)); }
+          catch (_) { res(null); }
+        });
+      }
+      if (resp && resp.success) {
+        const trace = await (globalThis.CCSLogger?.getTraceBuffer?.() || Promise.resolve([]));
+        const data = { ...resp.data, runtimeTrace: Array.isArray(trace) ? trace : [] };
+        showMenuDebugInfo(data);
+      } else {
+        showToast('获取菜单状态失败');
+      }
+    } catch (err) {
+      console.warn('[popup-v2] export menu state 失败:', err);
+      showToast('获取菜单状态失败');
+    } finally {
+      if (btn) btn.textContent = origLabel || '导出菜单状态';
+    }
+  }
+  function showMenuDebugInfo(data) {
+    openSubPanel($debugSection);
+    const formatted = JSON.stringify(data, null, 2);
+    const textEl = $debugSection.querySelector('.menu-debug-text');
+    if (textEl) textEl.textContent = formatted;
+    navigator.clipboard?.writeText(formatted).then(() => {
+      showToast('菜单状态已复制到剪贴板');
+    }).catch(() => {});
+    const copyBtn = $debugSection.querySelector('.copy-debug-info');
+    const closeBtn = $debugSection.querySelector('.close-debug-info');
+    if (copyBtn) {
+      copyBtn.onclick = () => {
+        navigator.clipboard?.writeText(formatted)
+          .then(() => showToast('已复制到剪贴板'))
+          .catch(() => showToast('复制失败'));
+      };
+    }
+    if (closeBtn) closeBtn.onclick = () => { $debugSection.hidden = true; };
+  }
+
+  // 8 action 调度表
+  const SETTING_ACTIONS = {
+    'toggle': actionToggleEnable,
+    'debug': actionToggleDebug,
+    'voice': actionToggleVoice,
+    'open-welcome': actionOpenWelcome,
+    'blacklist': actionBlacklist,
+    'shortcut-settings': actionShortcutSettings,
+    'prompt-library': actionPromptLibrary,
+    'export-menu-state': actionExportMenuState
+  };
 
   // ===== 事件绑定 =====
   function bindEvents() {
@@ -349,6 +642,34 @@
 
     // 打开侧边栏
     $openSP.addEventListener('click', () => { openSidePanel(); });
+
+    // ===== Settings panel 切换 + 8 个 action dispatcher =====
+    $settingsToggle.addEventListener('click', showSettings);
+    $backToMenu.addEventListener('click', showMenu);
+
+    $settingsPanel.addEventListener('click', (e) => {
+      const btn = e.target.closest('.setting-btn[data-action]');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      const fn = SETTING_ACTIONS[action];
+      if (typeof fn === 'function') fn();
+    });
+
+    // 子面板内部按钮（clear blacklist / save shortcut 等）—— 委托
+    const clearBlacklistBtn = $blacklistSection.querySelector('.clear-blacklist');
+    if (clearBlacklistBtn) clearBlacklistBtn.addEventListener('click', clearAllBlacklist);
+    const saveShortcutBtn = $shortcutSection.querySelector('.save-shortcut');
+    if (saveShortcutBtn) saveShortcutBtn.addEventListener('click', saveShortcut);
+
+    // 监听 storage 同步 settings labels（如别处改了 enabled / ccs_debug / ccs_voice_enabled）
+    try {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local') return;
+        if ('enabled' in changes || 'ccs_debug' in changes || 'ccs_voice_enabled' in changes) {
+          if (!$settingsPanel.hidden) syncSettingLabels();
+        }
+      });
+    } catch (_) {}
 
     // 监听 storage 实时更新关键字（同 tab 内 background 写入立即反映）
     try {

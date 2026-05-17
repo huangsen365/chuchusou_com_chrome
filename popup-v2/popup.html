@@ -42,7 +42,7 @@
     <div class="menu-item" role="menuitem" data-menu-id="ccs-google-translate" data-menu-type="translate" data-url-pattern="https://translate.google.com/?sl=auto&amp;tl=zh-CN&amp;text=${KEYWORD}"><span class="item-icon">🔁</span><span class="item-title">Google 翻译</span></div>
   </div>
 
-  <!-- 常用 toggle（点一下即生效，不展开二级面板）-->
+  <!-- 常用 toggle（点一下即生效，UX 加成）—— 状态与 settings panel 同步 -->
   <div class="quick" id="quick">
     <button class="q" id="qEnable" type="button" title="启用/禁用扩展（影响悬浮面板、右键菜单）">
       <span class="q-icon">⚡</span><span class="q-label" id="qEnableLabel">已启用</span>
@@ -52,10 +52,130 @@
     </button>
   </div>
 
+  <!-- 设置面板（默认隐藏；点 ⚙️ 设置 切换，与 menu/pin/quick 互斥）-->
+  <section class="settings-panel" id="settingsPanel" hidden>
+    <div class="settings-header">
+      <button class="back-to-menu" id="backToMenu" type="button">← 返回菜单</button>
+    </div>
+
+    <div class="settings-content">
+      <div class="settings-grid">
+        <button class="setting-btn" data-action="toggle" type="button">
+          <span class="setting-icon">⚡</span>
+          <span class="setting-label" id="sLabelEnable">启用/禁用</span>
+        </button>
+        <button class="setting-btn" data-action="blacklist" type="button">
+          <span class="setting-icon">🚫</span>
+          <span class="setting-label">黑名单管理</span>
+        </button>
+        <button class="setting-btn" data-action="debug" type="button">
+          <span class="setting-icon">🐞</span>
+          <span class="setting-label" id="sLabelDebug">调试日志：关</span>
+        </button>
+        <button class="setting-btn" data-action="voice" type="button" title="实验性：通过语音说出引擎名快速搜索">
+          <span class="setting-badge">BETA</span>
+          <span class="setting-icon">🎤</span>
+          <span class="setting-label" id="sLabelVoice">语音功能：关</span>
+        </button>
+        <button class="setting-btn" data-action="export-menu-state" type="button">
+          <span class="setting-icon">📋</span>
+          <span class="setting-label">导出菜单状态</span>
+        </button>
+        <button class="setting-btn" data-action="shortcut-settings" type="button">
+          <span class="setting-icon">⌨️</span>
+          <span class="setting-label">快捷键设置</span>
+        </button>
+        <button class="setting-btn" data-action="prompt-library" type="button">
+          <span class="setting-icon">📚</span>
+          <span class="setting-label">提示词库</span>
+        </button>
+        <button class="setting-btn" data-action="open-welcome" type="button">
+          <span class="setting-icon">📖</span>
+          <span class="setting-label">查看欢迎页</span>
+        </button>
+      </div>
+
+      <div class="sub-panel" id="blacklistSection" hidden>
+        <h3>黑名单管理</h3>
+        <div class="blacklist-info">
+          <p>已屏蔽 <span class="blacklist-count">0</span> 个网站</p>
+          <button class="clear-blacklist" type="button">清空全部</button>
+        </div>
+        <div class="blacklist-list"></div>
+        <div class="blacklist-tips">恢复：<kbd>Alt+右键</kbd> / <kbd>Alt+S</kbd></div>
+      </div>
+
+      <div class="sub-panel" id="shortcutSection" hidden>
+        <h3>快捷键设置</h3>
+        <div class="shortcut-row">
+          <label>切换面板快捷键：</label>
+          <select class="shortcut-key-select">
+            <option value="Alt+S">Alt+S（默认）</option>
+            <option value="Ctrl+Shift+S">Ctrl+Shift+S</option>
+            <option value="Alt+Shift+S">Alt+Shift+S</option>
+            <option value="Ctrl+Alt+S">Ctrl+Alt+S</option>
+            <option value="Alt+Q">Alt+Q</option>
+            <option value="Alt+E">Alt+E</option>
+          </select>
+        </div>
+        <button class="save-shortcut" type="button">保存设置</button>
+      </div>
+
+      <div class="sub-panel" id="promptLibrarySection" hidden>
+        <h3>提示词库</h3>
+        <div class="prompt-library-header">
+          <p>已保存 <span class="prompt-count">0</span> 个提示词</p>
+          <button class="add-prompt-btn" type="button">+ 新建</button>
+        </div>
+        <div class="prompt-list"></div>
+        <div class="prompt-library-tips">点击提示词复制到剪贴板，跨设备自动同步</div>
+      </div>
+
+      <div class="sub-panel" id="debugSection" hidden>
+        <h3>菜单状态调试</h3>
+        <div class="menu-debug-info">
+          <button class="copy-debug-info" type="button">复制到剪贴板</button>
+          <button class="close-debug-info" type="button">关闭</button>
+        </div>
+        <div class="menu-debug-content">
+          <pre class="menu-debug-text"></pre>
+        </div>
+      </div>
+
+      <div class="version-info">
+        <span class="version-label">版本</span>
+        <span class="version-number" id="versionNumber">v1.6.20</span>
+      </div>
+    </div>
+  </section>
+
   <footer class="ftr">
+    <button class="ftr-btn" id="settingsToggle" type="button" title="设置面板（黑名单、语音、提示词库、调试 等）">⚙️ 设置</button>
     <button class="ftr-btn" id="openSP" type="button" title="打开侧边栏（封面生成器 + 完整菜单）">📑 侧边栏</button>
-    <a href="../popup/popup.html" target="_blank" rel="noopener" class="legacy" title="黑名单 / 语音 / 提示词库 / 调试导出 / 快捷键 等">⚙️ 高级设置</a>
+    <a href="https://chuchusou.com" target="_blank" rel="noopener" class="legacy">chuchusou.com</a>
   </footer>
+
+  <!-- 提示词新建/编辑模态框（PromptLibraryManager 用）-->
+  <div class="prompt-modal" id="promptModal" hidden>
+    <div class="prompt-modal-content">
+      <h4 id="promptModalTitle">新建提示词</h4>
+      <div class="prompt-form">
+        <label>
+          名称
+          <input type="text" id="promptNameInput" maxlength="50" placeholder="提示词名称">
+        </label>
+        <label>
+          内容
+          <textarea id="promptContentInput" maxlength="2000" rows="5" placeholder="提示词内容"></textarea>
+          <span class="prompt-char-count">0/2000</span>
+        </label>
+      </div>
+      <div class="prompt-modal-actions">
+        <button class="prompt-modal-cancel" type="button">取消</button>
+        <button class="prompt-modal-save" type="button">保存</button>
+      </div>
+    </div>
+  </div>
 
   <!-- shared utilities (战斗过验证的工具，不是"baseline 风格"): -->
   <!-- logger.js: 统一日志前缀 + debug 开关 -->
