@@ -342,7 +342,10 @@
       this.settings.globalDock = false;
       this.state.isTempDock = false;
       this.settings.position = null;
-      
+
+      // 不再需要可见性轮询，停掉避免后台空转
+      this.stopVisibilityTimer();
+
       if (this.callbacks.onUndock) {
         this.callbacks.onUndock();
       }
@@ -352,7 +355,10 @@
     close() {
       this.settings.barClosed = true;
       this.state.isTempDock = false;
-      
+
+      // 关闭后底部栏不再可见，停掉可见性轮询
+      this.stopVisibilityTimer();
+
       if (this.callbacks.onClose) {
         this.callbacks.onClose();
       }
@@ -364,21 +370,37 @@
         this.settings.layout = 'bottom';
         this.settings.globalDock = true;
         this.settings.barClosed = false;
-        
+
         console.log('[DockBar] 初始化底部栏...');
-        
+
         if (this.callbacks.onInitDockBar) {
           this.callbacks.onInitDockBar();
         }
-        
+
         // 设置定期检查，确保 dock bar 保持可见
-        setInterval(() => {
-          if (this.settings.globalDock && !this.settings.barClosed && 
-              this.settings.mode === 'normal' && !this.settings.isBlacklisted) {
-            this.ensureBottomBarVisible();
-          }
-        }, 2000);
+        // 引用存到 this._visibilityTimer，destroy() 时可清；幂等：已有就不重复创建
+        if (this._visibilityTimer == null) {
+          this._visibilityTimer = setInterval(() => {
+            if (this.settings.globalDock && !this.settings.barClosed &&
+                this.settings.mode === 'normal' && !this.settings.isBlacklisted) {
+              this.ensureBottomBarVisible();
+            }
+          }, 2000);
+        }
       }
+    },
+
+    // 停掉定期可见性轮询。在 globalDock=false / 扩展 disable / close 时由调用方触发
+    stopVisibilityTimer() {
+      if (this._visibilityTimer != null) {
+        clearInterval(this._visibilityTimer);
+        this._visibilityTimer = null;
+      }
+    },
+
+    // 关闭 DockBar 全部后台资源（目前主要是 visibility 轮询）
+    destroy() {
+      this.stopVisibilityTimer();
     },
 
     // 确保底部栏可见
