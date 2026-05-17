@@ -1,5 +1,22 @@
 # 更新日志
 
+## v1.6.19 (2026-05-17)
+
+**修复 v1.6.18 zip Service Worker 起不来 + popup/sidepanel 装上首次打开卡顿**。两个独立 bug 一并修。详细见 [releases/v1.6.19.md](./releases/v1.6.19.md)。
+
+### 🐛 修复
+
+- **v1.6.18 zip 装上 Service Worker 注册失败（Status 15）**：build pipeline 把 manifest 的 SW 入口强制回退到了 legacy `background/index.js`，但该入口在 v1.6.18 内部重构里已经把 6 个 legacy 模块从 importScripts 列表里 drop 掉了（迁到 TS）。结果 SW 加载时顶层引用 `createContextMenus` 拿到 undefined，整个 SW 起不来 → 扩展卡片显示错误、所有功能失效。**修复方案**：manifest 入口指 Plasmo TS bundle `static/background/index.js`，由它正确接入所有 TS port 模块。
+- **TS attach* 加载时序 bug（v1.6.18 zip 同时存在但被上一个 bug 掩盖）**：Plasmo SW 入口里 `attachBaseBridge / attachMenuBuilder / attachMenuHandlers / autoRegisterVoiceBridge` 之前放在 `importScripts(legacy)` 后面，但 legacy events.js 顶层第一行就引用 `createContextMenus` —— 那时 attachMenuBuilder 还没跑，globalThis 上没这个函数。**修复方案**：4 个 lazy attach* 全部前置到 importScripts 之前，让 globalThis.X 在 events.js 加载前就绪。
+- **popup / sidepanel 在 Chrome Web Store 安装后首次打开卡顿 5-10s**：根本原因是 popup/sidepanel 启动时给 background Service Worker 发 `sendMessage(getKeyword)` 同步等回包，触发 SW 冷启动（17 个 legacy importScripts，~270KB），首屏被 CPU 抢占。**修复方案**：popup/sidepanel 启动彻底脱离 SW —— 关键字走 `chrome.storage.local` + `onChanged` 监听（不依赖 SW），菜单走静态 HTML 注入（build 时编译好 23 个 popup / 19 个 sidepanel 菜单项），sidepanel button 检测等次要请求推迟到 `requestIdleCallback`。
+
+### 🛠 技术改动
+
+- **popup/sidepanel 渲染机制 10 步精简**：删除 fetch / render() / DocumentFragment 等机制层共 -367 行净，菜单从"6 fetch + JS DOM 构建 ~30-50ms"变成"0 fetch + 0 DOM 构建（HTML 已注入）"。popup bundle 191KB / sidepanel bundle 174KB（perf-budget 都在预算内）。
+- **新增 scripts/prebuild-popup-menu.mjs**：build 时跑 `CCSMenuStructureBuilder` 把菜单结构直接注入 build/popup.html / build/sidepanel.html，container 上挂 `data-static-built="true"` 让前端跳过 render。这样首装首打开也不依赖 storage / fetch / SW 才能看到菜单。
+- **6 个 background legacy 模块 drop 到 TS port**：base.js / Logger.js / menuBuilder.js / menuHandlers.js / voiceOffscreenBridge.js / init.js（共 2506 行）全部由 src/background/*.ts 取代，剩余 17 个 legacy 通过 importScripts 加载。SW bundle 77KB（perf-budget 150KB 限内）。
+- **sidepanel alive port**：sidepanel 打开时建一条 `chrome.runtime.connect('sidepanel-alive')` 长连接，SW 在 sidepanel 开着的全程不会被 idle evict。
+
 ## v1.6.18 (2026-05-17)
 
 **首个真正基于 Plasmo 框架发布的版本**。`./build.sh` 从 v1.6.0 时代的"直接 rsync 源目录"模式切到走 `npm run plasmo:build` 出 build/chrome-mv3-prod/ 再打 zip。同时修一个 YouTube 关键字识别 bug。详细见 [releases/v1.6.18.md](./releases/v1.6.18.md)。
