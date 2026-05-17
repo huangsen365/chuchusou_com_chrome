@@ -17,7 +17,9 @@
     "verify:shared-config": "node scripts/verify-shared-config.mjs",
     "verify:menu-structure-builder": "node scripts/verify-menu-structure-builder.mjs",
     "verify:menu-structure-builder-dual": "node scripts/verify-menu-structure-builder-dual.mjs",
-    "verify:background-utils-dual": "node scripts/verify-background-utils-dual.mjs"
+    "verify:background-utils-dual": "node scripts/verify-background-utils-dual.mjs",
+    "perf:cold-popup": "node scripts/perf-cold-popup.mjs",
+    "perf:test": "bash scripts/test-perf.sh"
   },
   "repository": {
     "type": "git",
