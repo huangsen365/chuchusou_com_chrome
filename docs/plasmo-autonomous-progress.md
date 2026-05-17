@@ -37,3 +37,28 @@
   1. 继续 port `shared/menuStructureBuilder.js` 到 `src/shared/menuStructureBuilder.ts`，并做 legacy/TS 双跑对比。
   2. 再开始 background `Constants/TextUtils/TextLimits/Logger` 的纯模块迁移。
   3. 真正替换 popup/sidepanel/content entrypoint 前，先安排 Chrome unpacked build 手动验收清单。
+
+## 2026-05-17 后续会话（手动驾驶）
+
+- 本轮目标：把"下一步建议"的 1 + 2 一次做完，全部走双跑对比；不动生产入口。
+- 改动：
+  - `src/shared/menuStructureBuilder.ts` —— legacy UMD `shared/menuStructureBuilder.js` 的等价 TS 模块，保留 `CCSMenuStructureBuilder` 默认导出 + 4 张常量表。
+  - `scripts/verify-menu-structure-builder-dual.mjs` —— 用 `typescript.transpileModule` + `node:vm` 把 TS 编译后跟 legacy UMD 在同一 Node 进程跑 7 个真实场景（默认 unifiedConfig / 无 toggles / 单叶子禁用 / advanced 全关 / 仅 quick+panel / 空 prompt / 缺 engines）+ 4 张常量表 deep-equal 校验。
+  - `src/background/utils/Constants.ts` —— 抽出 15 张纯数据常量表（含 MENU_DEFINITIONS / FAST_QA_QUICK_ITEMS / OPTIMIZE_CATEGORY_TITLES / COVER_CATEGORY_TITLES / TITLE_CLEANUP_SUFFIXES / SEARCH_ENGINE_SUFFIXES / GENERIC_HOST_KEYWORDS / CACHE_EXPIRY 等）。chrome.storage / SW lifecycle / 运行时可变状态 / `tryOpenMenuUrl` 留 legacy 不迁。
+  - `src/background/utils/TextUtils.ts` —— 11 个纯函数；从全局 MENU_DEFINITIONS / QUICK_RESULT_HOSTS 取值改为可选参数注入，默认值与 legacy 全局一致。
+  - `src/background/utils/TextLimits.ts` —— 长度保护纯函数；toast `chrome.tabs.sendMessage` 副作用**不迁**。TS 版本 `TEXT_LIMITS_ENABLED = false` 总闸保留（CLAUDE.md 生产决策），dual-run 显式断言。
+  - `src/background/Logger.ts` —— Logger 类 + `loggers` map + `getLogger` + `logMenuEvent`。`_loggerDebug` 全局注册改为 `registerLoggerDebug(globalTarget)` 显式调用，避免 import 副作用。
+  - `scripts/verify-background-utils-dual.mjs` —— 自建递归 CJS resolver + `typescript.transpileModule` 加载 4 个 TS；legacy 走 SW importScripts 风格共享 globalThis 加载（chrome.* / console.* 都 stub）。Constants 15 张表、TextUtils 7 个函数 × 多 case、TextLimits 限值表 + smartTruncate + applyTextLimit(disabled+enabled) + enforceFinalUrlCap、Logger LEVELS/LEVEL_NAMES/globalConfig/getLogger/logMenuEvent 全部 deep-equal。
+- 验证：
+  - `npm test` 通过（lint + typecheck + verify:shared-config + verify:menu-structure-builder + verify:menu-structure-builder-dual + verify:background-utils-dual 六道关全绿）。
+  - `npm run plasmo:build` 通过；compat layer 33 manifest 文件齐全。
+- Commits：
+  - `1d20483` (`refactor: port menuStructureBuilder to TypeScript with dual-run verify`)
+  - `ef5cefa` (`refactor: port 4 background pure utils to TypeScript with dual-run verify`)
+- 当前迁移状态：
+  - Phase 2 已收账（所有 shared/background 纯模块都有 TS 双跑替身）
+  - Phase 3 起步条件就绪：剩余 background 模块（base.js / config.js / events.js / menuBuilder.js / menuHandlers.js / KeywordSyncManager.js / KeywordService.js / MenuRegistry.js / URLBuilder.js / menuSystem.js 等）都依赖了 chrome.* 或运行时全局，迁移必须配合 SW entrypoint 替换。
+- 下一步建议：
+  1. 真正切 background 入口前，先把 `background/config.js` 中的 prompt loader 抽出来 port 到 `src/background/promptConfigLoader.ts`（依赖 fetch + chrome.runtime.getURL，需要在 TS 版本里参数化 fetcher），同样做双跑。
+  2. 安排第一次"Chrome unpacked 手动验收清单"：把当前 build 装到 Chrome、过一遍 8 大入口（右键 / popup / sidepanel / 悬浮面板 / welcome / members / voice-permission / offscreen），作为 Phase 3+ 进入实操前的基线快照。
+  3. 真正动 popup/sidepanel/content entrypoint 之前**仍需用户手动验收**，不能纯靠 CLI 自动化判断完成。
