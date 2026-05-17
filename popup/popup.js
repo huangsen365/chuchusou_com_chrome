@@ -234,42 +234,39 @@ class PopupMenuRenderer {
 
   render() {
     const container = document.getElementById('menuContainer');
-    container.innerHTML = '';
 
-    // 关键字徽章：抽到独立方法，方便后续单独刷新
+    // 关键字徽章：与菜单容器独立，先刷
     this._renderKeyword();
-    // 注：移除 keywordEl.style.display 强制切换——改由 CSS `.menu-keyword:empty` + wrap `.has-keyword` 渐变控制
 
-    // 渲染菜单组
+    // v1.6.19：先构建 DocumentFragment 完整 DOM，最后 replaceChildren 原子 swap。
+    // 这样 popup.html 的静态骨架在 fragment 准备好之前一直可见，避免老的
+    // `innerHTML='' + 逐个 append` 路径在慢网络/大配置下露出空白闪烁。
     if (!this.config || !this.config.groups) {
-      container.innerHTML = '<div class="menu-empty">无菜单配置</div>';
+      container.replaceChildren(this._renderEmptyState());
       return;
     }
 
+    const fragment = document.createDocumentFragment();
     this.config.groups.forEach((group, index) => {
-      // 跳过 panel 组（设置入口已在底部）
       if (group.id === 'panel') return;
-
-      // 分隔线策略：字段驱动
-      //   group.separator === 'before' → 在该 group 之前插一条
-      //   group.separator === 'after'  → 在该 group 之后插一条
-      //   未标 / 'none'                → 不插（注意：相邻 group 可能用 before/after 补上）
-      //
-      // ⚠️ 新增 group 时记得同步挂 separator 字段（base.js 的 getPopupMenuStructure 里）
-      //    否则与 sidebar / 右键菜单 group 边界分隔线不一致。
-
-      // separator before
       if (group.separator === 'before' && index > 0) {
-        container.appendChild(this.createSeparator());
+        fragment.appendChild(this.createSeparator());
       }
-
-      this.renderGroup(container, group);
-
-      // separator after
+      this.renderGroup(fragment, group);
       if (group.separator === 'after') {
-        container.appendChild(this.createSeparator());
+        fragment.appendChild(this.createSeparator());
       }
     });
+
+    // 原子替换：静态骨架与完整菜单之间不存在"空白"中间态
+    container.replaceChildren(fragment);
+  }
+
+  _renderEmptyState() {
+    const div = document.createElement('div');
+    div.className = 'menu-empty';
+    div.textContent = '无菜单配置';
+    return div;
   }
 
   formatKeyword(text) {

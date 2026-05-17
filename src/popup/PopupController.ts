@@ -235,18 +235,25 @@ export class PopupController {
   render(): void {
     const container = document.getElementById("menuContainer")
     if (!container) return
-    container.innerHTML = ""
     this._renderKeyword()
+
     if (!this.config?.groups) {
-      container.innerHTML = '<div class="menu-empty">无菜单配置</div>'
+      const empty = document.createElement("div")
+      empty.className = "menu-empty"
+      empty.textContent = "无菜单配置"
+      container.replaceChildren(empty)
       return
     }
+
+    // v1.6.19: fragment 完整构建后 replaceChildren 原子 swap，避免静态骨架闪空白
+    const fragment = document.createDocumentFragment()
     this.config.groups.forEach((group, index) => {
       if (group.id === "panel") return
-      if (group.separator === "before" && index > 0) container.appendChild(this.createSeparator())
-      this.renderGroup(container, group)
-      if (group.separator === "after") container.appendChild(this.createSeparator())
+      if (group.separator === "before" && index > 0) fragment.appendChild(this.createSeparator())
+      this.renderGroup(fragment, group)
+      if (group.separator === "after") fragment.appendChild(this.createSeparator())
     })
+    container.replaceChildren(fragment)
   }
 
   formatKeyword(text: string): string {
@@ -261,7 +268,7 @@ export class PopupController {
     return sep
   }
 
-  renderGroup(container: HTMLElement, group: MenuStructure["groups"][number]): void {
+  renderGroup(container: HTMLElement | DocumentFragment, group: MenuStructure["groups"][number]): void {
     if (!group.items) return
     group.items.forEach((item) => {
       if (!this.isMenuEnabled(item.id)) return
