@@ -17,6 +17,7 @@
  */
 
 import { attachBaseBridge } from "./background/baseBridge"
+import { attachMenuHandlers } from "./background/menuHandlersAttach"
 
 const sw = self as unknown as {
   importScripts: (...urls: string[]) => void
@@ -59,7 +60,7 @@ sw.importScripts(
 
   // 第 4 层：菜单 + 事件
   absoluteUrl("background/menuBuilder.js"),
-  absoluteUrl("background/menuHandlers.js"),
+  // ↓ background/menuHandlers.js 已被 src/background/menuHandlersAttach.ts 取代 ↓
   absoluteUrl("background/voiceOffscreenBridge.js"),
   absoluteUrl("background/events.js"),
 
@@ -74,6 +75,9 @@ sw.importScripts(
 // 在那之后跑，所以 TS 版本最终生效。
 attachBaseBridge()
 
-console.log("[触触搜][Plasmo] background SW bootstrap complete via importScripts bridge + TS baseBridge")
+// 注册 chrome.contextMenus.onClicked 监听器（替代 legacy menuHandlers.js）
+attachMenuHandlers()
+
+console.log("[触触搜][Plasmo] background SW bootstrap complete via importScripts bridge + TS baseBridge + TS menuHandlers")
 
 export {}
