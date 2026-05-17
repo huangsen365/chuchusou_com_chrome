@@ -540,7 +540,55 @@ async function main() {
   ksm.clear()
   assert(ksm.currentState.raw === "" && ksm.subscribers.length === 0, "clear resets")
 
-  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager OK")
+  // tabState.ts: 与 legacy base.js 行 127-220 的 5 函数行为对等
+  const tsTabState = loadTs(path.join(root, "src/background/tabState.ts"))
+  assert(typeof tsTabState.TabStateCache === "function", "TabStateCache class")
+  assert(tsTabState.DEFAULT_MAX_AGE_MS === 30000, "DEFAULT_MAX_AGE_MS=30s (BUGFIX v1.6.0)")
+  const cache = new tsTabState.TabStateCache({ normalizeSearchText: (s) => s.toLowerCase().trim() })
+  // getOrCreate null safety
+  assert(cache.getOrCreate(null) === null, "getOrCreate(null)")
+  // updateTitle + getPageTitle 走通
+  cache.updateTitle(1, "Hello Page")
+  assert(cache.getPageTitle(1) === "Hello Page", "updateTitle → getPageTitle roundtrip")
+  // pageTitle 优先（兼容老 entry.title vs entry.pageTitle）
+  assert(cache.store[1].pageTitle === "Hello Page" && cache.store[1].title === "Hello Page", "both title+pageTitle set")
+  // updateKeyword + 自动 normalize
+  cache.updateKeyword(1, " Foo Bar ")
+  assert(cache.store[1].keywordNormalized === "foo bar", "keyword normalize applied")
+  // 显式传 normalized
+  cache.updateKeyword(2, "raw", "NORM")
+  assert(cache.store[2].keywordNormalized === "NORM", "explicit normalized")
+  // getKeyword 优先级
+  assert(cache.getKeyword(1) === " Foo Bar ", "getKeyword returns raw")
+  // maxAge expiry: 设置 timestamp 为 60s 前，getPageTitle 返回 ''
+  cache.store[1].timestamp = Date.now() - 60000
+  assert(cache.getPageTitle(1) === "", "stale title expires")
+  cache.store[1].keywordTimestamp = Date.now() - 60000
+  assert(cache.getKeyword(1) === "", "stale keyword expires")
+  // 新 entry 后 getPageTitle 重新工作
+  cache.updateTitle(1, "Fresh")
+  assert(cache.getPageTitle(1) === "Fresh", "fresh title after update")
+  // clearTab
+  cache.clearTab(1)
+  assert(cache.store[1] === undefined, "clearTab removes entry")
+  // null tabId 安全
+  cache.updateTitle(null, "x")
+  cache.updateKeyword(null, "x")
+  assert(cache.getPageTitle(null) === "", "getPageTitle(null)")
+  assert(cache.getKeyword(null) === "", "getKeyword(null)")
+  // injected store mode：legacy 兼容
+  const sharedStore = { 7: { title: "Shared", pageTitle: "Shared", timestamp: Date.now() } }
+  const cache2 = new tsTabState.TabStateCache({ store: sharedStore })
+  assert(cache2.getPageTitle(7) === "Shared", "shared store reuse")
+  // logMenuEvent 注入触发
+  let logged = null
+  const cache3 = new tsTabState.TabStateCache({ logMenuEvent: (stage, p) => { logged = { stage, p } } })
+  cache3.updateTitle(1, "Old")
+  cache3.store[1].timestamp = Date.now() - 60000
+  cache3.getPageTitle(1)
+  assert(logged?.stage === "cached-title-expired" && logged.p.tabId === 1, "logMenuEvent called on expiry")
+
+  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState OK")
 }
 
 main().catch((err) => {
