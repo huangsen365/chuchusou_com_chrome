@@ -90,6 +90,27 @@ class PopupMenuRenderer {
           });
         };
         try { chrome.storage.onChanged.addListener(this._kwStorageListener); } catch (_) { /* ignore */ }
+
+        // Cache miss is common after first install/new tab. Keep first paint free of
+        // SW work, then refresh the badge in the background with a bounded request.
+        const scheduleFreshKeyword = (fn) => {
+          const ric = globalThis.requestIdleCallback;
+          if (typeof ric === 'function') ric(fn, { timeout: 300 });
+          else setTimeout(fn, 120);
+        };
+        scheduleFreshKeyword(() => {
+          this.refreshKeyword({
+            timeoutMs: cached?.text ? 900 : 1500,
+            retries: cached?.text ? 0 : 1
+          }).catch((error) => {
+            globalThis.CCSLogger?.warn?.(
+              'popup',
+              'keyword-refresh-failed',
+              globalThis.CCSLogger?.createRequestId?.('popup-keyword') || '',
+              error?.message || String(error)
+            );
+          });
+        });
       } catch (error) {
         console.warn('[触触搜] 关键字加载失败:', error);
       }
@@ -164,10 +185,15 @@ class PopupMenuRenderer {
   // C 档重构后：popup.js 不再直接发消息拿关键字，统一过 CCSKeywordClient。
   // 老调用点（PromptLibraryManager / SettingsManager 等）若需要兜底刷新关键字，
   // 调用 this.refreshKeyword() 即可。
-  async refreshKeyword() {
-    const fresh = await CCSKeywordClient.requestKeyword(CCSKeywordClient.INTENTS.POPUP_OPEN);
-    this.keyword = fresh;
-    this._renderKeyword();
+  async refreshKeyword(options = {}) {
+    const fresh = await CCSKeywordClient.requestKeyword(CCSKeywordClient.INTENTS.POPUP_OPEN, {
+      timeoutMs: options.timeoutMs || 1500,
+      retries: options.retries ?? 1
+    });
+    if (fresh?.text || fresh?.raw) {
+      this.keyword = fresh;
+      this._renderKeyword();
+    }
     return fresh;
   }
 
