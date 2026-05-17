@@ -1,14 +1,62 @@
 /**
  * 触触搜 - 主内容脚本 (TypeScript port, Plasmo content script entry)
  *
- * 与 content.js 1:1 行为对等。chrome.* 通过 globalThis 防御性访问。
- * 生产仍跑 legacy content.js（manifest content_scripts 未切）；
- * 本 entry 等 manifest 切换时接管。
+ * 与 content.js + modules/*.js 1:1 行为对等。chrome.* 通过 globalThis 防御性访问。
  *
- * 不复用 src/content/* 模块（虽然 SelectionManager / Toast / TextEncoder 已有 TS 版本），
- * 因为 legacy content.js 的选区追踪 / 命令执行有 inline 实现，行为已稳定。
- * 等切换 manifest 后再考虑 refactor 复用。
+ * 生产仍跑 legacy content.js + 25 个 modules/* legacy 脚本（manifest content_scripts 未切）。
+ * 本 entry 等 manifest 切换时接管：单 Plasmo bundle 替换 26 个 legacy 文件。
+ *
+ * 通过 import 把已 port 的 20 个 src/content-modules/*.ts 的单例拉起来（构造时已挂上事件），
+ * 然后挂到 window.CCSModules 命名空间，与 legacy 脚本对外 API 保持一致。
  */
+
+import { BackgroundComm } from "./content-modules/backgroundComm"
+import { Blacklist } from "./content-modules/blacklist"
+import { ButtonDefinitions } from "./content-modules/buttonDefinitions"
+import { Buttons } from "./content-modules/buttons"
+import { Commands } from "./content-modules/commands"
+import { ContentState as ContentStateModule } from "./content-modules/stateManager"
+import { DOMMonitor } from "./content-modules/domMonitor"
+import { Dragging } from "./content-modules/dragging"
+import { KeywordExtractor } from "./content-modules/keywordExtractor"
+import { Positioning } from "./content-modules/positioning"
+import { RealtimeUpdate } from "./content-modules/realtimeUpdate"
+import { RecoveryPopover } from "./content-modules/recoveryPopover"
+import { Search } from "./content-modules/search"
+import { SelectionModule } from "./content-modules/selection"
+import { Settings } from "./content-modules/settings"
+import { SettingsPanel } from "./content-modules/settingsPanel"
+import { Shortcuts } from "./content-modules/shortcuts"
+import { TextSync } from "./content-modules/textSync"
+import { Toast as ContentToast } from "./content-modules/toast"
+import { Utils } from "./content-modules/utils"
+
+// 把 20 个 TS 模块单例都挂到 window.CCSModules，让 legacy 调用点（如 backgroundComm 访问 Toast）
+// 不论谁先加载都能找到对方
+const _ccsModulesHost = window as unknown as { CCSModules?: Record<string, unknown> }
+_ccsModulesHost.CCSModules = _ccsModulesHost.CCSModules || {}
+Object.assign(_ccsModulesHost.CCSModules, {
+  BackgroundComm,
+  Blacklist,
+  ButtonDefinitions,
+  Buttons,
+  Commands,
+  ContentState: ContentStateModule,
+  DOMMonitor,
+  Dragging,
+  KeywordExtractor,
+  Positioning,
+  RealtimeUpdate,
+  RecoveryPopover,
+  Search,
+  SelectionModule,
+  Settings,
+  SettingsPanel,
+  Shortcuts,
+  TextSync,
+  Toast: ContentToast,
+  Utils
+})
 
 const EXTENSION_NAME = "触触搜"
 const SELECTION_SYNC_DELAY = 35
