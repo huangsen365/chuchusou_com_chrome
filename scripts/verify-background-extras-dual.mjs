@@ -80,7 +80,10 @@ function loadLegacy() {
     { p: "background/Logger.js", a: "" },
     { p: "background/StateManager.js", a: "\nglobalThis.StateManager = StateManager;" },
     { p: "background/keywords.js", a: "\nglobalThis.safeDecodeParam = safeDecodeParam;\nglobalThis.heuristicExtractFromParams = heuristicExtractFromParams;" },
-    { p: "background/config.js", a: "" }
+    { p: "background/config.js", a: "" },
+    // KeywordService 内部依赖 computeSearchTextForTab 这种全局函数，无法干跑；
+    // 仅把 KEYWORD_INTENTS + INTENT_POLICIES 暴露出来做对比
+    { p: "background/KeywordService.js", a: "\nglobalThis.LEGACY_INTENT_POLICIES = INTENT_POLICIES;" }
   ]
   for (const { p: rel, a } of files) {
     const abs = path.join(root, rel)
@@ -376,7 +379,101 @@ async function main() {
   await compareKeywords(legacy, tsKeywords)
   comparePromptBuilders(legacy, tsPromptBuilders)
 
-  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders OK")
+  // voiceOffscreenBridge: 纯函数 errorPayload + 结构性 verifier（legacy 重 chrome.* 调用，不全量 dual-run）
+  const tsVoiceBridge = loadTs(path.join(root, "src/background/voiceOffscreenBridge.ts"))
+  assert(typeof tsVoiceBridge.createBridge === "function", "voiceOffscreenBridge.createBridge")
+  assert(typeof tsVoiceBridge.errorPayload === "function", "voiceOffscreenBridge.errorPayload")
+  assert(typeof tsVoiceBridge.autoRegisterVoiceBridge === "function", "voiceOffscreenBridge.autoRegisterVoiceBridge")
+  assert(tsVoiceBridge.CCS_VOICE_OFFSCREEN_PATH === "offscreen/voice.html", "voiceOffscreenBridge.CCS_VOICE_OFFSCREEN_PATH")
+  // errorPayload 纯函数测试（与 legacy ccsVoiceErrorPayload 等价）
+  const ep1 = tsVoiceBridge.errorPayload(null)
+  assert(ep1.code === "unknown-error" && ep1.name === "Error", "errorPayload(null)")
+  const ep2 = tsVoiceBridge.errorPayload({ code: "no-speech", name: "SpeechError", message: "no speech" })
+  assert(ep2.code === "no-speech" && ep2.name === "SpeechError" && ep2.message === "no speech", "errorPayload(full)")
+  const ep3 = tsVoiceBridge.errorPayload(new Error("foo"))
+  assert(ep3.code === "foo" && ep3.message === "foo", "errorPayload(Error)")
+  const ep4 = tsVoiceBridge.errorPayload("string err")
+  assert(ep4.code === "unknown-error" && ep4.message === "string err", "errorPayload(string)")
+  // createBridge 工厂出来的 bridge 对象 shape
+  const fakeChrome = {
+    runtime: { getURL: (p) => `chrome-extension://abc/${p}`, sendMessage: async () => null, onMessage: { addListener: () => {} } },
+    offscreen: { createDocument: async () => {} }
+  }
+  const bridge = tsVoiceBridge.createBridge(fakeChrome)
+  for (const m of ["getOffscreenContexts", "hasOffscreenDocument", "ensureOffscreenDocument", "recognize", "cancel", "registerListeners"]) {
+    assert(typeof bridge[m] === "function", `bridge.${m}`)
+  }
+
+  // KeywordService: 与 legacy KeywordService.js 比较 INTENT_POLICIES 表
+  const tsKwService = loadTs(path.join(root, "src/background/KeywordService.ts"))
+  assert(typeof tsKwService.KeywordService === "function", "KeywordService class")
+  assert(tsKwService.KEYWORD_INTENTS.POPUP_OPEN === "popup-open", "POPUP_OPEN const")
+  assert(tsKwService.KEYWORD_STORAGE_PREFIX === "ccs_kw_", "STORAGE_PREFIX")
+  assert(tsKwService.KEYWORD_STORAGE_TTL_MS === 5 * 60 * 1000, "TTL_MS")
+  // INTENT_POLICIES 7 个意图，全部检查一遍 vs legacy（要求字段同 + 值同）
+  const legacyPolicies = legacy.LEGACY_INTENT_POLICIES || {}
+  for (const [intent, expectedPolicy] of Object.entries(tsKwService.INTENT_POLICIES)) {
+    const lp = legacyPolicies[intent]
+    assert(lp, `legacy missing policy for ${intent}`)
+    assert(expectedPolicy.forceFetchSelection === lp.forceFetchSelection, `${intent} forceFetchSelection diverges`)
+    assert(expectedPolicy.skipCurrentMenuFallback === lp.skipCurrentMenuFallback, `${intent} skipCurrentMenuFallback diverges`)
+    assert(expectedPolicy.cacheToStorage === lp.cacheToStorage, `${intent} cacheToStorage diverges`)
+    assert(expectedPolicy.source === lp.source, `${intent} source diverges`)
+  }
+  // legacy KEYWORD_INTENTS 字符串与 ts 一致
+  for (const [k, v] of Object.entries(tsKwService.KEYWORD_INTENTS)) {
+    assert(legacy.KEYWORD_INTENTS[k] === v, `KEYWORD_INTENTS.${k} diverges`)
+  }
+  // 实例化 + getKeyword 走通最简流程（mock compute）
+  const kwFakeChrome = {
+    tabs: { get: (_id, cb) => cb({ url: "https://a.test/", title: "Title A" }) },
+    storage: { local: { get: (_k, cb) => cb({}), set: (_i, cb) => cb && cb(), remove: () => {} } },
+    runtime: { lastError: null }
+  }
+  const svc = new tsKwService.KeywordService({
+    chrome: kwFakeChrome,
+    computeSearchTextForTab: async () => ({ raw: "hello", normalized: "hello" })
+  })
+  const result = await svc.getKeyword({ tabId: 1, intent: "popup-open" })
+  assert(result.text === "hello" && result.source === "popup", "getKeyword popup-open")
+  const resultLegacy = await svc.getKeyword({ tabId: 1 })
+  assert(resultLegacy.intent === "legacy-getSearchText" && resultLegacy.source === "legacy", "getKeyword default intent")
+
+  // config.ts: dual-run buildXxxPrompt vs legacy buildXxxPrompt
+  const tsConfig = loadTs(path.join(root, "src/background/config.ts"))
+  assert(typeof tsConfig.ConfigLoader === "function", "ConfigLoader class")
+  assert(typeof tsConfig.createConfigLoader === "function", "createConfigLoader factory")
+  const cl = new tsConfig.ConfigLoader()
+  // 注入模板进缓存模拟"加载完成"，然后比较 buildXxxPrompt 输出 vs legacy
+  cl.optimized = { config: {}, template: "Please ${purpose}: ${input}" }
+  cl.cover = { config: {}, template: "Cover style=${purpose} input=${input}" }
+  cl.topQuestions = { config: {}, template: "Top: ${input}" }
+  cl.fastAnswers = { config: {}, template: "Fast: ${input}" }
+  // 同步 legacy templates
+  legacy.optimizedPromptTemplate = cl.optimized.template
+  legacy.coverPromptTemplate = cl.cover.template
+  legacy.topQuestionsTemplate = cl.topQuestions.template
+  legacy.fastAnswersTemplate = cl.fastAnswers.template
+  assert(cl.buildOptimizedPrompt("analyze", "hello") === legacy.buildOptimizedPrompt("analyze", "hello"), "buildOptimizedPrompt diverges")
+  assert(cl.buildCoverPrompt("anime", "girl") === legacy.buildCoverPrompt("anime", "girl"), "buildCoverPrompt diverges")
+  assert(cl.buildTopQuestionsPrompt("AI") === legacy.buildTopQuestionsPrompt("AI"), "buildTopQuestionsPrompt diverges")
+  assert(cl.buildFastAnswersPrompt("how to") === legacy.buildFastAnswersPrompt("how to"), "buildFastAnswersPrompt diverges")
+  // 空模板时返回 null
+  cl.optimized.template = ""
+  assert(cl.buildOptimizedPrompt("x", "y") === null, "empty template -> null")
+  // isMenuEnabled: 默认 true，显式 false 返回 false
+  cl.menuToggleConfig = { "ccs-baidu": false, "ccs-google": true }
+  assert(cl.isMenuEnabled("ccs-baidu") === false, "isMenuEnabled disabled")
+  assert(cl.isMenuEnabled("ccs-google") === true, "isMenuEnabled enabled")
+  assert(cl.isMenuEnabled("ccs-other") === true, "isMenuEnabled unset (default true)")
+  // getEngineTitle SSoT
+  cl.enginesConfig = { engines: { baidu: { icon: "🐼", label: "百度" }, raw: { label: "原" } } }
+  assert(cl.getEngineTitle("baidu") === "🐼 百度", "getEngineTitle with icon")
+  assert(cl.getEngineTitle("raw") === "原", "getEngineTitle without icon")
+  assert(cl.getEngineTitle("unknown", "fb") === "fb", "getEngineTitle fallback")
+  assert(cl.getEngineTitle("unknown") === "unknown", "getEngineTitle no fallback returns id")
+
+  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config OK")
 }
 
 main().catch((err) => {
