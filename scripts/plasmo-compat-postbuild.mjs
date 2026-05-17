@@ -12,6 +12,7 @@ const copyDirs = [
   "popup",
   "popup-v2",
   "sidepanel",
+  "sidepanel-v2",
   "welcome",
   "content",
   "modules",

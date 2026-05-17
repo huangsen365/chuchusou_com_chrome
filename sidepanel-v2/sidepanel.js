@@ -21,11 +21,14 @@
   // ===== DOM refs =====
   const $kw = document.getElementById('spKeyword');
   const $kwCopy = document.getElementById('spKeywordCopy');
-  const $kwVoice = document.getElementById('spKeywordVoice');
+  // 留作 batch 4 voice 模块用，目前 lint 容许 _ 前缀的 unused 标识
+  const _$kwVoice = document.getElementById('spKeywordVoice');
+  void _$kwVoice;
   const $clipboardBtn = document.getElementById('spClipboardBtn');
   const $tipWarn = document.getElementById('spPinTipWarn');
   const $tipPopover = document.getElementById('spPinTipPopover');
   const $tipClose = document.getElementById('spPinTipClose');
+  const $menu = document.getElementById('spMenu');
 
   // ===== 状态 =====
   let currentKw = '';
@@ -200,6 +203,49 @@
         }
       });
     } catch (_) {}
+
+    // 菜单 click 委托：与 popup-v2 同套路 —— 统一发 executeMenuAction 让 background 处理
+    $menu.addEventListener('click', async (e) => {
+      const itemEl = e.target.closest('.sp-menu-item[data-menu-id]');
+      if (!itemEl || !$menu.contains(itemEl)) return;
+      if (!currentKw) { showToast('请先选中文字'); return; }
+      const item = {
+        id: itemEl.dataset.menuId || '',
+        type: itemEl.dataset.menuType || '',
+        urlPattern: itemEl.dataset.urlPattern || '',
+        action: itemEl.dataset.action || '',
+        engineId: itemEl.dataset.engineId || '',
+        purpose: itemEl.dataset.purpose || ''
+      };
+      const payload = {
+        action: 'executeMenuAction',
+        menuItemId: item.id,
+        menuType: item.type,
+        keyword: currentKw,
+        urlPattern: item.urlPattern,
+        actionType: item.action,
+        engineId: item.engineId,
+        purpose: item.purpose
+      };
+      try {
+        const client = globalThis.CCSRuntimeClient;
+        if (client?.sendRuntimeMessage) {
+          const result = await client.sendRuntimeMessage(payload, { timeoutMs: 5000, retries: 1 });
+          if (!result.ok) { showToast('操作失败'); return; }
+          const resp = result.data || {};
+          if (resp.success) {
+            // sidepanel 不 window.close()，让用户继续操作
+          } else if (resp.error === 'no-keyword') {
+            showToast('没有可用关键字');
+          }
+        } else {
+          chrome.runtime.sendMessage(payload).catch(() => {});
+        }
+      } catch (err) {
+        console.warn('[sp-v2] executeMenuAction 失败:', err);
+        showToast('操作失败');
+      }
+    });
 
     // background push keywordUpdated（即时回包）
     try {

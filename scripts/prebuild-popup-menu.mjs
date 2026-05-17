@@ -247,6 +247,18 @@ function main() {
       console.warn("[prebuild-popup-menu] ⚠ sidepanel/sidepanel.html 找不到 spMenu 标记，跳过注入")
     }
   }
+  // sidepanel-v2 共用同一份 flat sidepanel 菜单 HTML（容器 id/class 与旧版完全一致）
+  const sidepanelV2Path = path.join(buildDir, "sidepanel-v2/sidepanel.html")
+  if (fs.existsSync(sidepanelV2Path)) {
+    if (injectStaticMenu(sidepanelV2Path, renderSidepanelMenu(structure), {
+      containerId: "spMenu",
+      containerClass: "sp-menu"
+    })) {
+      console.log("[prebuild-popup-menu] ✓ 静态菜单注入 → sidepanel-v2/sidepanel.html (data-static-built)")
+    } else {
+      console.warn("[prebuild-popup-menu] ⚠ sidepanel-v2/sidepanel.html 找不到 spMenu 标记，跳过注入")
+    }
+  }
 }
 
 main()
