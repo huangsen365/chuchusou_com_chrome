@@ -1,5 +1,27 @@
 # 更新日志
 
+## v1.6.25 (2026-05-18)
+
+**针对 Chrome 部分 Beta 版本上 popup 启动慢的全面优化 + 欢迎页加 📌 固定到工具栏提示 + 诊断工具升级**。详细见 [releases/v1.6.25.md](./releases/v1.6.25.md)。
+
+### 🔧 改进
+
+- **popup / sidepanel boot + bundle 两阶段加载**：把首屏关键交互拆到极小的 `popup.boot.js`（~10KB），完整逻辑 `popup.bundle.js`（~90KB）在 `window.load + requestIdleCallback` 后才动态注入。boot 负责静态菜单点击、子菜单展开、关键字 storage 读取、简单引擎跳转——首屏 80% 操作不需要等 bundle。sidepanel 同款。
+- **SW offscreen 预热**：扩展安装/Chrome 启动时通过 `chrome.offscreen.createDocument` 在后台创建预热页，依次 load popup.boot.js / sidepanel.boot.js / popup.bundle.js / sidepanel.bundle.js。让 Chrome 的脚本 loader / V8 编译 cache / GPU 进程 Dawn 初始化等成本**提前在用户感知不到的时机吸收掉**，用户真点 popup 时这些都已 warm。
+- **🩺 诊断报告大幅增强**：新增 Resource Timing（每个文件加载耗时）、Paint Timing（first-paint / FCP）、readyState + 事件时间线（DCL / load）、Live fetch 实时对照测试、JS heap 内存快照。给开发者排查 popup 启动卡顿提供量化数据。
+
+### ✨ 新功能
+
+- **欢迎页加 📌 强烈建议固定到工具栏 section**：新用户装完插件后看到的欢迎页里，紧贴"四种入口"之后增加分步骤教学（点 🧩 拼图 → 找触触搜 → 点 📌 图钉变蓝）。Chrome 默认把扩展藏在拼图菜单里，多数新用户不知道可以固定到地址栏右侧，固定后日常使用更顺手。
+
+### 🛠 技术改动
+
+- 新增 `scripts/bundle-shared-deps.mjs`：编译期把 `shared/{logger,runtimeClient,storageDefaults,keywordClient}.js` + popup.js / sidepanel.js 拼成单一 bundle，HTML 只引用 boot.js（async）。
+- 新增 `offscreen/prewarm.html` + `offscreen/prewarm.js`：SW 调用的预热 offscreen document。
+- 新增 `src/background/initPrewarming.ts` 的 `prewarmUiDocuments()` 函数 + 在 `InitOrchestrator.runFullPrewarming` 调用。
+- popup.html / sidepanel.html 改为 `<script src="popup.boot.js" async></script>` 单 script 引用。
+- 跳过 v1.6.24（版本号留空）。
+
 ## v1.6.23 (2026-05-18)
 
 **修复 popup 子分类菜单点击无响应 + 进一步缓解新打开网页时 popup / sidepanel 慢 + 新增 🩺 一键诊断工具**。详细见 [releases/v1.6.23.md](./releases/v1.6.23.md)。
