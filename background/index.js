@@ -29,7 +29,7 @@ importScripts(
   // ==================== 第4层：菜单 + 事件 ====================
   './menuBuilder.js',
   // ↓ menuHandlers.js 已被 src/background/menuHandlersAttach.ts 取代 ↓
-  './voiceOffscreenBridge.js',
+  // ↓ voiceOffscreenBridge.js 已被 src/background/voiceOffscreenBridge.ts 取代 ↓
   './events.js',
 
   // ==================== 第5层：初始化 ====================

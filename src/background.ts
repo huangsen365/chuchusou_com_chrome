@@ -18,6 +18,7 @@
 
 import { attachBaseBridge } from "./background/baseBridge"
 import { attachMenuHandlers } from "./background/menuHandlersAttach"
+import { autoRegisterVoiceBridge } from "./background/voiceOffscreenBridge"
 
 const sw = self as unknown as {
   importScripts: (...urls: string[]) => void
@@ -61,7 +62,7 @@ sw.importScripts(
   // 第 4 层：菜单 + 事件
   absoluteUrl("background/menuBuilder.js"),
   // ↓ background/menuHandlers.js 已被 src/background/menuHandlersAttach.ts 取代 ↓
-  absoluteUrl("background/voiceOffscreenBridge.js"),
+  // ↓ background/voiceOffscreenBridge.js 已被 src/background/voiceOffscreenBridge.ts 取代 ↓
   absoluteUrl("background/events.js"),
 
   // 第 5 层：初始化
@@ -77,6 +78,9 @@ attachBaseBridge()
 
 // 注册 chrome.contextMenus.onClicked 监听器（替代 legacy menuHandlers.js）
 attachMenuHandlers()
+
+// 注册 voice offscreen bridge 监听器（替代 legacy voiceOffscreenBridge.js）
+autoRegisterVoiceBridge()
 
 console.log("[触触搜][Plasmo] background SW bootstrap complete via importScripts bridge + TS baseBridge + TS menuHandlers")
 
