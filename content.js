@@ -1,4 +1,10 @@
 (() => {
+  // 幂等守卫：扩展 reload / iframe 重复注入时直接 return，避免 44 个监听器叠加
+  // （manifest 是 document_start + all_frames: true，每次注入都会跑 IIFE 顶层）
+  const __g = typeof globalThis !== 'undefined' ? globalThis : window;
+  if (__g.__ccs_content_initialized) return;
+  __g.__ccs_content_initialized = true;
+
   const EXTENSION_NAME = '触触搜';
   const SELECTION_SYNC_DELAY = 35;
 

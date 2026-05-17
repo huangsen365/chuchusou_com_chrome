@@ -1,6 +1,12 @@
 (function() {
   'use strict';
 
+  // 幂等守卫：扩展 reload / iframe 重复注入时直接 return，避免重复定义 window.DockBar
+  // 真正的 setInterval / 监听器累积问题由 Step 2 在 initDockBar() 里独立修
+  const __g = typeof globalThis !== 'undefined' ? globalThis : window;
+  if (__g.__ccs_dockbar_initialized) return;
+  __g.__ccs_dockbar_initialized = true;
+
   // DockBar 模块 - 处理所有底部停靠栏相关功能
   const DockBar = {
     // 内部状态
