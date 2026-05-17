@@ -10,7 +10,8 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "config/**/*.json",
-    "prompts/**/*.json"
+    "prompts/**/*.json",
+    "src/assets-json/**/*.json"
   ],
   "compilerOptions": {
     "baseUrl": ".",

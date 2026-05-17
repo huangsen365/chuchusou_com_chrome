@@ -1,8 +1,8 @@
-import unifiedMenuConfigJson from "../../config/unifiedMenuConfig.json"
-import enginesConfigJson from "../../config/engines.json"
-import fastAnswersPromptsJson from "../../prompts/fastAnswersPrompts.json"
-import optimizedPromptsJson from "../../prompts/optimizedPrompts.json"
-import topQuestionsPromptsJson from "../../prompts/topQuestionsPrompts.json"
+import {
+  enginesConfigAsset,
+  promptConfigAssets,
+  unifiedMenuConfigAsset
+} from "./configAssets"
 
 import type {
   EngineDefinition,
@@ -13,13 +13,13 @@ import type {
   UnifiedMenuItem
 } from "./types"
 
-export const unifiedMenuConfig = unifiedMenuConfigJson as UnifiedMenuConfig
-export const enginesConfig = enginesConfigJson as EnginesConfig
+export const unifiedMenuConfig = unifiedMenuConfigAsset
+export const enginesConfig = enginesConfigAsset
 
 export const promptConfigs = {
-  fastAnswers: fastAnswersPromptsJson as PromptConfig,
-  optimized: optimizedPromptsJson as PromptConfig,
-  topQuestions: topQuestionsPromptsJson as PromptConfig
+  fastAnswers: promptConfigAssets.fastAnswers,
+  optimized: promptConfigAssets.optimized,
+  topQuestions: promptConfigAssets.topQuestions
 } as const
 
 export type PromptConfigName = keyof typeof promptConfigs

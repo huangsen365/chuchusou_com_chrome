@@ -9,7 +9,9 @@ Current rule during migration:
   - config/unifiedMenuConfig.json
   - config/engines.json
   - prompts/*.json
-- src/shared/config.ts imports those files and exposes typed helpers for new Plasmo/React/TS entrypoints.
+- `src/assets-json/**` contains Plasmo-importable mirrors of those SSoT files.
+- `scripts/verify-shared-config.mjs` fails if any mirror drifts from the root SSoT.
+- `src/shared/configAssets.ts` imports the mirrors and `src/shared/config.ts` exposes typed helpers for new Plasmo/React/TS entrypoints.
 
 Why this layer exists:
 
