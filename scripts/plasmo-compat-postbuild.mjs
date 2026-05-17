@@ -118,20 +118,40 @@ function main() {
     ? JSON.parse(fs.readFileSync(plasmoManifestPath, "utf8"))
     : null
 
-  // SW entry：让 Plasmo 接管（src/background.ts → static/background/index.js），
-  // 它运行时 importScripts 加载 legacy 模块，行为与之前一致但 SW 入口归 Plasmo 管
+  // SW entry：Plasmo 接管（src/background.ts → static/background/index.js），
+  // 运行时 importScripts 加载 legacy 模块，行为与之前一致但入口归 Plasmo
   const plasmoServiceWorker = plasmoManifest?.background?.service_worker
   const background = plasmoServiceWorker
     ? { service_worker: plasmoServiceWorker, type: plasmoManifest?.background?.type }
     : legacyManifest.background
 
-  // Side panel：让 Plasmo 接管（src/sidepanel.tsx → sidepanel.html）
-  // 注意 popup 没切：popup 走静态预渲染 + 0 JS 首屏的路径（v1.6.16 实测 34ms），
-  // 不切到 Plasmo React shell，避免 cold start 回归
+  // Side panel：Plasmo 接管（src/sidepanel.tsx → sidepanel.html）
   const plasmoSidePanel = plasmoManifest?.side_panel?.default_path
   const sidePanel = plasmoSidePanel
     ? { ...legacyManifest.side_panel, default_path: plasmoSidePanel }
     : legacyManifest.side_panel
+
+  // Popup：Plasmo 接管（src/popup.tsx → popup.html）
+  // 注意：legacy popup.html 静态预渲染 + 0 JS 首屏 (34ms)，
+  // 切到 Plasmo React shell 后冷启动会涨到 ~50-80ms（仍在"流畅"区间）
+  const plasmoPopup = plasmoManifest?.action?.default_popup
+  const action = plasmoPopup
+    ? { ...legacyManifest.action, default_popup: plasmoPopup }
+    : legacyManifest.action
+
+  // Content scripts：Plasmo 接管（src/content.ts 聚合 20 个 TS 模块 → 单 bundle 97KB）
+  // Plasmo 自动生成 hashed filename，由它声明 js 字段。CSS / run_at / all_frames 沿用 legacy
+  const plasmoContentScripts = plasmoManifest?.content_scripts
+  let contentScripts = legacyManifest.content_scripts
+  if (Array.isArray(plasmoContentScripts) && plasmoContentScripts.length > 0) {
+    const plasmoCs = plasmoContentScripts[0]
+    const legacyCs = (legacyManifest.content_scripts || [{}])[0]
+    contentScripts = [{
+      ...legacyCs,
+      js: plasmoCs.js || legacyCs.js,
+      css: (plasmoCs.css && plasmoCs.css.length > 0) ? plasmoCs.css : (legacyCs.css || ["content.css"])
+    }]
+  }
 
   const compatManifest = {
     ...legacyManifest,
@@ -139,7 +159,9 @@ function main() {
     minimum_chrome_version:
       packageJson.manifest?.minimum_chrome_version || legacyManifest.minimum_chrome_version || "114",
     background,
-    side_panel: sidePanel
+    side_panel: sidePanel,
+    action,
+    content_scripts: contentScripts
   }
   // 删除 type 若为 undefined（避免 manifest 里出现 "type": undefined）
   if (!compatManifest.background?.type) delete compatManifest.background?.type

@@ -59,7 +59,14 @@ function main() {
   ])
   assert(sw && allowedSw.has(sw), `Background entrypoint drifted: ${sw}`)
   assert(fs.existsSync(path.join(buildDir, sw)), `Background SW file missing: ${sw}`)
-  assert(buildManifest.action?.default_popup === legacyManifest.action?.default_popup, "Popup entrypoint drifted")
+  // Popup 入口允许 legacy `popup/popup.html` 或 Plasmo `popup.html`
+  const pp = buildManifest.action?.default_popup
+  const allowedPp = new Set([
+    legacyManifest.action?.default_popup,
+    "popup.html"
+  ])
+  assert(pp && allowedPp.has(pp), `Popup entrypoint drifted: ${pp}`)
+  assert(fs.existsSync(path.join(buildDir, pp)), `Popup HTML missing: ${pp}`)
   // Side panel 入口允许：legacy `sidepanel/sidepanel.html` 或 Plasmo `sidepanel.html`
   const sp = buildManifest.side_panel?.default_path
   const allowedSp = new Set([

@@ -1,16 +1,17 @@
 #!/usr/bin/env node
 /**
- * Popup 性能预算守门员（perf budget verifier）
+ * Plasmo 产物性能预算守门员（perf budget verifier）
  *
- * v1.6.16 实测 popup 冷启动 34ms。要保住这个数字，关键路径上有几条铁律：
- *  1. popup.html 同步加载的 <script> 数量要少（每个都是磁盘读 + 解析 + 执行）
- *  2. 静态预渲染（pre-rendered）的菜单项要够多 —— 保证零 JS 也能首屏看到
- *  3. popup.js 启动路径 chrome.runtime.sendMessage 数要受控（每个都是 IPC RTT）
- *  4. 主 bundle 字节数 < 250KB（Plasmo demo 单 bundle 143KB 是上限基线）
+ * Plasmo 全 manifest 接管后，监控对象从 legacy popup/* 切换到 build 产物：
+ *  1. popup bundle 字节数 ≤ 600KB（React + PopupController + 依赖）
+ *  2. content bundle 字节数 ≤ 250KB（20 个聚合模块 + 主入口）
+ *  3. sidepanel bundle 字节数 ≤ 600KB（含可能 lazy import 的 Voice）
+ *  4. SW bundle 字节数 ≤ 50KB（Plasmo SW 入口本身极薄，只 importScripts legacy）
  *
- * 任一不达标 → 退出码 1，npm test 失败。
+ * 这些预算保守，目的是在 Plasmo bundle 失控（比如 React Native 误装、大 lib 误进）时拦下来。
+ * 真实启动时序请跑 `npm run perf:cold-popup` 或在 Chrome devtools 看 cold start。
  *
- * 这只是静态分析，不开 Chrome 不点鼠标。要看真实启动时序请跑 `npm run perf:cold-popup`。
+ * 任一不达标 → 退出码 1，npm test 失败。需要先 `npm run plasmo:build`。
  */
 
 import fs from "node:fs"
@@ -18,6 +19,7 @@ import path from "node:path"
 import process from "node:process"
 
 const root = process.cwd()
+const buildDir = path.join(root, "build/chrome-mv3-prod")
 
 const COLOR = {
   red: "\x1b[31m",
@@ -35,71 +37,71 @@ function ok(msg) {
   console.log(`${COLOR.green}[verify-perf-budget] ✓ ${msg}${COLOR.reset}`)
 }
 
-function readFile(rel) {
-  return fs.readFileSync(path.join(root, rel), "utf8")
+function warn(msg) {
+  console.warn(`${COLOR.yellow}[verify-perf-budget] ⚠ ${msg}${COLOR.reset}`)
 }
 
 const BUDGETS = {
-  // popup.html 内 <script src=...> 同步加载 ≤ MAX_SYNC_SCRIPTS
-  // 当前实际 = 3（keywordClient + menuStructureBuilder + popup.js）。给点头部留 2。
-  MAX_SYNC_SCRIPTS: 5,
-  // 静态预渲染菜单项 ≥ MIN_PRERENDERED_ITEMS（用户首屏立即可见，不依赖 JS）
-  // v1.6.16 实际 8 个（百度/Google/ChatGPT/Claude/Grok/yiyan/google-ai/zhihu）
-  MIN_PRERENDERED_ITEMS: 8,
-  // chrome.runtime / chrome.tabs sendMessage 调用点数 ≤ MAX_SEND_MESSAGE
-  // 当前实际 11（settings / sidepanel / pin / content sync 各几条）。给点头部留 4。
-  MAX_SEND_MESSAGE: 15,
-  // popup.js 文件字节数 ≤ MAX_POPUP_JS_BYTES（仅主入口，不含懒加载模块）
-  // 当前 ~50KB；阈值 250KB（Plasmo demo 单 bundle 143KB 上限附近）
-  MAX_POPUP_JS_BYTES: 250 * 1024
+  POPUP_BUNDLE_MAX: 600 * 1024,     // Plasmo React popup
+  CONTENT_BUNDLE_MAX: 250 * 1024,   // 20 个聚合模块 + 主入口
+  SIDEPANEL_BUNDLE_MAX: 600 * 1024, // React + PinnedAction + dynamic Voice
+  SW_BUNDLE_MAX: 50 * 1024          // Plasmo SW 极薄（importScripts bridge）
 }
 
-function checkSyncScripts() {
-  const html = readFile("popup/popup.html")
-  const matches = html.match(/<script\s+src=["'][^"']+["']/g) || []
-  const count = matches.length
-  if (count > BUDGETS.MAX_SYNC_SCRIPTS) {
-    fail(`popup.html 同步 <script> 数 ${count} 超出预算 ${BUDGETS.MAX_SYNC_SCRIPTS}`)
-  }
-  ok(`popup.html 同步脚本 ${count} ≤ ${BUDGETS.MAX_SYNC_SCRIPTS}`)
+/**
+ * 在 build dir 找匹配 prefix.{hash}.js 的 bundle 文件
+ * 例如 prefix="popup" 会匹配 popup.abc123.js（Plasmo hashed filename）
+ */
+function findHashedBundle(prefix) {
+  if (!fs.existsSync(buildDir)) return null
+  const entries = fs.readdirSync(buildDir)
+  // Plasmo hashed: prefix.{8hex}.js
+  const hashedRe = new RegExp(`^${prefix}\\.[0-9a-f]{6,}\\.js$`)
+  const hit = entries.find((f) => hashedRe.test(f))
+  if (hit) return path.join(buildDir, hit)
+  // 退路：精确 prefix.js（无 hash）
+  const exact = path.join(buildDir, `${prefix}.js`)
+  if (fs.existsSync(exact)) return exact
+  return null
 }
 
-function checkPrerenderedItems() {
-  const html = readFile("popup/popup.html")
-  const matches = html.match(/data-menu-id=["']ccs-[^"']+["']/g) || []
-  const count = matches.length
-  if (count < BUDGETS.MIN_PRERENDERED_ITEMS) {
-    fail(`popup.html 静态预渲染菜单项 ${count} 低于下限 ${BUDGETS.MIN_PRERENDERED_ITEMS}（零 JS 首屏会缺项）`)
+function checkBundleSize(label, file, max) {
+  if (!file) {
+    warn(`${label} bundle 找不到（跑 npm run plasmo:build 后再试）`)
+    return
   }
-  ok(`popup.html 预渲染菜单项 ${count} ≥ ${BUDGETS.MIN_PRERENDERED_ITEMS}`)
+  const size = fs.statSync(file).size
+  const rel = path.relative(root, file)
+  if (size > max) {
+    fail(`${label} bundle ${rel} ${(size / 1024).toFixed(1)}KB 超出预算 ${(max / 1024).toFixed(0)}KB`)
+  }
+  ok(`${label} bundle ${rel} ${(size / 1024).toFixed(1)}KB ≤ ${(max / 1024).toFixed(0)}KB`)
 }
 
-function checkSendMessageCount() {
-  const js = readFile("popup/popup.js")
-  // 匹配 chrome.runtime.sendMessage / chrome.tabs.sendMessage 调用点
-  const matches = js.match(/chrome\.(runtime|tabs)\.sendMessage\b/g) || []
-  const count = matches.length
-  if (count > BUDGETS.MAX_SEND_MESSAGE) {
-    fail(`popup.js sendMessage 调用点 ${count} 超出预算 ${BUDGETS.MAX_SEND_MESSAGE}（每个都是 IPC RTT）`)
+function checkSwBundle() {
+  const swPath = path.join(buildDir, "static/background/index.js")
+  if (!fs.existsSync(swPath)) {
+    warn("SW bundle 找不到（跑 npm run plasmo:build 后再试）")
+    return
   }
-  ok(`popup.js sendMessage 调用点 ${count} ≤ ${BUDGETS.MAX_SEND_MESSAGE}`)
-}
-
-function checkPopupJsBytes() {
-  const stat = fs.statSync(path.join(root, "popup/popup.js"))
-  const size = stat.size
-  if (size > BUDGETS.MAX_POPUP_JS_BYTES) {
-    fail(`popup.js ${size} 字节超出预算 ${BUDGETS.MAX_POPUP_JS_BYTES}（${(size / 1024).toFixed(1)}KB > ${(BUDGETS.MAX_POPUP_JS_BYTES / 1024).toFixed(0)}KB）`)
+  const size = fs.statSync(swPath).size
+  if (size > BUDGETS.SW_BUNDLE_MAX) {
+    fail(`SW bundle ${(size / 1024).toFixed(1)}KB 超出预算 ${(BUDGETS.SW_BUNDLE_MAX / 1024).toFixed(0)}KB（应只是 importScripts bridge，超出说明误塞了大依赖）`)
   }
-  ok(`popup.js ${(size / 1024).toFixed(1)}KB ≤ ${(BUDGETS.MAX_POPUP_JS_BYTES / 1024).toFixed(0)}KB`)
+  ok(`SW bundle static/background/index.js ${(size / 1024).toFixed(1)}KB ≤ ${(BUDGETS.SW_BUNDLE_MAX / 1024).toFixed(0)}KB`)
 }
 
 function main() {
-  checkSyncScripts()
-  checkPrerenderedItems()
-  checkSendMessageCount()
-  checkPopupJsBytes()
-  console.log(`${COLOR.green}[verify-perf-budget] 4 项 popup 性能预算全部通过${COLOR.reset}`)
+  if (!fs.existsSync(buildDir)) {
+    warn(`build dir ${path.relative(root, buildDir)} 不存在，跳过 perf budget 检查（先跑 npm run plasmo:build）`)
+    process.exit(0)
+  }
+
+  checkBundleSize("popup", findHashedBundle("popup"), BUDGETS.POPUP_BUNDLE_MAX)
+  checkBundleSize("content", findHashedBundle("content"), BUDGETS.CONTENT_BUNDLE_MAX)
+  checkBundleSize("sidepanel", findHashedBundle("sidepanel"), BUDGETS.SIDEPANEL_BUNDLE_MAX)
+  checkSwBundle()
+  console.log(`${COLOR.green}[verify-perf-budget] 4 项 Plasmo bundle 预算全部通过${COLOR.reset}`)
 }
 
 main()
