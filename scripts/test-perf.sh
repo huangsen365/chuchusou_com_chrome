@@ -81,6 +81,18 @@ if [ ! -f "$EXT_DIR/manifest.json" ]; then
   exit 1
 fi
 
+# 关键：Chrome --load-extension 在 macOS 上对非 ASCII 路径有静默失败问题
+# （CloudStorage/OneDrive-个人 这种路径会导致扩展不出现在 chrome://extensions/）
+# 解决：复制到 /tmp/ccs-ext-mirror（纯 ASCII）
+if echo "$EXT_DIR" | LC_ALL=C grep -q '[^[:print:]]\|[^[:ascii:]]' 2>/dev/null || [[ "$EXT_DIR" == *个* || "$EXT_DIR" == *人* ]]; then
+  ASCII_EXT_DIR="/tmp/ccs-ext-mirror"
+  echo -e "${C_YLW}  ⚠ 加载路径含非 ASCII 字符，自动镜像到 $ASCII_EXT_DIR${C_RST}"
+  rm -rf "$ASCII_EXT_DIR"
+  cp -R "$EXT_DIR" "$ASCII_EXT_DIR"
+  EXT_DIR="$ASCII_EXT_DIR"
+  echo -e "  实际加载路径：${C_GRY}$EXT_DIR${C_RST}"
+fi
+
 EXT_VERSION="$(python3 -c "import json; print(json.load(open('$EXT_DIR/manifest.json'))['version'])" 2>/dev/null || echo "?")"
 echo -e "  扩展版本：${C_BLD}v${EXT_VERSION}${C_RST}"
 echo -e "  加载路径：${C_GRY}$EXT_DIR${C_RST}"
@@ -89,22 +101,35 @@ echo -e "  加载路径：${C_GRY}$EXT_DIR${C_RST}"
 # 2. 找到 Chrome 可执行文件
 # ------------------------------------------------------------------------------
 
+# ⚠ 重要：Google Chrome 稳定版 137+ 强制屏蔽了 --load-extension（即使加 --disable-features 也绕不过）
+# 必须用 Canary / Beta / Dev / Chromium（这些保留了开发者命令行能力）
+# 优先级：Canary > Beta > Dev > Chromium > 稳定 Chrome（最后用稳定版兜底，但很可能装不上扩展）
 CHROME_BIN=""
-for c in \
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary" \
-  "/Applications/Chromium.app/Contents/MacOS/Chromium"; do
-  if [ -x "$c" ]; then
-    CHROME_BIN="$c"
+CHROME_KIND=""
+for entry in \
+  "Canary|/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary" \
+  "Beta|/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta" \
+  "Dev|/Applications/Google Chrome Dev.app/Contents/MacOS/Google Chrome Dev" \
+  "Chromium|/Applications/Chromium.app/Contents/MacOS/Chromium" \
+  "Stable|/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"; do
+  kind="${entry%%|*}"
+  bin="${entry##*|}"
+  if [ -x "$bin" ]; then
+    CHROME_BIN="$bin"
+    CHROME_KIND="$kind"
     break
   fi
 done
 
 if [ -z "$CHROME_BIN" ]; then
-  echo -e "${C_RED}✗ 找不到 Chrome。请确认已装 Google Chrome 在 /Applications/${C_RST}"
+  echo -e "${C_RED}✗ 找不到任何 Chrome / Chromium${C_RST}"
   exit 1
 fi
-echo -e "  Chrome 路径：${C_GRY}$CHROME_BIN${C_RST}"
+echo -e "  Chrome 路径：${C_GRY}$CHROME_BIN${C_RST} (${C_BLD}$CHROME_KIND${C_RST})"
+if [ "$CHROME_KIND" = "Stable" ]; then
+  echo -e "${C_YLW}  ⚠ 警告：Google Chrome 稳定版屏蔽了 --load-extension，扩展很可能不会装上。${C_RST}"
+  echo -e "${C_YLW}    建议装 Chrome Canary：https://www.google.com/chrome/canary/${C_RST}"
+fi
 
 # ------------------------------------------------------------------------------
 # 3. 干净的临时 profile
@@ -112,8 +137,13 @@ echo -e "  Chrome 路径：${C_GRY}$CHROME_BIN${C_RST}"
 
 TS="$(date +%Y%m%d-%H%M%S)"
 USER_DATA_DIR="/tmp/ccs-perf-${TS}"
-mkdir -p "$USER_DATA_DIR"
-echo -e "  临时 profile：${C_GRY}$USER_DATA_DIR${C_RST}"
+mkdir -p "$USER_DATA_DIR/Default"
+
+# 预设 Developer Mode = true，否则 chrome://extensions/ 看不到 unpacked 扩展
+cat > "$USER_DATA_DIR/Default/Preferences" <<'EOF'
+{ "extensions": { "ui": { "developer_mode": true } } }
+EOF
+echo -e "  临时 profile：${C_GRY}$USER_DATA_DIR${C_RST} (${C_GRN}developer_mode 预设 = true${C_RST})"
 
 # Ctrl+C 时自动清理
 cleanup() {
@@ -122,7 +152,7 @@ cleanup() {
   rm -rf "$USER_DATA_DIR"
   echo -e "${C_GRN}✓ 完成${C_RST}"
 }
-trap cleanup EXT INT TERM
+trap cleanup EXIT INT TERM
 
 # ------------------------------------------------------------------------------
 # 4. 把性能测量命令塞进剪贴板（macOS pbcopy）
