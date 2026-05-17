@@ -4,11 +4,19 @@
 
 触触搜是一个 Chrome 扩展，提供文本选择后的快速搜索和处理功能。支持悬浮面板、右键菜单、Popup 菜单、Side Panel 四种交互方式。
 
-## 当前状态快照（2026-04）
+## 当前状态快照（2026-05）
 
 ⚠️ **改代码前先读这段**，避免走冤枉路：
 
-- **生产跑老流水线**：`background/{base.js, events.js, menuBuilder.js, menuHandlers.js}` 是主心脏。`INIT_CONFIG.useNewSystem = false`（写在 `background/init.js`），永远走兼容模式。
+- **SW 双层架构**：Plasmo SW bundle (38KB, TS) + legacy `background/*.js` importScripts 桥接。
+  - **base.js / Logger.js 已脱离运行时**：`src/background/baseBridge.ts` (attachBaseBridge) 在
+    importScripts 之后跑，覆盖 globalThis 上的 18 个核心函数为 TS port 实现
+    （setMenuState / applyMenuTitle / getMenuDebugInfo / getPopupMenuStructure /
+    updateMainMenuTitle / refreshMenuTitle / copyTextInTab / updateLatestTabKeyword /
+    initKeywordSyncSystem / ensureMenuIconSupportLoaded / logMenuEvent / etc.)
+  - **剩余 listener 主体仍在 legacy**：`background/{events.js, menuBuilder.js, menuHandlers.js}`
+    包含 chrome.contextMenus.onClicked / chrome.tabs.onUpdated / chrome.runtime.onConnect
+    等监听器注册。port 这部分需要 Chrome 真机回归 ≥ 20 路径。
 - **新架构已彻底删除**（v1.6.18+）：`MenuManager / menu/* / events/*` 共 7 个文件 3384 行已删（曾经放在 `legacy/_unactivated/`）。审计见 `docs/TECH_DEBT_AUDIT.md`。
 - **三个 SSoT 强制遵守**：
   - URL 模板 → `config/unifiedMenuConfig.json`（通过 `URLBuilder.loadFromConfig()` 装载，启动时即使兼容模式也装）
