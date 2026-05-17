@@ -62,3 +62,31 @@
   1. 真正切 background 入口前，先把 `background/config.js` 中的 prompt loader 抽出来 port 到 `src/background/promptConfigLoader.ts`（依赖 fetch + chrome.runtime.getURL，需要在 TS 版本里参数化 fetcher），同样做双跑。
   2. 安排第一次"Chrome unpacked 手动验收清单"：把当前 build 装到 Chrome、过一遍 8 大入口（右键 / popup / sidepanel / 悬浮面板 / welcome / members / voice-permission / offscreen），作为 Phase 3+ 进入实操前的基线快照。
   3. 真正动 popup/sidepanel/content entrypoint 之前**仍需用户手动验收**，不能纯靠 CLI 自动化判断完成。
+
+## 2026-05-17 完整批次（手动驾驶完整 sweep）
+
+- 本轮目标：在不动生产代码的前提下，把所有可纯函数化/类化的 legacy JS 全部 port 到 TypeScript。
+- 改动汇总：
+  - **`modules/* 20 个文件 100% port 完成**：blacklist / toast / commands / buttonDefinitions / textSync / shortcuts / dragging / positioning / recoveryPopover / buttons / utils / realtimeUpdate / keywordExtractor / settings / search / selection / stateManager / backgroundComm / domMonitor / settingsPanel → `src/content-modules/*.ts`。
+  - **`content/* 4 个 utility 类 100% port 完成**：TextEncoder / ClipboardHelper / ToastUI / SelectionManager → `src/content/*.ts`。
+  - **`popup/modules/* 4 个文件 100% port 完成**：ToastHelper / MenuRenderer / PromptLibraryManager / SettingsManager → `src/popup/modules/*.ts`。
+  - **Phase 7 静态页全部就位**：privacy / welcome / members / voice-permission / offscreen-voice → `src/pages/`。React 化 + Plasmo entry 形态。
+  - **`background/` 大半纯模块就位**：menuIds / URLBuilder / MenuRegistry / StateManager / AITaskRegistry / Logger / utils/* / keywords / promptBuilders。
+- 验证：
+  - `npm test` 9 道关全绿
+  - `npm run plasmo:build` 通过；compat layer copy 33 manifest 文件
+- 当前累计：
+  - TS 文件 **52 个**（从 7 个起步）
+  - TS 行数 **10772 行**（从 358 行起步，30× 增长）
+  - dual-run + structural verifier **5 个**，覆盖 14 个 legacy 模块
+  - 自 v1.6.16 以来 **37 个 commits**
+- 关键限制（必须配合 Chrome 浏览器手动回归才能继续）：
+  - `background/{base.js, events.js, init.js, menuBuilder.js, menuHandlers.js, KeywordService.js, KeywordSyncManager.js, menuSystem.js, index.js, config.js loaders, keywordResolver.js, icons.js, tasks/AITaskHandler.js}` 都深度绑定 chrome.* API + SW lifecycle + 全局可变状态
+  - `popup/popup.js` (1262 行) 是 popup 真正入口，挂载到 popup.html
+  - `sidepanel/sidepanel.js` (~1500 行) 是 sidepanel 真正入口
+  - `content.js` + `dockbar.js` 是 content script 入口，注入到所有页面
+  - **以上 5 类 entry 切到 Plasmo 后必须有 Chrome 真机验证**（点 popup / 开 sidepanel / 选文本 / 点菜单 / 复制 / 提示词库 / 设置 / 黑名单 / 快捷键 / 封面生成器 / 语音功能 20+ 路径）
+- 下一步建议：
+  1. 安排一次 Chrome unpacked build 手动验收（用 `npm run perf:test` 一键启动 Canary），把当前 v1.6.16 的全部交互路径过一遍，建立"已验"基线。
+  2. 然后在 baseline 之上**逐个切 entry**：先 privacy（最简单）→ welcome → members → voice-permission → offscreen → popup → sidepanel → content → background。每切一个 manifest 入口都要 chrome 浏览器跑全套回归。
+  3. 全部 entry 切完 + 验过后，删 legacy 同名文件，进入 Phase 8（替换 build pipeline，把 `./build.sh` 删了走 `plasmo:package`）。
