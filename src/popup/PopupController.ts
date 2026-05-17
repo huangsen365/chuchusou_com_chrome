@@ -9,7 +9,9 @@
 
 import { CCSMenuStructureBuilder, type MenuStructure, type MenuStructureItem } from "../shared/menuStructureBuilder"
 import { requestKeyword, KEYWORD_INTENTS, type KeywordResult } from "../shared/keywordClient"
-import { PromptLibraryManager } from "./modules/PromptLibraryManager"
+// PromptLibraryManager 改为 dynamic import —— 用户点设置→提示词库时才加载，
+// 不进入首屏 popup bundle，节省 ~485 行 TS 的 parse 时间
+import type { PromptLibraryManager as PromptLibraryManagerType } from "./modules/PromptLibraryManager"
 
 interface ChromeLike {
   runtime?: {
@@ -66,7 +68,7 @@ export class PopupController {
   keyword: KeywordResult = { text: "", raw: "" }
   currentMode: "menu" | "settings" = "menu"
   pinnedCover: PinSnapshot | null = null
-  promptLibraryManager: PromptLibraryManager | null = null
+  promptLibraryManager: PromptLibraryManagerType | null = null
 
   private _keywordLoadPromise: Promise<KeywordResult> | null = null
   private _settingsInitDone = false
@@ -671,7 +673,10 @@ export class PopupController {
     if (!this._promptLibraryLoadPromise) {
       this._promptLibraryLoadPromise = (async () => {
         try {
-          this.promptLibraryManager = new PromptLibraryManager({
+          // Dynamic import: 真正延迟到用户点击设置→提示词库时才下载 + parse
+          // 节省首屏 popup 解析时间（~485 行 TS 不进首帧 bundle）
+          const mod = await import("./modules/PromptLibraryManager")
+          this.promptLibraryManager = new mod.PromptLibraryManager({
             onToast: (msg: string) => this.showToast(msg)
           })
           await this.promptLibraryManager.init()
