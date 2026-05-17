@@ -1016,7 +1016,69 @@ async function main() {
   const custom = tsMcc.classifyMenuClick("ccs-custom-pin", { coverPinId: "ccs-custom-pin" })
   assert(custom.category === "cover-pin", "custom coverPinId works")
 
-  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure + menuDebugInfo + bootstrap + menuClickClassifier OK")
+  // menuBuilderHelpers.ts: extractErrorMessage / createMenuItem / removeAllContextMenus / isStaleBuild
+  const tsMbh = loadTs(path.join(root, "src/background/menuBuilderHelpers.ts"))
+  // extractErrorMessage
+  assert(tsMbh.extractErrorMessage(null) === "", "null → ''")
+  assert(tsMbh.extractErrorMessage("oops") === "oops", "string passthrough")
+  assert(tsMbh.extractErrorMessage(new Error("boom")) === "boom", "Error.message")
+  assert(tsMbh.extractErrorMessage({ message: "msg" }) === "msg", "{message}")
+  assert(tsMbh.extractErrorMessage({ a: 1 }) === '{"a":1}', "JSON fallback")
+  // MENU_CONTEXTS_DEFAULT
+  assert(Array.isArray(tsMbh.MENU_CONTEXTS_DEFAULT) && tsMbh.MENU_CONTEXTS_DEFAULT.length === 2, "MENU_CONTEXTS_DEFAULT 2 items")
+  // isStaleBuild
+  assert(tsMbh.isStaleBuild(1, 2) === true, "stale build 1 vs 2")
+  assert(tsMbh.isStaleBuild(3, 3) === false, "same build not stale")
+
+  // createMenuItem 成功路径
+  const okResult = await tsMbh.createMenuItem({ id: "test-id" }, {}, {
+    contextMenus: { create: (opts, cb) => cb() },
+    runtime: { lastError: null }
+  })
+  assert(okResult.ok === true, "createMenuItem ok")
+
+  // createMenuItem 失败路径 + logMenuEvent 钩子
+  const errLogs = []
+  const errResult = await tsMbh.createMenuItem({ id: "bad-id" }, {
+    failureLogStage: "create-failed",
+    logMenuEvent: (stage, payload) => errLogs.push({ stage, payload })
+  }, {
+    contextMenus: { create: (opts, cb) => cb() },
+    runtime: { lastError: { message: "duplicate id" } }
+  })
+  assert(errResult.ok === false, "createMenuItem failure")
+  assert(errLogs[0]?.stage === "create-failed" && errLogs[0].payload.id === "bad-id", "failure logged with id")
+
+  // createMenuItem onSuccess/onError 回调
+  let successOpts = null
+  await tsMbh.createMenuItem({ id: "cb-test", title: "T" }, {
+    onSuccess: (o) => { successOpts = o }
+  }, {
+    contextMenus: { create: (opts, cb) => cb() },
+    runtime: { lastError: null }
+  })
+  assert(successOpts?.id === "cb-test", "onSuccess receives options")
+
+  // removeAllContextMenus: Promise-style (length=0)
+  let prCalled = 0
+  const pRemove = (() => { prCalled++; return Promise.resolve() })
+  Object.defineProperty(pRemove, "length", { value: 0 })
+  await tsMbh.removeAllContextMenus({
+    contextMenus: { create: () => {}, removeAll: pRemove },
+    runtime: { lastError: null }
+  })
+  assert(prCalled === 1, "Promise-style removeAll called")
+
+  // removeAllContextMenus: callback-style (length=1)
+  let cbCalled = 0
+  const cbRemove = function (cb) { cbCalled++; cb() }
+  await tsMbh.removeAllContextMenus({
+    contextMenus: { create: () => {}, removeAll: cbRemove },
+    runtime: { lastError: null }
+  })
+  assert(cbCalled === 1, "callback-style removeAll called")
+
+  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure + menuDebugInfo + bootstrap + menuClickClassifier + menuBuilderHelpers OK")
 }
 
 main().catch((err) => {
