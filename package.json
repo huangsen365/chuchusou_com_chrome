@@ -7,7 +7,7 @@
   },
   "scripts": {
     "lint": "eslint .",
-    "test": "npm run lint && npm run typecheck && npm run verify:shared-config && npm run verify:menu-structure-builder && npm run verify:menu-structure-builder-dual && npm run verify:background-utils-dual",
+    "test": "npm run lint && npm run typecheck && npm run verify:shared-config && npm run verify:menu-structure-builder && npm run verify:menu-structure-builder-dual && npm run verify:background-utils-dual && npm run verify:background-pure-modules-dual",
     "plasmo:dev": "plasmo dev --target=chrome-mv3 --src-path=src",
     "plasmo:build": "plasmo build --target=chrome-mv3 --src-path=src && node scripts/plasmo-compat-postbuild.mjs && npm run plasmo:verify",
     "plasmo:package": "npm run plasmo:build && plasmo package --target=chrome-mv3 --src-path=src && npm run plasmo:verify-package",
@@ -18,6 +18,7 @@
     "verify:menu-structure-builder": "node scripts/verify-menu-structure-builder.mjs",
     "verify:menu-structure-builder-dual": "node scripts/verify-menu-structure-builder-dual.mjs",
     "verify:background-utils-dual": "node scripts/verify-background-utils-dual.mjs",
+    "verify:background-pure-modules-dual": "node scripts/verify-background-pure-modules-dual.mjs",
     "perf:cold-popup": "node scripts/perf-cold-popup.mjs",
     "perf:test": "bash scripts/test-perf.sh"
   },
