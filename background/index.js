@@ -3,7 +3,7 @@ importScripts(
   './utils/Constants.js',
   './utils/TextUtils.js',
   './utils/TextLimits.js',
-  './Logger.js',
+  // ↓ Logger.js 已被 src/background/Logger.ts (via baseBridge) 取代 ↓
   '../shared/menuStructureBuilder.js',
 
   // ==================== 第2层：核心管理器 ====================

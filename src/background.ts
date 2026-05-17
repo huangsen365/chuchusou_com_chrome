@@ -34,7 +34,7 @@ sw.importScripts(
   absoluteUrl("background/utils/Constants.js"),
   absoluteUrl("background/utils/TextUtils.js"),
   absoluteUrl("background/utils/TextLimits.js"),
-  absoluteUrl("background/Logger.js"),
+  // ↓ background/Logger.js 已被 baseBridge.ts 取代（logMenuEvent + buildLogPayload）↓
   absoluteUrl("shared/menuStructureBuilder.js"),
 
   // 第 2 层：核心管理器
