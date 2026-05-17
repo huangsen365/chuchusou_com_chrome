@@ -1,20 +1,19 @@
 /**
- * 触触搜 Popup - 菜单式UI
- * 点击扩展icon时显示与右键菜单相同的层级菜单
+ * 触触搜 Popup —— 极简渲染模式（参考 test_plasmo_demo）
  *
- * 启动路径（v1.6.14 起）：
- *   1. popup.html 静态 shimmer 骨架先出（~20ms）
- *   2. init() 并行 fetch 同源 JSON（config + 4 个 prompts + engines）+ 1 次 storage.get
- *   3. CCSMenuStructureBuilder.build() 纯函数构造菜单
- *   4. render() 一次性 DOM 切换
- *   完全脱离 background SW 冷启动 —— 首屏 TTFB 目标 < 150ms
+ * v1.6.19 设计原则：
+ * - 菜单是静态 HTML（编译期由 scripts/prebuild-popup-menu.mjs 注入完整结构）
+ * - popup.js 只做：绑事件、读关键字 storage、处理 pinned cover、设置面板
+ * - 0 fetch 拉菜单 / 0 sendMessage 醒 SW / 0 DOM 构建
+ * - 商店生产 popup 首屏 = HTML 解析时间（~10-20ms）
+ *
+ * dev mode（plasmo dev 没跑 prebuild）：popup.html 自带 6 个常用菜单作 fallback
+ * —— 完整菜单看 build/ 产物，dev 用最常用功能。
  */
 
 class PopupMenuRenderer {
   constructor() {
-    this.config = null;
     this.keyword = { text: '', raw: '' };
-    this.menuToggleConfig = null;
     this.currentMode = 'menu'; // 'menu' or 'settings'
     this.promptLibraryManager = null;
     this._settingsInitDone = false;
@@ -22,128 +21,25 @@ class PopupMenuRenderer {
   }
 
   async init() {
-    const T0 = performance.now();
-    const trace = { t0: T0, phases: [] };
-    const mark = (label) => trace.phases.push({ label, ms: +(performance.now() - T0).toFixed(1) });
     performance.mark('ccs-popup-start');
-    let renderSource = 'unknown';
     try {
       this.loadVersion();
       this.bindEvents();
-      mark('bind');
       this.startKeywordLoad();
       this._preloadEnableState();
-      mark('preload');
-
-      // v1.6.19 Step 9：编译期已经把完整菜单 HTML 注入到 build/popup.html
-      // 的 menuContainer（data-static-built="true"）。生产环境直接命中 ——
-      // 不需要 fetch / 不需要 DOM 构建 / 不需要 JS render()。
-      const container = document.getElementById('menuContainer');
-      const staticBuilt = container?.dataset?.staticBuilt === 'true';
-      let menuStructure = null;
-      if (staticBuilt) {
-        renderSource = 'static-html';
-        // 仍 fetch prebuilt JSON 是为了拿 coverConfig 给 initPinnedCover（极少量额外开销）
-        await this._tryReadPrebuilt();
-      } else {
-        // dev / fallback 路径
-        menuStructure = await this._tryReadPrebuilt();
-        if (menuStructure) {
-          renderSource = 'prebuilt-json';
-        } else {
-          menuStructure = await this._buildMenuFromFetch();
-          renderSource = 'local-fetch';
-        }
-      }
-      mark('menu-fetched');
-      // pinned cover 在 prebuilt 之后起，复用同一份 coverConfig 避免重复 fetch
+      // initPinnedCover 自己 fetch coverPrompts.json（不依赖任何缓存/SW）
       this.initPinnedCover();
-
-      if (staticBuilt) {
-        // 关键字徽章独立刷一次（不动 menu DOM）
-        this._renderKeyword();
-      } else {
-        if (!menuStructure) throw new Error('菜单结构构建失败');
-        this.config = menuStructure;
-        this.render();
-      }
-      mark('rendered');
+      this._renderKeyword();
       performance.mark('ccs-popup-rendered');
       try {
         performance.measure('ccs-popup-ttfb', 'ccs-popup-start', 'ccs-popup-rendered');
         const m = performance.getEntriesByName('ccs-popup-ttfb')[0];
-        if (m) console.log(`[触触搜][PERF] popup TTFB: ${m.duration.toFixed(1)}ms (${renderSource})`);
+        if (m) console.log(`[触触搜][PERF] popup TTFB: ${m.duration.toFixed(1)}ms`);
       } catch (_) { /* perf 失败无所谓 */ }
-      trace.source = renderSource;
-      trace.ttfb = +(performance.now() - T0).toFixed(1);
-      this._dumpPerfTrace(trace);
     } catch (error) {
       console.error('[触触搜] Popup 初始化失败:', error);
       this.showError('加载失败，请重试');
-      return;
     }
-
-    // 后台增强（不阻塞首屏）
-    // 设置面板按需 lazy load —— 用户点 ⚙️ 时才跑 initSettings()。
-    // 但启用/禁用状态影响底部按钮配色，仍轻量预读一次。
-  }
-
-  // v1.6.19 Step 8：生产诊断 trace。每次 popup 打开把分阶段耗时写 storage，
-  // 保留最近 20 次记录。用户报"卡顿"时可在设置面板→导出菜单状态拿到这些
-  // 数据反馈给开发者真实生产 TTFB。零控制台噪音（仅 debug 模式打印）。
-  _dumpPerfTrace(trace) {
-    try {
-      chrome.storage.local.get(['ccs_popup_perf_trace', 'ccs_debug'], (r) => {
-        const arr = Array.isArray(r?.ccs_popup_perf_trace) ? r.ccs_popup_perf_trace : [];
-        arr.push({ ts: Date.now(), ...trace });
-        // 保留最近 20 条
-        const trimmed = arr.slice(-20);
-        chrome.storage.local.set({ ccs_popup_perf_trace: trimmed });
-        if (r?.ccs_debug) {
-          console.log('[触触搜][PERF-TRACE]', JSON.stringify(trace));
-        }
-      });
-    } catch (_) { /* storage 异常也无所谓 */ }
-  }
-
-  // v1.6.19 优先路径：编译期预生成的菜单结构 JSON（1 个 fetch）
-  async _tryReadPrebuilt() {
-    try {
-      const data = await this.fetchJSON('popup/popup-menu-prebuilt.json');
-      if (!data) return null;
-      const currentVersion = chrome.runtime.getManifest()?.version;
-      // 版本不一致就放弃（避免商店升级后旧 prebuilt 还在 / cache 错位）
-      if (data.version && currentVersion && data.version !== currentVersion) return null;
-      const s = data.structure;
-      if (!s || !Array.isArray(s.groups) || s.groups.length === 0) return null;
-      // v1.6.19 Step 6：cover 也内联了，缓存给 initPinnedCover 共享
-      if (data.coverConfig) this._cachedCoverConfig = data.coverConfig;
-      return s;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  // Fallback：6 个同源 fetch + builder（不依赖 SW）
-  async _buildMenuFromFetch() {
-    const [unifiedConfig, top100, fastqa, optimize, cover, engines] = await Promise.all([
-      this.fetchJSON('config/unifiedMenuConfig.json'),
-      this.fetchJSON('prompts/topQuestionsPrompts.json'),
-      this.fetchJSON('prompts/fastAnswersPrompts.json'),
-      this.fetchJSON('prompts/optimizedPrompts.json'),
-      this.fetchJSON('prompts/coverPrompts.json'),
-      this.fetchJSON('config/engines.json')
-    ]);
-    if (!unifiedConfig) return null;
-    if (cover) this._cachedCoverConfig = cover;  // initPinnedCover 复用，避免重复 fetch
-    return CCSMenuStructureBuilder.build({
-      unifiedConfig,
-      enginesConfig: engines,
-      top100Config: top100,
-      fastqaConfig: fastqa,
-      optimizeConfig: optimize,
-      coverConfig: cover
-    });
   }
 
   loadVersion() {
@@ -237,13 +133,7 @@ class PopupMenuRenderer {
     return fresh;
   }
 
-  // isMenuEnabled: background 已经过滤了禁用的菜单项，这里始终返回 true
-  isMenuEnabled(menuId) {
-    return true;
-  }
-
-  // 仅刷新关键字徽章那一块，不重建菜单 DOM（避免丢交互态）。
-  // 供 init() 在 fresh 关键字到来后单独触发，避免整页 re-render。
+  // 关键字徽章渲染（与菜单 DOM 独立 —— 关键字变化不动菜单）
   _renderKeyword() {
     const keywordEl = document.getElementById('currentKeyword');
     if (!keywordEl) return;
@@ -276,162 +166,13 @@ class PopupMenuRenderer {
     }
   }
 
-  render() {
-    const container = document.getElementById('menuContainer');
-
-    // 关键字徽章：与菜单容器独立，先刷
-    this._renderKeyword();
-
-    // v1.6.19 Step 9：静态菜单已注入，跳过 JS 重建（保留 HTML 中的完整菜单）
-    if (container?.dataset?.staticBuilt === 'true') return;
-
-    // dev / fallback 路径：先构建 DocumentFragment 完整 DOM，最后 replaceChildren 原子 swap
-    if (!this.config || !this.config.groups) {
-      container.replaceChildren(this._renderEmptyState());
-      return;
-    }
-
-    const fragment = document.createDocumentFragment();
-    this.config.groups.forEach((group, index) => {
-      if (group.id === 'panel') return;
-      if (group.separator === 'before' && index > 0) {
-        fragment.appendChild(this.createSeparator());
-      }
-      this.renderGroup(fragment, group);
-      if (group.separator === 'after') {
-        fragment.appendChild(this.createSeparator());
-      }
-    });
-
-    // 原子替换：静态骨架与完整菜单之间不存在"空白"中间态
-    container.replaceChildren(fragment);
-  }
-
-  _renderEmptyState() {
-    const div = document.createElement('div');
-    div.className = 'menu-empty';
-    div.textContent = '无菜单配置';
-    return div;
-  }
-
   formatKeyword(text) {
     if (!text) return '';
     const compact = text.replace(/\s+/g, ' ').trim();
     return compact.length > 15 ? compact.substring(0, 15) + '...' : compact;
   }
 
-  createSeparator() {
-    const sep = document.createElement('div');
-    sep.className = 'menu-separator';
-    return sep;
-  }
-
-  renderGroup(container, group) {
-    if (!group.items) return;
-
-    group.items.forEach(item => {
-      if (!this.isMenuEnabled(item.id)) return;
-      if (item.enabled === false) return;
-
-      const itemEl = this.createMenuItem(item);
-      container.appendChild(itemEl);
-
-      // 子菜单容器（初始隐藏）
-      if (item.children && item.children.length > 0) {
-        const submenu = this.createSubmenu(item.children, item.id);
-        container.appendChild(submenu);
-      }
-    });
-  }
-
-  createMenuItem(item) {
-    const el = document.createElement('div');
-    el.className = 'menu-item';
-    el.dataset.menuId = item.id;
-    el.dataset.menuType = item.type || '';
-
-    const hasChildren = item.children && item.children.length > 0;
-    if (hasChildren) {
-      el.classList.add('has-children');
-    }
-
-    // 获取显示标题
-    let displayTitle = item.title || '';
-    // 对于搜索类菜单，简化标题显示
-    if (item.type === 'fastqa-quick') {
-      // "触触搜 · 速答壹拾佰 - ChatGPT" → "速答 · ChatGPT"
-      const match = displayTitle.match(/- (.+)$/);
-      if (match) {
-        displayTitle = `速答 · ${match[1]}`;
-      }
-    }
-
-    el.innerHTML = `
-      <span class="item-icon">${item.icon || ''}</span>
-      <span class="item-title">${displayTitle}</span>
-      ${hasChildren ? '<span class="item-arrow">▶</span>' : ''}
-    `;
-
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (hasChildren) {
-        this.toggleSubmenu(el, item.id);
-      } else {
-        this.handleClick(item);
-      }
-    });
-
-    return el;
-  }
-
-  createSubmenu(children, parentId, level = 1) {
-    const submenu = document.createElement('div');
-    submenu.className = 'submenu collapsed';
-    submenu.dataset.parentId = parentId;
-    submenu.dataset.level = level;
-
-    children.forEach(child => {
-      if (!this.isMenuEnabled(child.id)) return;
-      if (child.enabled === false) return;
-
-      const hasChildren = child.children && child.children.length > 0;
-
-      const childEl = document.createElement('div');
-      childEl.className = `menu-item submenu-item level-${level}`;
-      childEl.dataset.menuId = child.id;
-      childEl.dataset.menuType = child.type || '';
-
-      if (hasChildren) {
-        childEl.classList.add('has-children');
-      }
-
-      childEl.innerHTML = `
-        <span class="item-icon">${child.icon || ''}</span>
-        <span class="item-title">${child.title}</span>
-        ${hasChildren ? '<span class="item-arrow">▶</span>' : ''}
-      `;
-
-      childEl.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (hasChildren) {
-          this.toggleSubmenu(childEl, child.id);
-        } else {
-          this.handleClick(child);
-        }
-      });
-
-      submenu.appendChild(childEl);
-
-      // 递归创建更深层次的子菜单
-      if (hasChildren) {
-        const nestedSubmenu = this.createSubmenu(child.children, child.id, level + 1);
-        submenu.appendChild(nestedSubmenu);
-      }
-    });
-
-    return submenu;
-  }
-
+  // 子菜单展开/折叠（事件代理调用 —— 静态 HTML 里子菜单 DOM 已存在，只切 class）
   toggleSubmenu(parentEl, parentId) {
     const submenu = document.querySelector(`.submenu[data-parent-id="${parentId}"]`);
     if (!submenu) return;
@@ -526,8 +267,6 @@ class PopupMenuRenderer {
   }
 
   async loadCoverConfig() {
-    // v1.6.19 Step 6：优先用 _tryReadPrebuilt 缓存的 coverConfig（已在主 fetch 里拿过）
-    if (this._cachedCoverConfig) return this._cachedCoverConfig;
     try {
       const url = chrome.runtime.getURL('prompts/coverPrompts.json');
       const response = await fetch(url);
@@ -1264,29 +1003,15 @@ class PopupMenuRenderer {
 
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      // v1.6.19 Step 8：附带本地 popup perf trace（最近 20 次启动耗时）
-      const perfTrace = await new Promise((resolve) => {
-        try {
-          chrome.storage.local.get(['ccs_popup_perf_trace'], (r) => resolve(r?.ccs_popup_perf_trace || []));
-        } catch (_) { resolve([]); }
-      });
-
       chrome.runtime.sendMessage({
         action: 'getMenuDebugInfo',
         tabId: tab?.id
       }, (response) => {
         if (response && response.success) {
-          const enriched = { ...response.data, _popupPerfTrace: perfTrace };
-          this.showMenuDebugInfo(enriched);
+          this.showMenuDebugInfo(response.data);
         } else {
-          // 即使 SW 没响应，也把 perf trace 显示出来（用户报卡顿时这是关键证据）
-          if (perfTrace.length > 0) {
-            this.showMenuDebugInfo({ _popupPerfTrace: perfTrace, _swUnreachable: true });
-          } else {
-            this.showToast('获取菜单状态失败');
-          }
+          this.showToast('获取菜单状态失败');
         }
-
         if (btn) {
           btn.disabled = false;
           const label = btn.querySelector('.setting-label');

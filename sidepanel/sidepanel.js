@@ -1182,24 +1182,9 @@ class SidePanelRenderer {
       console.warn('[触触搜] Pinned action init failed:', err);
     });
 
-    // v1.6.19 Step 9：编译期已经把完整菜单 HTML 注入到 build/sidepanel.html
-    // 的 spMenu（data-static-built="true"）。如果命中，跳过 fetch + renderMenu
-    // 节省启动开销。dev mode 仍走 fetch。
-    const spMenu = document.getElementById('spMenu');
-    if (spMenu?.dataset?.staticBuilt === 'true') {
-      // 仍 fetch prebuilt JSON 为了拿 coverConfig 给 pinned.init
-      this.loadMenuConfig().then((config) => {
-        this.config = config;
-        // 不调 renderMenu —— 静态 HTML 已经渲染好
-      }).catch(() => { /* 不重要，静态菜单已可用 */ });
-    } else {
-      this.loadMenuConfig().then((config) => {
-        this.config = config;
-        this.renderMenu();
-      }).catch((error) => {
-        console.error('[触触搜] Side panel menu config failed:', error);
-      });
-    }
+    // v1.6.19 Step 10：菜单是静态 HTML（编译期注入），首屏完全可用。
+    // dev mode（plasmo dev / 源目录直跑）静态骨架已有常用菜单作 fallback。
+    // 不再发 sendMessage / 不再 fetch menu config / 不再 renderMenu。
 
     // v1.6.19：首屏不发 sendMessage('getKeyword') —— 与 popup 同款解耦。
     // 流程：先读 storage cache（不需要 SW 醒）→ 显示；同时挂 onChanged 监听
@@ -1404,53 +1389,7 @@ class SidePanelRenderer {
     return tab || { url: '', title: '', id: null };
   }
 
-  async loadMenuConfig() {
-    // v1.6.19：与 popup 一致——优先读编译期预生成的 popup-menu-prebuilt.json，
-    // 不再发 sendMessage('getMenuStructure') 触发 SW 冷启动。命中失败时退化
-    // 到 fetch 6 个 JSON + 客户端构建（不依赖 SW）。
-    try {
-      const data = await this._fetchJSON('popup/popup-menu-prebuilt.json');
-      if (data) {
-        const currentVersion = chrome.runtime.getManifest()?.version;
-        if (!data.version || !currentVersion || data.version === currentVersion) {
-          const s = data.structure;
-          if (s && Array.isArray(s.groups) && s.groups.length > 0) {
-            if (data.coverConfig) this._cachedCoverConfig = data.coverConfig;
-            return s;
-          }
-        }
-      }
-    } catch (_) { /* fallthrough */ }
-
-    // Fallback：6 个本地 fetch + builder（同 popup）
-    if (typeof CCSMenuStructureBuilder !== 'object' || typeof CCSMenuStructureBuilder.build !== 'function') {
-      throw new Error('CCSMenuStructureBuilder 未加载');
-    }
-    const [unifiedConfig, top100, fastqa, optimize, cover, engines] = await Promise.all([
-      this._fetchJSON('config/unifiedMenuConfig.json'),
-      this._fetchJSON('prompts/topQuestionsPrompts.json'),
-      this._fetchJSON('prompts/fastAnswersPrompts.json'),
-      this._fetchJSON('prompts/optimizedPrompts.json'),
-      this._fetchJSON('prompts/coverPrompts.json'),
-      this._fetchJSON('config/engines.json')
-    ]);
-    if (!unifiedConfig) throw new Error('unifiedMenuConfig 加载失败');
-    if (cover) this._cachedCoverConfig = cover;
-    return CCSMenuStructureBuilder.build({
-      unifiedConfig,
-      enginesConfig: engines,
-      top100Config: top100,
-      fastqaConfig: fastqa,
-      optimizeConfig: optimize,
-      coverConfig: cover
-    });
-  }
-
-  _fetchJSON(path) {
-    return fetch(chrome.runtime.getURL(path))
-      .then((r) => r.ok ? r.json() : null)
-      .catch(() => null);
-  }
+  // v1.6.19 Step 10: loadMenuConfig / _fetchJSON 已删 —— 菜单走静态 HTML SSoT。
 
   // C 档重构：统一过 CCSKeywordClient（shared/keywordClient.js），与 popup 共用同一客户端。
   // 第二参数 isRefresh 区分 init / refresh 两种意图（policy 表见 background/KeywordService.js）。

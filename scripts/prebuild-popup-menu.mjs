@@ -214,34 +214,9 @@ function main() {
     process.exit(0)
   }
 
-  const manifestVersion = (() => {
-    try { return JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"))?.version || "0.0.0" } catch (_) { return "0.0.0" }
-  })()
-
-  // v1.6.19 Step 6: 把 coverConfig 也内联，让 popup initPinnedCover 不必再发
-  // 一次 fetch(prompts/coverPrompts.json) —— popup 启动总 fetch 数从 2 降到 1。
-  const out = {
-    version: manifestVersion,
-    builtAt: new Date().toISOString(),
-    structure,
-    coverConfig
-  }
-
-  const json = JSON.stringify(out)
-  const sizeKB = (json.length / 1024).toFixed(1)
-
-  // 仅写 build 产物（zip 上架用）—— 源目录保持干净。
-  // plasmo dev / 源目录直接运行 popup 时，prebuilt 路径会读不到，自动 fallback
-  // 到 6 fetch + builder 路径（与 v1.6.18 之前等价，dev 不需要这个优化）。
-  const buildPath = path.join(buildDir, "popup/popup-menu-prebuilt.json")
-  if (fs.existsSync(path.dirname(buildPath))) {
-    fs.writeFileSync(buildPath, json, "utf8")
-    console.log(`[prebuild-popup-menu] ✓ ${structure.groups.length} groups, ${sizeKB}KB → ${path.relative(root, buildPath)}`)
-  } else {
-    console.warn(`[prebuild-popup-menu] ⚠ ${path.dirname(buildPath)} 不存在，跳过`)
-  }
-
-  // v1.6.19 Step 9：把完整菜单 HTML 注入到 build 的 popup.html / sidepanel.html，
+  // v1.6.19 Step 10：完全删除 popup-menu-prebuilt.json 输出。popup.js / sidepanel.js
+  // 不再读这个文件 —— 静态 HTML 注入已经是 SSoT，coverConfig 由各自直接 fetch。
+  // 把完整菜单 HTML 注入到 build 的 popup.html / sidepanel.html，
   // 让生产环境 popup/sidepanel 打开时 container 直接是完整菜单（零 JS DOM 构建）。
   // popup.js / sidepanel.js 检测 data-static-built 跳过 render() 节省 ~5-20ms。
   const popupPath = path.join(buildDir, "popup/popup.html")

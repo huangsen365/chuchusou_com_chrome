@@ -210,11 +210,8 @@
     </div>
   </div>
 
-  <!-- v1.6.19 Step 7: defer 让 3 个脚本与 HTML 解析并行（浏览器维持顺序，
-       在 DOMContentLoaded 前同步执行）。比起裸 script 的串行 fetch + parse，
-       static 骨架先出现的体感更稳。 -->
+  <!-- v1.6.19 Step 10: 菜单走静态 HTML SSoT，不再依赖 menuStructureBuilder -->
   <script src="../shared/keywordClient.js" defer></script>
-  <script src="../shared/menuStructureBuilder.js" defer></script>
   <script src="popup.js" defer></script>
 </body>
 </html>
