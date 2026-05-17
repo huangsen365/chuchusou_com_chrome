@@ -661,12 +661,23 @@
     const saveShortcutBtn = $shortcutSection.querySelector('.save-shortcut');
     if (saveShortcutBtn) saveShortcutBtn.addEventListener('click', saveShortcut);
 
-    // 监听 storage 同步 settings labels（如别处改了 enabled / ccs_debug / ccs_voice_enabled）
+    // 监听 storage 同步 toggle/labels（别处改 enabled / ccs_debug / ccs_voice_enabled
+    // 时让 inline qEnable/qDebug + settings panel labels 都跟着刷新）
     try {
       chrome.storage.onChanged.addListener((changes, area) => {
         if (area !== 'local') return;
-        if ('enabled' in changes || 'ccs_debug' in changes || 'ccs_voice_enabled' in changes) {
-          if (!$settingsPanel.hidden) syncSettingLabels();
+        if ('enabled' in changes) {
+          const v = changes.enabled.newValue !== false;
+          renderToggle($qEnable, $qEnableLabel, v, '已启用', '已停用');
+          $sLabelEnable.textContent = v ? '已启用' : '已停用';
+        }
+        if ('ccs_debug' in changes) {
+          const v = changes.ccs_debug.newValue === true;
+          renderToggle($qDebug, $qDebugLabel, v, '调试开', '调试关');
+          $sLabelDebug.textContent = v ? '调试日志：开' : '调试日志：关';
+        }
+        if ('ccs_voice_enabled' in changes) {
+          $sLabelVoice.textContent = changes.ccs_voice_enabled.newValue === true ? '语音功能：开' : '语音功能：关';
         }
       });
     } catch (_) {}
