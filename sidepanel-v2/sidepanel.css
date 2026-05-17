@@ -1,0 +1,229 @@
+/* sidepanel-v2 样式 —— 极简紧凑，与旧 sidepanel 视觉一致但无冗余 transitions */
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  width: 100%;
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #222;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ===== Sticky top 区 ===== */
+.sp-sticky-top {
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 10;
+  border-bottom: 1px solid #eaeaea;
+}
+
+/* ===== Header ===== */
+.sp-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+}
+.sp-header-left { display: flex; align-items: center; gap: 4px; }
+.sp-icon { font-size: 16px; }
+.sp-title { font-weight: 600; }
+.sp-keyword-wrap {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 200px;
+}
+.sp-keyword {
+  color: #666;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-keyword[data-empty="1"] { color: #bbb; }
+.sp-keyword-voice, .sp-keyword-copy {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 14px;
+}
+.sp-keyword-voice:hover, .sp-keyword-copy:hover { background: #f0f0f0; border-radius: 4px; }
+
+/* ===== AI 提示 banner ===== */
+.sp-pin-tip {
+  margin: 0;
+  padding: 6px 10px;
+  background: #fff8e8;
+  border-bottom: 1px solid #f0e4c0;
+  font-size: 11px;
+  color: #8a6a30;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+.sp-pin-tip-warn {
+  cursor: help;
+  flex-shrink: 0;
+}
+.sp-pin-tip-marquee {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.sp-pin-tip-text {
+  display: inline-block;
+  animation: sp-marquee 15s linear infinite;
+  padding-left: 100%;
+}
+@keyframes sp-marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+.sp-pin-tip-popover {
+  position: absolute;
+  top: 60px;
+  left: 10px;
+  right: 10px;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 20;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.sp-pin-tip-popover h4 { margin: 0 0 8px; font-size: 13px; }
+.sp-pin-tip-popover p { margin: 4px 0; color: #555; }
+.sp-pin-tip-shortcuts { color: #888; font-size: 11px !important; margin-top: 8px !important; }
+.sp-pin-tip-close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: #999;
+}
+
+/* ===== 剪贴板按钮 ===== */
+.sp-clipboard-btn {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 8px 10px;
+  padding: 8px;
+  background: #f4f6f9;
+  border: 1px dashed #c5d0dc;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #555;
+}
+.sp-clipboard-btn:hover { background: #e8eef5; border-color: #a5b7c8; }
+
+/* ===== 封面快捷启动卡片 ===== */
+.sp-pin {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 8px 10px;
+  background: linear-gradient(135deg, #fff8e8 0%, #fff3d6 100%);
+  border-bottom: 1px solid #f0e4c0;
+}
+.sp-pin-corner-ratio {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  font-size: 10px;
+  color: #8a6a30;
+  background: #fff3d6;
+  border: 1px solid #f0d8a0;
+  border-radius: 3px;
+  padding: 1px 4px;
+  pointer-events: none;
+}
+.sp-pin-action {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.7);
+  border: 1px solid #f0d8a0;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+}
+.sp-pin-action:hover { background: #fff; }
+.sp-pin-icon { font-size: 20px; }
+.sp-pin-text { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.sp-pin-task { font-weight: 600; font-size: 13px; }
+.sp-pin-style { font-size: 12px; color: #8a6a30; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-pin-edit {
+  background: rgba(255,255,255,0.7);
+  border: 1px solid #f0d8a0;
+  border-radius: 6px;
+  padding: 0 10px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.sp-pin-edit:hover { background: #fff; }
+
+/* ===== 封面 picker（batch 2 实现）===== */
+.sp-pin-picker {
+  padding: 10px 12px;
+  background: #fafbfc;
+  border-bottom: 1px solid #eaeaea;
+}
+
+/* ===== 语音面板（batch 4 实现，内部 DOM 由 voice.js 注入）===== */
+.sp-voice {
+  padding: 10px 12px;
+  background: #f8f4ff;
+  border-bottom: 1px solid #e8e0f0;
+}
+
+/* ===== 菜单 ===== */
+.sp-menu {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.sp-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  user-select: none;
+}
+.sp-menu-item:hover { background: #f4f6f9; }
+.sp-menu-item:active { background: #e8eef5; }
+.sp-item-icon { font-size: 16px; width: 18px; text-align: center; flex-shrink: 0; }
+.sp-item-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-separator { height: 1px; background: #f0f0f0; margin: 4px 0; }
+
+/* ===== Toast ===== */
+.sp-toast {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.85);
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  z-index: 2000;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.sp-toast.fade-out { opacity: 0; transition: opacity 300ms ease-out; }

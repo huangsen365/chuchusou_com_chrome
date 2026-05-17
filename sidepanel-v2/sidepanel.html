@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>触触搜 Quick Panel</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+  <!-- 置顶区：header + AI banner + 剪贴板按钮 + 封面卡片 + 语音面板（菜单滚动时固定）-->
+  <div class="sp-sticky-top" id="spStickyTop">
+    <header class="sp-header">
+      <div class="sp-header-left">
+        <span class="sp-icon">🔍</span>
+        <span class="sp-title">触触搜</span>
+      </div>
+      <div class="sp-keyword-wrap">
+        <span class="sp-keyword" id="spKeyword" title=""></span>
+        <button class="sp-keyword-voice" id="spKeywordVoice" type="button" title="语音选择搜索引擎" hidden>🎤</button>
+        <button class="sp-keyword-copy" id="spKeywordCopy" type="button" title="复制关键字到剪贴板" hidden>📋</button>
+      </div>
+    </header>
+
+    <!-- AI 检测提醒 banner（与旧版 1:1：marquee + tooltip popover）-->
+    <p class="sp-pin-tip">
+      <span class="sp-pin-tip-warn" id="spPinTipWarn" tabindex="0" aria-label="为什么建议截图另存新图">⚠️</span>
+      <span class="sp-pin-tip-marquee">
+        <span class="sp-pin-tip-text">关于封面生成器，图片生成后建议截图另存新图再使用，避免被识别为 AI 产出</span>
+      </span>
+    </p>
+    <!-- tooltip popover（点 ⚠️ 切换） -->
+    <div class="sp-pin-tip-popover" id="spPinTipPopover" hidden role="tooltip">
+      <button class="sp-pin-tip-close" id="spPinTipClose" type="button" aria-label="关闭">×</button>
+      <h4>图片生成后为什么建议截图另存新图？</h4>
+      <p>AI 生成的图片下载时自带元数据指纹（C2PA 等），小红书 / 抖音 / 视频号等平台可一键识别。</p>
+      <p>一旦被打上"AI 生成"标签：流量限流、强制叠加"AI 生成"水印、影响商业合作。</p>
+      <p>截图重新存成新文件，不携带原指纹，可有效绕过。</p>
+      <p class="sp-pin-tip-shortcuts">快捷键：Mac ⇧⌘4 · Windows ⊞+Shift+S</p>
+    </div>
+
+    <!-- 剪贴板按钮（关键字空时显示，chrome:// 等无 selection 页兜底） -->
+    <button class="sp-clipboard-btn" id="spClipboardBtn" type="button" hidden>📋 从剪贴板读取关键字</button>
+
+    <!-- 封面快捷启动卡片（pin 过才显示） -->
+    <section class="sp-pin" id="spPin" hidden>
+      <span class="sp-pin-corner-ratio" id="spPinRatio" title="当前画面比例"></span>
+      <button class="sp-pin-action" id="spPinAction" type="button" title="用当前关键字 + 置顶风格一键生成封面">
+        <span class="sp-pin-icon">🎨</span>
+        <span class="sp-pin-text">
+          <span class="sp-pin-task">封面生成器</span>
+          <span class="sp-pin-style" id="spPinStyle"></span>
+        </span>
+      </button>
+      <button class="sp-pin-edit" id="spPinEdit" type="button" title="修改置顶风格 / 比例" aria-label="修改置顶风格">✏️</button>
+    </section>
+
+    <!-- 语音选引擎面板（lazy load 语音模块时填充内部内容） -->
+    <section class="sp-voice" id="spVoice" hidden></section>
+  </div>
+
+  <!-- 封面 picker（默认隐藏，点 ✏️ 展开） —— batch 2 填充内部 DOM -->
+  <div class="sp-pin-picker" id="spPinPicker" hidden></div>
+
+  <!-- 菜单容器：源码内嵌 8 项作 fallback；build 时 prebuild-popup-menu.mjs 替换为完整 19 项 -->
+  <div class="sp-menu" id="spMenu">
+    <div class="sp-menu-item" data-menu-id="ccs-fastqa-chatgpt-quick" data-menu-type="fastqa-quick" data-engine-id="chatgpt"><span class="sp-item-icon">🤖</span><span class="sp-item-title">速答 · ChatGPT</span></div>
+    <div class="sp-menu-item" data-menu-id="ccs-fastqa-claude-quick" data-menu-type="fastqa-quick" data-engine-id="claude"><span class="sp-item-icon">🧠</span><span class="sp-item-title">速答 · Claude</span></div>
+    <div class="sp-separator"></div>
+    <div class="sp-menu-item" data-menu-id="ccs-baidu" data-menu-type="search" data-url-pattern="https://www.baidu.com/s?wd=${KEYWORD}"><span class="sp-item-icon">🐼</span><span class="sp-item-title">百度搜索</span></div>
+    <div class="sp-menu-item" data-menu-id="ccs-google" data-menu-type="search" data-url-pattern="https://www.google.com/search?q=${KEYWORD}"><span class="sp-item-icon">🔎</span><span class="sp-item-title">Google 搜索</span></div>
+    <div class="sp-separator"></div>
+    <div class="sp-menu-item" data-menu-id="ccs-chatgpt" data-menu-type="ai-chat" data-url-pattern="https://chatgpt.com/?q=${KEYWORD}"><span class="sp-item-icon">🤖</span><span class="sp-item-title">ChatGPT</span></div>
+    <div class="sp-menu-item" data-menu-id="ccs-claude" data-menu-type="ai-chat" data-url-pattern="https://claude.ai/new?q=${KEYWORD}"><span class="sp-item-icon">🧠</span><span class="sp-item-title">Claude</span></div>
+    <div class="sp-menu-item" data-menu-id="ccs-google-ai-chat" data-menu-type="ai-chat" data-url-pattern="https://www.google.com/search?udm=50&amp;ie=UTF-8&amp;oe=UTF-8&amp;q=${KEYWORD}"><span class="sp-item-icon">✨</span><span class="sp-item-title">Google AI 模式</span></div>
+    <div class="sp-separator"></div>
+    <div class="sp-menu-item" data-menu-id="ccs-google-translate" data-menu-type="translate" data-url-pattern="https://translate.google.com/?sl=auto&amp;tl=zh-CN&amp;text=${KEYWORD}"><span class="sp-item-icon">🔁</span><span class="sp-item-title">Google 翻译</span></div>
+  </div>
+
+  <!-- shared utilities (battle-tested，不是旧 sidepanel 屎山风格) -->
+  <script src="../shared/logger.js"></script>
+  <script src="../shared/runtimeClient.js"></script>
+  <script src="../shared/keywordClient.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+</html>
