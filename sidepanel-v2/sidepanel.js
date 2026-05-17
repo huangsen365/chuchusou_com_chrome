@@ -60,9 +60,7 @@
   // ===== DOM refs =====
   const $kw = document.getElementById('spKeyword');
   const $kwCopy = document.getElementById('spKeywordCopy');
-  // 留作 batch 4 voice 模块用，目前 lint 容许 _ 前缀的 unused 标识
-  const _$kwVoice = document.getElementById('spKeywordVoice');
-  void _$kwVoice;
+  const $kwVoice = document.getElementById('spKeywordVoice');
   const $clipboardBtn = document.getElementById('spClipboardBtn');
   const $tipWarn = document.getElementById('spPinTipWarn');
   const $tipPopover = document.getElementById('spPinTipPopover');
@@ -98,6 +96,11 @@
   let currentTabId = null;
   let currentTabUrl = '';
   let refreshTimer = null;
+
+  // Voice 模块（lazy load）
+  let voicePanel = null;
+  let voiceEnabled = false;
+  let voiceLoadPromise = null;
 
   // 封面状态
   let coverConfig = null;
@@ -677,15 +680,118 @@
             setKeyword(message.keyword.text || message.keyword.raw || '');
             return false;
           }
+          // Voice 模块相关 push（仅在已 lazy load 时转发）
+          if (message.action === 'ccsVoicePermissionGranted' ||
+              message.action === 'ccsVoiceVisibleRecognized' ||
+              message.action === 'ccsVoiceVisibleError') {
+            if (voicePanel) voicePanel.handleMessage(message.action, message);
+            return false;
+          }
         } catch (err) { console.warn('[sp-v2] onMessage 错误:', err); }
         return false;
       });
     } catch (_) {}
   }
 
+  // ===== Voice lazy load =====
+  // 启动期读 ccs_voice_enabled，true 才显示 🎤 按钮；点了才 dynamic load voice.js
+  function bindVoiceEntry() {
+    chrome.storage.local.get(['ccs_voice_enabled'], (r) => {
+      voiceEnabled = r.ccs_voice_enabled === true;
+      updateVoiceBtnVisibility();
+    });
+    if ($kwVoice) {
+      $kwVoice.addEventListener('click', async () => {
+        if (!voiceEnabled) { showToast('请先到 popup 设置启用语音功能'); return; }
+        try {
+          await ensureVoiceLoaded();
+          if (voicePanel) voicePanel.start();
+        } catch (err) {
+          console.warn('[sp-v2] voice 加载失败:', err);
+          showToast('语音模块加载失败');
+        }
+      });
+    }
+    // storage 监听 voice toggle 变化（popup 改了立即同步）
+    try {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local' || !('ccs_voice_enabled' in changes)) return;
+        voiceEnabled = changes.ccs_voice_enabled.newValue === true;
+        updateVoiceBtnVisibility();
+        if (!voiceEnabled && voicePanel) voicePanel.cancel();
+      });
+    } catch (_) {}
+  }
+
+  function updateVoiceBtnVisibility() {
+    if (!$kwVoice) return;
+    // 显示条件：voiceEnabled + 关键字非空（让用户先有 keyword 再点 🎤）
+    $kwVoice.hidden = !(voiceEnabled && currentKw);
+  }
+
+  function ensureVoiceLoaded() {
+    if (voicePanel) return Promise.resolve();
+    if (voiceLoadPromise) return voiceLoadPromise;
+    voiceLoadPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'voice.js';
+      s.onload = () => {
+        if (!globalThis.CCSVoice?.create) { reject(new Error('CCSVoice 未注册')); return; }
+        voicePanel = globalThis.CCSVoice.create({
+          showToast,
+          getKeyword: () => currentKw,
+          // 候选词被选中 → 走 executeMenuAction（voice "选引擎"，keyword 用当前已选）
+          onPick: (item) => {
+            const payload = {
+              action: 'executeMenuAction',
+              menuItemId: item.id,
+              menuType: item.type || 'search',
+              keyword: currentKw,
+              urlPattern: item.urlPattern,
+              engineId: item.engineId,
+              actionType: item.action,
+              purpose: item.purpose
+            };
+            try {
+              const client = globalThis.CCSRuntimeClient;
+              if (client?.sendRuntimeMessage) client.sendRuntimeMessage(payload, { timeoutMs: 5000, retries: 1 });
+              else chrome.runtime.sendMessage(payload).catch(() => {});
+            } catch (_) {}
+          },
+          // 候选引擎集合：从 prebuild 注入的菜单里取所有 leaf search/ai-chat/translate 类
+          collectEngineItems: () => {
+            const items = [];
+            const validTypes = new Set(['search', 'ai-chat', 'ai-search', 'ecommerce', 'translate', 'portal']);
+            $menu.querySelectorAll('.sp-menu-item[data-menu-id]').forEach((el) => {
+              const type = el.dataset.menuType || '';
+              if (!validTypes.has(type)) return;
+              items.push({
+                id: el.dataset.menuId || '',
+                type,
+                title: el.querySelector('.sp-item-title')?.textContent || '',
+                icon: el.querySelector('.sp-item-icon')?.textContent || '',
+                urlPattern: el.dataset.urlPattern || '',
+                engineId: el.dataset.engineId || ''
+              });
+            });
+            return items;
+          }
+        });
+        resolve();
+      };
+      s.onerror = (e) => { voiceLoadPromise = null; reject(e); };
+      document.head.appendChild(s);
+    });
+    return voiceLoadPromise;
+  }
+
+  // 关键字变化时刷新 🎤 按钮可见性
+  document.addEventListener('sp-keyword-change', () => updateVoiceBtnVisibility());
+
   // ===== 启动 =====
   bindEvents();
   bindPickerEvents();
+  bindVoiceEntry();
   queryActiveTab().then(loadKeyword);
   initPin();   // 并行拉 storage + coverPrompts.json，启动后渲染封面卡片
 })();

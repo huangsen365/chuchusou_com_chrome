@@ -285,11 +285,83 @@ body {
 .sp-pin-save:hover { background: #d8eaff; }
 .sp-pin-save:disabled { background: #f0f0f0; border-color: #ddd; color: #aaa; cursor: not-allowed; }
 
-/* ===== 语音面板（batch 4 实现，内部 DOM 由 voice.js 注入）===== */
+/* ===== 语音面板（内部 DOM 由 voice.js 注入）===== */
 .sp-voice {
   padding: 10px 12px;
   background: #f8f4ff;
   border-bottom: 1px solid #e8e0f0;
+  font-size: 12px;
+}
+.sp-voice-intro h4 { margin: 0 0 6px; font-size: 13px; }
+.sp-voice-intro-list { margin: 0 0 8px; padding-left: 18px; color: #555; }
+.sp-voice-intro-list li { margin: 2px 0; }
+.sp-voice-intro-actions { display: flex; gap: 6px; }
+.sp-voice-intro-ok, .sp-voice-intro-cancel,
+.sp-voice-retry, .sp-voice-cancel {
+  padding: 4px 10px;
+  border: 1px solid #d5d5d5;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.sp-voice-intro-ok, .sp-voice-retry { background: #e8d8ff; border-color: #c0a0e0; color: #5a3a8e; }
+.sp-voice-intro-ok:hover, .sp-voice-retry:hover { background: #d8c5ff; }
+.sp-voice-intro-cancel, .sp-voice-cancel { background: #fafafa; color: #555; }
+.sp-voice-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  border-radius: 4px;
+  background: #fff;
+  border: 1px solid #e0d0f0;
+}
+.sp-voice-status.recording { background: #fff0d0; border-color: #f0c060; }
+.sp-voice-status.error { background: #ffe0e0; border-color: #f0c0c0; color: #c00; }
+.sp-voice-status.done { background: #d8f0d8; border-color: #a0d0a0; color: #1a5a1a; }
+.sp-voice-status-icon { font-size: 14px; }
+.sp-voice-help { background: #fff; padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px; margin-bottom: 6px; }
+.sp-voice-help-text { margin: 0 0 6px; color: #555; }
+.sp-voice-help-btn {
+  background: #e8d8ff;
+  border: 1px solid #c0a0e0;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #5a3a8e;
+}
+.sp-voice-list { list-style: none; padding: 0; margin: 0 0 6px; max-height: 240px; overflow-y: auto; }
+.sp-voice-list li { margin-bottom: 4px; }
+.sp-voice-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+}
+.sp-voice-item:hover { background: #f5f5f5; }
+.sp-voice-item.top { border-color: #c0a0e0; background: #f8f0ff; }
+.sp-voice-item-icon { font-size: 14px; }
+.sp-voice-item-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-voice-item-bar { display: inline-block; width: 60px; height: 6px; background: #eee; border-radius: 3px; position: relative; }
+.sp-voice-item-bar-fill { display: block; height: 100%; background: #c0a0e0; border-radius: 3px; }
+.sp-voice-item-pct { color: #888; font-size: 10px; min-width: 28px; text-align: right; }
+.sp-voice-actions { display: flex; gap: 6px; }
+
+.sp-keyword-voice.recording {
+  animation: sp-voice-pulse 1s infinite;
+}
+@keyframes sp-voice-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
 }
 
 /* ===== 菜单 ===== */
