@@ -210,10 +210,11 @@
     </div>
   </div>
 
-  <!-- 共享：popup + sidepanel 共用的关键字获取客户端（必须在 popup.js 之前） -->
-  <script src="../shared/keywordClient.js"></script>
-  <!-- 共享：popup 菜单结构构建器（同源纯函数，与 background 同源 SSoT） -->
-  <script src="../shared/menuStructureBuilder.js"></script>
-  <script src="popup.js"></script>
+  <!-- v1.6.19 Step 7: defer 让 3 个脚本与 HTML 解析并行（浏览器维持顺序，
+       在 DOMContentLoaded 前同步执行）。比起裸 script 的串行 fetch + parse，
+       static 骨架先出现的体感更稳。 -->
+  <script src="../shared/keywordClient.js" defer></script>
+  <script src="../shared/menuStructureBuilder.js" defer></script>
+  <script src="popup.js" defer></script>
 </body>
 </html>

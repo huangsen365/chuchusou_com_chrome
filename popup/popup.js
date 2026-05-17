@@ -22,18 +22,22 @@ class PopupMenuRenderer {
   }
 
   async init() {
+    const T0 = performance.now();
+    const trace = { t0: T0, phases: [] };
+    const mark = (label) => trace.phases.push({ label, ms: +(performance.now() - T0).toFixed(1) });
     performance.mark('ccs-popup-start');
     let renderSource = 'unknown';
     try {
       this.loadVersion();
       this.bindEvents();
+      mark('bind');
       this.startKeywordLoad();
-      this.initPinnedCover();
       this._preloadEnableState();
+      mark('preload');
 
       // v1.6.19：优先读编译期预生成的 popup-menu-prebuilt.json（1 个 fetch ~5-15ms），
       // 命中失败再 fallback 到 6 fetch + builder（~30-50ms）。两条路径都不依赖 SW，
-      // 冷热表现一致。
+      // 冷热表现一致。Prebuilt 命中时同时填充 _cachedCoverConfig 给 initPinnedCover 共享。
       let menuStructure = await this._tryReadPrebuilt();
       if (menuStructure) {
         renderSource = 'prebuilt-json';
@@ -41,6 +45,9 @@ class PopupMenuRenderer {
         menuStructure = await this._buildMenuFromFetch();
         renderSource = 'local-fetch';
       }
+      mark('menu-fetched');
+      // pinned cover 在 prebuilt 之后起，复用同一份 coverConfig 避免重复 fetch
+      this.initPinnedCover();
 
       if (!menuStructure) {
         throw new Error('菜单结构构建失败');
@@ -48,12 +55,16 @@ class PopupMenuRenderer {
 
       this.config = menuStructure;
       this.render();
+      mark('rendered');
       performance.mark('ccs-popup-rendered');
       try {
         performance.measure('ccs-popup-ttfb', 'ccs-popup-start', 'ccs-popup-rendered');
         const m = performance.getEntriesByName('ccs-popup-ttfb')[0];
         if (m) console.log(`[触触搜][PERF] popup TTFB: ${m.duration.toFixed(1)}ms (${renderSource})`);
       } catch (_) { /* perf 失败无所谓 */ }
+      trace.source = renderSource;
+      trace.ttfb = +(performance.now() - T0).toFixed(1);
+      this._dumpPerfTrace(trace);
     } catch (error) {
       console.error('[触触搜] Popup 初始化失败:', error);
       this.showError('加载失败，请重试');
@@ -63,6 +74,24 @@ class PopupMenuRenderer {
     // 后台增强（不阻塞首屏）
     // 设置面板按需 lazy load —— 用户点 ⚙️ 时才跑 initSettings()。
     // 但启用/禁用状态影响底部按钮配色，仍轻量预读一次。
+  }
+
+  // v1.6.19 Step 8：生产诊断 trace。每次 popup 打开把分阶段耗时写 storage，
+  // 保留最近 20 次记录。用户报"卡顿"时可在设置面板→导出菜单状态拿到这些
+  // 数据反馈给开发者真实生产 TTFB。零控制台噪音（仅 debug 模式打印）。
+  _dumpPerfTrace(trace) {
+    try {
+      chrome.storage.local.get(['ccs_popup_perf_trace', 'ccs_debug'], (r) => {
+        const arr = Array.isArray(r?.ccs_popup_perf_trace) ? r.ccs_popup_perf_trace : [];
+        arr.push({ ts: Date.now(), ...trace });
+        // 保留最近 20 条
+        const trimmed = arr.slice(-20);
+        chrome.storage.local.set({ ccs_popup_perf_trace: trimmed });
+        if (r?.ccs_debug) {
+          console.log('[触触搜][PERF-TRACE]', JSON.stringify(trace));
+        }
+      });
+    } catch (_) { /* storage 异常也无所谓 */ }
   }
 
   // v1.6.19 优先路径：编译期预生成的菜单结构 JSON（1 个 fetch）
@@ -75,6 +104,8 @@ class PopupMenuRenderer {
       if (data.version && currentVersion && data.version !== currentVersion) return null;
       const s = data.structure;
       if (!s || !Array.isArray(s.groups) || s.groups.length === 0) return null;
+      // v1.6.19 Step 6：cover 也内联了，缓存给 initPinnedCover 共享
+      if (data.coverConfig) this._cachedCoverConfig = data.coverConfig;
       return s;
     } catch (_) {
       return null;
@@ -92,6 +123,7 @@ class PopupMenuRenderer {
       this.fetchJSON('config/engines.json')
     ]);
     if (!unifiedConfig) return null;
+    if (cover) this._cachedCoverConfig = cover;  // initPinnedCover 复用，避免重复 fetch
     return CCSMenuStructureBuilder.build({
       unifiedConfig,
       enginesConfig: engines,
@@ -481,6 +513,8 @@ class PopupMenuRenderer {
   }
 
   async loadCoverConfig() {
+    // v1.6.19 Step 6：优先用 _tryReadPrebuilt 缓存的 coverConfig（已在主 fetch 里拿过）
+    if (this._cachedCoverConfig) return this._cachedCoverConfig;
     try {
       const url = chrome.runtime.getURL('prompts/coverPrompts.json');
       const response = await fetch(url);
@@ -1217,15 +1251,27 @@ class PopupMenuRenderer {
 
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      // v1.6.19 Step 8：附带本地 popup perf trace（最近 20 次启动耗时）
+      const perfTrace = await new Promise((resolve) => {
+        try {
+          chrome.storage.local.get(['ccs_popup_perf_trace'], (r) => resolve(r?.ccs_popup_perf_trace || []));
+        } catch (_) { resolve([]); }
+      });
 
       chrome.runtime.sendMessage({
         action: 'getMenuDebugInfo',
         tabId: tab?.id
       }, (response) => {
         if (response && response.success) {
-          this.showMenuDebugInfo(response.data);
+          const enriched = { ...response.data, _popupPerfTrace: perfTrace };
+          this.showMenuDebugInfo(enriched);
         } else {
-          this.showToast('获取菜单状态失败');
+          // 即使 SW 没响应，也把 perf trace 显示出来（用户报卡顿时这是关键证据）
+          if (perfTrace.length > 0) {
+            this.showMenuDebugInfo({ _popupPerfTrace: perfTrace, _swUnreachable: true });
+          } else {
+            this.showToast('获取菜单状态失败');
+          }
         }
 
         if (btn) {

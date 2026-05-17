@@ -74,6 +74,7 @@ export class PopupController {
   private _promptLibraryLoadPromise: Promise<void> | null = null
   private _cachedEnabled = true
   private _menuDelegationBound = false
+  private _cachedCoverConfig: CoverConfigShape | null = null
 
   // 常量已迁到 src/shared/coverPinConstants.ts，PopupController + PinnedAction 共享
 
@@ -84,7 +85,6 @@ export class PopupController {
       this.loadVersion()
       this.bindEvents()
       this.startKeywordLoad()
-      this.initPinnedCover()
       this._preloadEnableState()
 
       let menuStructure = await this._tryReadPrebuilt()
@@ -94,6 +94,8 @@ export class PopupController {
         menuStructure = await this._buildMenuFromFetch()
         renderSource = "local-fetch"
       }
+      // pinned cover 在 prebuilt 之后起，复用 _cachedCoverConfig 避免重复 fetch
+      this.initPinnedCover()
       if (!menuStructure) throw new Error("菜单结构构建失败")
 
       this.config = menuStructure
@@ -114,7 +116,7 @@ export class PopupController {
   private async _tryReadPrebuilt(): Promise<MenuStructure | null> {
     try {
       const data = await this.fetchJSON("popup/popup-menu-prebuilt.json") as
-        | { version?: string; structure?: MenuStructure }
+        | { version?: string; structure?: MenuStructure; coverConfig?: CoverConfigShape }
         | null
       if (!data) return null
       const ch = getChrome()
@@ -122,6 +124,8 @@ export class PopupController {
       if (data.version && currentVersion && data.version !== currentVersion) return null
       const s = data.structure
       if (!s || !Array.isArray(s.groups) || s.groups.length === 0) return null
+      // v1.6.19 Step 6：cover 内联，给 initPinnedCover 复用
+      if (data.coverConfig) this._cachedCoverConfig = data.coverConfig
       return s
     } catch (_) { return null }
   }
@@ -136,6 +140,7 @@ export class PopupController {
       this.fetchJSON("config/engines.json")
     ])
     if (!unifiedConfig) return null
+    if (cover) this._cachedCoverConfig = cover as CoverConfigShape  // initPinnedCover 复用
     return CCSMenuStructureBuilder.build({
       unifiedConfig: unifiedConfig as Parameters<typeof CCSMenuStructureBuilder.build>[0]["unifiedConfig"],
       enginesConfig: engines as Parameters<typeof CCSMenuStructureBuilder.build>[0]["enginesConfig"],
@@ -425,6 +430,8 @@ export class PopupController {
   }
 
   async loadCoverConfig(): Promise<CoverConfigShape | null> {
+    // v1.6.19 Step 6：优先用主菜单 fetch 已缓存的 coverConfig
+    if (this._cachedCoverConfig) return this._cachedCoverConfig
     try {
       const url = getChrome().runtime?.getURL("prompts/coverPrompts.json")
       if (!url) return null

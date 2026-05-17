@@ -77,10 +77,13 @@ function main() {
     try { return JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"))?.version || "0.0.0" } catch (_) { return "0.0.0" }
   })()
 
+  // v1.6.19 Step 6: 把 coverConfig 也内联，让 popup initPinnedCover 不必再发
+  // 一次 fetch(prompts/coverPrompts.json) —— popup 启动总 fetch 数从 2 降到 1。
   const out = {
     version: manifestVersion,
     builtAt: new Date().toISOString(),
-    structure
+    structure,
+    coverConfig
   }
 
   const json = JSON.stringify(out)
