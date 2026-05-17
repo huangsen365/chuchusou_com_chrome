@@ -16,6 +16,8 @@
  * 全部 port 成 TS 之后，可以把 importScripts 列表逐个换成 import。
  */
 
+import { attachBaseBridge } from "./background/baseBridge"
+
 const sw = self as unknown as {
   importScripts: (...urls: string[]) => void
 }
@@ -65,6 +67,13 @@ sw.importScripts(
   absoluteUrl("background/init.js")
 )
 
-console.log("[触触搜][Plasmo] background SW bootstrap complete via importScripts bridge")
+// 在所有 legacy importScripts 完成后，覆盖 globalThis 上的 base.js 同名函数为
+// TS port 版本 —— 让 setMenuState / applyMenuTitle / updateMainMenuTitle 等
+// 关键路径走 src/background/*.ts 的 SSoT 实现。
+// 注意：base.js 自己在末尾给 globalThis.X = X 做了一次赋值；attachBaseBridge
+// 在那之后跑，所以 TS 版本最终生效。
+attachBaseBridge()
+
+console.log("[触触搜][Plasmo] background SW bootstrap complete via importScripts bridge + TS baseBridge")
 
 export {}
