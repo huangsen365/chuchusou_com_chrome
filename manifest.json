@@ -62,7 +62,7 @@
     }
   ],
   "action": {
-    "default_popup": "popup/popup.html",
+    "default_popup": "popup-v2/popup.html",
     "default_title": "触触搜",
     "default_icon": {
       "16": "icons/16x16.png",
