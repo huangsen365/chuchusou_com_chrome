@@ -119,25 +119,54 @@ class PopupMenuRenderer {
   }
 
   startKeywordLoad() {
-    // keyword 不属于首屏菜单结构，不能阻塞 popup 打开。storage 命中时先渲染，
-    // background 新鲜值回来后再更新；如果 fresh 为空且已有缓存，沿用缓存兜底。
-    this._keywordLoadPromise = CCSKeywordClient.requestKeyword(
-      CCSKeywordClient.INTENTS.POPUP_OPEN,
-      {
-        instantFromStorage: true,
-        onInstant: (cached) => {
-          if (!cached || !cached.text) return;
+    // v1.6.19：popup 首屏不发 sendMessage('getKeyword') —— 商店生产环境 SW 30s
+    // idle 即被回收，发消息会触发 SW 冷启动（importScripts 17 个 legacy + side
+    // effects ~500ms-2s），跟 popup 渲染抢 CPU 导致 "卡住打不开"。
+    // 改成：只读 storage 缓存（SW 写入选区时已经持久化）+ 监听 onChanged 实时刷
+    // 新值。用户点击菜单时 handleClick 会兜底发消息（用户已感知 popup 开了）。
+    this._keywordLoadPromise = (async () => {
+      try {
+        const tab = await CCSKeywordClient.getActiveTab();
+        if (!tab?.id) return;
+        this._activeTabId = tab.id;
+        this._activeTabUrl = tab.url || '';
+        const cached = await CCSKeywordClient.readInstantCache(tab.id, tab.url);
+        if (cached?.text) {
           this.applyKeyword(cached);
         }
+        // SW 后续写入 ccs_kw_<tabId>（例如内容脚本上报新选区）→ 自动刷新徽章
+        const storageKey = `ccs_kw_${tab.id}`;
+        this._kwStorageListener = (changes, areaName) => {
+          if (areaName !== 'local') return;
+          const change = changes[storageKey];
+          if (!change?.newValue) return;
+          if (change.newValue.url && this._activeTabUrl && change.newValue.url !== this._activeTabUrl) return;
+          this.applyKeyword({
+            text: change.newValue.text || '',
+            raw: change.newValue.raw || change.newValue.text || ''
+          });
+        };
+        try { chrome.storage.onChanged.addListener(this._kwStorageListener); } catch (_) { /* ignore */ }
+      } catch (error) {
+        console.warn('[触触搜] 关键字加载失败:', error);
       }
-    ).then((fresh) => {
-      if (fresh?.text || !this.keyword?.text) {
-        this.applyKeyword(fresh || { text: '', raw: '' });
-      }
-    }).catch((error) => {
-      console.warn('[触触搜] 关键字加载失败:', error);
-    });
+    })();
     return this._keywordLoadPromise;
+  }
+
+  // handleClick / executePinnedCover 兜底用：storage 没缓存（如刚开新 tab 还没
+  // 选词或 SW 死过 cache 丢失）时，用户点击之后才发消息唤醒 SW 拿关键字。
+  // 这条路径用户已经看到 popup 了，等 200-1500ms 拿关键字没有"打不开"的卡感。
+  async _ensureKeywordOrFetch() {
+    if (this.keyword.raw || this.keyword.text) return this.keyword;
+    try {
+      const fresh = await Promise.race([
+        CCSKeywordClient.requestKeyword(CCSKeywordClient.INTENTS.POPUP_OPEN),
+        new Promise((resolve) => setTimeout(() => resolve(null), 1500))
+      ]);
+      if (fresh?.text) this.applyKeyword(fresh);
+    } catch (_) { /* ignore */ }
+    return this.keyword;
   }
 
   applyKeyword(keyword) {
@@ -514,6 +543,7 @@ class PopupMenuRenderer {
       }
       purpose = customLine;
     }
+    await this._ensureKeywordOrFetch();
     const keyword = this.keyword.raw || this.keyword.text;
     const menuItemId = `ccs-cover-${category.id}-${engine.id}`;
     try {
@@ -539,12 +569,7 @@ class PopupMenuRenderer {
   }
 
   async handleClick(item) {
-    if (!(this.keyword.raw || this.keyword.text) && this._keywordLoadPromise) {
-      await Promise.race([
-        this._keywordLoadPromise,
-        new Promise((resolve) => setTimeout(resolve, 600))
-      ]);
-    }
+    await this._ensureKeywordOrFetch();
     const keyword = this.keyword.raw || this.keyword.text;
 
     // 发送消息给 background 执行
