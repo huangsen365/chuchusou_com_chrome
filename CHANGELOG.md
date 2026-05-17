@@ -1,5 +1,32 @@
 # 更新日志
 
+## v1.6.20 (2026-05-17)
+
+**内容脚本加固 + 小安全修补**。修 6 处长期潜在隐患：扩展 reload 时事件监听器叠加、底栏关闭后仍空转 2s 心跳、SPA 监控 observer 泄漏、黑名单管理 XSS 隐患、拖动悬浮面板掉帧、sidepanel 消息 handler 缺兜底。详细见 [releases/v1.6.20.md](./releases/v1.6.20.md)。
+
+### 🐛 修复
+
+- **扩展 reload 后事件监听器叠加**：content scripts 在 `document_start` + `all_frames: true` 下，每次扩展 reload / iframe 注入都会让 `content.js / dockbar.js` 重新跑顶层 IIFE，44 个匿名事件监听器全部叠加（reload 一次翻倍）。改：两文件顶部加 `globalThis.__ccs_*_initialized` 守卫，第二次注入直接 return。
+- **dockbar 底栏轮询无法停**：`dockbar.js` 起一个 2 秒 `setInterval` 检查底栏可见性，但返回值没存到任何变量 → 即使点 undock 或 close 关闭底栏，poller 仍每 2 秒空转。改：引用存到 `_visibilityTimer`，新增 `stopVisibilityTimer()/destroy()`，undock + close 路径自动调用清理。
+- **SPA 监控 observer 泄漏 + history wrap 嵌套**：`modules/realtimeUpdate.js` 的 `MutationObserver` 在局部 const，`stopMonitoring()` 不 disconnect；`history.pushState/replaceState` 包装没存原函数、没"已包装"标记，第二次 init 会把已包装版本再包一层。改：加 `_monitoring` 幂等守卫，observer/popstate listener/原函数都存到 this 上，stopMonitoring 走完整还原路径，包装函数加 `__ccs_wrapped` tag。
+- **黑名单管理理论 XSS**：popup 黑名单渲染把 host 名直接拼到 innerHTML 模板里、包括 `data-host="${host}"`，host 来自 chrome.storage 理论上可被恶意值覆盖。改：复用既有 `_escapeHtml` 模式，两处渲染前过 HTML 转义，data-host 属性也走转义防 `"` 破属性。
+- **sidepanel onMessage handler 签名缺残**：`sidepanel.js` 的 `chrome.runtime.onMessage.addListener((message) => ...)` 缺 sender/sendResponse 参数，且没顶层 try/catch；理论上 handler 抛错会带垮整个监听 stack。改：签名补全 `(message, sender, sendResponse)`，加 try/catch 兜底 + 非 object 兜底守卫。
+
+### 🔧 改进
+
+- **拖动悬浮面板更顺滑**：`modules/dragging.js` 的 mousemove 之前每像素触发 `handleDragging()`（含 `getBoundingClientRect` + 边界计算 + style 写入），一次拖拽 100-300 次回调全在主线程 layout。改走 `requestAnimationFrame` 合并 —— 每帧最多跑一次，视觉行为完全等价但主线程压力骤降，长任务（>50ms）应基本消失。
+
+### 🛠 技术改动
+
+- 6 个独立 commit，按 fix 类型分文件：
+  - `fix(content)` content.js + dockbar.js 幂等守卫
+  - `fix(dockbar)` setInterval 引用 + destroy 路径
+  - `fix(realtimeUpdate)` observer + history wrap 幂等
+  - `fix(popup)` blacklist HTML 转义
+  - `perf(dragging)` mousemove rAF 节流
+  - `fix(sidepanel)` onMessage 签名 + try/catch 兜底
+- **未动 SW / Plasmo build 链** —— v1.6.19 才修完 Status 15 + attach 时序，本轮专注 content side 隐患。`src/**/*.ts` / `background/*.js` 一行未改。
+
 ## v1.6.19 (2026-05-17)
 
 **修复 v1.6.18 zip Service Worker 起不来 + popup/sidepanel 装上首次打开卡顿**。两个独立 bug 一并修。详细见 [releases/v1.6.19.md](./releases/v1.6.19.md)。
