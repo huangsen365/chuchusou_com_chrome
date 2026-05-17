@@ -13,6 +13,19 @@
     <button class="copy" id="copy" type="button" title="复制关键字" hidden>📋</button>
   </header>
 
+  <!-- 封面生成器快捷启动（用户在侧边栏 pin 过风格才显示）-->
+  <section class="pin" id="pin" hidden>
+    <button class="pin-btn" id="pinBtn" type="button" title="用当前关键字 + pinned 风格一键生成封面">
+      <span class="pin-icon">🎨</span>
+      <span class="pin-meta">
+        <span class="pin-task">封面生成器</span>
+        <span class="pin-style" id="pinStyle">…</span>
+      </span>
+      <span class="pin-ratio" id="pinRatio" title="画面比例"></span>
+    </button>
+    <button class="pin-edit" id="pinEdit" type="button" title="到侧边栏改风格 / 比例">📑</button>
+  </section>
+
   <div class="menu" id="menu" role="menu">
     <div class="item" role="menuitem" data-id="ccs-fastqa-chatgpt-quick" data-tpl="https://chatgpt.com/?q=${KW}">
       <span class="icon">🤖</span><span class="label">速答 · ChatGPT</span>
@@ -43,9 +56,19 @@
     </div>
   </div>
 
+  <!-- 常用 toggle（点一下即生效，不展开二级面板）-->
+  <div class="quick" id="quick">
+    <button class="q" id="qEnable" type="button" title="启用/禁用扩展（影响悬浮面板、右键菜单）">
+      <span class="q-icon">⚡</span><span class="q-label" id="qEnableLabel">已启用</span>
+    </button>
+    <button class="q" id="qDebug" type="button" title="调试日志开关">
+      <span class="q-icon">🐞</span><span class="q-label" id="qDebugLabel">调试关</span>
+    </button>
+  </div>
+
   <footer class="ftr">
-    <a href="../popup/popup.html" target="_blank" rel="noopener" class="legacy" title="百问 / 优化 / 黑名单 / 调试 等">⚙️ 高级设置</a>
-    <a href="https://chuchusou.com" target="_blank" rel="noopener" class="site">chuchusou.com</a>
+    <button class="ftr-btn" id="openSP" type="button" title="打开侧边栏（封面生成器 + 完整菜单）">📑 侧边栏</button>
+    <a href="../popup/popup.html" target="_blank" rel="noopener" class="legacy" title="黑名单 / 语音 / 提示词库 / 调试导出 / 快捷键 等">⚙️ 高级设置</a>
   </footer>
 
   <script src="popup.js"></script>
