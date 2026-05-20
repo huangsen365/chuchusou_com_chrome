@@ -2418,6 +2418,11 @@ class PopupMenuRenderer {
 
 // 初始化：bundle 以 async 加载时可能晚于 DOMContentLoaded，需要 readyState 兜底。
 function bootPopupMenu() {
+  // GUARD：本 bundle 也被 offscreen prewarm (offscreen/prewarm.js) 注入到预热文档里执行——
+  // 预热文档没有 popup 的 DOM，init() 里 chrome.runtime.getManifest 在 offscreen Chrome 149 行为异常 +
+  // 后续 bindEvents/showError 全部撞 null。检测到 menuContainer 不在就跳过 init，
+  // 让 prewarm 只起"V8 cache / AV 扫描"预热作用，不再尝试初始化不存在的 UI。
+  if (!document.getElementById('menuContainer')) return;
   const boot = globalThis.__CCS_POPUP_BOOT__;
   try { boot?.teardown?.(); } catch (_) { /* ignore */ }
   const renderer = new PopupMenuRenderer();

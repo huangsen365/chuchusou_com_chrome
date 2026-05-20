@@ -1359,6 +1359,10 @@ function syncStickyTopPadding() {
 
 // bundle 以 async 加载时可能晚于 DOMContentLoaded，需要 readyState 兜底。
 function bootSidePanel() {
+  // GUARD：与 popup 同理。offscreen prewarm 把 sidepanel.bundle.js 也注入了预热文档，
+  // 那个文档没有 spMenu / spKeyword 等 DOM 元素，init() 会撞 null setProperty。
+  // 检测到 spMenu 不在就跳过 init，prewarm 仍能预热 V8 cache。
+  if (!document.getElementById('spMenu')) return;
   const boot = globalThis.__CCS_SIDEPANEL_BOOT__;
   try { boot?.teardown?.(); } catch (_) { /* ignore */ }
   syncStickyTopPadding();
