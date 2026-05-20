@@ -4,6 +4,7 @@ importScripts(
   './utils/TextUtils.js',
   './utils/TextLimits.js',
   './chatgptPromptRelay.js',
+  './urlSafety.js',
   // ↓ Logger.js 已被 src/background/Logger.ts (via baseBridge) 取代 ↓
   '../shared/menuStructureBuilder.js',
 

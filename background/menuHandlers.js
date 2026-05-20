@@ -20,6 +20,26 @@ async function openMenuUrlWithAIRelay(urlPattern, rawKeyword, fallbackUrl, meta 
       }
     }
   }
+  if (
+    urlPattern &&
+    typeof ccsPrepareRegularUrl === 'function' &&
+    typeof ccsOpenUrlWithRecovery === 'function'
+  ) {
+    try {
+      const prepared = ccsPrepareRegularUrl(urlPattern, rawKeyword, {
+        source: meta.source || 'context-menu',
+        menuId: meta.menuId || '',
+        engineId: meta.engineId || '',
+        tabId: meta.tabId
+      });
+      await ccsOpenUrlWithRecovery(prepared.url, prepared.record);
+      return;
+    } catch (error) {
+      if (typeof BG_DBG === 'function') {
+        BG_DBG('[openMenuUrlWithAIRelay] regular fallback', meta?.menuId || '', error);
+      }
+    }
+  }
   chrome.tabs.create({ url: fallbackUrl });
 }
 
@@ -397,7 +417,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       return;
     }
 
-    loadOptimizedPromptConfig().then((fullConfig) => {
+    loadOptimizedPromptConfig().then(async (fullConfig) => {
       if (!fullConfig) {
         chrome.tabs.sendMessage(tab.id, {
           action: 'showToast',
@@ -432,11 +452,28 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       const encodedPrompt = encodeURIComponent(prompt);
       let url = menuTarget.urlPattern.split('${PROMPT}').join(encodedPrompt);
       if (typeof ccsIsSupportedAIUrl === 'function' && ccsIsSupportedAIUrl(url)) {
-        openMenuUrlWithAIRelay(menuTarget.urlPattern, prompt, url, {
+        await openMenuUrlWithAIRelay(menuTarget.urlPattern, prompt, url, {
           source: 'optimized-prompt-context-menu',
           menuId: info.menuItemId,
           engineId: menuTarget.engineId || ''
         });
+      } else if (typeof ccsOpenUrlWithRecovery === 'function') {
+        const record = typeof ccsCreateUrlRecoveryRecord === 'function'
+          ? ccsCreateUrlRecoveryRecord({
+              kind: 'regular',
+              source: 'optimized-prompt-context-menu',
+              menuId: info.menuItemId,
+              engineId: menuTarget.engineId || '',
+              urlPattern: menuTarget.urlPattern || '',
+              originalText: prompt,
+              effectiveText: prompt,
+              targetUrl: url,
+              originalUrlLength: url.length,
+              finalUrlLength: url.length,
+              truncated: false
+            })
+          : null;
+        await ccsOpenUrlWithRecovery(url, record);
       } else {
         if (typeof enforceFinalUrlCap === 'function') url = enforceFinalUrlCap(url);
         chrome.tabs.create({ url });

@@ -380,6 +380,26 @@ async function ccsOpenMenuUrlWithAIRelay(urlPattern, text, fallbackUrl, meta = {
       }
     }
   }
+  if (
+    urlPattern &&
+    typeof ccsPrepareRegularUrl === 'function' &&
+    typeof ccsOpenUrlWithRecovery === 'function'
+  ) {
+    try {
+      const prepared = ccsPrepareRegularUrl(urlPattern, text, {
+        source: meta.source || 'execute-menu-action',
+        menuId: meta.menuId || '',
+        engineId: meta.engineId || '',
+        tabId: meta.tabId
+      });
+      await ccsOpenUrlWithRecovery(prepared.url, prepared.record);
+      return;
+    } catch (error) {
+      if (typeof BG_DBG === 'function') {
+        BG_DBG('[ccsOpenMenuUrlWithAIRelay] regular fallback', meta?.menuId || '', error);
+      }
+    }
+  }
   chrome.tabs.create({ url: fallbackUrl });
 }
 
@@ -537,6 +557,66 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     ccsAckPendingAIPromptForTab(pendingId, tabId)
       .then((ok) => respond({ ok }))
       .catch((error) => respond({ ok: false, error: error?.message || String(error) }));
+    return true;
+  }
+  if (request.action === 'ccsGetUrlRecovery') {
+    const tabId = typeof sender?.tab?.id === 'number' ? sender.tab.id : null;
+    const respond = ccsCreateSafeResponder(sendResponse, 'ccsGetUrlRecovery', ccsCreateRequestId('ccsGetUrlRecovery'), 3000);
+    if (tabId == null || typeof ccsReadUrlRecoveryForTab !== 'function') {
+      respond({ ok: false, error: 'missing-tab' });
+      return true;
+    }
+    ccsReadUrlRecoveryForTab(tabId)
+      .then((record) => {
+        if (!record || !(record.statusCode || record.error)) {
+          respond({ ok: false, error: 'recovery-not-found' });
+          return;
+        }
+        const summary = typeof ccsSummarizeUrlRecovery === 'function'
+          ? ccsSummarizeUrlRecovery(record)
+          : record;
+        respond({ ok: true, recovery: summary });
+      })
+      .catch((error) => respond({ ok: false, error: error?.message || String(error) }));
+    return true;
+  }
+  if (request.action === 'ccsGetUrlRecoveryText') {
+    const recoveryId = typeof request.recoveryId === 'string' ? request.recoveryId : '';
+    const field = request.field === 'effective' ? 'effective' : 'original';
+    const respond = ccsCreateSafeResponder(sendResponse, 'ccsGetUrlRecoveryText', recoveryId || ccsCreateRequestId('ccsGetUrlRecoveryText'), 3000);
+    if (!recoveryId || typeof ccsGetUrlRecoveryText !== 'function') {
+      respond({ ok: false, error: 'missing-recovery-id' });
+      return true;
+    }
+    ccsGetUrlRecoveryText(recoveryId, field)
+      .then((text) => {
+        if (typeof text !== 'string') {
+          respond({ ok: false, error: 'recovery-not-found' });
+          return;
+        }
+        respond({ ok: true, text });
+      })
+      .catch((error) => respond({ ok: false, error: error?.message || String(error) }));
+    return true;
+  }
+  if (request.action === 'ccsOpenUrlRecoverySafe') {
+    const recoveryId = typeof request.recoveryId === 'string' ? request.recoveryId : '';
+    const respond = ccsCreateSafeResponder(sendResponse, 'ccsOpenUrlRecoverySafe', recoveryId || ccsCreateRequestId('ccsOpenUrlRecoverySafe'), 5000);
+    if (!recoveryId || typeof ccsOpenUrlRecoverySafe !== 'function') {
+      respond({ ok: false, error: 'missing-recovery-id' });
+      return true;
+    }
+    ccsOpenUrlRecoverySafe(recoveryId, { active: true })
+      .then((result) => respond(result || { ok: false, error: 'open-failed' }))
+      .catch((error) => respond({ ok: false, error: error?.message || String(error) }));
+    return true;
+  }
+  if (request.action === 'ccsDismissUrlRecovery') {
+    const tabId = typeof sender?.tab?.id === 'number' ? sender.tab.id : null;
+    if (tabId != null && typeof ccsClearUrlRecoveryForTab === 'function') {
+      ccsClearUrlRecoveryForTab(tabId).catch(() => {});
+    }
+    sendResponse?.({ ok: true });
     return true;
   }
   if (request.action === 'getSidePanelState') {
@@ -734,7 +814,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               await ccsOpenMenuUrlWithAIRelay(urlPattern, effectiveKeyword, url, {
                 source: 'execute-menu-action',
                 menuId: menuItemId || '',
-                engineId: engineId || ''
+                engineId: engineId || '',
+                tabId
               });
               sendResponse({ success: true });
             } else {
@@ -1681,6 +1762,9 @@ chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
   // Clean up per-tab caches to prevent memory leaks and stale data
   // C 档重构：内存缓存 + storage 缓存一起清，走 KeywordService.clearTab
   KeywordService.clearTab(tabId);
+  if (typeof ccsClearUrlRecoveryForTab === 'function') {
+    ccsClearUrlRecoveryForTab(tabId).catch(() => {});
+  }
 
   // Clear currentMenuState if it belongs to the closed tab
   if (currentMenuState.tabId === tabId) {

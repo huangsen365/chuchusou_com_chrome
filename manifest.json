@@ -13,7 +13,8 @@
     "contextMenus",
     "scripting",
     "sidePanel",
-    "offscreen"
+    "offscreen",
+    "webRequest"
   ],
   "background": {
     "service_worker": "background/index.js"

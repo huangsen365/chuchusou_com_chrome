@@ -194,6 +194,24 @@ export default [
         ccsAckPendingChatGptPromptForTab: "writable",
         ccsOpenPreparedChatGptPromptUrl: "writable",
 
+        // URL safety / 4xx recovery exports
+        CCS_URL_SAFETY: "writable",
+        ccsBuildUrlFromPattern: "writable",
+        ccsTruncateTextForUrlPattern: "writable",
+        ccsPrepareRegularUrl: "writable",
+        ccsCreateUrlRecoveryRecord: "writable",
+        ccsPersistUrlRecoveryRecord: "writable",
+        ccsBindUrlRecoveryToTab: "writable",
+        ccsReadUrlRecoveryRecord: "writable",
+        ccsReadUrlRecoveryForTab: "writable",
+        ccsSummarizeUrlRecovery: "writable",
+        ccsOpenUrlWithRecovery: "writable",
+        ccsOpenUrlRecoverySafe: "writable",
+        ccsGetUrlRecoveryText: "writable",
+        ccsClearUrlRecoveryForTab: "writable",
+        ccsInstallUrlFailureMonitor: "writable",
+        ccsTryGetTextParam: "writable",
+
         // utils/Constants.js exports (URLBuilder SSoT shortcut)
         tryOpenMenuUrl: "writable",
 

@@ -448,6 +448,7 @@
   })();
 
   initAIPromptRelay();
+  initUrlRecoveryOverlay();
 
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     switch (request.action) {
@@ -504,6 +505,10 @@
         return true;
       case 'showToast':
         showInfoToast(request.message || '');
+        sendResponse?.({ ok: true });
+        return true;
+      case 'ccsShowUrlRecovery':
+        showUrlRecoveryOverlay(request.recovery || {});
         sendResponse?.({ ok: true });
         return true;
       case 'ccsFillChatGptPrompt':
@@ -696,6 +701,133 @@
       toast.style.opacity = '0';
       setTimeout(() => toast.remove(), 200);
     }, 2000);
+  }
+
+  function initUrlRecoveryOverlay() {
+    try {
+      if (window.top !== window) return;
+    } catch (_) {
+      return;
+    }
+    waitForDOMReady()
+      .then(() => sendRuntimeMessage({ action: 'ccsGetUrlRecovery' }))
+      .then((response) => {
+        if (response?.ok && response.recovery) {
+          showUrlRecoveryOverlay(response.recovery);
+        }
+      })
+      .catch(() => {});
+  }
+
+  function showUrlRecoveryOverlay(recovery) {
+    if (!recovery || !recovery.id || !document.body) return;
+    const existing = document.getElementById('ccs-url-recovery');
+    if (existing) existing.remove();
+
+    const statusText = recovery.statusCode
+      ? `HTTP ${recovery.statusCode}`
+      : (recovery.error || '页面打开失败');
+    const originalLength = Number(recovery.originalLength || 0);
+    const finalLength = Number(recovery.finalUrlLength || 0);
+
+    const wrapper = document.createElement('div');
+    wrapper.id = 'ccs-url-recovery';
+    wrapper.style.cssText = `
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      width: min(360px, calc(100vw - 40px));
+      z-index: 2147483647;
+      background: #111827;
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.16);
+      border-radius: 8px;
+      box-shadow: 0 18px 45px rgba(0,0,0,0.28);
+      font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    `;
+
+    const body = document.createElement('div');
+    body.style.cssText = 'padding: 14px 14px 12px;';
+
+    const title = document.createElement('div');
+    title.textContent = `触触搜检测到 ${statusText}`;
+    title.style.cssText = 'font-weight: 700; font-size: 14px; margin-bottom: 6px;';
+
+    const detail = document.createElement('div');
+    detail.textContent = recovery.truncated
+      ? `原内容 ${originalLength} 字，已生成安全版 URL（${finalLength} 字）。`
+      : `这次跳转由触触搜发起，可复制原内容或用安全方式重试。`;
+    detail.style.cssText = 'color: rgba(255,255,255,0.78); margin-bottom: 10px;';
+
+    const preview = document.createElement('div');
+    preview.textContent = recovery.originalPreview || '';
+    preview.style.cssText = `
+      display: ${recovery.originalPreview ? 'block' : 'none'};
+      max-height: 54px;
+      overflow: hidden;
+      color: rgba(255,255,255,0.62);
+      background: rgba(255,255,255,0.08);
+      border-radius: 6px;
+      padding: 8px;
+      margin-bottom: 10px;
+      word-break: break-word;
+    `;
+
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display: flex; gap: 8px; flex-wrap: wrap;';
+
+    const copyBtn = createRecoveryButton('复制原文');
+    copyBtn.addEventListener('click', () => {
+      sendRuntimeMessage({ action: 'ccsGetUrlRecoveryText', recoveryId: recovery.id, field: 'original' })
+        .then((response) => {
+          if (!response?.ok || typeof response.text !== 'string') throw new Error(response?.error || 'missing-text');
+          return copyToClipboard(response.text);
+        })
+        .then(() => showInfoToast('已复制原文'))
+        .catch(() => showErrorToast('复制失败'));
+    });
+
+    const retryBtn = createRecoveryButton('安全版重试');
+    retryBtn.addEventListener('click', () => {
+      sendRuntimeMessage({ action: 'ccsOpenUrlRecoverySafe', recoveryId: recovery.id })
+        .then((response) => {
+          if (!response?.ok) throw new Error(response?.error || 'open-failed');
+          showInfoToast('已打开安全版');
+        })
+        .catch(() => showErrorToast('重试失败'));
+    });
+
+    const closeBtn = createRecoveryButton('关闭');
+    closeBtn.addEventListener('click', () => {
+      wrapper.remove();
+      sendRuntimeMessage({ action: 'ccsDismissUrlRecovery' }).catch(() => {});
+    });
+
+    actions.append(copyBtn, retryBtn, closeBtn);
+    body.append(title, detail, preview, actions);
+    wrapper.append(body);
+    document.body.appendChild(wrapper);
+  }
+
+  function createRecoveryButton(label) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.style.cssText = `
+      appearance: none;
+      border: 1px solid rgba(255,255,255,0.22);
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      border-radius: 6px;
+      padding: 6px 9px;
+      cursor: pointer;
+      font: inherit;
+      white-space: nowrap;
+    `;
+    button.addEventListener('mouseenter', () => { button.style.background = 'rgba(255,255,255,0.18)'; });
+    button.addEventListener('mouseleave', () => { button.style.background = 'rgba(255,255,255,0.1)'; });
+    return button;
   }
 
   function initAIPromptRelay() {

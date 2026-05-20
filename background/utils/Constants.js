@@ -287,6 +287,7 @@ function tryOpenMenuUrl(menuItemId, rawKeyword, options = {}) {
     let url = ub.build(menuItemId, { raw: effectiveKeyword, normalized: effectiveKeyword });
     if (!url) return false;
     if (typeof enforceFinalUrlCap === 'function') url = enforceFinalUrlCap(url);
+
     if (
       typeof ccsIsSupportedAIUrl === 'function' &&
       typeof ccsPrepareAIPromptUrl === 'function' &&
@@ -299,6 +300,17 @@ function tryOpenMenuUrl(menuItemId, rawKeyword, options = {}) {
       })
         .then((preparedUrl) => ccsOpenPreparedAIPromptUrl(preparedUrl))
         .catch(() => chrome.tabs.create({ url }));
+    } else if (
+      urlTemplate &&
+      typeof ccsPrepareRegularUrl === 'function' &&
+      typeof ccsOpenUrlWithRecovery === 'function'
+    ) {
+      const prepared = ccsPrepareRegularUrl(urlTemplate, effectiveKeyword, {
+        source: 'direct-regular-menu',
+        menuId: menuItemId,
+        tabId: options.tabId
+      });
+      ccsOpenUrlWithRecovery(prepared.url, prepared.record).catch(() => chrome.tabs.create({ url: prepared.url }));
     } else {
       chrome.tabs.create({ url });
     }

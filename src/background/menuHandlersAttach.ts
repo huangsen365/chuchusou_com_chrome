@@ -354,7 +354,7 @@ export function attachMenuHandlers(): void {
         g.chrome?.tabs?.sendMessage(tab?.id ?? -1, { action: "showToast", message: "没有选中文本，无法生成优化后的提示词" })?.catch?.(() => {})
         return
       }
-      g.loadOptimizedPromptConfig?.().then((fullConfig: any) => {
+      g.loadOptimizedPromptConfig?.().then(async (fullConfig: any) => {
         if (!fullConfig) {
           g.chrome?.tabs?.sendMessage(tab?.id ?? -1, { action: "showToast", message: "提示词模板加载失败" })?.catch?.(() => {})
           return
@@ -379,7 +379,38 @@ export function attachMenuHandlers(): void {
         const encodedPrompt = encodeURIComponent(prompt)
         let url = menuTarget.urlPattern.split("${PROMPT}").join(encodedPrompt)
         if (typeof g.enforceFinalUrlCap === "function") url = g.enforceFinalUrlCap(url)
-        g.chrome?.tabs?.create({ url })
+        if (
+          typeof g.ccsIsSupportedAIUrl === "function" &&
+          typeof g.ccsPrepareAIPromptUrl === "function" &&
+          typeof g.ccsOpenPreparedAIPromptUrl === "function" &&
+          g.ccsIsSupportedAIUrl(url)
+        ) {
+          const preparedUrl = await g.ccsPrepareAIPromptUrl(menuTarget.urlPattern, prompt, {
+            source: "optimized-prompt-context-menu",
+            menuId: info.menuItemId,
+            engineId: menuTarget.engineId || ""
+          })
+          await g.ccsOpenPreparedAIPromptUrl(preparedUrl)
+        } else if (typeof g.ccsOpenUrlWithRecovery === "function") {
+          const record = typeof g.ccsCreateUrlRecoveryRecord === "function"
+            ? g.ccsCreateUrlRecoveryRecord({
+                kind: "regular",
+                source: "optimized-prompt-context-menu",
+                menuId: info.menuItemId,
+                engineId: menuTarget.engineId || "",
+                urlPattern: menuTarget.urlPattern || "",
+                originalText: prompt,
+                effectiveText: prompt,
+                targetUrl: url,
+                originalUrlLength: url.length,
+                finalUrlLength: url.length,
+                truncated: false
+              })
+            : null
+          await g.ccsOpenUrlWithRecovery(url, record)
+        } else {
+          g.chrome?.tabs?.create({ url })
+        }
       }).catch(() => {
         g.chrome?.tabs?.sendMessage(tab?.id ?? -1, { action: "showToast", message: "提示词模板加载失败" })?.catch?.(() => {})
       })
@@ -407,6 +438,20 @@ export function attachMenuHandlers(): void {
         })
           .then((preparedUrl: string) => g.ccsOpenPreparedAIPromptUrl(preparedUrl))
           .catch(() => g.chrome?.tabs?.create({ url }))
+        return
+      }
+      if (
+        urlPattern &&
+        typeof g.ccsPrepareRegularUrl === "function" &&
+        typeof g.ccsOpenUrlWithRecovery === "function"
+      ) {
+        const prepared = g.ccsPrepareRegularUrl(urlPattern, finalNormalized, {
+          source: "context-menu-fallback",
+          menuId: info.menuItemId,
+          tabId: tab?.id
+        })
+        g.ccsOpenUrlWithRecovery(prepared.url, prepared.record)
+          .catch(() => g.chrome?.tabs?.create({ url: prepared.url }))
         return
       }
       g.chrome?.tabs?.create({ url })

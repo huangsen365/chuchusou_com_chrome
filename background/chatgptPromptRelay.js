@@ -10,7 +10,7 @@
   const RELAY_QUERY_KEY = 'ccs_pp';
   const STORAGE_PREFIX = 'ccs_ai_pending_prompt_';
   const TAB_STORAGE_PREFIX = 'ccs_ai_pending_tab_';
-  const DIRECT_URL_LIMIT = 5500;
+  const DIRECT_URL_LIMIT = 1800;
   const RELAY_TTL_MS = 30 * 60 * 1000;
   const AI_QUERY_PARAM_KEYS = ['prompt', 'q', 'query', 'text'];
   const memoryStore = new Map();
@@ -275,10 +275,45 @@
 
   async function ccsOpenPreparedAIPromptUrl(url, options = {}) {
     const pendingId = ccsExtractRelayIdFromUrl(url);
+    if (!globalThis.chrome?.tabs?.create) return null;
+
+    let recoveryRecord = null;
+    if (pendingId && typeof globalThis.ccsCreateUrlRecoveryRecord === 'function') {
+      try {
+        const pending = await ccsReadPendingAIPrompt(pendingId);
+        if (pending?.prompt) {
+          recoveryRecord = globalThis.ccsCreateUrlRecoveryRecord({
+            kind: 'ai',
+            source: pending.source || 'ai-prompt-relay',
+            menuId: pending.menuId || '',
+            engineId: pending.engineId || pending.relayEngine || '',
+            urlPattern: pending.urlPattern || '',
+            originalText: pending.prompt,
+            effectiveText: pending.prompt,
+            targetUrl: url,
+            originalUrlLength: pending.directUrlLength || 0,
+            finalUrlLength: url.length,
+            truncated: false,
+            pendingId
+          });
+        }
+      } catch (_) {
+        recoveryRecord = null;
+      }
+    }
+
+    if (typeof globalThis.ccsOpenUrlWithRecovery === 'function') {
+      const tab = await globalThis.ccsOpenUrlWithRecovery(url, recoveryRecord, options);
+      if (pendingId && typeof tab?.id === 'number') {
+        ccsBindPendingAIPromptToTab(pendingId, tab.id)
+          .then(() => ccsSchedulePendingPromptPush(tab.id, pendingId))
+          .catch(() => {});
+      }
+      return tab || null;
+    }
+
     const createOptions = { url, active: options.active };
     if (createOptions.active === undefined) delete createOptions.active;
-
-    if (!globalThis.chrome?.tabs?.create) return null;
 
     return new Promise((resolve, reject) => {
       try {
@@ -304,7 +339,7 @@
   async function ccsPrepareAIPromptUrl(urlPattern, prompt, meta = {}) {
     const directUrl = ccsBuildPromptUrl(urlPattern, prompt);
     const engine = ccsGetAIEngineForUrl(directUrl);
-    if (!engine || directUrl.length <= DIRECT_URL_LIMIT) {
+    if (!engine || (!meta.forceRelay && directUrl.length <= DIRECT_URL_LIMIT)) {
       return directUrl;
     }
 
@@ -320,7 +355,9 @@
       menuId: meta.menuId || '',
       categoryId: meta.categoryId || '',
       engineId: meta.engineId || engine,
-      relayEngine: engine
+      relayEngine: engine,
+      urlPattern: String(urlPattern || ''),
+      directUrlLength: directUrl.length
     };
     await ccsStorePendingAIPrompt(record);
 
