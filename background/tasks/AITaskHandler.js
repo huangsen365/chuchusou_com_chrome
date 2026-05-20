@@ -16,6 +16,23 @@
  * 回落到老逻辑。
  */
 
+async function buildAITaskPromptUrl(urlPattern, prompt, meta = {}) {
+  if (typeof ccsPrepareChatGptPromptUrl === 'function') {
+    return ccsPrepareChatGptPromptUrl(urlPattern, prompt, meta);
+  }
+  return String(urlPattern || '').split('${PROMPT}').join(encodeURIComponent(prompt || ''));
+}
+
+async function openAITaskUrl(url, active) {
+  if (typeof ccsOpenPreparedChatGptPromptUrl === 'function') {
+    await ccsOpenPreparedChatGptPromptUrl(url, { active });
+    return;
+  }
+  const opts = { url };
+  if (active !== undefined) opts.active = active;
+  chrome.tabs.create(opts);
+}
+
 /**
  * 执行一个 AI 任务。
  *
@@ -88,11 +105,16 @@ async function runAITask(options = {}) {
       // 每个 category 独立构造 prompt（注入它自己的 purpose）—— 这就是「打开以下全部预设风格」的意义
       const catPrompt = await AITaskRegistry.buildTaskPrompt(taskId, effectiveKeyword, { categoryId: cat.id, vars });
       if (!catPrompt) continue;
-      const encoded = encodeURIComponent(catPrompt);
-      let url = engine.urlPattern.split('${PROMPT}').join(encoded);
+      let url = await buildAITaskPromptUrl(engine.urlPattern, catPrompt, {
+        source: 'ai-task',
+        taskId,
+        categoryId: cat.id,
+        engineId: engine.id || '',
+        menuId: `${task.menuIdPrefix}-${cat.id}-${engine.id || ''}`
+      });
       if (typeof enforceFinalUrlCap === 'function') url = enforceFinalUrlCap(url);
       try {
-        chrome.tabs.create({ url, active: opened === 0 });
+        await openAITaskUrl(url, opened === 0);
         opened++;
       } catch (_) { /* ignore */ }
     }
@@ -101,7 +123,6 @@ async function runAITask(options = {}) {
 
   const prompt = await AITaskRegistry.buildTaskPrompt(taskId, effectiveKeyword, { categoryId, purposeOverride, vars });
   if (!prompt) return { success: false, error: 'template-invalid' };
-  const encodedPrompt = encodeURIComponent(prompt);
 
   if (openAll) {
     const engines = await AITaskRegistry.listTaskEngines(taskId, { categoryId });
@@ -109,10 +130,16 @@ async function runAITask(options = {}) {
     let opened = 0;
     for (const e of engines) {
       if (!e.urlPattern) continue;
-      let url = e.urlPattern.split('${PROMPT}').join(encodedPrompt);
+      let url = await buildAITaskPromptUrl(e.urlPattern, prompt, {
+        source: 'ai-task',
+        taskId,
+        categoryId: categoryId || '',
+        engineId: e.id || '',
+        menuId: e.menuId || ''
+      });
       if (typeof enforceFinalUrlCap === 'function') url = enforceFinalUrlCap(url);
       try {
-        chrome.tabs.create({ url, active: opened === 0 });
+        await openAITaskUrl(url, opened === 0);
         opened++;
       } catch (_) { /* ignore */ }
     }
@@ -123,9 +150,15 @@ async function runAITask(options = {}) {
   if (!engineId) return { success: false, error: 'missing-engine' };
   const urlPattern = await AITaskRegistry.getTaskEngineUrl(taskId, engineId, { categoryId });
   if (!urlPattern) return { success: false, error: 'engine-url-not-found' };
-  let url = urlPattern.split('${PROMPT}').join(encodedPrompt);
+  let url = await buildAITaskPromptUrl(urlPattern, prompt, {
+    source: 'ai-task',
+    taskId,
+    categoryId: categoryId || '',
+    engineId,
+    menuId: sampleMenuId
+  });
   if (typeof enforceFinalUrlCap === 'function') url = enforceFinalUrlCap(url);
-  chrome.tabs.create({ url });
+  await openAITaskUrl(url);
   return { success: true, opened: 1 };
 }
 

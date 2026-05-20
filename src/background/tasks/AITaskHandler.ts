@@ -46,6 +46,17 @@ export interface TextLimitsLike {
   enforceFinalUrlCap?: (url: string) => string
 }
 
+export type PromptUrlPreparer = (
+  urlPattern: string,
+  prompt: string,
+  meta?: Record<string, unknown>
+) => string | Promise<string>
+
+export type PromptUrlOpener = (
+  url: string,
+  options?: { active?: boolean }
+) => unknown | Promise<unknown>
+
 export interface AITaskHandlerDeps {
   registry: AITaskRegistryLike
   textLimits?: TextLimitsLike
@@ -53,6 +64,10 @@ export interface AITaskHandlerDeps {
   openTab?: (url: string, active?: boolean) => void
   /** Get a per-task storage var. Default: chrome.storage.local */
   getStorageItem?: (key: string) => Promise<unknown>
+  /** Prepare prompt URL, with ChatGPT long-prompt relay when available. */
+  preparePromptUrl?: PromptUrlPreparer
+  /** Open a prepared prompt URL, binding ChatGPT relay payloads to the new tab when available. */
+  openPromptUrl?: PromptUrlOpener
 }
 
 function defaultOpenTab(url: string, active?: boolean): void {
@@ -66,6 +81,23 @@ function defaultGetStorageItem(key: string): Promise<unknown> {
     if (!ch?.storage?.local?.get) { resolve(undefined); return }
     ch.storage.local.get([key], (data) => resolve(data?.[key]))
   })
+}
+
+function defaultPreparePromptUrl(urlPattern: string, prompt: string, meta: Record<string, unknown> = {}): string | Promise<string> {
+  const g = globalThis as unknown as { ccsPrepareChatGptPromptUrl?: PromptUrlPreparer }
+  if (typeof g.ccsPrepareChatGptPromptUrl === "function") {
+    return g.ccsPrepareChatGptPromptUrl(urlPattern, prompt, meta)
+  }
+  return String(urlPattern || "").split("${PROMPT}").join(encodeURIComponent(prompt || ""))
+}
+
+async function defaultOpenPromptUrl(url: string, options: { active?: boolean } = {}): Promise<void> {
+  const g = globalThis as unknown as { ccsOpenPreparedChatGptPromptUrl?: PromptUrlOpener }
+  if (typeof g.ccsOpenPreparedChatGptPromptUrl === "function") {
+    await g.ccsOpenPreparedChatGptPromptUrl(url, options)
+    return
+  }
+  defaultOpenTab(url, options.active)
 }
 
 /**
@@ -93,7 +125,21 @@ export async function runAITask(
   deps: AITaskHandlerDeps
 ): Promise<RunAITaskResult> {
   const { taskId, keyword, engineId, categoryId, openAll, tabId, purposeOverride } = options
-  const { registry, textLimits, openTab = defaultOpenTab, getStorageItem = defaultGetStorageItem } = deps
+  const {
+    registry,
+    textLimits,
+    openTab = defaultOpenTab,
+    getStorageItem = defaultGetStorageItem,
+    preparePromptUrl = defaultPreparePromptUrl
+  } = deps
+  const openPromptUrl: PromptUrlOpener = deps.openPromptUrl || (async (url, opts = {}) => {
+    const g = globalThis as unknown as { ccsOpenPreparedChatGptPromptUrl?: PromptUrlOpener }
+    if (typeof g.ccsOpenPreparedChatGptPromptUrl === "function") {
+      await g.ccsOpenPreparedChatGptPromptUrl(url, opts)
+      return
+    }
+    openTab(url, opts.active)
+  })
 
   if (!taskId || !registry) return { success: false, error: "registry-unavailable" }
   if (!keyword) return { success: false, error: "no-keyword" }
@@ -143,11 +189,16 @@ export async function runAITask(
         categoryId: cat.id, vars
       })
       if (!catPrompt) continue
-      const encoded = encodeURIComponent(catPrompt)
-      let url = engine.urlPattern.split("${PROMPT}").join(encoded)
+      let url = await preparePromptUrl(engine.urlPattern, catPrompt, {
+        source: "ai-task",
+        taskId,
+        categoryId: cat.id,
+        engineId: engine.id || "",
+        menuId: `${task.menuIdPrefix}-${cat.id}-${engine.id || ""}`
+      })
       if (textLimits?.enforceFinalUrlCap) url = textLimits.enforceFinalUrlCap(url)
       try {
-        openTab(url, opened === 0)
+        await openPromptUrl(url, { active: opened === 0 })
         opened++
       } catch (_) { /* noop */ }
     }
@@ -158,7 +209,6 @@ export async function runAITask(
     categoryId, purposeOverride, vars
   })
   if (!prompt) return { success: false, error: "template-invalid" }
-  const encodedPrompt = encodeURIComponent(prompt)
 
   // ---- openAll along engine axis ----
   if (openAll) {
@@ -167,10 +217,16 @@ export async function runAITask(
     let opened = 0
     for (const e of engines) {
       if (!e.urlPattern) continue
-      let url = e.urlPattern.split("${PROMPT}").join(encodedPrompt)
+      let url = await preparePromptUrl(e.urlPattern, prompt, {
+        source: "ai-task",
+        taskId,
+        categoryId: categoryId || "",
+        engineId: e.id || "",
+        menuId: e.menuId || ""
+      })
       if (textLimits?.enforceFinalUrlCap) url = textLimits.enforceFinalUrlCap(url)
       try {
-        openTab(url, opened === 0)
+        await openPromptUrl(url, { active: opened === 0 })
         opened++
       } catch (_) { /* noop */ }
     }
@@ -181,9 +237,15 @@ export async function runAITask(
   if (!engineId) return { success: false, error: "missing-engine" }
   const urlPattern = registry.getTaskEngineUrlFromTask?.(task, engineId, { categoryId })
   if (!urlPattern) return { success: false, error: "engine-url-not-found" }
-  let url = urlPattern.split("${PROMPT}").join(encodedPrompt)
+  let url = await preparePromptUrl(urlPattern, prompt, {
+    source: "ai-task",
+    taskId,
+    categoryId: categoryId || "",
+    engineId,
+    menuId: sampleMenuId
+  })
   if (textLimits?.enforceFinalUrlCap) url = textLimits.enforceFinalUrlCap(url)
-  openTab(url)
+  await openPromptUrl(url)
   return { success: true, opened: 1 }
 }
 

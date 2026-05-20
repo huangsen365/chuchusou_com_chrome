@@ -57,6 +57,16 @@
     }
   }
 
+  function isChatGptHost() {
+    try {
+      const host = window.location.hostname.toLowerCase();
+      return host === 'chatgpt.com' || host.endsWith('.chatgpt.com');
+    } catch (err) {
+      log('判断 ChatGPT 域名失败:', err);
+      return false;
+    }
+  }
+
   function readCurrentSelection() {
     try {
       const selection = window.getSelection();
@@ -235,6 +245,8 @@
     updateSelection('init', { immediate: true });
   })();
 
+  initChatGptPromptRelay();
+
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     switch (request.action) {
       case 'updateDebug':
@@ -292,6 +304,24 @@
         showInfoToast(request.message || '');
         sendResponse?.({ ok: true });
         return true;
+      case 'ccsFillChatGptPrompt': {
+        const text = typeof request.text === 'string' ? request.text : '';
+        if (!text) {
+          sendResponse?.({ ok: false, error: 'no-text' });
+          return true;
+        }
+        fillChatGptPrompt(text, { attempts: 80, intervalMs: 500 })
+          .then(async (result) => {
+            if (result.ok && request.pendingId) {
+              cleanupChatGptRelayUrl();
+              showInfoToast('已自动补充完整提示词，请确认后发送');
+              await sendRuntimeMessage({ action: 'ccsAckPendingChatGptPrompt', pendingId: request.pendingId });
+            }
+            sendResponse?.(result);
+          })
+          .catch((error) => sendResponse?.({ ok: false, error: error?.message || 'fill-failed' }));
+        return true;
+      }
       case 'fetchSelectionSnapshot': {
         const preferEmpty = !!request.preferEmpty;
         const live = readCurrentSelection();
@@ -452,6 +482,284 @@
       toast.style.opacity = '0';
       setTimeout(() => toast.remove(), 200);
     }, 2000);
+  }
+
+  function initChatGptPromptRelay() {
+    if (!isChatGptHost()) return;
+
+    let activeRequestKey = '';
+    let relayResolved = false;
+    let intervalId = null;
+    const trigger = () => {
+      if (relayResolved) return;
+      const pendingId = getChatGptPendingIdFromLocation();
+      const requestKey = pendingId || 'tab-bound';
+      if (requestKey === activeRequestKey) return;
+      activeRequestKey = requestKey;
+      requestAndFillPendingChatGptPrompt(pendingId)
+        .then(() => {
+          relayResolved = true;
+          if (intervalId) clearInterval(intervalId);
+        })
+        .catch((error) => {
+          log('ChatGPT prompt relay failed:', error);
+          activeRequestKey = '';
+        });
+    };
+
+    waitForDOMReady().then(trigger).catch(() => {});
+    window.addEventListener('hashchange', trigger);
+    window.addEventListener('popstate', trigger);
+
+    let ticks = 0;
+    intervalId = setInterval(() => {
+      ticks += 1;
+      trigger();
+      if (ticks >= 40 || relayResolved) {
+        clearInterval(intervalId);
+      }
+    }, 1000);
+  }
+
+  function getChatGptPendingIdFromLocation() {
+    try {
+      const url = new URL(window.location.href);
+      const fromQuery = sanitizeChatGptPendingId(url.searchParams.get('ccs_pp'));
+      if (fromQuery) return fromQuery;
+
+      const hashText = (url.hash || '').replace(/^#/, '');
+      const fromHashParams = sanitizeChatGptPendingId(new URLSearchParams(hashText).get('ccs_pp'));
+      if (fromHashParams) return fromHashParams;
+
+      const fromHash = hashText.match(/(?:^|[?&#])ccs_pp=([A-Za-z0-9_-]+)/);
+      return sanitizeChatGptPendingId(fromHash?.[1] || '');
+    } catch (err) {
+      log('读取 ChatGPT prompt relay id 失败:', err);
+      return '';
+    }
+  }
+
+  function sanitizeChatGptPendingId(value) {
+    const id = typeof value === 'string' ? value.trim() : '';
+    return /^[A-Za-z0-9_-]{6,80}$/.test(id) ? id : '';
+  }
+
+  async function requestAndFillPendingChatGptPrompt(pendingId) {
+    const response = await sendRuntimeMessage({
+      action: 'ccsGetPendingChatGptPrompt',
+      pendingId
+    });
+    if (!response?.ok || typeof response.prompt !== 'string') {
+      throw new Error(response?.error || 'pending-prompt-not-found');
+    }
+
+    const result = await fillChatGptPrompt(response.prompt, { attempts: 80, intervalMs: 500 });
+    if (!result.ok) {
+      throw new Error(result.error || 'fill-failed');
+    }
+
+    await sendRuntimeMessage({ action: 'ccsAckPendingChatGptPrompt', pendingId: response.pendingId || pendingId });
+    cleanupChatGptRelayUrl();
+    showInfoToast('已自动补充完整提示词，请确认后发送');
+    return result;
+  }
+
+  function fillChatGptPrompt(text, options = {}) {
+    const prompt = typeof text === 'string' ? text : '';
+    const attempts = Number.isFinite(options.attempts) ? options.attempts : 30;
+    const intervalMs = Number.isFinite(options.intervalMs) ? options.intervalMs : 400;
+
+    return new Promise((resolve) => {
+      let count = 0;
+      const tryFill = () => {
+        count += 1;
+        const result = fillChatGptPromptOnce(prompt);
+        if (result.ok || count >= attempts) {
+          resolve(result.ok ? result : { ok: false, error: result.error || 'composer-not-found' });
+          return;
+        }
+        setTimeout(tryFill, intervalMs);
+      };
+      waitForDOMReady().then(tryFill).catch(() => tryFill());
+    });
+  }
+
+  function fillChatGptPromptOnce(text) {
+    if (!text) return { ok: false, error: 'no-text' };
+    const target = findChatGptComposerTarget();
+    if (!target) return { ok: false, error: 'composer-not-found' };
+
+    try {
+      const tag = (target.tagName || '').toLowerCase();
+      if (tag === 'textarea' || tag === 'input') {
+        setInputLikeValue(target, text);
+      } else {
+        setContentEditableValue(target, text);
+      }
+      const verified = editableContainsText(target, text);
+      return verified ? { ok: true } : { ok: false, error: 'fill-not-verified' };
+    } catch (error) {
+      return { ok: false, error: error?.message || 'fill-failed' };
+    }
+  }
+
+  function findChatGptComposerTarget() {
+    const selectors = [
+      '#prompt-textarea',
+      '[data-testid="prompt-textarea"]',
+      'textarea[placeholder]',
+      'textarea',
+      '[contenteditable="true"][role="textbox"]',
+      '[contenteditable="true"]'
+    ];
+
+    for (const selector of selectors) {
+      const nodes = Array.from(document.querySelectorAll(selector));
+      const target = nodes.find(isEditableComposerCandidate);
+      if (target) return target;
+    }
+    return null;
+  }
+
+  function isEditableComposerCandidate(element) {
+    if (!(element instanceof HTMLElement)) return false;
+    const tag = (element.tagName || '').toLowerCase();
+    const editable = tag === 'textarea' || tag === 'input' || element.isContentEditable || element.getAttribute('contenteditable') === 'true';
+    if (!editable) return false;
+    if (element.disabled || element.readOnly) return false;
+    if (element.getAttribute('aria-disabled') === 'true') return false;
+    if (element.id === 'prompt-textarea' || element.getAttribute('data-testid') === 'prompt-textarea') return true;
+    return isElementVisibleEnough(element);
+  }
+
+  function isElementVisibleEnough(element) {
+    try {
+      const style = window.getComputedStyle(element);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  function setInputLikeValue(element, text) {
+    element.focus();
+    const proto = Object.getPrototypeOf(element);
+    const ownDescriptor = Object.getOwnPropertyDescriptor(element, 'value');
+    const protoDescriptor = proto ? Object.getOwnPropertyDescriptor(proto, 'value') : null;
+    const setter = protoDescriptor?.set || ownDescriptor?.set;
+    if (setter) setter.call(element, text);
+    else element.value = text;
+    dispatchEditableEvents(element);
+  }
+
+  function setContentEditableValue(element, text) {
+    element.focus();
+    pasteTextIntoContentEditable(element, text);
+    if (editableContainsText(element, text)) {
+      dispatchEditableEvents(element);
+      return;
+    }
+
+    try {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      const inserted = document.execCommand?.('insertText', false, text);
+      if (!inserted || !editableContainsText(element, text)) {
+        element.textContent = text;
+      }
+    } catch (_) {
+      element.textContent = text;
+    }
+    dispatchEditableEvents(element);
+  }
+
+  function pasteTextIntoContentEditable(element, text) {
+    try {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+
+      if (typeof window.DataTransfer !== 'function' || typeof window.ClipboardEvent !== 'function') return false;
+      const data = new window.DataTransfer();
+      data.setData('text/plain', text);
+      const event = new window.ClipboardEvent('paste', {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: data
+      });
+      element.dispatchEvent(event);
+      return true;
+    } catch (err) {
+      log('模拟粘贴完整提示词失败:', err);
+      return false;
+    }
+  }
+
+  function dispatchEditableEvents(element) {
+    element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function editableContainsText(element, text) {
+    const value = typeof element.value === 'string'
+      ? element.value
+      : (element.innerText || element.textContent || '');
+    if (value === text) return true;
+    const head = text.slice(0, Math.min(80, text.length));
+    const tail = text.slice(Math.max(0, text.length - 80));
+    return !!head && value.includes(head) && (!tail || value.includes(tail));
+  }
+
+  function cleanupChatGptRelayUrl() {
+    try {
+      const url = new URL(window.location.href);
+      let changed = false;
+      if (url.searchParams.has('ccs_pp')) {
+        url.searchParams.delete('ccs_pp');
+        changed = true;
+      }
+      const hashText = (url.hash || '').replace(/^#/, '');
+      if (hashText) {
+        const hashParams = new URLSearchParams(hashText);
+        if (hashParams.has('ccs_pp')) {
+          hashParams.delete('ccs_pp');
+          url.hash = hashParams.toString();
+          changed = true;
+        }
+      }
+      if (changed) {
+        window.history.replaceState(window.history.state, document.title, url.toString());
+      }
+    } catch (err) {
+      log('清理 ChatGPT relay URL 失败:', err);
+    }
+  }
+
+  function sendRuntimeMessage(message) {
+    return new Promise((resolve) => {
+      try {
+        if (!chrome?.runtime?.id) {
+          resolve({ ok: false, error: 'runtime-unavailable' });
+          return;
+        }
+        chrome.runtime.sendMessage(message, (response) => {
+          if (chrome.runtime.lastError) {
+            resolve({ ok: false, error: chrome.runtime.lastError.message || 'runtime-error' });
+            return;
+          }
+          resolve(response);
+        });
+      } catch (error) {
+        resolve({ ok: false, error: error?.message || 'runtime-error' });
+      }
+    });
   }
 
   function safeChromeSendMessage(message) {

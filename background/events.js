@@ -452,6 +452,63 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     });
     return true;
   }
+  if (request.action === 'ccsGetPendingChatGptPrompt') {
+    const pendingId = typeof request.pendingId === 'string' ? request.pendingId : '';
+    const tabId = typeof sender?.tab?.id === 'number' ? sender.tab.id : null;
+    const respond = ccsCreateSafeResponder(sendResponse, 'ccsGetPendingChatGptPrompt', pendingId || ccsCreateRequestId('ccsGetPendingChatGptPrompt'), 3000);
+    const senderUrl = sender?.url || sender?.tab?.url || '';
+    let senderAllowed = false;
+    try {
+      const host = new URL(senderUrl).hostname.toLowerCase();
+      senderAllowed = host === 'chatgpt.com' || host.endsWith('.chatgpt.com');
+    } catch (_) {
+      senderAllowed = false;
+    }
+    if (!senderAllowed) {
+      respond({ ok: false, error: 'sender-not-chatgpt' });
+      return true;
+    }
+    if ((!pendingId && tabId == null) || typeof ccsResolvePendingChatGptPrompt !== 'function') {
+      respond({ ok: false, error: 'missing-pending-id' });
+      return true;
+    }
+    ccsResolvePendingChatGptPrompt(pendingId, tabId)
+      .then((record) => {
+        if (!record) {
+          respond({ ok: false, error: 'pending-prompt-not-found' });
+          return;
+        }
+        respond({
+          ok: true,
+          pendingId: record.id || pendingId,
+          prompt: record.prompt,
+          meta: {
+            source: record.source || '',
+            taskId: record.taskId || '',
+            menuId: record.menuId || '',
+            categoryId: record.categoryId || '',
+            engineId: record.engineId || ''
+          }
+        });
+      })
+      .catch((error) => {
+        respond({ ok: false, error: error?.message || String(error) });
+      });
+    return true;
+  }
+  if (request.action === 'ccsAckPendingChatGptPrompt') {
+    const pendingId = typeof request.pendingId === 'string' ? request.pendingId : '';
+    const tabId = typeof sender?.tab?.id === 'number' ? sender.tab.id : null;
+    const respond = ccsCreateSafeResponder(sendResponse, 'ccsAckPendingChatGptPrompt', pendingId || ccsCreateRequestId('ccsAckPendingChatGptPrompt'), 3000);
+    if (!pendingId || typeof ccsAckPendingChatGptPromptForTab !== 'function') {
+      respond({ ok: false, error: 'missing-pending-id' });
+      return true;
+    }
+    ccsAckPendingChatGptPromptForTab(pendingId, tabId)
+      .then((ok) => respond({ ok }))
+      .catch((error) => respond({ ok: false, error: error?.message || String(error) }));
+    return true;
+  }
   if (request.action === 'getSidePanelState') {
     const windowId = request && typeof request.windowId === 'number' ? request.windowId : null;
     const set = windowId !== null ? sidePanelPortsByWindow.get(windowId) : null;

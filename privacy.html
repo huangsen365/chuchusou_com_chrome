@@ -190,8 +190,8 @@
 
         <div class="content">
             <div class="lang-toggle">
-                <button onclick="switchLang('zh')" id="btn-zh" class="active">中文</button>
-                <button onclick="switchLang('en')" id="btn-en">English</button>
+                <button type="button" data-lang="zh" id="btn-zh" class="active">中文</button>
+                <button type="button" data-lang="en" id="btn-en">English</button>
             </div>
 
             <!-- 中文版本 -->
@@ -291,7 +291,7 @@
                 <p>如果您对本隐私政策有任何疑问或建议，请通过以下方式联系我们：</p>
                 <ul>
                     <li>官方网站：<a href="https://chuchusou.com" target="_blank">https://chuchusou.com</a></li>
-                    <li>电子邮箱：<a href="#" onclick="showEmail(); return false;" id="email-link-zh">点击显示邮箱</a></li>
+                    <li>电子邮箱：<a href="#" id="email-link-zh" data-email-link>点击显示邮箱</a></li>
                 </ul>
 
                 <div class="highlight">
@@ -396,7 +396,7 @@
                 <p>If you have any questions or suggestions about this privacy policy, please contact us through:</p>
                 <ul>
                     <li>Official Website: <a href="https://chuchusou.com" target="_blank">https://chuchusou.com</a></li>
-                    <li>Email: <a href="#" onclick="showEmail(); return false;" id="email-link-en">Click to show email</a></li>
+                    <li>Email: <a href="#" id="email-link-en" data-email-link>Click to show email</a></li>
                 </ul>
 
                 <div class="highlight">
@@ -412,44 +412,6 @@
         </div>
     </div>
 
-    <script>
-        function switchLang(lang) {
-            // Hide all language sections
-            document.querySelectorAll('.language-section').forEach(section => {
-                section.classList.remove('active');
-            });
-
-            // Show selected language
-            document.getElementById('lang-' + lang).classList.add('active');
-
-            // Update button states
-            document.querySelectorAll('.lang-toggle button').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.getElementById('btn-' + lang).classList.add('active');
-        }
-
-        function showEmail() {
-            // Base64 encoded email: support@chuchusou.com
-            const encodedEmail = 'c3VwcG9ydEBjaHVjaHVzb3UuY29t';
-            const email = atob(encodedEmail);
-
-            // Update both language links
-            const linkZh = document.getElementById('email-link-zh');
-            const linkEn = document.getElementById('email-link-en');
-
-            if (linkZh) {
-                linkZh.href = 'mailto:' + email;
-                linkZh.textContent = email;
-                linkZh.onclick = null;
-            }
-
-            if (linkEn) {
-                linkEn.href = 'mailto:' + email;
-                linkEn.textContent = email;
-                linkEn.onclick = null;
-            }
-        }
-    </script>
+    <script src="privacy.js"></script>
 </body>
 </html>

@@ -30,7 +30,8 @@ const copyFiles = [
   "content.js",
   "content.css",
   "dockbar.js",
-  "privacy.html"
+  "privacy.html",
+  "privacy.js"
 ]
 
 const excludedNames = new Set([

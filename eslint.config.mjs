@@ -176,6 +176,15 @@ export default [
         enforceFinalUrlCap: "writable",
         TEXT_LIMITS_ENABLED: "readonly",
 
+        // ChatGPT prompt relay exports
+        CCS_CHATGPT_PROMPT_RELAY: "writable",
+        ccsPrepareChatGptPromptUrl: "writable",
+        ccsReadPendingChatGptPrompt: "writable",
+        ccsResolvePendingChatGptPrompt: "writable",
+        ccsAckPendingChatGptPrompt: "writable",
+        ccsAckPendingChatGptPromptForTab: "writable",
+        ccsOpenPreparedChatGptPromptUrl: "writable",
+
         // utils/Constants.js exports (URLBuilder SSoT shortcut)
         tryOpenMenuUrl: "writable",
 

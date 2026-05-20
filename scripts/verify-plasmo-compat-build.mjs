@@ -82,6 +82,7 @@ function main() {
 
   const stableAssets = [
     "config/unifiedMenuConfig.json",
+    "background/chatgptPromptRelay.js",
     "config/engines.json",
     "prompts/fastAnswersPrompts.json",
     "prompts/topQuestionsPrompts.json",
@@ -92,6 +93,7 @@ function main() {
     "shared/menuStructureBuilder.js",
     "offscreen/voice.html",
     "voice-permission/permission.html",
+    "privacy.js",
     "welcome/welcome.html",
     "members/members.html"
   ]
