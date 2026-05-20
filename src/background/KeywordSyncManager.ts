@@ -27,6 +27,7 @@ export interface KeywordState {
 export interface SelectionEntry {
   text?: string
   url?: string
+  timestamp?: number
 }
 
 export interface FallbackEntry {

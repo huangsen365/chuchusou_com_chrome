@@ -24,8 +24,13 @@
     debug: false,
     selection: '',
     debounceTimer: null,
-    isUserSelecting: false
+    isUserSelecting: false,
+    // Ctrl+A 防退化闸：记录最近一次 Ctrl+A 时间戳。在 SELECT_ALL_PROTECT_MS 窗口内，
+    // applySelection 拒绝「短文本覆盖当前长文本 + 非 mouseup 触发」的更新。详见
+    // applySelection 里的注释。
+    lastSelectAllTime: 0
   };
+  const SELECT_ALL_PROTECT_MS = 3000;
 
   // expose basic globals expected by other modules
   window.selectedText = '';
@@ -90,6 +95,106 @@
       return '';
     } catch (err) {
       log('读取选中文本失败:', err);
+      return '';
+    }
+  }
+
+  // 从一个节点向上 walk，启发式找到「编辑器容器」——
+  // 富文本+图片场景里图片往往是 contenteditable=false 的 node view，会"打断"DOM 选区，
+  // 让 selection.toString() / commonAncestor.textContent 都只能拿到第一段文本。
+  // 多块编辑器（Notion / 飞书）每段是独立 contenteditable 又会让 findContentEditableRoot
+  // 只命中当前段落。
+  //
+  // 这个函数找的是「拥有 ≥3 个 contenteditable=true 后代的最近祖先」（多块编辑器签名），
+  // 或者退一步「最外层的 contenteditable 祖先」（单块大容器）。textContent 包含所有
+  // block 的文本，跨过图片打断。
+  function findEditorContainerByHeuristic(node) {
+    let el = node;
+    if (el && el.nodeType === 3 /* TEXT_NODE */) el = el.parentNode;
+    if (!el || el.nodeType !== 1) return null;
+
+    // 用 `[contenteditable]:not([contenteditable="false"])` 匹配：
+    // contenteditable="true" / contenteditable="" / contenteditable="plaintext-only" 都算
+    // 同时排除 false。比 `[contenteditable="true"]` 严格相等更宽。
+    const EDITABLE_SELECTOR = '[contenteditable]:not([contenteditable="false"])';
+
+    let bestContentEditable = null;
+    let depth = 0;
+    const MAX_DEPTH = 20;
+    while (el && el !== document.body && depth < MAX_DEPTH) {
+      if (el.isContentEditable) bestContentEditable = el;
+      if (typeof el.querySelectorAll === 'function') {
+        try {
+          const editableChildren = el.querySelectorAll(EDITABLE_SELECTOR);
+          if (editableChildren.length >= 3) return el; // 多块编辑器命中
+        } catch (_) { /* ignore */ }
+      }
+      el = el.parentNode;
+      depth++;
+    }
+    return bestContentEditable;
+  }
+
+  // Ctrl+A 专用强力兜底：4 个 tier 收集结果，**取最长的**——Ctrl+A 的意图就是"全部"。
+  //
+  // - Tier 1: selection.toString()                  —— 标准路径
+  // - Tier 2: activeElement.value                    —— textarea/input
+  // - Tier 3: range.commonAncestor.textContent       —— 选区跨多 block 时的"实际范围"
+  // - Tier 4: 启发式编辑器容器 textContent          —— 跨过图片打断/多块编辑器的大杀器
+  //
+  // Tier 4 只在 allowAggressiveFallback=true 时启用（即 0ms 第一次 flush），150ms retry
+  // 不启用——避免「用户 Ctrl+A → 50ms 内点别处 → 150ms retry 误抓整个编辑器」的 race。
+  function readSelectAllText({ allowAggressiveFallback = false } = {}) {
+    try {
+      const sel = window.getSelection();
+      const results = [];
+
+      // Tier 1
+      if (sel && sel.rangeCount > 0) {
+        const t = sel.toString();
+        if (t && t.trim().length > 0) results.push(t);
+      }
+
+      // Tier 2
+      const fromActive = readSelectionFromActiveElement();
+      if (fromActive) results.push(fromActive);
+
+      // Tier 3：仅在有非折叠选区时启用（避免把"用户清掉选区"误当成"全选了"）
+      if (sel && sel.rangeCount > 0 && !sel.isCollapsed && sel.anchorNode) {
+        try {
+          const range = sel.getRangeAt(0);
+          let container = range.commonAncestorContainer;
+          if (container && container.nodeType === 3) container = container.parentNode;
+          if (container && typeof container.textContent === 'string') {
+            const t = container.textContent;
+            if (t && t.trim().length > 0) results.push(t);
+          }
+        } catch (_) { /* ignore */ }
+      }
+
+      // Tier 4：启发式编辑器容器（仅 Ctrl+A 时启用）
+      // 双源 fallback：先从 activeElement 找，找不到再从 sel.anchorNode 找
+      // —— 应对编辑器把 focus 偷到隐藏元素的情况（Monaco/CodeMirror 风格）
+      if (allowAggressiveFallback) {
+        let container = findEditorContainerByHeuristic(document.activeElement);
+        if (!container && sel && sel.anchorNode) {
+          container = findEditorContainerByHeuristic(sel.anchorNode);
+        }
+        if (container && typeof container.textContent === 'string') {
+          const t = container.textContent;
+          if (t && t.trim().length > 0) results.push(t);
+        }
+      }
+
+      if (results.length === 0) return '';
+      // 取最长（Ctrl+A 意图 = 全部内容）
+      let longest = results[0];
+      for (const r of results) {
+        if (r.length > longest.length) longest = r;
+      }
+      return longest;
+    } catch (err) {
+      log('读取全选文本失败:', err);
       return '';
     }
   }
@@ -171,6 +276,31 @@
       return;
     }
 
+    // ===== Ctrl+A 防退化闸 =====
+    //
+    // 问题：用户 Ctrl+A 时，0ms/150ms 的 flushSelectAll 用 Tier 4 已经拿到完整正文写入
+    // state.selection 了。但 keyup / selectionchange 事件也会触发 updateSelection
+    // → 200ms 防抖 → applySelection(readCurrentSelection())，而 readCurrentSelection
+    // 只有 Tier 1/2 没有 Tier 4，在富文本+图片场景里只能拿到被图片打断的短文本。
+    // 没有这个闸的话，长文本会被短文本覆盖。
+    // 用户慢慢释放按键时 keyup 触发多次，bug 更明显。
+    //
+    // 拒绝条件（三个全部满足才拒绝）：
+    //   1. 当前在 Ctrl+A 后的保护窗口内（3 秒）
+    //   2. 新值是非空且比当前更短（典型「Tier 1 短文本踩 Tier 4 长文本」）
+    //   3. 触发源不是用户主动行为 —— mouseup 始终通过（用户主动选了别的就是新意图），
+    //      contextmenu 也通过（右键选项依赖最新选区）
+    //
+    // 用户清空选区（value === ''）始终通过 —— 明确的取消意图，要让 BG 知道。
+    const isWithinSelectAllProtect =
+      state.lastSelectAllTime && Date.now() - state.lastSelectAllTime < SELECT_ALL_PROTECT_MS;
+    const isShorterDegradation = hasContent && value.length < (state.selection || '').length;
+    const isUserInitiatedTrigger = trigger === 'mouseup' || trigger === 'contextmenu' || trigger === 'init';
+    if (isWithinSelectAllProtect && isShorterDegradation && !isUserInitiatedTrigger) {
+      log('防退化闸拒绝', { trigger, oldLen: state.selection.length, newLen: value.length });
+      return;
+    }
+
     state.selection = value;
     log('同步选中文本', { trigger, text: value });
     safeChromeSendMessage({ action: 'selectionChanged', text: value });
@@ -220,9 +350,27 @@
     if (event.key === 'Shift' || event.shiftKey) {
       state.isUserSelecting = true;
     }
-    // Ctrl+A / Cmd+A (select all)
+    // Ctrl+A / Cmd+A (select all) —— 多 tier 兜底，应对富文本编辑器（含图片）异步处理选区的场景。
+    //
+    // - setTimeout(0)：等浏览器完成默认全选动作后第一次尝试读取
+    // - 用 readSelectAllText() 而非 readCurrentSelection()：多 Tier 1→2→3，
+    //   Tier 3 直接取 contenteditable 根的 textContent，图片+文字混排里
+    //   Selection API 读不全时也能拿到完整正文
+    // - 150ms 重试：编辑器异步设置 selection（Ctrl+A 触发其内部 normalize 后才 commit）
+    //   的兜底，例如 ProseMirror/Slate 等托管型富文本
     if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
       state.isUserSelecting = true;
+      // 打开 SELECT_ALL_PROTECT_MS 防退化窗口。auto-repeat 时每次都会刷新这个时间戳
+      // → 用户按住按键多久，窗口就延长多久。释放按键后再过 3 秒才完全失效。
+      state.lastSelectAllTime = Date.now();
+      const flushSelectAll = (label) => {
+        const text = readSelectAllText({ allowAggressiveFallback: true });
+        if (text && text.trim().length > 0) {
+          applySelection(text, label); // 防退化逻辑已经在 applySelection 内
+        }
+      };
+      setTimeout(() => flushSelectAll('select-all'), 0);
+      setTimeout(() => flushSelectAll('select-all-retry'), 150);
     }
   });
   document.addEventListener('keyup', (event) => {

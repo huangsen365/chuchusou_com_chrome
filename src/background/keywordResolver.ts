@@ -97,7 +97,7 @@ export async function computeSearchTextForTab(
       candidates.push(selectionText)
       logResolver(deps, "candidate", { source: "selectionText", value: selectionText })
       if (tabId != null) {
-        deps.selectedTextByTab[tabId] = { text: selectionText, url: tabUrl || "" }
+        deps.selectedTextByTab[tabId] = { text: selectionText, url: tabUrl || "", timestamp: Date.now() }
       }
     }
   }
@@ -108,7 +108,7 @@ export async function computeSearchTextForTab(
     if (typeof fetchedDirect === "string" && fetchedDirect.trim().length > 0) {
       candidates.push(fetchedDirect)
       logResolver(deps, "candidate", { source: "scripting-precheck", value: fetchedDirect, tabId })
-      deps.selectedTextByTab[tabId] = { text: fetchedDirect, url: tabUrl || "" }
+      deps.selectedTextByTab[tabId] = { text: fetchedDirect, url: tabUrl || "", timestamp: Date.now() }
     }
   }
 
@@ -164,7 +164,7 @@ export async function computeSearchTextForTab(
     if (typeof fetched === "string" && fetched.trim().length > 0) {
       candidates.push(fetched)
       logResolver(deps, "candidate", { source: "scripting-selection", value: fetched, tabId })
-      deps.selectedTextByTab[tabId] = { text: fetched, url: tabUrl || "" }
+      deps.selectedTextByTab[tabId] = { text: fetched, url: tabUrl || "", timestamp: Date.now() }
     }
   }
 
@@ -237,7 +237,7 @@ export function createChromeScriptingFetcher(): (tabId: number) => Promise<strin
     const ch = (globalThis as unknown as {
       chrome?: {
         scripting?: {
-          executeScript: (opts: { target: { tabId: number }; func: () => string }) => Promise<Array<{ result?: string }>>
+          executeScript: (opts: { target: { tabId: number; allFrames?: boolean }; func: () => string }) => Promise<Array<{ result?: string }>>
         }
       }
     }).chrome
@@ -245,8 +245,10 @@ export function createChromeScriptingFetcher(): (tabId: number) => Promise<strin
       return ""
     }
     try {
+      // allFrames:true：扫所有 frame 含 iframe 编辑器（TinyMCE / CKEditor / 公众号
+      // 后台），返回第一个有非空选区的 frame。
       const results = await ch.scripting.executeScript({
-        target: { tabId },
+        target: { tabId, allFrames: true },
         func: () => {
           try {
             const selection = window.getSelection ? window.getSelection() : null
@@ -265,15 +267,27 @@ export function createChromeScriptingFetcher(): (tabId: number) => Promise<strin
                 if (slice && slice.trim().length > 0) return slice
               }
             }
+            // contenteditable 兜底（富文本+图片场景）：仅有选区但 toString 空时取整段 textContent
+            const editable = active as unknown as HTMLElement | null
+            if (editable && editable.isContentEditable && typeof editable.textContent === "string") {
+              if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+                const fullText = editable.textContent
+                if (fullText && fullText.trim().length > 0) return fullText
+              }
+            }
             return ""
           } catch (_) {
             return ""
           }
         }
       })
-      if (Array.isArray(results) && results.length > 0) {
-        const value = results[0]?.result
-        return typeof value === "string" ? value : ""
+      if (Array.isArray(results)) {
+        for (const entry of results) {
+          const value = entry?.result
+          if (typeof value === "string" && value.trim().length > 0) {
+            return value
+          }
+        }
       }
       return ""
     } catch (_) {

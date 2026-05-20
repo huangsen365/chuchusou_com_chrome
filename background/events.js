@@ -61,7 +61,16 @@ async function prefetchMenuState(tab, reason = 'unknown') {
       //
       // URL 一起入库，readInstantCache 时强校验，URL 不一致视为 stale。
       // 失败不影响主流程；prefetch 频繁触发，写失败属正常 (storage 限流等)。
-      if (globalThis.KeywordService?._writeStorageCache) {
+      // 写 storage cache —— 但**不能踩当前 live 选区**：如果用户此刻有选区在内存里，
+      // 不写 storage cache，让 popup 首屏读到的依然是用户的选区。
+      // 没有 live 选区 → 写 URL 提取结果，给 popup 首屏即时显示 title / 搜索词。
+      //
+      // 不再做 URL 严格匹配：memory 由 tab-loading/selectionChanged 严格维护，
+      // 它非空就是真有选区，无须二次校验。URL 严格相等会被 hash drift 假阴性。
+      const liveSel = selectedTextByTab[tabId];
+      const hasLiveSelection =
+        liveSel && typeof liveSel.text === 'string' && liveSel.text.trim().length > 0;
+      if (!hasLiveSelection && globalThis.KeywordService?._writeStorageCache) {
         globalThis.KeywordService._writeStorageCache(tabId, {
           text: normalized || keywords,
           raw: keywords,
@@ -190,7 +199,8 @@ function syncSelectionFromTab(tab, reason = 'unknown', options = {}) {
         if (trimmed) {
           selectedTextByTab[tabId] = {
             text,
-            url: tabUrl || response?.url || ''
+            url: tabUrl || response?.url || '',
+            timestamp: Date.now()
           };
           delete fallbackKeywordByTab[tabId];
           logMenuEvent('selection-sync', {
@@ -1290,7 +1300,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (finalTabId != null) {
           selectedTextByTab[finalTabId] = {
             text: previewText,
-            url: tabUrl
+            url: tabUrl,
+            timestamp: Date.now()
           };
           delete fallbackKeywordByTab[finalTabId];
           logMenuEvent('context-selection-cache', {
@@ -1348,7 +1359,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (hasContent) {
         selectedTextByTab[tabId] = {
           text: rawText,
-          url: sender.tab.url || ''
+          url: sender.tab.url || '',
+          timestamp: Date.now()
         };
         const normalizedSelection = normalizeSearchText(rawText);
         setMenuState(rawText, normalizedSelection || rawText, {
@@ -1367,11 +1379,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           }).catch(() => { /* ignore */ });
         }
       } else {
+        // 选区被清空：先把内存里的 selection 抹掉，再立即跑一次 prefetch 让
+        // storage cache 换成 URL/title 兜底。
+        // 这样 popup 下一次打开（或当前正打开的 listener 收到 storage.onChanged）
+        // 立刻看到的就是 title 而不是过期的选区。
         delete selectedTextByTab[tabId];
-        // 注意：不主动清 ccs_kw_<tabId> storage cache。
-        // cache 可能是 prefetch 从 URL/title 算出来的兜底关键字（baidu.com?wd=foo 之类），
-        // 用户即使没在页面选文字，这个兜底也是有用的。让 cache 自然 TTL 过期（5min）
-        // 或被 prefetch 新值覆盖，或被 KeywordService.clearTab 在 tab 关闭时统一清。
+        if (sender.tab && typeof prefetchMenuState === 'function') {
+          prefetchMenuState(sender.tab, 'selection-cleared').catch(() => {});
+        }
       }
 
       const preserve = shouldPreserveMenuStateForTab(sender.tab);

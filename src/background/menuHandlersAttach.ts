@@ -104,7 +104,7 @@ export function attachMenuHandlers(): void {
           effectiveRaw = fallbackResult.raw
           effectiveNormalized = fallbackResult.normalized
           if (tab?.id != null && fallbackResult?.raw && g.selectedTextByTab) {
-            g.selectedTextByTab[tab.id] = { text: fallbackResult.raw, url: tab?.url || "" }
+            g.selectedTextByTab[tab.id] = { text: fallbackResult.raw, url: tab?.url || "", timestamp: Date.now() }
           }
           g.logMenuEvent?.("context-click-fallback", {
             tabId: tab?.id ?? null,

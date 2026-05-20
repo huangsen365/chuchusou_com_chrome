@@ -99,7 +99,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         if (tab?.id != null && fallbackResult?.raw) {
           selectedTextByTab[tab.id] = {
             text: fallbackResult.raw,
-            url: tab?.url || ''
+            url: tab?.url || '',
+            timestamp: Date.now()
           };
         }
         logMenuEvent('context-click-fallback', {

@@ -14,8 +14,10 @@ function fetchSelectionFromTab(tabId) {
   if (tabId == null || !chrome?.scripting?.executeScript) {
     return Promise.resolve('');
   }
+  // allFrames:true：扫所有 frame 包括 iframe 编辑器（TinyMCE / CKEditor / 公众号
+  // 后台等都把编辑区放进 iframe）。返回第一个有非空选区的 frame。
   return chrome.scripting.executeScript({
-    target: { tabId },
+    target: { tabId, allFrames: true },
     func: () => {
       try {
         const selection = window.getSelection ? window.getSelection() : null;
@@ -37,15 +39,30 @@ function fetchSelectionFromTab(tabId) {
             }
           }
         }
+        // contenteditable 兜底（富文本+图片场景）
+        if (active && active.isContentEditable && typeof active.textContent === 'string') {
+          const sel = window.getSelection && window.getSelection();
+          // 仅当有选区但 toString 空时才用 textContent（避免没选区也返回整段）
+          if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+            const fullText = active.textContent;
+            if (fullText && fullText.trim().length > 0) {
+              return fullText;
+            }
+          }
+        }
         return '';
       } catch (err) {
         return '';
       }
     }
   }).then((results) => {
-    if (Array.isArray(results) && results.length > 0) {
-      const value = results[0]?.result;
-      return typeof value === 'string' ? value : '';
+    if (Array.isArray(results)) {
+      for (const entry of results) {
+        const value = entry?.result;
+        if (typeof value === 'string' && value.trim().length > 0) {
+          return value;
+        }
+      }
     }
     return '';
   }).catch((error) => {
@@ -101,9 +118,7 @@ async function computeSearchTextForTab({
   } = options || {};
   const candidates = [];
   logResolver('start', {
-    tabId,
-    tabUrl,
-    tabTitle,
+    tabId, tabUrl, tabTitle,
     selectionProvided: typeof selectionText === 'string' && selectionText.trim().length > 0
   });
 
@@ -115,57 +130,46 @@ async function computeSearchTextForTab({
       if (tabId != null) {
         selectedTextByTab[tabId] = {
           text: selectionText,
-          url: tabUrl || ''
+          url: tabUrl || '',
+          timestamp: Date.now()
         };
       }
     }
   }
 
-  if (forceFetchSelection && tabId != null) {
+  // 选区候选源优先级：memory (selectedTextByTab) > scripting probe
+  //
+  // memory 是 tabId-keyed 的「当前 tab 的选区状态」，由以下事件维护：
+  // - content.js selectionChanged（用户选/清）→ 加/删
+  // - tabs.onUpdated('loading')→ 删（真实页面跳转）
+  // - KeywordService.clearTab（tab 关闭）→ 删
+  // 所以 memory 非空 = 用户真的有选区，无需再做 URL/freshness 二次校验
+  // （之前 URL 严格匹配挡住了 hash drift / 锚链接 / SPA 子状态变更等正常场景，
+  //  10s 新鲜窗口又对"用户慢悠悠开 popup"的真实使用太严格）
+  let selectionFromMemory = false;
+  if (tabId != null && typeof selectedTextByTab === 'object' && selectedTextByTab) {
+    const stored = selectedTextByTab[tabId];
+    if (stored && typeof stored.text === 'string' && stored.text.trim().length > 0) {
+      candidates.push(stored.text);
+      selectionFromMemory = true;
+      const storedAge = stored.timestamp ? (Date.now() - stored.timestamp) : null;
+      logResolver('candidate', {
+        source: 'stored-selection', value: stored.text,
+        storedUrl: stored.url, tabUrl, ageMs: storedAge
+      });
+    }
+  }
+
+  if (!selectionFromMemory && forceFetchSelection && tabId != null) {
     const fetchedDirect = await fetchSelectionFromTab(tabId);
     if (typeof fetchedDirect === 'string' && fetchedDirect.trim().length > 0) {
       candidates.push(fetchedDirect);
       logResolver('candidate', { source: 'scripting-precheck', value: fetchedDirect, tabId });
       selectedTextByTab[tabId] = {
         text: fetchedDirect,
-        url: tabUrl || ''
+        url: tabUrl || '',
+        timestamp: Date.now()
       };
-    }
-  }
-
-  if (tabId != null && typeof selectedTextByTab === 'object' && selectedTextByTab) {
-    const stored = selectedTextByTab[tabId];
-    if (
-      stored &&
-      typeof stored.text === 'string' &&
-      stored.text.trim().length > 0
-    ) {
-      // BUGFIX: Relax URL matching - allow stored selection if it's recent (within 10 seconds)
-      // This prevents user's actual selection from being overwritten by URL fallback
-      // due to minor URL changes (hash, query params, etc.)
-      const storedAge = stored.timestamp ? (Date.now() - stored.timestamp) : Infinity;
-      const isFresh = storedAge < 10000; // 10 seconds
-      const urlMatches = typeof stored.url === 'string' && stored.url === tabUrl;
-
-      if (urlMatches || isFresh) {
-        candidates.push(stored.text);
-        logResolver('candidate', {
-          source: 'stored-selection',
-          value: stored.text,
-          storedUrl: stored.url,
-          tabUrl,
-          urlMatches,
-          isFresh,
-          ageMs: storedAge
-        });
-      } else {
-        logResolver('stored-selection-skipped', {
-          reason: 'stale-or-url-mismatch',
-          storedUrl: stored.url,
-          tabUrl,
-          ageMs: storedAge
-        });
-      }
     }
   }
 
@@ -174,26 +178,22 @@ async function computeSearchTextForTab({
       const extracted = await extractSearchKeywords(tabUrl, { url: tabUrl, title: tabTitle });
       if (typeof extracted === 'string' && extracted.trim().length > 0) {
         candidates.push(extracted);
-      logResolver('candidate', {
-        source: 'url-extracted',
-        value: extracted,
-        tabUrl,
-        tabTitle
-      });
-      if (tabId != null) {
-        fallbackKeywordByTab[tabId] = {
-          raw: extracted,
-          normalized: normalizeSearchText(extracted),
-          timestamp: Date.now(),
-          url: tabUrl || ''
-        };
+        logResolver('candidate', {
+          source: 'url-extracted', value: extracted, tabUrl, tabTitle
+        });
+        if (tabId != null) {
+          fallbackKeywordByTab[tabId] = {
+            raw: extracted,
+            normalized: normalizeSearchText(extracted),
+            timestamp: Date.now(),
+            url: tabUrl || ''
+          };
+        }
       }
+    } catch (error) {
+      console.warn('[触触搜][BG] extractSearchKeywords失败:', error);
     }
-  } catch (error) {
-    console.warn('[触触搜][BG] extractSearchKeywords失败:', error);
   }
-}
-
 
   if (!forceFetchSelection && allowFallbackSelectionFetch && !candidates.length && tabId != null) {
     const fetched = await fetchSelectionFromTab(tabId);
@@ -202,23 +202,12 @@ async function computeSearchTextForTab({
       logResolver('candidate', { source: 'scripting-selection', value: fetched, tabId });
       selectedTextByTab[tabId] = {
         text: fetched,
-        url: tabUrl || ''
+        url: tabUrl || '',
+        timestamp: Date.now()
       };
     }
   }
 
-  // BUGFIX: 读 fallbackKeywordByTab[tabId] 作为补充候选源（C 档重构后追加）
-  //
-  // 之前的问题：sidepanel 在 chrome.tabs.onUpdated `url` 事件触发时就 refresh，
-  // 但此时 chrome.tabs.query 拿到的 tab.title 还是空的（页面没加载完）。
-  // 在线 extractSearchKeywords({title:''}) 失败 → 返回空。
-  //
-  // 与此同时，bg 的 prefetchMenuState 监听 `title` 变化时会把 extract 结果写到
-  // fallbackKeywordByTab[tabId]，但 compute 之前不读它，下一次 refresh 仍然空跑。
-  //
-  // 修复：在所有在线 candidate 失败后，读 fallbackKeywordByTab[tabId]。URL 强匹配避免跨页污染。
-  // 这是"per-tab、URL 一致"的缓存，跟 currentMenuState 那种"跨 tab 单例"完全不同，
-  // 即使 skipCurrentMenuFallback:true 也应当读（前者是 tab 自己的历史，后者是污染源）。
   if (!candidates.length && tabId != null && typeof fallbackKeywordByTab === 'object' && fallbackKeywordByTab) {
     const stored = fallbackKeywordByTab[tabId];
     if (stored && typeof stored.raw === 'string' && stored.raw.trim().length > 0) {
@@ -226,17 +215,13 @@ async function computeSearchTextForTab({
       if (urlMatches) {
         candidates.push(stored.raw);
         logResolver('candidate', {
-          source: 'tab-fallback-cache',
-          value: stored.raw,
-          storedUrl: stored.url,
-          tabUrl,
+          source: 'tab-fallback-cache', value: stored.raw,
+          storedUrl: stored.url, tabUrl,
           ageMs: stored.timestamp ? (Date.now() - stored.timestamp) : null
         });
       } else {
         logResolver('tab-fallback-cache-skipped', {
-          reason: 'url-mismatch',
-          storedUrl: stored.url,
-          tabUrl
+          reason: 'url-mismatch', storedUrl: stored.url, tabUrl
         });
       }
     }
@@ -247,25 +232,17 @@ async function computeSearchTextForTab({
     const preservedUrl = currentMenuState.url;
     const preservedTabId = currentMenuState.tabId;
     if (preservedRaw && preservedRaw.trim().length > 0) {
-      const preserveByUrl = tabUrl ? shouldPreserveMenuStateForUrl(tabUrl) : false; // Changed from true to false
+      const preserveByUrl = tabUrl ? shouldPreserveMenuStateForUrl(tabUrl) : false;
       const sameUrl = typeof preservedUrl === 'string' && preservedUrl && tabUrl === preservedUrl;
       const sameTab = typeof preservedTabId === 'number' && tabId != null && preservedTabId === tabId;
       let targetHostname = '';
-      try {
-        targetHostname = tabUrl ? new URL(tabUrl).hostname : '';
-      } catch (_) {}
-      // BUGFIX: Use AND logic instead of OR to prevent cross-tab contamination
-      // Only preserve if BOTH URL and tabId match AND the URL allows preservation
+      try { targetHostname = tabUrl ? new URL(tabUrl).hostname : ''; } catch (_) {}
       const allowPreserve = sameUrl && sameTab && preserveByUrl;
       if (allowPreserve && !isGenericQuickHostKeyword(targetHostname, preservedRaw)) {
         candidates.push(preservedRaw);
         logResolver('candidate', {
-          source: 'current-menu-state',
-          value: preservedRaw,
-          tabUrl,
-          preservedUrl,
-          preservedTabId,
-          reason: 'url-and-tab-match'
+          source: 'current-menu-state', value: preservedRaw,
+          tabUrl, preservedUrl, preservedTabId, reason: 'url-and-tab-match'
         });
       }
     }
@@ -281,9 +258,7 @@ async function computeSearchTextForTab({
     candidatesCount: candidates.length,
     raw: result.raw,
     normalized: result.normalized,
-    tabId,
-    tabUrl,
-    tabTitle
+    tabId, tabUrl, tabTitle
   });
   return result;
 }
