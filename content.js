@@ -57,13 +57,20 @@
     }
   }
 
-  function isChatGptHost() {
+  function getSupportedAIEngineFromLocation() {
     try {
       const host = window.location.hostname.toLowerCase();
-      return host === 'chatgpt.com' || host.endsWith('.chatgpt.com');
+      if (host === 'chatgpt.com' || host.endsWith('.chatgpt.com')) return 'chatgpt';
+      if (host === 'claude.ai' || host.endsWith('.claude.ai')) return 'claude';
+      if (host === 'grok.com' || host.endsWith('.grok.com')) return 'grok';
+      if (host === 'yiyan.baidu.com') return 'yiyan';
+      if ((host === 'google.com' || host.endsWith('.google.com')) && new URL(window.location.href).searchParams.get('udm') === '50') {
+        return 'google-ai';
+      }
+      return '';
     } catch (err) {
-      log('判断 ChatGPT 域名失败:', err);
-      return false;
+      log('判断 AI 引擎域名失败:', err);
+      return '';
     }
   }
 
@@ -245,7 +252,7 @@
     updateSelection('init', { immediate: true });
   })();
 
-  initChatGptPromptRelay();
+  initAIPromptRelay();
 
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     switch (request.action) {
@@ -304,7 +311,8 @@
         showInfoToast(request.message || '');
         sendResponse?.({ ok: true });
         return true;
-      case 'ccsFillChatGptPrompt': {
+      case 'ccsFillChatGptPrompt':
+      case 'ccsFillAIPrompt': {
         const text = typeof request.text === 'string' ? request.text : '';
         if (!text) {
           sendResponse?.({ ok: false, error: 'no-text' });
@@ -315,7 +323,10 @@
             if (result.ok && request.pendingId) {
               cleanupChatGptRelayUrl();
               showInfoToast('已自动补充完整提示词，请确认后发送');
-              await sendRuntimeMessage({ action: 'ccsAckPendingChatGptPrompt', pendingId: request.pendingId });
+              const ackAction = request.action === 'ccsFillAIPrompt'
+                ? 'ccsAckPendingAIPrompt'
+                : 'ccsAckPendingChatGptPrompt';
+              await sendRuntimeMessage({ action: ackAction, pendingId: request.pendingId });
             }
             sendResponse?.(result);
           })
@@ -484,25 +495,25 @@
     }, 2000);
   }
 
-  function initChatGptPromptRelay() {
-    if (!isChatGptHost()) return;
+  function initAIPromptRelay() {
+    if (!getSupportedAIEngineFromLocation()) return;
 
     let activeRequestKey = '';
     let relayResolved = false;
     let intervalId = null;
     const trigger = () => {
       if (relayResolved) return;
-      const pendingId = getChatGptPendingIdFromLocation();
+      const pendingId = getAIPendingIdFromLocation();
       const requestKey = pendingId || 'tab-bound';
       if (requestKey === activeRequestKey) return;
       activeRequestKey = requestKey;
-      requestAndFillPendingChatGptPrompt(pendingId)
+      requestAndFillPendingAIPrompt(pendingId)
         .then(() => {
           relayResolved = true;
           if (intervalId) clearInterval(intervalId);
         })
         .catch((error) => {
-          log('ChatGPT prompt relay failed:', error);
+          log('AI prompt relay failed:', error);
           activeRequestKey = '';
         });
     };
@@ -521,7 +532,7 @@
     }, 1000);
   }
 
-  function getChatGptPendingIdFromLocation() {
+  function getAIPendingIdFromLocation() {
     try {
       const url = new URL(window.location.href);
       const fromQuery = sanitizeChatGptPendingId(url.searchParams.get('ccs_pp'));
@@ -534,7 +545,7 @@
       const fromHash = hashText.match(/(?:^|[?&#])ccs_pp=([A-Za-z0-9_-]+)/);
       return sanitizeChatGptPendingId(fromHash?.[1] || '');
     } catch (err) {
-      log('读取 ChatGPT prompt relay id 失败:', err);
+      log('读取 AI prompt relay id 失败:', err);
       return '';
     }
   }
@@ -544,9 +555,9 @@
     return /^[A-Za-z0-9_-]{6,80}$/.test(id) ? id : '';
   }
 
-  async function requestAndFillPendingChatGptPrompt(pendingId) {
+  async function requestAndFillPendingAIPrompt(pendingId) {
     const response = await sendRuntimeMessage({
-      action: 'ccsGetPendingChatGptPrompt',
+      action: 'ccsGetPendingAIPrompt',
       pendingId
     });
     if (!response?.ok || typeof response.prompt !== 'string') {
@@ -558,7 +569,7 @@
       throw new Error(result.error || 'fill-failed');
     }
 
-    await sendRuntimeMessage({ action: 'ccsAckPendingChatGptPrompt', pendingId: response.pendingId || pendingId });
+    await sendRuntimeMessage({ action: 'ccsAckPendingAIPrompt', pendingId: response.pendingId || pendingId });
     cleanupChatGptRelayUrl();
     showInfoToast('已自动补充完整提示词，请确认后发送');
     return result;

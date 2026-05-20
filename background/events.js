@@ -353,6 +353,26 @@ function ccsAttachRequestId(payload, requestId) {
   return { ...payload, requestId };
 }
 
+async function ccsOpenMenuUrlWithAIRelay(urlPattern, text, fallbackUrl, meta = {}) {
+  if (
+    typeof ccsIsSupportedAIUrl === 'function' &&
+    typeof ccsPrepareAIPromptUrl === 'function' &&
+    typeof ccsOpenPreparedAIPromptUrl === 'function' &&
+    ccsIsSupportedAIUrl(fallbackUrl)
+  ) {
+    try {
+      const preparedUrl = await ccsPrepareAIPromptUrl(urlPattern || fallbackUrl, text, meta);
+      await ccsOpenPreparedAIPromptUrl(preparedUrl);
+      return;
+    } catch (error) {
+      if (typeof BG_DBG === 'function') {
+        BG_DBG('[ccsOpenMenuUrlWithAIRelay] fallback', meta?.menuId || '', error);
+      }
+    }
+  }
+  chrome.tabs.create({ url: fallbackUrl });
+}
+
 function ccsCreateSafeResponder(sendResponse, action, requestId, timeoutMs = 5000) {
   let responded = false;
   const startedAt = Date.now();
@@ -452,15 +472,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     });
     return true;
   }
-  if (request.action === 'ccsGetPendingChatGptPrompt') {
+  if (request.action === 'ccsGetPendingChatGptPrompt' || request.action === 'ccsGetPendingAIPrompt') {
     const pendingId = typeof request.pendingId === 'string' ? request.pendingId : '';
     const tabId = typeof sender?.tab?.id === 'number' ? sender.tab.id : null;
-    const respond = ccsCreateSafeResponder(sendResponse, 'ccsGetPendingChatGptPrompt', pendingId || ccsCreateRequestId('ccsGetPendingChatGptPrompt'), 3000);
+    const respond = ccsCreateSafeResponder(sendResponse, 'ccsGetPendingAIPrompt', pendingId || ccsCreateRequestId('ccsGetPendingAIPrompt'), 3000);
     const senderUrl = sender?.url || sender?.tab?.url || '';
     let senderAllowed = false;
     try {
-      const host = new URL(senderUrl).hostname.toLowerCase();
-      senderAllowed = host === 'chatgpt.com' || host.endsWith('.chatgpt.com');
+      senderAllowed = typeof ccsIsSupportedAIUrl === 'function' && ccsIsSupportedAIUrl(senderUrl);
     } catch (_) {
       senderAllowed = false;
     }
@@ -468,11 +487,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       respond({ ok: false, error: 'sender-not-chatgpt' });
       return true;
     }
-    if ((!pendingId && tabId == null) || typeof ccsResolvePendingChatGptPrompt !== 'function') {
+    if ((!pendingId && tabId == null) || typeof ccsResolvePendingAIPrompt !== 'function') {
       respond({ ok: false, error: 'missing-pending-id' });
       return true;
     }
-    ccsResolvePendingChatGptPrompt(pendingId, tabId)
+    ccsResolvePendingAIPrompt(pendingId, tabId)
       .then((record) => {
         if (!record) {
           respond({ ok: false, error: 'pending-prompt-not-found' });
@@ -487,7 +506,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             taskId: record.taskId || '',
             menuId: record.menuId || '',
             categoryId: record.categoryId || '',
-            engineId: record.engineId || ''
+            engineId: record.engineId || '',
+            relayEngine: record.relayEngine || ''
           }
         });
       })
@@ -496,15 +516,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
     return true;
   }
-  if (request.action === 'ccsAckPendingChatGptPrompt') {
+  if (request.action === 'ccsAckPendingChatGptPrompt' || request.action === 'ccsAckPendingAIPrompt') {
     const pendingId = typeof request.pendingId === 'string' ? request.pendingId : '';
     const tabId = typeof sender?.tab?.id === 'number' ? sender.tab.id : null;
-    const respond = ccsCreateSafeResponder(sendResponse, 'ccsAckPendingChatGptPrompt', pendingId || ccsCreateRequestId('ccsAckPendingChatGptPrompt'), 3000);
-    if (!pendingId || typeof ccsAckPendingChatGptPromptForTab !== 'function') {
+    const respond = ccsCreateSafeResponder(sendResponse, 'ccsAckPendingAIPrompt', pendingId || ccsCreateRequestId('ccsAckPendingAIPrompt'), 3000);
+    if (!pendingId || typeof ccsAckPendingAIPromptForTab !== 'function') {
       respond({ ok: false, error: 'missing-pending-id' });
       return true;
     }
-    ccsAckPendingChatGptPromptForTab(pendingId, tabId)
+    ccsAckPendingAIPromptForTab(pendingId, tabId)
       .then((ok) => respond({ ok }))
       .catch((error) => respond({ ok: false, error: error?.message || String(error) }));
     return true;
@@ -698,8 +718,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           case 'translate':
           case 'portal':
             if (urlPattern && keyword) {
-              const url = urlPattern.replace('${KEYWORD}', encodedKeyword);
-              chrome.tabs.create({ url });
+              const url = urlPattern
+                .replace('${KEYWORD}', encodedKeyword)
+                .replace('${PROMPT}', encodedKeyword);
+              await ccsOpenMenuUrlWithAIRelay(urlPattern, effectiveKeyword, url, {
+                source: 'execute-menu-action',
+                menuId: menuItemId || '',
+                engineId: engineId || ''
+              });
               sendResponse({ success: true });
             } else {
               sendResponse({ success: false, error: 'invalid-params' });
@@ -1012,19 +1038,48 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                   handled = true;
                   break;
                 case 'ccs-google-ai-chat':
-                  chrome.tabs.create({ url: `https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${encodedKeyword}` });
+                  await ccsOpenMenuUrlWithAIRelay(
+                    'https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${KEYWORD}',
+                    keyword,
+                    `https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${encodedKeyword}`,
+                    { source: 'execute-menu-action-fallback', menuId: menuItemId, engineId: 'google-ai' }
+                  );
+                  handled = true;
+                  break;
+                case 'ccs-yiyan':
+                  await ccsOpenMenuUrlWithAIRelay(
+                    'https://yiyan.baidu.com/?q=${KEYWORD}',
+                    keyword,
+                    `https://yiyan.baidu.com/?q=${encodedKeyword}`,
+                    { source: 'execute-menu-action-fallback', menuId: menuItemId, engineId: 'yiyan' }
+                  );
                   handled = true;
                   break;
                 case 'ccs-chatgpt':
-                  chrome.tabs.create({ url: `https://chatgpt.com/?q=${encodedKeyword}` });
+                  await ccsOpenMenuUrlWithAIRelay(
+                    'https://chatgpt.com/?q=${KEYWORD}',
+                    keyword,
+                    `https://chatgpt.com/?q=${encodedKeyword}`,
+                    { source: 'execute-menu-action-fallback', menuId: menuItemId, engineId: 'chatgpt' }
+                  );
                   handled = true;
                   break;
                 case 'ccs-claude':
-                  chrome.tabs.create({ url: `https://claude.ai/new?q=${encodedKeyword}` });
+                  await ccsOpenMenuUrlWithAIRelay(
+                    'https://claude.ai/new?q=${KEYWORD}',
+                    keyword,
+                    `https://claude.ai/new?q=${encodedKeyword}`,
+                    { source: 'execute-menu-action-fallback', menuId: menuItemId, engineId: 'claude' }
+                  );
                   handled = true;
                   break;
                 case 'ccs-grok':
-                  chrome.tabs.create({ url: `https://grok.com/?q=${encodedKeyword}` });
+                  await ccsOpenMenuUrlWithAIRelay(
+                    'https://grok.com/?q=${KEYWORD}',
+                    keyword,
+                    `https://grok.com/?q=${encodedKeyword}`,
+                    { source: 'execute-menu-action-fallback', menuId: menuItemId, engineId: 'grok' }
+                  );
                   handled = true;
                   break;
               }

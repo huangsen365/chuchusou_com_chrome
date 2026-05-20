@@ -84,7 +84,13 @@ function defaultGetStorageItem(key: string): Promise<unknown> {
 }
 
 function defaultPreparePromptUrl(urlPattern: string, prompt: string, meta: Record<string, unknown> = {}): string | Promise<string> {
-  const g = globalThis as unknown as { ccsPrepareChatGptPromptUrl?: PromptUrlPreparer }
+  const g = globalThis as unknown as {
+    ccsPrepareAIPromptUrl?: PromptUrlPreparer
+    ccsPrepareChatGptPromptUrl?: PromptUrlPreparer
+  }
+  if (typeof g.ccsPrepareAIPromptUrl === "function") {
+    return g.ccsPrepareAIPromptUrl(urlPattern, prompt, meta)
+  }
   if (typeof g.ccsPrepareChatGptPromptUrl === "function") {
     return g.ccsPrepareChatGptPromptUrl(urlPattern, prompt, meta)
   }
@@ -92,7 +98,14 @@ function defaultPreparePromptUrl(urlPattern: string, prompt: string, meta: Recor
 }
 
 async function defaultOpenPromptUrl(url: string, options: { active?: boolean } = {}): Promise<void> {
-  const g = globalThis as unknown as { ccsOpenPreparedChatGptPromptUrl?: PromptUrlOpener }
+  const g = globalThis as unknown as {
+    ccsOpenPreparedAIPromptUrl?: PromptUrlOpener
+    ccsOpenPreparedChatGptPromptUrl?: PromptUrlOpener
+  }
+  if (typeof g.ccsOpenPreparedAIPromptUrl === "function") {
+    await g.ccsOpenPreparedAIPromptUrl(url, options)
+    return
+  }
   if (typeof g.ccsOpenPreparedChatGptPromptUrl === "function") {
     await g.ccsOpenPreparedChatGptPromptUrl(url, options)
     return
@@ -133,7 +146,14 @@ export async function runAITask(
     preparePromptUrl = defaultPreparePromptUrl
   } = deps
   const openPromptUrl: PromptUrlOpener = deps.openPromptUrl || (async (url, opts = {}) => {
-    const g = globalThis as unknown as { ccsOpenPreparedChatGptPromptUrl?: PromptUrlOpener }
+    const g = globalThis as unknown as {
+      ccsOpenPreparedAIPromptUrl?: PromptUrlOpener
+      ccsOpenPreparedChatGptPromptUrl?: PromptUrlOpener
+    }
+    if (typeof g.ccsOpenPreparedAIPromptUrl === "function") {
+      await g.ccsOpenPreparedAIPromptUrl(url, opts)
+      return
+    }
     if (typeof g.ccsOpenPreparedChatGptPromptUrl === "function") {
       await g.ccsOpenPreparedChatGptPromptUrl(url, opts)
       return

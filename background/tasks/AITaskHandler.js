@@ -17,6 +17,9 @@
  */
 
 async function buildAITaskPromptUrl(urlPattern, prompt, meta = {}) {
+  if (typeof ccsPrepareAIPromptUrl === 'function') {
+    return ccsPrepareAIPromptUrl(urlPattern, prompt, meta);
+  }
   if (typeof ccsPrepareChatGptPromptUrl === 'function') {
     return ccsPrepareChatGptPromptUrl(urlPattern, prompt, meta);
   }
@@ -24,6 +27,10 @@ async function buildAITaskPromptUrl(urlPattern, prompt, meta = {}) {
 }
 
 async function openAITaskUrl(url, active) {
+  if (typeof ccsOpenPreparedAIPromptUrl === 'function') {
+    await ccsOpenPreparedAIPromptUrl(url, { active });
+    return;
+  }
   if (typeof ccsOpenPreparedChatGptPromptUrl === 'function') {
     await ccsOpenPreparedChatGptPromptUrl(url, { active });
     return;

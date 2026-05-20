@@ -176,8 +176,17 @@ export default [
         enforceFinalUrlCap: "writable",
         TEXT_LIMITS_ENABLED: "readonly",
 
-        // ChatGPT prompt relay exports
+        // AI prompt relay exports
+        CCS_AI_PROMPT_RELAY: "writable",
         CCS_CHATGPT_PROMPT_RELAY: "writable",
+        ccsGetAIEngineForUrl: "writable",
+        ccsIsSupportedAIUrl: "writable",
+        ccsPrepareAIPromptUrl: "writable",
+        ccsReadPendingAIPrompt: "writable",
+        ccsResolvePendingAIPrompt: "writable",
+        ccsAckPendingAIPrompt: "writable",
+        ccsAckPendingAIPromptForTab: "writable",
+        ccsOpenPreparedAIPromptUrl: "writable",
         ccsPrepareChatGptPromptUrl: "writable",
         ccsReadPendingChatGptPrompt: "writable",
         ccsResolvePendingChatGptPrompt: "writable",

@@ -283,10 +283,25 @@ function tryOpenMenuUrl(menuItemId, rawKeyword, options = {}) {
       effectiveKeyword = result.text;
     }
 
+    const urlTemplate = typeof ub.getTemplate === 'function' ? ub.getTemplate(menuItemId) : null;
     let url = ub.build(menuItemId, { raw: effectiveKeyword, normalized: effectiveKeyword });
     if (!url) return false;
     if (typeof enforceFinalUrlCap === 'function') url = enforceFinalUrlCap(url);
-    chrome.tabs.create({ url });
+    if (
+      typeof ccsIsSupportedAIUrl === 'function' &&
+      typeof ccsPrepareAIPromptUrl === 'function' &&
+      typeof ccsOpenPreparedAIPromptUrl === 'function' &&
+      ccsIsSupportedAIUrl(url)
+    ) {
+      ccsPrepareAIPromptUrl(urlTemplate || url, effectiveKeyword, {
+        source: 'direct-ai-menu',
+        menuId: menuItemId
+      })
+        .then((preparedUrl) => ccsOpenPreparedAIPromptUrl(preparedUrl))
+        .catch(() => chrome.tabs.create({ url }));
+    } else {
+      chrome.tabs.create({ url });
+    }
     return true;
   } catch (err) {
     if (typeof BG_DBG === 'function') BG_DBG('[tryOpenMenuUrl] error', menuItemId, err);

@@ -1,24 +1,25 @@
 /**
- * ChatGPT prompt relay
+ * AI prompt relay
  *
- * When a generated prompt makes the ChatGPT URL too long, keep the full prompt
- * inside extension storage and open ChatGPT with only a compact relay marker.
- * content.js then reads the relay id from the URL and fills the complete prompt
- * into the composer after the page is ready.
+ * When a generated prompt makes an AI engine URL too long, keep the full prompt
+ * inside extension storage and open the AI engine with only a compact relay
+ * marker. content.js then reads the relay id from the URL and fills the
+ * complete prompt into the composer after the page is ready.
  */
 (() => {
   const RELAY_QUERY_KEY = 'ccs_pp';
-  const STORAGE_PREFIX = 'ccs_chatgpt_pending_prompt_';
-  const TAB_STORAGE_PREFIX = 'ccs_chatgpt_pending_tab_';
+  const STORAGE_PREFIX = 'ccs_ai_pending_prompt_';
+  const TAB_STORAGE_PREFIX = 'ccs_ai_pending_tab_';
   const DIRECT_URL_LIMIT = 5500;
   const RELAY_TTL_MS = 30 * 60 * 1000;
+  const AI_QUERY_PARAM_KEYS = ['prompt', 'q', 'query', 'text'];
   const memoryStore = new Map();
 
-  function ccsChatGptPromptStorageKey(id) {
+  function ccsAIPromptStorageKey(id) {
     return `${STORAGE_PREFIX}${id}`;
   }
 
-  function ccsChatGptPromptTabStorageKey(tabId) {
+  function ccsAIPromptTabStorageKey(tabId) {
     return `${TAB_STORAGE_PREFIX}${tabId}`;
   }
 
@@ -88,16 +89,36 @@
 
   function ccsBuildPromptUrl(urlPattern, prompt) {
     const encoded = encodeURIComponent(typeof prompt === 'string' ? prompt : '');
-    return String(urlPattern || '').split('${PROMPT}').join(encoded);
+    return String(urlPattern || '')
+      .split('${PROMPT}').join(encoded)
+      .split('${KEYWORD}').join(encoded);
   }
 
-  function ccsIsChatGptUrl(url) {
+  function ccsGetAIEngineForUrl(url) {
     try {
-      const host = new URL(url).hostname.toLowerCase();
-      return host === 'chatgpt.com' || host.endsWith('.chatgpt.com');
+      const parsed = new URL(url);
+      const host = parsed.hostname.toLowerCase();
+      if (host === 'chatgpt.com' || host.endsWith('.chatgpt.com')) return 'chatgpt';
+      if (host === 'claude.ai' || host.endsWith('.claude.ai')) return 'claude';
+      if (host === 'grok.com' || host.endsWith('.grok.com')) return 'grok';
+      if (host === 'yiyan.baidu.com') return 'yiyan';
+      if ((host === 'google.com' || host.endsWith('.google.com')) && parsed.searchParams.get('udm') === '50') {
+        return 'google-ai';
+      }
+      return '';
     } catch (_) {
-      return /(^|\/\/)([^/]+\.)?chatgpt\.com([/?#:]|$)/i.test(String(url || ''));
+      const raw = String(url || '');
+      if (/(^|\/\/)([^/]+\.)?chatgpt\.com([/?#:]|$)/i.test(raw)) return 'chatgpt';
+      if (/(^|\/\/)([^/]+\.)?claude\.ai([/?#:]|$)/i.test(raw)) return 'claude';
+      if (/(^|\/\/)([^/]+\.)?grok\.com([/?#:]|$)/i.test(raw)) return 'grok';
+      if (/(^|\/\/)yiyan\.baidu\.com([/?#:]|$)/i.test(raw)) return 'yiyan';
+      if (/(^|\/\/)([^/]+\.)?google\.com\/search\?/i.test(raw) && /[?&]udm=50(&|$)/i.test(raw)) return 'google-ai';
+      return '';
     }
+  }
+
+  function ccsIsSupportedAIUrl(url) {
+    return !!ccsGetAIEngineForUrl(url);
   }
 
   function ccsAppendRelayId(url, id) {
@@ -118,8 +139,9 @@
   function ccsBuildRelayOnlyUrl(urlPattern, id) {
     try {
       const parsed = new URL(ccsBuildPromptUrl(urlPattern, ''));
-      parsed.searchParams.delete('prompt');
-      parsed.searchParams.delete('q');
+      for (const key of AI_QUERY_PARAM_KEYS) {
+        parsed.searchParams.delete(key);
+      }
       parsed.searchParams.delete(RELAY_QUERY_KEY);
 
       const hashText = (parsed.hash || '').replace(/^#/, '');
@@ -154,16 +176,16 @@
     return typeof id === 'string' && /^[A-Za-z0-9_-]{6,80}$/.test(id);
   }
 
-  async function ccsStorePendingChatGptPrompt(record) {
-    const key = ccsChatGptPromptStorageKey(record.id);
+  async function ccsStorePendingAIPrompt(record) {
+    const key = ccsAIPromptStorageKey(record.id);
     memoryStore.set(record.id, record);
     await ccsStorageSet(key, record);
     return record;
   }
 
-  async function ccsReadPendingChatGptPrompt(id) {
+  async function ccsReadPendingAIPrompt(id) {
     if (!id || typeof id !== 'string') return null;
-    const key = ccsChatGptPromptStorageKey(id);
+    const key = ccsAIPromptStorageKey(id);
     const stored = await ccsStorageGet(key);
     const record = stored || memoryStore.get(id) || null;
     if (!record || typeof record.prompt !== 'string') return null;
@@ -177,16 +199,16 @@
     return record;
   }
 
-  async function ccsAckPendingChatGptPrompt(id) {
+  async function ccsAckPendingAIPrompt(id) {
     if (!id || typeof id !== 'string') return false;
     memoryStore.delete(id);
-    await ccsStorageRemove(ccsChatGptPromptStorageKey(id));
+    await ccsStorageRemove(ccsAIPromptStorageKey(id));
     return true;
   }
 
-  async function ccsBindPendingChatGptPromptToTab(id, tabId) {
+  async function ccsBindPendingAIPromptToTab(id, tabId) {
     if (!ccsIsValidRelayId(id) || typeof tabId !== 'number') return false;
-    await ccsStorageSet(ccsChatGptPromptTabStorageKey(tabId), {
+    await ccsStorageSet(ccsAIPromptTabStorageKey(tabId), {
       id,
       tabId,
       createdAt: Date.now(),
@@ -195,48 +217,48 @@
     return true;
   }
 
-  async function ccsReadPendingChatGptPromptForTab(tabId) {
+  async function ccsReadPendingAIPromptForTab(tabId) {
     if (typeof tabId !== 'number') return null;
-    const key = ccsChatGptPromptTabStorageKey(tabId);
+    const key = ccsAIPromptTabStorageKey(tabId);
     const mapping = await ccsStorageGet(key);
     if (!mapping?.id || !ccsIsValidRelayId(mapping.id)) return null;
     if (mapping.expiresAt && Date.now() > mapping.expiresAt) {
       await ccsStorageRemove(key);
       return null;
     }
-    const record = await ccsReadPendingChatGptPrompt(mapping.id);
+    const record = await ccsReadPendingAIPrompt(mapping.id);
     return record ? { ...record, tabId } : null;
   }
 
-  async function ccsResolvePendingChatGptPrompt(pendingId, tabId) {
+  async function ccsResolvePendingAIPrompt(pendingId, tabId) {
     if (ccsIsValidRelayId(pendingId)) {
-      return ccsReadPendingChatGptPrompt(pendingId);
+      return ccsReadPendingAIPrompt(pendingId);
     }
-    return ccsReadPendingChatGptPromptForTab(tabId);
+    return ccsReadPendingAIPromptForTab(tabId);
   }
 
-  async function ccsAckPendingChatGptPromptForTab(id, tabId) {
-    await ccsAckPendingChatGptPrompt(id);
+  async function ccsAckPendingAIPromptForTab(id, tabId) {
+    await ccsAckPendingAIPrompt(id);
     if (typeof tabId === 'number') {
-      await ccsStorageRemove(ccsChatGptPromptTabStorageKey(tabId));
+      await ccsStorageRemove(ccsAIPromptTabStorageKey(tabId));
     }
     return true;
   }
 
   function ccsSendPendingPromptToTab(tabId, pendingId) {
     if (typeof tabId !== 'number' || !ccsIsValidRelayId(pendingId)) return;
-    ccsReadPendingChatGptPrompt(pendingId).then((record) => {
+    ccsReadPendingAIPrompt(pendingId).then((record) => {
       if (!record?.prompt || !globalThis.chrome?.tabs?.sendMessage) return;
       try {
         globalThis.chrome.tabs.sendMessage(tabId, {
-          action: 'ccsFillChatGptPrompt',
+          action: 'ccsFillAIPrompt',
           text: record.prompt,
           pendingId,
-          source: 'chatgpt-prompt-relay'
+          source: 'ai-prompt-relay'
         }, (response) => {
           if (globalThis.chrome?.runtime?.lastError) return;
           if (response?.ok) {
-            ccsAckPendingChatGptPromptForTab(pendingId, tabId).catch(() => {});
+            ccsAckPendingAIPromptForTab(pendingId, tabId).catch(() => {});
           }
         });
       } catch (_) {
@@ -251,7 +273,7 @@
     }
   }
 
-  async function ccsOpenPreparedChatGptPromptUrl(url, options = {}) {
+  async function ccsOpenPreparedAIPromptUrl(url, options = {}) {
     const pendingId = ccsExtractRelayIdFromUrl(url);
     const createOptions = { url, active: options.active };
     if (createOptions.active === undefined) delete createOptions.active;
@@ -267,7 +289,7 @@
             return;
           }
           if (pendingId && typeof tab?.id === 'number') {
-            ccsBindPendingChatGptPromptToTab(pendingId, tab.id)
+            ccsBindPendingAIPromptToTab(pendingId, tab.id)
               .then(() => ccsSchedulePendingPromptPush(tab.id, pendingId))
               .catch(() => {});
           }
@@ -279,9 +301,10 @@
     });
   }
 
-  async function ccsPrepareChatGptPromptUrl(urlPattern, prompt, meta = {}) {
+  async function ccsPrepareAIPromptUrl(urlPattern, prompt, meta = {}) {
     const directUrl = ccsBuildPromptUrl(urlPattern, prompt);
-    if (!ccsIsChatGptUrl(directUrl) || directUrl.length <= DIRECT_URL_LIMIT) {
+    const engine = ccsGetAIEngineForUrl(directUrl);
+    if (!engine || directUrl.length <= DIRECT_URL_LIMIT) {
       return directUrl;
     }
 
@@ -296,22 +319,34 @@
       taskId: meta.taskId || '',
       menuId: meta.menuId || '',
       categoryId: meta.categoryId || '',
-      engineId: meta.engineId || ''
+      engineId: meta.engineId || engine,
+      relayEngine: engine
     };
-    await ccsStorePendingChatGptPrompt(record);
+    await ccsStorePendingAIPrompt(record);
 
     return ccsBuildRelayOnlyUrl(urlPattern, id);
   }
 
-  globalThis.CCS_CHATGPT_PROMPT_RELAY = {
+  globalThis.CCS_AI_PROMPT_RELAY = {
     RELAY_QUERY_KEY,
     DIRECT_URL_LIMIT,
     RELAY_TTL_MS
   };
-  globalThis.ccsPrepareChatGptPromptUrl = ccsPrepareChatGptPromptUrl;
-  globalThis.ccsReadPendingChatGptPrompt = ccsReadPendingChatGptPrompt;
-  globalThis.ccsResolvePendingChatGptPrompt = ccsResolvePendingChatGptPrompt;
-  globalThis.ccsAckPendingChatGptPrompt = ccsAckPendingChatGptPrompt;
-  globalThis.ccsAckPendingChatGptPromptForTab = ccsAckPendingChatGptPromptForTab;
-  globalThis.ccsOpenPreparedChatGptPromptUrl = ccsOpenPreparedChatGptPromptUrl;
+  globalThis.CCS_CHATGPT_PROMPT_RELAY = globalThis.CCS_AI_PROMPT_RELAY;
+  globalThis.ccsGetAIEngineForUrl = ccsGetAIEngineForUrl;
+  globalThis.ccsIsSupportedAIUrl = ccsIsSupportedAIUrl;
+  globalThis.ccsPrepareAIPromptUrl = ccsPrepareAIPromptUrl;
+  globalThis.ccsReadPendingAIPrompt = ccsReadPendingAIPrompt;
+  globalThis.ccsResolvePendingAIPrompt = ccsResolvePendingAIPrompt;
+  globalThis.ccsAckPendingAIPrompt = ccsAckPendingAIPrompt;
+  globalThis.ccsAckPendingAIPromptForTab = ccsAckPendingAIPromptForTab;
+  globalThis.ccsOpenPreparedAIPromptUrl = ccsOpenPreparedAIPromptUrl;
+
+  // Backward-compatible aliases used by the first ChatGPT-only implementation.
+  globalThis.ccsPrepareChatGptPromptUrl = ccsPrepareAIPromptUrl;
+  globalThis.ccsReadPendingChatGptPrompt = ccsReadPendingAIPrompt;
+  globalThis.ccsResolvePendingChatGptPrompt = ccsResolvePendingAIPrompt;
+  globalThis.ccsAckPendingChatGptPrompt = ccsAckPendingAIPrompt;
+  globalThis.ccsAckPendingChatGptPromptForTab = ccsAckPendingAIPromptForTab;
+  globalThis.ccsOpenPreparedChatGptPromptUrl = ccsOpenPreparedAIPromptUrl;
 })();

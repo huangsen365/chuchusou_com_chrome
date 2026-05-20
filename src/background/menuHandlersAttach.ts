@@ -393,8 +393,23 @@ export function attachMenuHandlers(): void {
 
     // legacy switch-case fallback（CLAUDE.md 强制保留）
     const enc = (s: string) => encodeURIComponent(s)
-    const openIfHas = (url: string) => {
-      if (finalNormalized) g.chrome?.tabs?.create({ url })
+    const openIfHas = (url: string, urlPattern?: string) => {
+      if (!finalNormalized) return
+      if (
+        typeof g.ccsIsSupportedAIUrl === "function" &&
+        typeof g.ccsPrepareAIPromptUrl === "function" &&
+        typeof g.ccsOpenPreparedAIPromptUrl === "function" &&
+        g.ccsIsSupportedAIUrl(url)
+      ) {
+        g.ccsPrepareAIPromptUrl(urlPattern || url, finalNormalized, {
+          source: "context-menu-fallback",
+          menuId: info.menuItemId
+        })
+          .then((preparedUrl: string) => g.ccsOpenPreparedAIPromptUrl(preparedUrl))
+          .catch(() => g.chrome?.tabs?.create({ url }))
+        return
+      }
+      g.chrome?.tabs?.create({ url })
     }
     switch (info.menuItemId) {
       case "ccs-baidu":
@@ -404,16 +419,22 @@ export function attachMenuHandlers(): void {
         openIfHas(`https://www.google.com/search?q=${enc(finalNormalized)}`)
         break
       case "ccs-google-ai-chat":
-        openIfHas(`https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${enc(finalNormalized)}`)
+        openIfHas(
+          `https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${enc(finalNormalized)}`,
+          "https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${KEYWORD}"
+        )
         break
       case "ccs-yiyan":
-        openIfHas(`https://yiyan.baidu.com/?q=${enc(finalNormalized)}`)
+        openIfHas(`https://yiyan.baidu.com/?q=${enc(finalNormalized)}`, "https://yiyan.baidu.com/?q=${KEYWORD}")
         break
       case "ccs-chatgpt":
-        openIfHas(`https://chatgpt.com/?q=${enc(finalNormalized)}`)
+        openIfHas(`https://chatgpt.com/?q=${enc(finalNormalized)}`, "https://chatgpt.com/?q=${KEYWORD}")
         break
       case "ccs-claude":
-        openIfHas(`https://claude.ai/new?q=${enc(finalNormalized)}`)
+        openIfHas(`https://claude.ai/new?q=${enc(finalNormalized)}`, "https://claude.ai/new?q=${KEYWORD}")
+        break
+      case "ccs-grok":
+        openIfHas(`https://grok.com/?q=${enc(finalNormalized)}`, "https://grok.com/?q=${KEYWORD}")
         break
       case "ccs-zhihu":
         openIfHas(`https://www.zhihu.com/search?q=${enc(finalNormalized)}`)

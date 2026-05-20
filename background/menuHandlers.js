@@ -3,6 +3,26 @@
 // The functions referenced here (e.g., setMenuState, computeSearchTextForTab)
 // are defined globally via other background scripts loaded through importScripts.
 
+async function openMenuUrlWithAIRelay(urlPattern, rawKeyword, fallbackUrl, meta = {}) {
+  if (
+    typeof ccsIsSupportedAIUrl === 'function' &&
+    typeof ccsPrepareAIPromptUrl === 'function' &&
+    typeof ccsOpenPreparedAIPromptUrl === 'function' &&
+    ccsIsSupportedAIUrl(fallbackUrl)
+  ) {
+    try {
+      const preparedUrl = await ccsPrepareAIPromptUrl(urlPattern || fallbackUrl, rawKeyword, meta);
+      await ccsOpenPreparedAIPromptUrl(preparedUrl);
+      return;
+    } catch (error) {
+      if (typeof BG_DBG === 'function') {
+        BG_DBG('[openMenuUrlWithAIRelay] fallback', meta?.menuId || '', error);
+      }
+    }
+  }
+  chrome.tabs.create({ url: fallbackUrl });
+}
+
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   await loadMenuToggleConfig();
   await syncSelectionFromTab(tab, 'context-click', { updateMenu: false });
@@ -410,8 +430,16 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       }
       const encodedPrompt = encodeURIComponent(prompt);
       let url = menuTarget.urlPattern.split('${PROMPT}').join(encodedPrompt);
-      if (typeof enforceFinalUrlCap === 'function') url = enforceFinalUrlCap(url);
-      chrome.tabs.create({ url });
+      if (typeof ccsIsSupportedAIUrl === 'function' && ccsIsSupportedAIUrl(url)) {
+        openMenuUrlWithAIRelay(menuTarget.urlPattern, prompt, url, {
+          source: 'optimized-prompt-context-menu',
+          menuId: info.menuItemId,
+          engineId: menuTarget.engineId || ''
+        });
+      } else {
+        if (typeof enforceFinalUrlCap === 'function') url = enforceFinalUrlCap(url);
+        chrome.tabs.create({ url });
+      }
     }).catch(() => {
       chrome.tabs.sendMessage(tab.id, {
         action: 'showToast',
@@ -449,33 +477,56 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
     case 'ccs-google-ai-chat':
       if (finalNormalized) {
-        chrome.tabs.create({
-          url: `https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${encodeURIComponent(finalNormalized)}`
-        });
+        await openMenuUrlWithAIRelay(
+          'https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${KEYWORD}',
+          finalNormalized,
+          `https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${encodeURIComponent(finalNormalized)}`,
+          { source: 'context-menu-fallback', menuId: info.menuItemId, engineId: 'google-ai' }
+        );
       }
       break;
 
     case 'ccs-yiyan':
       if (finalNormalized) {
-        chrome.tabs.create({
-          url: `https://yiyan.baidu.com/?q=${encodeURIComponent(finalNormalized)}`
-        });
+        await openMenuUrlWithAIRelay(
+          'https://yiyan.baidu.com/?q=${KEYWORD}',
+          finalNormalized,
+          `https://yiyan.baidu.com/?q=${encodeURIComponent(finalNormalized)}`,
+          { source: 'context-menu-fallback', menuId: info.menuItemId, engineId: 'yiyan' }
+        );
       }
       break;
 
     case 'ccs-chatgpt':
       if (finalNormalized) {
-        chrome.tabs.create({
-          url: `https://chatgpt.com/?q=${encodeURIComponent(finalNormalized)}`
-        });
+        await openMenuUrlWithAIRelay(
+          'https://chatgpt.com/?q=${KEYWORD}',
+          finalNormalized,
+          `https://chatgpt.com/?q=${encodeURIComponent(finalNormalized)}`,
+          { source: 'context-menu-fallback', menuId: info.menuItemId, engineId: 'chatgpt' }
+        );
       }
       break;
 
     case 'ccs-claude':
       if (finalNormalized) {
-        chrome.tabs.create({
-          url: `https://claude.ai/new?q=${encodeURIComponent(finalNormalized)}`
-        });
+        await openMenuUrlWithAIRelay(
+          'https://claude.ai/new?q=${KEYWORD}',
+          finalNormalized,
+          `https://claude.ai/new?q=${encodeURIComponent(finalNormalized)}`,
+          { source: 'context-menu-fallback', menuId: info.menuItemId, engineId: 'claude' }
+        );
+      }
+      break;
+
+    case 'ccs-grok':
+      if (finalNormalized) {
+        await openMenuUrlWithAIRelay(
+          'https://grok.com/?q=${KEYWORD}',
+          finalNormalized,
+          `https://grok.com/?q=${encodeURIComponent(finalNormalized)}`,
+          { source: 'context-menu-fallback', menuId: info.menuItemId, engineId: 'grok' }
+        );
       }
       break;
       
