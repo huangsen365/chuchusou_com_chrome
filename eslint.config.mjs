@@ -210,8 +210,6 @@ export default [
         ccsGetUrlRecoveryText: "writable",
         ccsClearUrlRecoveryForTab: "writable",
         ccsInstallUrlFailureMonitor: "writable",
-        ccsInstallGoogleRelayUrlNormalizer: "writable",
-        ccsNormalizeMisroutedGoogleRelayUrl: "writable",
         ccsTryGetTextParam: "writable",
 
         // utils/Constants.js exports (URLBuilder SSoT shortcut)

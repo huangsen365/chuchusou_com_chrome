@@ -12,8 +12,6 @@ function loadRuntime() {
   const sentMessages = []
   const completedListeners = []
   const errorListeners = []
-  const tabUpdatedListeners = []
-  const tabUpdates = []
 
   let nextTabId = 1
   const context = {
@@ -63,15 +61,6 @@ function loadRuntime() {
           sentMessages.push({ tabId, message })
           cb?.({ ok: true })
           return { catch() {} }
-        },
-        update(tabId, opts, cb) {
-          tabUpdates.push({ tabId, opts })
-          cb?.({ id: tabId, url: opts.url })
-        },
-        onUpdated: {
-          addListener(listener) {
-            tabUpdatedListeners.push(listener)
-          }
         }
       },
       webRequest: {
@@ -96,7 +85,7 @@ function loadRuntime() {
     vm.runInNewContext(code, context, { filename: rel })
   }
 
-  return { context, storage, createdTabs, sentMessages, completedListeners, errorListeners, tabUpdatedListeners, tabUpdates }
+  return { context, storage, createdTabs, sentMessages, completedListeners, errorListeners }
 }
 
 function relayIdFromUrl(rawUrl) {
@@ -137,7 +126,7 @@ async function verifyAiRelay(runtime) {
 }
 
 async function verifyGoogleAiRelay(runtime) {
-  const { context, tabUpdatedListeners, tabUpdates } = runtime
+  const { context } = runtime
   const prompt = "Google AI 长提示 ".repeat(500)
   const url = await context.ccsPrepareAIPromptUrl(
     "https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${PROMPT}",
@@ -156,16 +145,6 @@ async function verifyGoogleAiRelay(runtime) {
 
   const hashOnlyGoogle = "https://www.google.com/search?ie=UTF-8#ccs_pp=pabc_123456"
   assert.equal(context.ccsIsSupportedAIUrl(hashOnlyGoogle), true, "google relay hash URL should be supported even after udm rewrite")
-
-  const misrouted = "chrome://google.com/search?udm=50&ie=UTF-8#ccs_pp=pabc_123456"
-  const fixed = context.ccsNormalizeMisroutedGoogleRelayUrl(misrouted)
-  assert(fixed.startsWith("https://www.google.com/search?"), fixed)
-  assert.equal(new URL(fixed).searchParams.get("q"), ".")
-
-  assert.equal(tabUpdatedListeners.length, 1, "google relay normalizer should be installed")
-  tabUpdatedListeners[0](9, { url: misrouted }, { id: 9, url: misrouted })
-  assert.equal(tabUpdates.at(-1).tabId, 9)
-  assert(tabUpdates.at(-1).opts.url.startsWith("https://www.google.com/search?"))
 }
 
 async function verifyRegularUrlTruncation(runtime) {
@@ -329,4 +308,4 @@ await verifyFourOhFour(runtime)
 await verifyConfiguredPatterns(runtime)
 await verifyLocalHttpStatuses()
 
-console.log("[verify-url-safety] AI relay + Google AI relay normalization + regular URL truncation + configured engines + 431/404 recovery OK")
+console.log("[verify-url-safety] AI relay + Google AI relay preservation + regular URL truncation + configured engines + 431/404 recovery OK")
