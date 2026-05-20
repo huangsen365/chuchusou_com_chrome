@@ -16,6 +16,7 @@
   const recoveryStore = new Map();
   const tabRecoveryStore = new Map();
   let monitorInstalled = false;
+  let googleRelayNormalizerInstalled = false;
 
   function getStorageArea() {
     const storage = globalThis.chrome?.storage;
@@ -374,6 +375,47 @@
     if (record) sendRecoveryOverlay(details.tabId, record);
   }
 
+  function normalizeMisroutedGoogleRelayUrl(rawUrl) {
+    const src = asText(rawUrl);
+    if (!/^chrome:\/\/google\.com\/search/i.test(src) || !/[?&#]ccs_pp=/i.test(src)) {
+      return '';
+    }
+    try {
+      const parsed = new URL(src);
+      const fixed = new URL('https://www.google.com/search');
+      fixed.search = parsed.search || '';
+      fixed.hash = parsed.hash || '';
+      if (!fixed.searchParams.get('q')) {
+        fixed.searchParams.set('q', '.');
+      }
+      if (!fixed.searchParams.get('udm')) {
+        fixed.searchParams.set('udm', '50');
+      }
+      return fixed.toString();
+    } catch (_) {
+      const rest = src.replace(/^chrome:\/\/google\.com\/search/i, '');
+      const fixed = `https://www.google.com/search${rest}`;
+      return fixed.includes('?') ? fixed : `${fixed}?q=.&udm=50`;
+    }
+  }
+
+  function installGoogleRelayUrlNormalizer() {
+    const tabs = globalThis.chrome?.tabs;
+    if (googleRelayNormalizerInstalled || !tabs?.onUpdated?.addListener || !tabs?.update) return false;
+    googleRelayNormalizerInstalled = true;
+    tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+      const candidateUrl = changeInfo?.url || tab?.url || '';
+      const fixedUrl = normalizeMisroutedGoogleRelayUrl(candidateUrl);
+      if (!fixedUrl) return;
+      try {
+        tabs.update(tabId, { url: fixedUrl });
+      } catch (_) {
+        // ignore
+      }
+    });
+    return true;
+  }
+
   function installUrlFailureMonitor() {
     const wr = globalThis.chrome?.webRequest;
     if (monitorInstalled || !wr?.onCompleted?.addListener) return false;
@@ -472,7 +514,10 @@
   globalThis.ccsGetUrlRecoveryText = getRecoveryText;
   globalThis.ccsClearUrlRecoveryForTab = clearRecoveryForTab;
   globalThis.ccsInstallUrlFailureMonitor = installUrlFailureMonitor;
+  globalThis.ccsInstallGoogleRelayUrlNormalizer = installGoogleRelayUrlNormalizer;
+  globalThis.ccsNormalizeMisroutedGoogleRelayUrl = normalizeMisroutedGoogleRelayUrl;
   globalThis.ccsTryGetTextParam = tryGetTextParam;
 
   installUrlFailureMonitor();
+  installGoogleRelayUrlNormalizer();
 })();

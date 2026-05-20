@@ -98,11 +98,15 @@
     try {
       const parsed = new URL(url);
       const host = parsed.hostname.toLowerCase();
+      const hashText = (parsed.hash || '').replace(/^#/, '');
+      const hasRelayId = parsed.searchParams.has(RELAY_QUERY_KEY) ||
+        new URLSearchParams(hashText).has(RELAY_QUERY_KEY) ||
+        /(?:^|[?&#])ccs_pp=([A-Za-z0-9_-]+)/.test(hashText);
       if (host === 'chatgpt.com' || host.endsWith('.chatgpt.com')) return 'chatgpt';
       if (host === 'claude.ai' || host.endsWith('.claude.ai')) return 'claude';
       if (host === 'grok.com' || host.endsWith('.grok.com')) return 'grok';
       if (host === 'yiyan.baidu.com') return 'yiyan';
-      if ((host === 'google.com' || host.endsWith('.google.com')) && parsed.searchParams.get('udm') === '50') {
+      if ((host === 'google.com' || host.endsWith('.google.com')) && (parsed.searchParams.get('udm') === '50' || hasRelayId)) {
         return 'google-ai';
       }
       return '';
@@ -112,7 +116,7 @@
       if (/(^|\/\/)([^/]+\.)?claude\.ai([/?#:]|$)/i.test(raw)) return 'claude';
       if (/(^|\/\/)([^/]+\.)?grok\.com([/?#:]|$)/i.test(raw)) return 'grok';
       if (/(^|\/\/)yiyan\.baidu\.com([/?#:]|$)/i.test(raw)) return 'yiyan';
-      if (/(^|\/\/)([^/]+\.)?google\.com\/search\?/i.test(raw) && /[?&]udm=50(&|$)/i.test(raw)) return 'google-ai';
+      if (/(^|\/\/)([^/]+\.)?google\.com\/search\?/i.test(raw) && (/[?&]udm=50(&|$)/i.test(raw) || /[?&#]ccs_pp=[A-Za-z0-9_-]+/i.test(raw))) return 'google-ai';
       return '';
     }
   }
@@ -138,11 +142,19 @@
 
   function ccsBuildRelayOnlyUrl(urlPattern, id) {
     try {
+      const engine = ccsGetAIEngineForUrl(ccsBuildPromptUrl(urlPattern, '.')) ||
+        ccsGetAIEngineForUrl(ccsBuildPromptUrl(urlPattern, ''));
       const parsed = new URL(ccsBuildPromptUrl(urlPattern, ''));
       for (const key of AI_QUERY_PARAM_KEYS) {
         parsed.searchParams.delete(key);
       }
       parsed.searchParams.delete(RELAY_QUERY_KEY);
+      if (engine === 'google-ai') {
+        // Google AI mode can redirect or be rewritten by Chrome when /search has no q.
+        // Keep a tiny placeholder and also put the relay id in query so it survives rewrites.
+        parsed.searchParams.set('q', '.');
+        parsed.searchParams.set(RELAY_QUERY_KEY, id);
+      }
 
       const hashText = (parsed.hash || '').replace(/^#/, '');
       const hashParams = new URLSearchParams(hashText);

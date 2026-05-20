@@ -12,6 +12,8 @@ function loadRuntime() {
   const sentMessages = []
   const completedListeners = []
   const errorListeners = []
+  const tabUpdatedListeners = []
+  const tabUpdates = []
 
   let nextTabId = 1
   const context = {
@@ -61,6 +63,15 @@ function loadRuntime() {
           sentMessages.push({ tabId, message })
           cb?.({ ok: true })
           return { catch() {} }
+        },
+        update(tabId, opts, cb) {
+          tabUpdates.push({ tabId, opts })
+          cb?.({ id: tabId, url: opts.url })
+        },
+        onUpdated: {
+          addListener(listener) {
+            tabUpdatedListeners.push(listener)
+          }
         }
       },
       webRequest: {
@@ -85,7 +96,7 @@ function loadRuntime() {
     vm.runInNewContext(code, context, { filename: rel })
   }
 
-  return { context, storage, createdTabs, sentMessages, completedListeners, errorListeners }
+  return { context, storage, createdTabs, sentMessages, completedListeners, errorListeners, tabUpdatedListeners, tabUpdates }
 }
 
 function relayIdFromUrl(rawUrl) {
@@ -123,6 +134,38 @@ async function verifyAiRelay(runtime) {
   const recovery = await context.ccsReadUrlRecoveryForTab(tab.id)
   assert.equal(recovery.kind, "ai")
   assert.equal(recovery.originalText, prompt)
+}
+
+async function verifyGoogleAiRelay(runtime) {
+  const { context, tabUpdatedListeners, tabUpdates } = runtime
+  const prompt = "Google AI 长提示 ".repeat(500)
+  const url = await context.ccsPrepareAIPromptUrl(
+    "https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${PROMPT}",
+    prompt,
+    { source: "test", menuId: "ccs-google-ai-chat", engineId: "google-ai" }
+  )
+
+  const parsed = new URL(url)
+  assert.equal(parsed.hostname, "www.google.com")
+  assert.equal(parsed.pathname, "/search")
+  assert.equal(parsed.searchParams.get("udm"), "50")
+  assert.equal(parsed.searchParams.get("q"), ".")
+  assert(parsed.searchParams.get("ccs_pp"), "Google AI relay should carry ccs_pp in query")
+  assert(relayIdFromUrl(url), "Google AI relay should also carry ccs_pp in hash")
+  assert.equal(context.ccsIsSupportedAIUrl(url), true)
+
+  const hashOnlyGoogle = "https://www.google.com/search?ie=UTF-8#ccs_pp=pabc_123456"
+  assert.equal(context.ccsIsSupportedAIUrl(hashOnlyGoogle), true, "google relay hash URL should be supported even after udm rewrite")
+
+  const misrouted = "chrome://google.com/search?udm=50&ie=UTF-8#ccs_pp=pabc_123456"
+  const fixed = context.ccsNormalizeMisroutedGoogleRelayUrl(misrouted)
+  assert(fixed.startsWith("https://www.google.com/search?"), fixed)
+  assert.equal(new URL(fixed).searchParams.get("q"), ".")
+
+  assert.equal(tabUpdatedListeners.length, 1, "google relay normalizer should be installed")
+  tabUpdatedListeners[0](9, { url: misrouted }, { id: 9, url: misrouted })
+  assert.equal(tabUpdates.at(-1).tabId, 9)
+  assert(tabUpdates.at(-1).opts.url.startsWith("https://www.google.com/search?"))
 }
 
 async function verifyRegularUrlTruncation(runtime) {
@@ -280,9 +323,10 @@ async function verifyConfiguredPatterns(runtime) {
 
 const runtime = loadRuntime()
 await verifyAiRelay(runtime)
+await verifyGoogleAiRelay(runtime)
 await verifyRegularUrlTruncation(runtime)
 await verifyFourOhFour(runtime)
 await verifyConfiguredPatterns(runtime)
 await verifyLocalHttpStatuses()
 
-console.log("[verify-url-safety] AI relay + regular URL truncation + configured engines + 431/404 recovery OK")
+console.log("[verify-url-safety] AI relay + Google AI relay normalization + regular URL truncation + configured engines + 431/404 recovery OK")

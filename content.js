@@ -101,11 +101,16 @@
   function getSupportedAIEngineFromLocation() {
     try {
       const host = window.location.hostname.toLowerCase();
+      const url = new URL(window.location.href);
+      const hashText = (url.hash || '').replace(/^#/, '');
+      const hasRelayId = url.searchParams.has('ccs_pp') ||
+        new URLSearchParams(hashText).has('ccs_pp') ||
+        /(?:^|[?&#])ccs_pp=([A-Za-z0-9_-]+)/.test(hashText);
       if (host === 'chatgpt.com' || host.endsWith('.chatgpt.com')) return 'chatgpt';
       if (host === 'claude.ai' || host.endsWith('.claude.ai')) return 'claude';
       if (host === 'grok.com' || host.endsWith('.grok.com')) return 'grok';
       if (host === 'yiyan.baidu.com') return 'yiyan';
-      if ((host === 'google.com' || host.endsWith('.google.com')) && new URL(window.location.href).searchParams.get('udm') === '50') {
+      if ((host === 'google.com' || host.endsWith('.google.com')) && (url.searchParams.get('udm') === '50' || hasRelayId)) {
         return 'google-ai';
       }
       return '';
@@ -953,9 +958,17 @@
     const selectors = [
       '#prompt-textarea',
       '[data-testid="prompt-textarea"]',
+      'textarea[name="q"]',
+      'input[name="q"]',
+      'input[type="search"]',
+      'input[aria-label*="Search"]',
+      'input[aria-label*="搜索"]',
+      'textarea[aria-label*="Search"]',
+      'textarea[aria-label*="搜索"]',
       'textarea[placeholder]',
       'textarea',
       '[contenteditable="true"][role="textbox"]',
+      '[contenteditable="true"][role="combobox"]',
       '[contenteditable="true"]'
     ];
 
