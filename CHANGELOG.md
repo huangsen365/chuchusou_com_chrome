@@ -1,5 +1,24 @@
 # 更新日志
 
+## v1.6.26 (2026-05-18)
+
+**修复 v1.6.25 引入的 offscreen prewarm 误初始化错误**。详细见 [releases/v1.6.26.md](./releases/v1.6.26.md)。
+
+### 🐛 修复
+
+- **popup / sidepanel 初始化失败报错**：v1.6.25 引入的 `offscreen/prewarm.js`（SW 启动时后台预热脚本）通过 `<script>` 注入 `popup.bundle.js` / `sidepanel.bundle.js` 到 offscreen 预热文档时，bundle 末尾的 `bootPopupMenu()` / `bootSidePanel()` 在 `document.readyState !== 'loading'` 时会立即执行 `renderer.init()`，但预热文档没有 popup/sidepanel 的 DOM 元素，且 offscreen 上下文里 `chrome.runtime.getManifest` 在某些 Chrome 版本上行为异常，于是连环抛出 4 条错误：
+  - `chrome.runtime.getManifest is not a function`
+  - `Cannot set properties of null (setting 'innerHTML')`
+  - `Cannot set properties of null (setting 'textContent')`
+
+  本版给 `bootPopupMenu()` / `bootSidePanel()` 各加 1 行 DOM 守卫：找不到 `menuContainer` / `spMenu` 直接 return，跳过初始化。**预热作用（V8 字节码 cache / 文件 AV 扫描）完整保留**，只切掉了被误触发的 UI init 链路。
+
+### 🛠 技术改动
+
+- `popup/popup.js:bootPopupMenu()` 第一行加 `if (!document.getElementById('menuContainer')) return;`
+- `sidepanel/sidepanel.js:bootSidePanel()` 第一行加 `if (!document.getElementById('spMenu')) return;`
+- 改动总计 2 行（含注释 6 行）。零功能改动，纯防御性补丁。
+
 ## v1.6.25 (2026-05-18)
 
 **针对 Chrome 部分 Beta 版本上 popup 启动慢的全面优化 + 欢迎页加 📌 固定到工具栏提示 + 诊断工具升级**。详细见 [releases/v1.6.25.md](./releases/v1.6.25.md)。
