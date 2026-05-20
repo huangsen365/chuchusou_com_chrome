@@ -1,5 +1,23 @@
 # 更新日志
 
+## v1.6.29 (2026-05-21)
+
+**修富文本编辑器（含图片）里 Ctrl+A 全选后关键字徽章偶尔退化回 HTML 标题的问题**。详细见 [releases/v1.6.29.md](./releases/v1.6.29.md)。
+
+### 🐛 修复
+
+- **富文本+图片场景 Ctrl+A 全选关键字退化**：在公众号后台、Notion、Lexical/Slate/ProseMirror 等"图片是 contenteditable=false 节点"的富文本编辑器里 Ctrl+A，扩展徽章曾偶尔从完整正文跳回 HTML 标题。尤其在**慢速释放快捷键**（先放 A、隔一会儿才放 Ctrl/⌘）时几乎必现。本版双层加固：
+  - **content.js**：Ctrl+A 防退化保护窗口改为「显式截止时间戳 + keyup 持续延长」机制——按住期间和释放过程中每次 keyup 都续期，无论慢成什么样都护住已捕获的长文本，不让随后的 keyup/selectionchange 防抖把 Tier 1 半截文本写进去。
+  - **background**：BG 层同步识别 `selectAllProtected` 信号做二层闸——即便 content.js 漏拦，BG 收到选区消息时也会校验是否在保护期 + 是否是用户主动触发，挡掉退化消息。
+- **`fetchSelectionSnapshot` 尊重保护期**：popup/sidepanel 主动拉快照时，如果保护期内活选区比已保存的 protected state 更短，强制返回 protected state（之前会用半截的活选区覆盖完整内容）。
+- **`applySelection` 修一个小漏洞**：之前即便 gate 拒绝，`window.selectedText` / `window.lastNonEmptySelection` 全局变量仍被赋值；现在挪到 gate 之后，拒绝时全局也不动。
+
+### 🛠 技术改动
+
+- 新增 `scripts/verify-select-all-protection.mjs` —— 头部 headless Chrome + CDP 集成测试，重现"富文本+图片 Ctrl+A → 慢释放 → 主动 snapshot"完整链路，断言 ① 初次捕获包含图片后的文字 ② 慢 keyup 不发空消息 ③ snapshot.source === `'protected-state'` ④ 鼠标主动清空仍正确发送 empty。`npm run verify:select-all-protection` 可单独跑，是回归保护的硬门。
+- `selectionChanged` 消息体新增 `trigger` / `selectAllProtected` / `selectAllProtectUntil` 字段，给 BG 提供判断依据。
+- content.js 抽出 `extendSelectAllProtect` / `isSelectAllUserInitiatedTrigger` / `isSelectAllDegradation` 几个 helper，把 gate 判断从 `applySelection` 内联中独立出来，便于后续维护。
+
 ## v1.6.28 (2026-05-21)
 
 **封面生成器提示词模板加内容分隔符 + 超长内容降级提示**。详细见 [releases/v1.6.28.md](./releases/v1.6.28.md)。
