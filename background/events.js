@@ -1328,6 +1328,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const tabId = sender.tab.id;
     const rawText = typeof request.text === 'string' ? request.text : '';
     const hasContent = rawText.trim().length > 0;
+    const trigger = typeof request.trigger === 'string' ? request.trigger : 'unknown';
+    const selectAllProtected =
+      request.selectAllProtected === true ||
+      (typeof request.selectAllProtectUntil === 'number' && Date.now() < request.selectAllProtectUntil);
 
     // BUGFIX: Validate that the message is from the currently active tab
     // to prevent cross-tab state contamination during fast tab switching
@@ -1353,6 +1357,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           reason: 'chrome.tabs.query returned no active tab, allowing through (fail-open)',
           hasContent
         });
+      }
+
+      // Content 侧已经会拦截 Ctrl+A 后的空/短退化；这里再做一层 BG 保险。
+      // 富文本编辑器慢速释放快捷键时，某些 keyup/selectionchange 路径会短暂汇报
+      // 空选区或被图片截断的短文本。如果直接删除 selectedTextByTab，prefetch 会把
+      // storage cache 改回 HTML title，popup/sidepanel 徽章就退化了。
+      const existingSelection = selectedTextByTab[tabId];
+      const existingText = typeof existingSelection === 'string'
+        ? existingSelection.trim()
+        : (existingSelection && typeof existingSelection.text === 'string'
+          ? existingSelection.text.trim()
+          : '');
+      const isUserInitiatedTrigger =
+        trigger === 'mouseup' ||
+        trigger === 'contextmenu' ||
+        trigger === 'init' ||
+        trigger === 'keyup:Escape' ||
+        trigger === 'keyup:Enter';
+      if (selectAllProtected && existingText && !isUserInitiatedTrigger) {
+        const incomingLength = rawText.trim().length;
+        if (!hasContent || incomingLength < existingText.length) {
+          logMenuEvent('selection-changed-selectall-degradation-ignored', {
+            tabId,
+            trigger,
+            existingLength: existingText.length,
+            incomingLength,
+            hasContent
+          });
+          return;
+        }
       }
 
       // Only update state for active tab

@@ -21,6 +21,7 @@
     "verify:background-pure-modules-dual": "node scripts/verify-background-pure-modules-dual.mjs",
     "verify:background-extras-dual": "node scripts/verify-background-extras-dual.mjs",
     "verify:dom-modules-structural": "node scripts/verify-dom-modules-structural.mjs",
+    "verify:select-all-protection": "node scripts/verify-select-all-protection.mjs",
     "verify:perf-budget": "node scripts/verify-perf-budget.mjs",
     "verify:sw-bridge": "node scripts/verify-sw-bridge.mjs",
     "perf:cold-popup": "node scripts/perf-cold-popup.mjs",

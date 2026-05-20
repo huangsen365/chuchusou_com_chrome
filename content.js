@@ -28,7 +28,9 @@
     // Ctrl+A 防退化闸：记录最近一次 Ctrl+A 时间戳。在 SELECT_ALL_PROTECT_MS 窗口内，
     // applySelection 拒绝「短文本覆盖当前长文本 + 非 mouseup 触发」的更新。详见
     // applySelection 里的注释。
-    lastSelectAllTime: 0
+    lastSelectAllTime: 0,
+    selectAllProtectUntil: 0,
+    selectAllKeyActive: false
   };
   const SELECT_ALL_PROTECT_MS = 3000;
 
@@ -60,6 +62,40 @@
     if (state.debug) {
       console.log(`[${EXTENSION_NAME}]`, ...args);
     }
+  }
+
+  function isWithinSelectAllProtect(now = Date.now()) {
+    return !!state.selectAllProtectUntil && now < state.selectAllProtectUntil;
+  }
+
+  function extendSelectAllProtect(now = Date.now()) {
+    state.lastSelectAllTime = now;
+    state.selectAllProtectUntil = Math.max(
+      state.selectAllProtectUntil || 0,
+      now + SELECT_ALL_PROTECT_MS
+    );
+  }
+
+  function isSelectAllUserInitiatedTrigger(trigger) {
+    return (
+      trigger === 'mouseup' ||
+      trigger === 'contextmenu' ||
+      trigger === 'init' ||
+      trigger === 'keyup:Escape' ||
+      trigger === 'keyup:Enter'
+    );
+  }
+
+  function isSelectAllDegradation(value, hasContent, trigger) {
+    if (!isWithinSelectAllProtect()) return false;
+    if (isSelectAllUserInitiatedTrigger(trigger)) return false;
+
+    const current = state.selection || '';
+    if (!current.trim()) return false;
+
+    const isEmptyDegradation = !hasContent;
+    const isShorterDegradation = hasContent && value.length < current.length;
+    return isEmptyDegradation || isShorterDegradation;
   }
 
   function getSupportedAIEngineFromLocation() {
@@ -267,10 +303,6 @@
     const trimmed = raw.trim();
     const hasContent = trimmed.length > 0;
     const value = hasContent ? trimmed : '';
-    window.selectedText = value;
-    if (hasContent) {
-      window.lastNonEmptySelection = value;
-    }
 
     if (state.selection === value) {
       return;
@@ -287,23 +319,31 @@
     //
     // 拒绝条件（三个全部满足才拒绝）：
     //   1. 当前在 Ctrl+A 后的保护窗口内（3 秒）
-    //   2. 新值是非空且比当前更短（典型「Tier 1 短文本踩 Tier 4 长文本」）
+    //   2. 新值为空，或非空但比当前更短（典型「临时空选区 / Tier 1 短文本踩 Tier 4 长文本」）
     //   3. 触发源不是用户主动行为 —— mouseup 始终通过（用户主动选了别的就是新意图），
     //      contextmenu 也通过（右键选项依赖最新选区）
     //
-    // 用户清空选区（value === ''）始终通过 —— 明确的取消意图，要让 BG 知道。
-    const isWithinSelectAllProtect =
-      state.lastSelectAllTime && Date.now() - state.lastSelectAllTime < SELECT_ALL_PROTECT_MS;
-    const isShorterDegradation = hasContent && value.length < (state.selection || '').length;
-    const isUserInitiatedTrigger = trigger === 'mouseup' || trigger === 'contextmenu' || trigger === 'init';
-    if (isWithinSelectAllProtect && isShorterDegradation && !isUserInitiatedTrigger) {
+    // 注意：富文本编辑器慢速释放 Ctrl+A 时会短暂汇报空选区；这不是用户取消选择。
+    // 真正的鼠标点击/拖选清空会走 mouseup，仍然允许通过。
+    if (isSelectAllDegradation(value, hasContent, trigger)) {
       log('防退化闸拒绝', { trigger, oldLen: state.selection.length, newLen: value.length });
       return;
     }
 
+    window.selectedText = value;
+    if (hasContent) {
+      window.lastNonEmptySelection = value;
+    }
+
     state.selection = value;
     log('同步选中文本', { trigger, text: value });
-    safeChromeSendMessage({ action: 'selectionChanged', text: value });
+    safeChromeSendMessage({
+      action: 'selectionChanged',
+      text: value,
+      trigger,
+      selectAllProtected: isWithinSelectAllProtect(),
+      selectAllProtectUntil: state.selectAllProtectUntil || 0
+    });
   }
 
   function updateSelection(trigger, { immediate = false } = {}) {
@@ -360,9 +400,10 @@
     //   的兜底，例如 ProseMirror/Slate 等托管型富文本
     if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
       state.isUserSelecting = true;
-      // 打开 SELECT_ALL_PROTECT_MS 防退化窗口。auto-repeat 时每次都会刷新这个时间戳
-      // → 用户按住按键多久，窗口就延长多久。释放按键后再过 3 秒才完全失效。
-      state.lastSelectAllTime = Date.now();
+      state.selectAllKeyActive = true;
+      // 打开 SELECT_ALL_PROTECT_MS 防退化窗口。auto-repeat 和后续 keyup 都会延长窗口，
+      // 覆盖「先松 A、Ctrl/⌘ 慢一点再松」这类富文本编辑器最容易退化的释放节奏。
+      extendSelectAllProtect();
       const flushSelectAll = (label) => {
         const text = readSelectAllText({ allowAggressiveFallback: true });
         if (text && text.trim().length > 0) {
@@ -374,11 +415,17 @@
     }
   });
   document.addEventListener('keyup', (event) => {
+    if (state.selectAllKeyActive) {
+      extendSelectAllProtect();
+      if (event.key === 'Control' || event.key === 'Meta' || (!event.ctrlKey && !event.metaKey)) {
+        state.selectAllKeyActive = false;
+      }
+    }
     // Always sync if there's a non-empty selection after keyup
     const currentSel = readCurrentSelection();
     const shouldUpdate = currentSel || event.key === 'Escape' || event.key === 'Enter' || event.key === 'Shift' || state.isUserSelecting;
     if (shouldUpdate) {
-      updateSelection('keyup');
+      updateSelection(event.key ? `keyup:${event.key}` : 'keyup');
     }
     if (!event.shiftKey || event.key === 'Shift') {
       state.isUserSelecting = false;
@@ -486,8 +533,16 @@
         const live = readCurrentSelection();
         let chosen = typeof live === 'string' ? live : '';
         let source = 'live';
+        const protectedState = state.selection && state.selection.trim().length > 0 ? state.selection : '';
 
-        if (!chosen || !chosen.trim()) {
+        if (
+          protectedState &&
+          isWithinSelectAllProtect() &&
+          (!chosen.trim() || chosen.trim().length < protectedState.trim().length)
+        ) {
+          chosen = protectedState;
+          source = 'protected-state';
+        } else if (!chosen || !chosen.trim()) {
           if (preferEmpty) {
             chosen = '';
             source = 'empty';
@@ -501,7 +556,7 @@
             chosen = '';
             source = 'empty';
           }
-        } else if (state.selection !== chosen) {
+        } else if (state.selection !== chosen && !isSelectAllDegradation(chosen.trim(), true, 'snapshot')) {
           state.selection = chosen;
         }
 
