@@ -1,5 +1,27 @@
 # 更新日志
 
+## v1.6.27 (2026-05-21)
+
+**长 prompt relay 从 ChatGPT 扩展到 5 个 AI 引擎**。详细见 [releases/v1.6.27.md](./releases/v1.6.27.md)。
+
+### 🐛 修复
+
+- **超长选区在 Claude / Grok / 文心 / Google AI 模式上被 URL 截断**：v1.6.26 之前的"长 prompt 自动 storage 中转 + content script 回填 composer"机制只覆盖 chatgpt.com，其它 AI 引擎遇到 ~5500+ 字符的 prompt（优化提示词大模板 + 选中正文）会在拼到 URL query 时被浏览器或目标站截掉。本版把检测扩到 5 个引擎：`chatgpt.com / claude.ai / grok.com / yiyan.baidu.com / google.com?udm=50`。命中任一域名 + URL 超 5500 字符 → 改用 `ccs_pp=<id>` 短标识跳转，content script 通过 `chrome.runtime.sendMessage` 取回完整 prompt 自动填入 composer。
+
+### 🔧 改进
+
+- **AI 引擎检测统一走 `ccsGetAIEngineForUrl()`**：替换旧版散落多处的 `host === 'chatgpt.com'` 硬判，集中到 `background/chatgptPromptRelay.js`，新增引擎只需改一处。
+- **URL 模板支持 `${KEYWORD}` 占位符**（之前只支持 `${PROMPT}`）：让走"普通搜索/AI 对话"快速通道的 5 个引擎（`ccs-chatgpt / ccs-claude / ccs-grok / ccs-yiyan / ccs-google-ai-chat`）能复用同一份 relay 逻辑。
+
+### 🛠 技术改动
+
+- `background/chatgptPromptRelay.js`：函数/storage key 命名从 `ChatGpt*` 泛化到 `AI*`，老 `ccsPrepareChatGptPromptUrl` 等保留为 backward-compat alias 指向新实现；storage key 前缀从 `ccs_chatgpt_pending_*` → `ccs_ai_pending_*`；relay-only URL 清除 `prompt/q/query/text` 4 个 param 避免双填。
+- `background/utils/Constants.js:tryOpenMenuUrl` / `background/events.js:executeMenuAction` / `background/menuHandlers.js:onClicked` / `src/background/menuHandlersAttach.ts`：4 个 menu 入口全部接 `ccsOpenMenuUrlWithAIRelay`，命中 AI URL + 超长走 relay，否则 fallback 直开。
+- `content.js`：5 个 AI 域名都 init relay；message listener 同时接受 `ccsFillChatGptPrompt`（老）+ `ccsFillAIPrompt`（新）。
+- `src/background/menuHandlersAttach.ts` switch-case 补 `ccs-grok` 分支（之前漏掉）。
+- ESLint globals 加 8 个新 API 名字。
+- 总改动 +333 / -109 行，跨 9 个文件。
+
 ## v1.6.26 (2026-05-18)
 
 **修复 v1.6.25 引入的 offscreen prewarm 误初始化错误**。详细见 [releases/v1.6.26.md](./releases/v1.6.26.md)。
