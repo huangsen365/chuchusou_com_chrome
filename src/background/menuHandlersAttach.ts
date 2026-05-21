@@ -237,7 +237,7 @@ export function attachMenuHandlers(): void {
         }
         if (!g.topQuestionsTemplate) {
           g.topQuestionsTemplate = Array.isArray(config.templateLines)
-            ? config.templateLines.join("\\n")
+            ? config.templateLines.join("\n")
             : config.template || ""
         }
         const prompt = g.buildTopQuestionsPrompt?.(effectiveInput)
@@ -300,7 +300,7 @@ export function attachMenuHandlers(): void {
         }
         if (!g.fastAnswersTemplate) {
           g.fastAnswersTemplate = Array.isArray(config.templateLines)
-            ? config.templateLines.join("\\n")
+            ? config.templateLines.join("\n")
             : config.template || ""
         }
         const prompt = g.buildFastAnswersPrompt?.(effectiveInput)

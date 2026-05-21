@@ -268,7 +268,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       }
       if (!topQuestionsTemplate) {
         topQuestionsTemplate = Array.isArray(config.templateLines)
-          ? config.templateLines.join('\\n')
+          ? config.templateLines.join('\n')
           : (config.template || '');
       }
       const prompt = buildTopQuestionsPrompt(effectiveInput);
@@ -349,7 +349,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       }
       if (!fastAnswersTemplate) {
         fastAnswersTemplate = Array.isArray(config.templateLines)
-          ? config.templateLines.join('\\n')
+          ? config.templateLines.join('\n')
           : (config.template || '');
       }
       const prompt = buildFastAnswersPrompt(effectiveInput);

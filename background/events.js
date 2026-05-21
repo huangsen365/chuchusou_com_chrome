@@ -876,7 +876,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               }
               if (!fastAnswersTemplate) {
                 fastAnswersTemplate = Array.isArray(config.templateLines)
-                  ? config.templateLines.join('\\n')
+                  ? config.templateLines.join('\n')
                   : (config.template || '');
               }
               const prompt = buildFastAnswersPrompt(keyword);
@@ -916,7 +916,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               }
               if (!topQuestionsTemplate) {
                 topQuestionsTemplate = Array.isArray(config.templateLines)
-                  ? config.templateLines.join('\\n')
+                  ? config.templateLines.join('\n')
                   : (config.template || '');
               }
               const prompt = buildTopQuestionsPrompt(keyword);
@@ -1040,7 +1040,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               }
               if (!topQuestionsTemplate) {
                 topQuestionsTemplate = Array.isArray(config.templateLines)
-                  ? config.templateLines.join('\\n')
+                  ? config.templateLines.join('\n')
                   : (config.template || '');
               }
               const prompt = buildTopQuestionsPrompt(keyword);
@@ -1073,7 +1073,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               }
               if (!fastAnswersTemplate) {
                 fastAnswersTemplate = Array.isArray(config.templateLines)
-                  ? config.templateLines.join('\\n')
+                  ? config.templateLines.join('\n')
                   : (config.template || '');
               }
               const prompt = buildFastAnswersPrompt(keyword);

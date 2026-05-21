@@ -150,9 +150,9 @@
       }
       parsed.searchParams.delete(RELAY_QUERY_KEY);
       if (engine === 'google-ai') {
-        // Google AI mode can redirect or be rewritten by Chrome when /search has no q.
-        // Keep a tiny placeholder and also put the relay id in query so it survives rewrites.
-        parsed.searchParams.set('q', '.');
+        // Keep the relay id in query as well as hash, but do not add q.
+        // A q value makes Google AI mode execute immediately instead of waiting
+        // for content.js to fill the prompt into the visible input.
         parsed.searchParams.set(RELAY_QUERY_KEY, id);
       }
 
@@ -351,7 +351,8 @@
   async function ccsPrepareAIPromptUrl(urlPattern, prompt, meta = {}) {
     const directUrl = ccsBuildPromptUrl(urlPattern, prompt);
     const engine = ccsGetAIEngineForUrl(directUrl);
-    if (!engine || (!meta.forceRelay && directUrl.length <= DIRECT_URL_LIMIT)) {
+    const shouldRelay = !!meta.forceRelay || engine === 'google-ai' || directUrl.length > DIRECT_URL_LIMIT;
+    if (!engine || !shouldRelay) {
       return directUrl;
     }
 

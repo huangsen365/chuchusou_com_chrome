@@ -138,10 +138,19 @@ async function verifyGoogleAiRelay(runtime) {
   assert.equal(parsed.hostname, "www.google.com")
   assert.equal(parsed.pathname, "/search")
   assert.equal(parsed.searchParams.get("udm"), "50")
-  assert.equal(parsed.searchParams.get("q"), ".")
+  assert.equal(parsed.searchParams.has("q"), false, "Google AI relay should not auto-submit a q search")
   assert(parsed.searchParams.get("ccs_pp"), "Google AI relay should carry ccs_pp in query")
   assert(relayIdFromUrl(url), "Google AI relay should also carry ccs_pp in hash")
   assert.equal(context.ccsIsSupportedAIUrl(url), true)
+
+  const shortUrl = await context.ccsPrepareAIPromptUrl(
+    "https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${PROMPT}",
+    "短提示",
+    { source: "test", menuId: "ccs-google-ai-chat", engineId: "google-ai" }
+  )
+  const shortParsed = new URL(shortUrl)
+  assert(shortParsed.searchParams.get("ccs_pp"), "Google AI should use relay even for short prompts")
+  assert.equal(shortParsed.searchParams.has("q"), false, "short Google AI relay should not include q")
 
   const hashOnlyGoogle = "https://www.google.com/search?ie=UTF-8#ccs_pp=pabc_123456"
   assert.equal(context.ccsIsSupportedAIUrl(hashOnlyGoogle), true, "google relay hash URL should be supported even after udm rewrite")

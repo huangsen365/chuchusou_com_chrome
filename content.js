@@ -844,6 +844,7 @@
     const trigger = () => {
       if (relayResolved) return;
       const pendingId = getAIPendingIdFromLocation();
+      if (!pendingId && hasAITextParamInLocation()) return;
       const requestKey = pendingId || 'tab-bound';
       if (requestKey === activeRequestKey) return;
       activeRequestKey = requestKey;
@@ -888,6 +889,19 @@
       log('读取 AI prompt relay id 失败:', err);
       return '';
     }
+  }
+
+  function hasAITextParamInLocation() {
+    try {
+      const url = new URL(window.location.href);
+      for (const key of ['prompt', 'q', 'query', 'text']) {
+        const value = url.searchParams.get(key);
+        if (value && value.trim()) return true;
+      }
+    } catch (_) {
+      // ignore
+    }
+    return false;
   }
 
   function sanitizeChatGptPendingId(value) {
@@ -947,7 +961,7 @@
       } else {
         setContentEditableValue(target, text);
       }
-      const verified = editableContainsText(target, text);
+      const verified = editableMatchesText(target, text);
       return verified ? { ok: true } : { ok: false, error: 'fill-not-verified' };
     } catch (error) {
       return { ok: false, error: error?.message || 'fill-failed' };
@@ -1015,12 +1029,14 @@
 
   function setContentEditableValue(element, text) {
     element.focus();
+    clearContentEditable(element);
     pasteTextIntoContentEditable(element, text);
-    if (editableContainsText(element, text)) {
+    if (editableMatchesText(element, text)) {
       dispatchEditableEvents(element);
       return;
     }
 
+    clearContentEditable(element);
     try {
       const selection = window.getSelection();
       const range = document.createRange();
@@ -1028,13 +1044,48 @@
       selection?.removeAllRanges();
       selection?.addRange(range);
       const inserted = document.execCommand?.('insertText', false, text);
-      if (!inserted || !editableContainsText(element, text)) {
-        element.textContent = text;
+      if (!inserted || !editableMatchesText(element, text)) {
+        setContentEditablePlainText(element, text);
       }
     } catch (_) {
-      element.textContent = text;
+      setContentEditablePlainText(element, text);
     }
     dispatchEditableEvents(element);
+  }
+
+  function clearContentEditable(element) {
+    try {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      document.execCommand?.('delete', false);
+      selection?.removeAllRanges();
+    } catch (_) {
+      // ignore
+    }
+
+    if (normalizeFilledText(readEditableText(element))) {
+      element.replaceChildren?.();
+      element.textContent = '';
+    }
+  }
+
+  function setContentEditablePlainText(element, text) {
+    const normalized = String(text || '').replace(/\r\n?/g, '\n');
+    const fragment = document.createDocumentFragment();
+    const lines = normalized.split('\n');
+    lines.forEach((line, index) => {
+      if (index > 0) fragment.appendChild(document.createElement('br'));
+      fragment.appendChild(document.createTextNode(line));
+    });
+    if (typeof element.replaceChildren === 'function') {
+      element.replaceChildren(fragment);
+    } else {
+      element.textContent = '';
+      element.appendChild(fragment);
+    }
   }
 
   function pasteTextIntoContentEditable(element, text) {
@@ -1066,14 +1117,23 @@
     element.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  function editableContainsText(element, text) {
-    const value = typeof element.value === 'string'
-      ? element.value
-      : (element.innerText || element.textContent || '');
-    if (value === text) return true;
-    const head = text.slice(0, Math.min(80, text.length));
-    const tail = text.slice(Math.max(0, text.length - 80));
-    return !!head && value.includes(head) && (!tail || value.includes(tail));
+  function editableMatchesText(element, text) {
+    return normalizeFilledText(readEditableText(element)) === normalizeFilledText(text);
+  }
+
+  function readEditableText(element) {
+    if (typeof element.value === 'string') return element.value;
+    return element.innerText || element.textContent || '';
+  }
+
+  function normalizeFilledText(value) {
+    return String(value || '')
+      .replace(/\r\n?/g, '\n')
+      .replace(/\u00a0/g, ' ')
+      .replace(/[\u200b\u200c\u200d\ufeff]/g, '')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n[ \t]+/g, '\n')
+      .trim();
   }
 
   function cleanupChatGptRelayUrl() {
