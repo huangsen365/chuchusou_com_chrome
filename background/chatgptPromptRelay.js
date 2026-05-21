@@ -257,32 +257,12 @@
     return true;
   }
 
-  function ccsSendPendingPromptToTab(tabId, pendingId) {
-    if (typeof tabId !== 'number' || !ccsIsValidRelayId(pendingId)) return;
-    ccsReadPendingAIPrompt(pendingId).then((record) => {
-      if (!record?.prompt || !globalThis.chrome?.tabs?.sendMessage) return;
-      try {
-        globalThis.chrome.tabs.sendMessage(tabId, {
-          action: 'ccsFillAIPrompt',
-          text: record.prompt,
-          pendingId,
-          source: 'ai-prompt-relay'
-        }, (response) => {
-          if (globalThis.chrome?.runtime?.lastError) return;
-          if (response?.ok) {
-            ccsAckPendingAIPromptForTab(pendingId, tabId).catch(() => {});
-          }
-        });
-      } catch (_) {
-        // content script may not be available yet; scheduled retries handle this.
-      }
-    }).catch(() => {});
-  }
-
-  function ccsSchedulePendingPromptPush(tabId, pendingId) {
-    for (const delayMs of [400, 1200, 2500, 5000, 9000, 15000]) {
-      setTimeout(() => ccsSendPendingPromptToTab(tabId, pendingId), delayMs);
-    }
+  async function ccsBindPendingPromptForTabOnly(pendingId, tabId) {
+    if (!pendingId || typeof tabId !== 'number') return;
+    await ccsBindPendingAIPromptToTab(pendingId, tabId);
+    // content.js now owns the auto-fill flow and polls this tab binding.
+    // Avoid background push retries here: push + pull can race and append the
+    // same prompt twice on editors such as yiyan.baidu.com.
   }
 
   async function ccsOpenPreparedAIPromptUrl(url, options = {}) {
@@ -317,9 +297,7 @@
     if (typeof globalThis.ccsOpenUrlWithRecovery === 'function') {
       const tab = await globalThis.ccsOpenUrlWithRecovery(url, recoveryRecord, options);
       if (pendingId && typeof tab?.id === 'number') {
-        ccsBindPendingAIPromptToTab(pendingId, tab.id)
-          .then(() => ccsSchedulePendingPromptPush(tab.id, pendingId))
-          .catch(() => {});
+        ccsBindPendingPromptForTabOnly(pendingId, tab.id).catch(() => {});
       }
       return tab || null;
     }
@@ -336,9 +314,7 @@
             return;
           }
           if (pendingId && typeof tab?.id === 'number') {
-            ccsBindPendingAIPromptToTab(pendingId, tab.id)
-              .then(() => ccsSchedulePendingPromptPush(tab.id, pendingId))
-              .catch(() => {});
+            ccsBindPendingPromptForTabOnly(pendingId, tab.id).catch(() => {});
           }
           resolve(tab || null);
         });

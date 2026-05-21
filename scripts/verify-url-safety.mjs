@@ -101,7 +101,7 @@ async function tick() {
 }
 
 async function verifyAiRelay(runtime) {
-  const { context, createdTabs } = runtime
+  const { context, createdTabs, sentMessages } = runtime
   const prompt = "封面生成器长提示 ".repeat(400)
   const url = await context.ccsPrepareAIPromptUrl(
     "https://chatgpt.com/?prompt=${PROMPT}",
@@ -120,6 +120,7 @@ async function verifyAiRelay(runtime) {
   const tab = await context.ccsOpenPreparedAIPromptUrl(url)
   await tick()
   assert.equal(createdTabs.length, 1, "prepared AI URL should open one tab")
+  assert.equal(sentMessages.length, 0, "AI relay should not push prompt from background; content script pulls it once")
   const recovery = await context.ccsReadUrlRecoveryForTab(tab.id)
   assert.equal(recovery.kind, "ai")
   assert.equal(recovery.originalText, prompt)

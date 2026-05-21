@@ -33,6 +33,8 @@
     selectAllKeyActive: false
   };
   const SELECT_ALL_PROTECT_MS = 3000;
+  const aiPromptFillInFlight = new Set();
+  const aiPromptFillDone = new Set();
 
   // expose basic globals expected by other modules
   window.selectedText = '';
@@ -523,16 +525,15 @@
           sendResponse?.({ ok: false, error: 'no-text' });
           return true;
         }
-        fillChatGptPrompt(text, { attempts: 80, intervalMs: 500 })
-          .then(async (result) => {
-            if (result.ok && request.pendingId) {
-              cleanupChatGptRelayUrl();
-              showInfoToast('已自动补充完整提示词，请确认后发送');
-              const ackAction = request.action === 'ccsFillAIPrompt'
-                ? 'ccsAckPendingAIPrompt'
-                : 'ccsAckPendingChatGptPrompt';
-              await sendRuntimeMessage({ action: ackAction, pendingId: request.pendingId });
-            }
+        const ackAction = request.action === 'ccsFillAIPrompt'
+          ? 'ccsAckPendingAIPrompt'
+          : 'ccsAckPendingChatGptPrompt';
+        fillPendingAIPromptOnce({
+          prompt: text,
+          pendingId: request.pendingId,
+          ackAction
+        })
+          .then((result) => {
             sendResponse?.(result);
           })
           .catch((error) => sendResponse?.({ ok: false, error: error?.message || 'fill-failed' }));
@@ -918,15 +919,67 @@
       throw new Error(response?.error || 'pending-prompt-not-found');
     }
 
-    const result = await fillChatGptPrompt(response.prompt, { attempts: 80, intervalMs: 500 });
+    const result = await fillPendingAIPromptOnce({
+      prompt: response.prompt,
+      pendingId: response.pendingId || pendingId,
+      ackAction: 'ccsAckPendingAIPrompt'
+    });
     if (!result.ok) {
       throw new Error(result.error || 'fill-failed');
     }
-
-    await sendRuntimeMessage({ action: 'ccsAckPendingAIPrompt', pendingId: response.pendingId || pendingId });
-    cleanupChatGptRelayUrl();
-    showInfoToast('已自动补充完整提示词，请确认后发送');
     return result;
+  }
+
+  async function fillPendingAIPromptOnce({ prompt, pendingId, ackAction }) {
+    const text = typeof prompt === 'string' ? prompt : '';
+    if (!text) return { ok: false, error: 'no-text' };
+
+    const key = makeAIPromptFillKey(pendingId, text);
+    if (aiPromptFillDone.has(key)) {
+      const result = fillChatGptPromptOnce(text);
+      return result.ok ? { ...result, skipped: true, reason: 'already-filled' } : result;
+    }
+    if (aiPromptFillInFlight.has(key)) {
+      return { ok: false, error: 'fill-in-progress' };
+    }
+
+    aiPromptFillInFlight.add(key);
+    try {
+      const result = await fillChatGptPrompt(text, { attempts: 80, intervalMs: 500 });
+      if (!result.ok) return result;
+      const stableResult = await stabilizeAIPromptFill(text);
+      if (!stableResult.ok) return stableResult;
+
+      aiPromptFillDone.add(key);
+      cleanupChatGptRelayUrl();
+      showInfoToast('已自动补充完整提示词，请确认后发送');
+      if (pendingId && ackAction) {
+        await sendRuntimeMessage({ action: ackAction, pendingId });
+      }
+      return result;
+    } finally {
+      aiPromptFillInFlight.delete(key);
+    }
+  }
+
+  async function stabilizeAIPromptFill(text) {
+    for (const delayMs of [120, 450]) {
+      await sleep(delayMs);
+      const result = fillChatGptPromptOnce(text);
+      if (!result.ok) return result;
+    }
+    return { ok: true };
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function makeAIPromptFillKey(pendingId, text) {
+    const id = sanitizeChatGptPendingId(pendingId);
+    if (id) return `id:${id}`;
+    const normalized = normalizeFilledText(text);
+    return `text:${normalized.length}:${normalized.slice(0, 80)}:${normalized.slice(-80)}`;
   }
 
   function fillChatGptPrompt(text, options = {}) {
@@ -961,7 +1014,7 @@
       } else {
         setContentEditableValue(target, text);
       }
-      const verified = editableMatchesText(target, text);
+      const verified = editableAcceptsFilledText(target, text);
       return verified ? { ok: true } : { ok: false, error: 'fill-not-verified' };
     } catch (error) {
       return { ok: false, error: error?.message || 'fill-failed' };
@@ -1029,28 +1082,31 @@
 
   function setContentEditableValue(element, text) {
     element.focus();
+    if (editableAcceptsFilledText(element, text)) return;
+
     clearContentEditable(element);
-    pasteTextIntoContentEditable(element, text);
-    if (editableMatchesText(element, text)) {
+    insertTextIntoContentEditable(element, text);
+    if (editableAcceptsFilledText(element, text)) {
       dispatchEditableEvents(element);
       return;
     }
 
     clearContentEditable(element);
+    setContentEditablePlainText(element, text);
+    dispatchEditableEvents(element);
+  }
+
+  function insertTextIntoContentEditable(element, text) {
     try {
       const selection = window.getSelection();
       const range = document.createRange();
       range.selectNodeContents(element);
       selection?.removeAllRanges();
       selection?.addRange(range);
-      const inserted = document.execCommand?.('insertText', false, text);
-      if (!inserted || !editableMatchesText(element, text)) {
-        setContentEditablePlainText(element, text);
-      }
+      return !!document.execCommand?.('insertText', false, text);
     } catch (_) {
-      setContentEditablePlainText(element, text);
+      return false;
     }
-    dispatchEditableEvents(element);
   }
 
   function clearContentEditable(element) {
@@ -1088,37 +1144,23 @@
     }
   }
 
-  function pasteTextIntoContentEditable(element, text) {
-    try {
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-
-      if (typeof window.DataTransfer !== 'function' || typeof window.ClipboardEvent !== 'function') return false;
-      const data = new window.DataTransfer();
-      data.setData('text/plain', text);
-      const event = new window.ClipboardEvent('paste', {
-        bubbles: true,
-        cancelable: true,
-        clipboardData: data
-      });
-      element.dispatchEvent(event);
-      return true;
-    } catch (err) {
-      log('模拟粘贴完整提示词失败:', err);
-      return false;
-    }
-  }
-
   function dispatchEditableEvents(element) {
     element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
     element.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  function editableMatchesText(element, text) {
-    return normalizeFilledText(readEditableText(element)) === normalizeFilledText(text);
+  function editableAcceptsFilledText(element, text) {
+    const value = normalizeFilledText(readEditableText(element));
+    const expected = normalizeFilledText(text);
+    if (!expected) return !value;
+    if (value === expected) return true;
+
+    const head = expected.slice(0, Math.min(100, expected.length));
+    const tail = expected.slice(Math.max(0, expected.length - 100));
+    if (head.length < 20 || tail.length < 20) return false;
+    const headCount = countOccurrences(value, head);
+    const tailCount = countOccurrences(value, tail);
+    return headCount === 1 && tailCount === 1 && value.indexOf(head) <= value.lastIndexOf(tail);
   }
 
   function readEditableText(element) {
@@ -1134,6 +1176,19 @@
       .replace(/[ \t]+\n/g, '\n')
       .replace(/\n[ \t]+/g, '\n')
       .trim();
+  }
+
+  function countOccurrences(value, needle) {
+    if (!needle) return 0;
+    let count = 0;
+    let index = 0;
+    while (index <= value.length) {
+      const found = value.indexOf(needle, index);
+      if (found === -1) break;
+      count++;
+      index = found + needle.length;
+    }
+    return count;
   }
 
   function cleanupChatGptRelayUrl() {
