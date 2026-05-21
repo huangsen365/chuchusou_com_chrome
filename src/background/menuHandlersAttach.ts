@@ -24,6 +24,21 @@ export function attachMenuHandlers(): void {
   const cm = g.chrome?.contextMenus
   if (!cm?.onClicked?.addListener) return
 
+  const openPromptUrlPattern = async (urlPattern: string, prompt: string, meta: Record<string, any> = {}) => {
+    const fallbackUrl = String(urlPattern || "").split("${PROMPT}").join(encodeURIComponent(prompt || ""))
+    if (
+      typeof g.ccsIsSupportedAIUrl === "function" &&
+      typeof g.ccsPrepareAIPromptUrl === "function" &&
+      typeof g.ccsOpenPreparedAIPromptUrl === "function" &&
+      g.ccsIsSupportedAIUrl(fallbackUrl)
+    ) {
+      const preparedUrl = await g.ccsPrepareAIPromptUrl(urlPattern, prompt, meta)
+      await g.ccsOpenPreparedAIPromptUrl(preparedUrl, { active: meta.active })
+      return
+    }
+    g.chrome?.tabs?.create?.({ url: fallbackUrl, ...(meta.active !== undefined ? { active: meta.active } : {}) })
+  }
+
   cm.onClicked.addListener(async (info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab) => {
     try { await g.loadMenuToggleConfig?.() } catch { /* ignore */ }
     try { await g.syncSelectionFromTab?.(tab, "context-click", { updateMenu: false }) } catch { /* ignore */ }
@@ -230,7 +245,7 @@ export function attachMenuHandlers(): void {
       if (typeof g.applyTextLimit === "function") {
         effectiveInput = g.applyTextLimit(info.menuItemId, effectiveInput, { tabId: tab?.id }).text
       }
-      g.loadTopQuestionsConfig?.().then((config: any) => {
+      g.loadTopQuestionsConfig?.().then(async (config: any) => {
         if (!config) {
           g.chrome?.tabs?.sendMessage(tab?.id ?? -1, { action: "showToast", message: "触触搜百问模板加载失败" })?.catch?.(() => {})
           return
@@ -245,20 +260,22 @@ export function attachMenuHandlers(): void {
           g.chrome?.tabs?.sendMessage(tab?.id ?? -1, { action: "showToast", message: "触触搜百问模板无效" })?.catch?.(() => {})
           return
         }
-        const encodedPrompt = encodeURIComponent(prompt)
         if (isTopQuestionsOpenAll) {
           const engines = Array.isArray(config.engines) ? config.engines : []
           let openedCount = 0
-          engines.forEach((engine: any) => {
-            if (!engine || typeof engine.urlPattern !== "string" || !engine.urlPattern) return
+          for (const engine of engines) {
+            if (!engine || typeof engine.urlPattern !== "string" || !engine.urlPattern) continue
             const menuId = `ccs-top100-${engine.id}`
-            if (!g.isMenuEnabled?.(menuId)) return
-            const targetUrl = engine.urlPattern.split("${PROMPT}").join(encodedPrompt)
-            if (targetUrl) {
-              g.chrome?.tabs?.create({ url: targetUrl, active: openedCount === 0 })
-              openedCount += 1
-            }
-          })
+            if (!g.isMenuEnabled?.(menuId)) continue
+            await openPromptUrlPattern(engine.urlPattern, prompt, {
+              source: "top100-context-menu-open-all",
+              menuId,
+              engineId: engine.id || "",
+              tabId: tab?.id,
+              active: openedCount === 0
+            })
+            openedCount += 1
+          }
         } else {
           const engineId = (info.menuItemId as string).replace("ccs-top100-", "")
           let menuTarget = g.topQuestionsMenuMap?.get?.(info.menuItemId)
@@ -273,8 +290,12 @@ export function attachMenuHandlers(): void {
             g.chrome?.tabs?.sendMessage(tab?.id ?? -1, { action: "showToast", message: "未找到对应的引擎配置" })?.catch?.(() => {})
             return
           }
-          const url = menuTarget.urlPattern.split("${PROMPT}").join(encodedPrompt)
-          g.chrome?.tabs?.create({ url })
+          await openPromptUrlPattern(menuTarget.urlPattern, prompt, {
+            source: "top100-context-menu",
+            menuId: info.menuItemId,
+            engineId,
+            tabId: tab?.id
+          })
         }
       }).catch(() => {
         g.chrome?.tabs?.sendMessage(tab?.id ?? -1, { action: "showToast", message: "触触搜百问模板加载失败" })?.catch?.(() => {})
@@ -293,7 +314,7 @@ export function attachMenuHandlers(): void {
       if (typeof g.applyTextLimit === "function") {
         effectiveInput = g.applyTextLimit(info.menuItemId, effectiveInput, { tabId: tab?.id }).text
       }
-      g.loadFastAnswersConfig?.().then((config: any) => {
+      g.loadFastAnswersConfig?.().then(async (config: any) => {
         if (!config) {
           g.chrome?.tabs?.sendMessage(tab?.id ?? -1, { action: "showToast", message: "速答壹拾佰模板加载失败" })?.catch?.(() => {})
           return
@@ -308,21 +329,24 @@ export function attachMenuHandlers(): void {
           g.chrome?.tabs?.sendMessage(tab?.id ?? -1, { action: "showToast", message: "速答壹拾佰模板无效" })?.catch?.(() => {})
           return
         }
-        const encodedPrompt = encodeURIComponent(prompt)
         if (isFastAnswersOpenAll) {
           const engines = Array.isArray(config.engines) ? config.engines : []
           let openedCount = 0
-          engines.forEach((engine: any) => {
-            if (!engine || typeof engine.urlPattern !== "string" || !engine.urlPattern) return
+          for (const engine of engines) {
+            if (!engine || typeof engine.urlPattern !== "string" || !engine.urlPattern) continue
             const menuId = `ccs-fastqa-${engine.id}`
-            if (!g.isMenuEnabled?.(menuId)) return
-            const targetUrl = engine.urlPattern.split("${PROMPT}").join(encodedPrompt)
-            if (targetUrl) {
-              g.chrome?.tabs?.create({ url: targetUrl, active: openedCount === 0 })
-              openedCount += 1
-              g.logMenuEvent?.("fastqa-open-url", { targetUrl, menuId, index: openedCount })
-            }
-          })
+            if (!g.isMenuEnabled?.(menuId)) continue
+            const targetUrl = engine.urlPattern.split("${PROMPT}").join(encodeURIComponent(prompt))
+            await openPromptUrlPattern(engine.urlPattern, prompt, {
+              source: "fastqa-context-menu-open-all",
+              menuId,
+              engineId: engine.id || "",
+              tabId: tab?.id,
+              active: openedCount === 0
+            })
+            openedCount += 1
+            g.logMenuEvent?.("fastqa-open-url", { targetUrl, menuId, index: openedCount })
+          }
         } else {
           const quickItem = (g.FAST_QA_QUICK_ITEMS || []).find((item: any) => item.id === info.menuItemId)
           const engineId = quickItem ? quickItem.engineId : (info.menuItemId as string).replace("ccs-fastqa-", "").replace(/-(shortcut|quick)$/, "")
@@ -338,9 +362,14 @@ export function attachMenuHandlers(): void {
             g.chrome?.tabs?.sendMessage(tab?.id ?? -1, { action: "showToast", message: "未找到对应的速答配置" })?.catch?.(() => {})
             return
           }
-          const url = menuTarget.urlPattern.split("${PROMPT}").join(encodedPrompt)
+          const url = menuTarget.urlPattern.split("${PROMPT}").join(encodeURIComponent(prompt))
           g.logMenuEvent?.("fastqa-open-url", { targetUrl: url, menuItemId: info.menuItemId, engineId })
-          g.chrome?.tabs?.create({ url })
+          await openPromptUrlPattern(menuTarget.urlPattern, prompt, {
+            source: "fastqa-context-menu",
+            menuId: info.menuItemId,
+            engineId,
+            tabId: tab?.id
+          })
         }
       }).catch(() => {
         g.chrome?.tabs?.sendMessage(tab?.id ?? -1, { action: "showToast", message: "速答壹拾佰模板加载失败" })?.catch?.(() => {})

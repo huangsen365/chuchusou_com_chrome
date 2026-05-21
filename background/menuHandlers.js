@@ -12,7 +12,7 @@ async function openMenuUrlWithAIRelay(urlPattern, rawKeyword, fallbackUrl, meta 
   ) {
     try {
       const preparedUrl = await ccsPrepareAIPromptUrl(urlPattern || fallbackUrl, rawKeyword, meta);
-      await ccsOpenPreparedAIPromptUrl(preparedUrl);
+      await ccsOpenPreparedAIPromptUrl(preparedUrl, { active: meta.active });
       return;
     } catch (error) {
       if (typeof BG_DBG === 'function') {
@@ -32,7 +32,7 @@ async function openMenuUrlWithAIRelay(urlPattern, rawKeyword, fallbackUrl, meta 
         engineId: meta.engineId || '',
         tabId: meta.tabId
       });
-      await ccsOpenUrlWithRecovery(prepared.url, prepared.record);
+      await ccsOpenUrlWithRecovery(prepared.url, prepared.record, { active: meta.active });
       return;
     } catch (error) {
       if (typeof BG_DBG === 'function') {
@@ -40,7 +40,9 @@ async function openMenuUrlWithAIRelay(urlPattern, rawKeyword, fallbackUrl, meta 
       }
     }
   }
-  chrome.tabs.create({ url: fallbackUrl });
+  const createOptions = { url: fallbackUrl };
+  if (meta.active !== undefined) createOptions.active = meta.active;
+  chrome.tabs.create(createOptions);
 }
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
@@ -258,7 +260,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       const limited = applyTextLimit(info.menuItemId, effectiveInput, { tabId: tab?.id });
       effectiveInput = limited.text;
     }
-    loadTopQuestionsConfig().then((config) => {
+    loadTopQuestionsConfig().then(async (config) => {
       if (!config) {
         chrome.tabs.sendMessage(tab.id, {
           action: 'showToast',
@@ -279,22 +281,25 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         }).catch(() => {});
         return;
       }
-      const encodedPrompt = encodeURIComponent(prompt);
       if (isTopQuestionsOpenAll) {
         const engines = Array.isArray(config.engines) ? config.engines : [];
         let openedCount = 0;
-        engines.forEach((engine) => {
+        for (const engine of engines) {
           if (!engine || typeof engine.urlPattern !== 'string' || !engine.urlPattern) {
-            return;
+            continue;
           }
           const menuId = `ccs-top100-${engine.id}`;
-          if (!isMenuEnabled(menuId)) return;
-          const targetUrl = engine.urlPattern.split('${PROMPT}').join(encodedPrompt);
-          if (targetUrl) {
-            chrome.tabs.create({ url: targetUrl, active: openedCount === 0 });
-            openedCount += 1;
-          }
-        });
+          if (!isMenuEnabled(menuId)) continue;
+          const fallbackUrl = engine.urlPattern.split('${PROMPT}').join(encodeURIComponent(prompt));
+          await openMenuUrlWithAIRelay(engine.urlPattern, prompt, fallbackUrl, {
+            source: 'top100-context-menu-open-all',
+            menuId,
+            engineId: engine.id || '',
+            tabId: tab?.id,
+            active: openedCount === 0
+          });
+          openedCount += 1;
+        }
       } else {
         const engineId = info.menuItemId.replace('ccs-top100-', '');
         let menuTarget = topQuestionsMenuMap.get(info.menuItemId);
@@ -312,8 +317,13 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           }).catch(() => {});
           return;
         }
-        const url = menuTarget.urlPattern.split('${PROMPT}').join(encodedPrompt);
-        chrome.tabs.create({ url });
+        const url = menuTarget.urlPattern.split('${PROMPT}').join(encodeURIComponent(prompt));
+        await openMenuUrlWithAIRelay(menuTarget.urlPattern, prompt, url, {
+          source: 'top100-context-menu',
+          menuId: info.menuItemId,
+          engineId,
+          tabId: tab?.id
+        });
       }
     }).catch(() => {
       chrome.tabs.sendMessage(tab.id, {
@@ -339,7 +349,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       const limited = applyTextLimit(info.menuItemId, effectiveInput, { tabId: tab?.id });
       effectiveInput = limited.text;
     }
-    loadFastAnswersConfig().then((config) => {
+    loadFastAnswersConfig().then(async (config) => {
       if (!config) {
         chrome.tabs.sendMessage(tab.id, {
           action: 'showToast',
@@ -360,23 +370,26 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         }).catch(() => {});
         return;
       }
-      const encodedPrompt = encodeURIComponent(prompt);
       if (isFastAnswersOpenAll) {
         const engines = Array.isArray(config.engines) ? config.engines : [];
         let openedCount = 0;
-        engines.forEach((engine) => {
+        for (const engine of engines) {
           if (!engine || typeof engine.urlPattern !== 'string' || !engine.urlPattern) {
-            return;
+            continue;
           }
           const menuId = `ccs-fastqa-${engine.id}`;
-          if (!isMenuEnabled(menuId)) return;
-          const targetUrl = engine.urlPattern.split('${PROMPT}').join(encodedPrompt);
-          if (targetUrl) {
-            chrome.tabs.create({ url: targetUrl, active: openedCount === 0 });
-            openedCount += 1;
-            logMenuEvent('fastqa-open-url', { targetUrl, menuId, index: openedCount });
-          }
-        });
+          if (!isMenuEnabled(menuId)) continue;
+          const targetUrl = engine.urlPattern.split('${PROMPT}').join(encodeURIComponent(prompt));
+          await openMenuUrlWithAIRelay(engine.urlPattern, prompt, targetUrl, {
+            source: 'fastqa-context-menu-open-all',
+            menuId,
+            engineId: engine.id || '',
+            tabId: tab?.id,
+            active: openedCount === 0
+          });
+          openedCount += 1;
+          logMenuEvent('fastqa-open-url', { targetUrl, menuId, index: openedCount });
+        }
       } else {
         const quickItem = FAST_QA_QUICK_ITEMS.find((item) => item.id === info.menuItemId);
         let engineId = quickItem ? quickItem.engineId : info.menuItemId.replace('ccs-fastqa-', '').replace(/-(shortcut|quick)$/, '');
@@ -395,9 +408,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           }).catch(() => {});
           return;
         }
-        const url = menuTarget.urlPattern.split('${PROMPT}').join(encodedPrompt);
+        const url = menuTarget.urlPattern.split('${PROMPT}').join(encodeURIComponent(prompt));
         logMenuEvent('fastqa-open-url', { targetUrl: url, menuItemId: info.menuItemId, engineId });
-        chrome.tabs.create({ url });
+        await openMenuUrlWithAIRelay(menuTarget.urlPattern, prompt, url, {
+          source: 'fastqa-context-menu',
+          menuId: info.menuItemId,
+          engineId,
+          tabId: tab?.id
+        });
       }
     }).catch(() => {
       chrome.tabs.sendMessage(tab.id, {

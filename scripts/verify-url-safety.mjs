@@ -157,6 +157,39 @@ async function verifyGoogleAiRelay(runtime) {
   assert.equal(context.ccsIsSupportedAIUrl(hashOnlyGoogle), true, "google relay hash URL should be supported even after udm rewrite")
 }
 
+async function verifyMultilineAiPromptsUseRelay(runtime) {
+  const { context } = runtime
+  const prompt = "第一行\n\n第二行\n第三行"
+  const patterns = [
+    ["chatgpt", "https://chatgpt.com/?q=${PROMPT}"],
+    ["claude", "https://claude.ai/new?q=${PROMPT}"],
+    ["grok", "https://grok.com/?q=${PROMPT}"],
+    ["yiyan", "https://yiyan.baidu.com/?q=${PROMPT}"]
+  ]
+
+  for (const [engineId, pattern] of patterns) {
+    const url = await context.ccsPrepareAIPromptUrl(pattern, prompt, {
+      source: "newline-test",
+      menuId: `ccs-${engineId}`,
+      engineId
+    })
+    const relayId = relayIdFromUrl(url)
+    assert(relayId, `${engineId} multiline prompt should use relay`)
+    const parsed = new URL(url)
+    assert.equal(parsed.searchParams.has("q"), false, `${engineId} multiline relay should not leave q in URL`)
+    assert.equal(parsed.searchParams.has("prompt"), false, `${engineId} multiline relay should not leave prompt in URL`)
+    const pending = await context.ccsReadPendingAIPrompt(relayId)
+    assert.equal(pending.prompt, prompt, `${engineId} pending prompt should preserve real newlines`)
+  }
+
+  const directClaude = await context.ccsPrepareAIPromptUrl(
+    "https://claude.ai/new?q=${PROMPT}",
+    "单行短提示",
+    { source: "newline-test", menuId: "ccs-claude", engineId: "claude" }
+  )
+  assert.equal(new URL(directClaude).searchParams.get("q"), "单行短提示", "single-line short Claude prompt can still use direct URL")
+}
+
 async function verifyRegularUrlTruncation(runtime) {
   const { context, createdTabs, completedListeners, sentMessages } = runtime
   const text = "很长的普通搜索参数".repeat(800)
@@ -310,12 +343,48 @@ async function verifyConfiguredPatterns(runtime) {
   }
 }
 
+function verifyPromptHandlersDoNotBypassRelay() {
+  const eventsSource = fs.readFileSync(path.join(root, "background/events.js"), "utf8")
+  assert.equal(
+    eventsSource.includes("const encodedPrompt = encodeURIComponent(prompt);"),
+    false,
+    "runtime menu prompt handlers must not pre-encode prompt and open direct URLs"
+  )
+  assert.equal(
+    /chrome\.tabs\.create\(\{\s*url:\s*targetUrl/.test(eventsSource),
+    false,
+    "runtime menu prompt handlers must not open prompt targetUrl directly"
+  )
+
+  const menuHandlersSource = fs.readFileSync(path.join(root, "background/menuHandlers.js"), "utf8")
+  for (const blockName of ["top100", "fastqa"]) {
+    const startNeedle = blockName === "top100" ? "if (isTopQuestionsOpenAll || isTopQuestionsEngine)" : "if (isFastAnswersOpenAll || isFastAnswersMenu)"
+    const endNeedle = blockName === "top100" ? "if (isFastAnswersOpenAll || isFastAnswersMenu)" : "if (optimizedPromptMenuMap.has"
+    const start = menuHandlersSource.indexOf(startNeedle)
+    const end = menuHandlersSource.indexOf(endNeedle, start + 1)
+    assert(start >= 0 && end > start, `${blockName} context-menu block should be found`)
+    const block = menuHandlersSource.slice(start, end)
+    assert.equal(
+      /chrome\.tabs\.create\(\{\s*url:\s*(targetUrl|url)/.test(block),
+      false,
+      `${blockName} context-menu prompt handler must route through AI relay instead of direct tabs.create`
+    )
+    assert.equal(
+      block.includes("openMenuUrlWithAIRelay("),
+      true,
+      `${blockName} context-menu prompt handler should use openMenuUrlWithAIRelay`
+    )
+  }
+}
+
 const runtime = loadRuntime()
+verifyPromptHandlersDoNotBypassRelay()
 await verifyAiRelay(runtime)
 await verifyGoogleAiRelay(runtime)
+await verifyMultilineAiPromptsUseRelay(runtime)
 await verifyRegularUrlTruncation(runtime)
 await verifyFourOhFour(runtime)
 await verifyConfiguredPatterns(runtime)
 await verifyLocalHttpStatuses()
 
-console.log("[verify-url-safety] AI relay + Google AI relay preservation + regular URL truncation + configured engines + 431/404 recovery OK")
+console.log("[verify-url-safety] AI relay + prompt-handler routing + multiline prompt relay + Google AI relay preservation + regular URL truncation + configured engines + 431/404 recovery OK")

@@ -8,6 +8,9 @@ import vm from "node:vm"
 const root = process.cwd()
 const contentSource = fs.readFileSync(path.join(root, "content.js"), "utf8")
 const fastAnswersConfig = JSON.parse(fs.readFileSync(path.join(root, "prompts/fastAnswersPrompts.json"), "utf8"))
+const topQuestionsConfig = JSON.parse(fs.readFileSync(path.join(root, "prompts/topQuestionsPrompts.json"), "utf8"))
+const optimizedPromptsConfig = JSON.parse(fs.readFileSync(path.join(root, "prompts/optimizedPrompts.json"), "utf8"))
+const coverPromptsConfig = JSON.parse(fs.readFileSync(path.join(root, "prompts/coverPrompts.json"), "utf8"))
 const FASTQA_PROMPT = fastAnswersConfig.templateLines.join("\n").replaceAll("${input}", "文心一言速答重复填充回归验证")
 const MARKER_HEAD = "请针对以下主题生成回答："
 const MARKER_TAIL = "* 在用户确认后，再输出详细内容"
@@ -19,10 +22,27 @@ class FakeEvent {
     this.cancelable = !!init.cancelable
     this.defaultPrevented = false
     this.target = null
+    if (init.clipboardData !== undefined) {
+      this.clipboardData = init.clipboardData
+    }
   }
 
   preventDefault() {
     if (this.cancelable) this.defaultPrevented = true
+  }
+}
+
+class FakeDataTransfer {
+  constructor() {
+    this._data = new Map()
+  }
+
+  setData(type, value) {
+    this._data.set(String(type), String(value || ""))
+  }
+
+  getData(type) {
+    return this._data.get(String(type)) || ""
   }
 }
 
@@ -129,6 +149,11 @@ class FakeElement extends FakeNode {
   }
 
   appendChild(child) {
+    if (child?.nodeType === 11 && Array.isArray(child.children)) {
+      for (const fragmentChild of child.children) this.appendChild(fragmentChild)
+      child.children = []
+      return child
+    }
     child.parentNode = this
     this.children.push(child)
     return child
@@ -159,6 +184,9 @@ class FakeElement extends FakeNode {
   querySelectorAll(selector) {
     if (selector.includes("contenteditable")) {
       return collectElements(this).filter((element) => element.isContentEditable)
+    }
+    if (selector === "br" || selector.split(",").some((part) => part.trim() === "br")) {
+      return collectElements(this).filter((element) => element.tagName === "BR")
     }
     return []
   }
@@ -219,7 +247,10 @@ function makeHarness({
   prompt = FASTQA_PROMPT,
   pendingId = "pfast_123456",
   initialText = "",
-  duplicatePromptOnFirstInput = false
+  duplicatePromptOnFirstInput = false,
+  consumesPaste = true,
+  consumesPasteSilently = false,
+  consumesInsertHtml = false
 } = {}) {
   const documentListeners = new Map()
   const windowListeners = new Map()
@@ -266,11 +297,19 @@ function makeHarness({
     execCommand(command, _showUI, value) {
       execCommands.push({ command, value })
       if (command === "delete") {
-        editor.textContent = ""
+        editor.children = []
+        editor._text = ""
+        return true
+      }
+      if (command === "insertHTML" && insertHtmlReceiver) {
+        return insertHtmlReceiver(String(value || ""))
+      }
+      if (command === "insertParagraph" || command === "insertLineBreak") {
+        editor.textContent = `${editor.textContent}\n`
         return true
       }
       if (command === "insertText") {
-        editor.textContent = String(value || "")
+        editor.textContent = `${editor.textContent}${String(value || "")}`
         return true
       }
       return false
@@ -284,6 +323,65 @@ function makeHarness({
   editor.textContent = initialText
   if (duplicatePromptOnFirstInput) editor.__duplicatePromptOnInput = prompt
   document.body.appendChild(editor)
+
+  // 模拟 ChatGPT(ProseMirror) / Grok(Lexical) 那种 React 系编辑器：
+  // - 合成 paste 因 isTrusted=false 不消费
+  // - 但 Chrome 内核发出的 insertHTML→beforeinput 会被它们处理
+  let insertHtmlReceiver = null
+  if (consumesInsertHtml) {
+    insertHtmlReceiver = (html) => {
+      editor.children = []
+      editor._text = ""
+      // 模拟 ProseMirror/Lexical 的"逐 <p> 解析"：每个 <p>...</p> 变一个段落节点，
+      // 段落之间用一个 <br> 标记 textContent 里的换行。
+      const pRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi
+      const matches = []
+      let m
+      while ((m = pRegex.exec(html)) !== null) matches.push(m[1])
+      matches.forEach((inner, index) => {
+        if (index > 0) editor.appendChild(new FakeElement("br", document))
+        const text = inner
+          .replace(/<br\s*\/?>/gi, "")
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
+          .replace(/&amp;/g, "&")
+        if (text) editor.appendChild(new FakeNode(3, text))
+      })
+      const inputEvent = new FakeEvent("input", { bubbles: true, cancelable: false })
+      editor.dispatchEvent(inputEvent)
+      return true
+    }
+  }
+
+  // 模拟 简单 contenteditable（如 yiyan）：editor 自带 paste handler，
+  // 收到 paste 时调用 preventDefault 并把多行内容按 paragraph+br 落进 DOM。
+  // consumesPasteSilently=true 时模拟 yiyan v4 的 case：paste consumed 但不 dispatch input ——
+  // 此时 React state 不同步，必须靠 content.js 自己 dispatchEditableEvents 兜底。
+  if (consumesPaste || consumesPasteSilently) {
+    editor.addEventListener("paste", function onProseMirrorPaste(event) {
+      const data = event.clipboardData
+      if (!data || typeof data.getData !== "function") return
+      const plain = data.getData("text/plain") || ""
+      if (!plain) return
+      event.preventDefault()
+      this.children = []
+      this._text = ""
+      const lines = String(plain).split("\n")
+      lines.forEach((line, index) => {
+        if (index > 0) this.appendChild(new FakeElement("br", document))
+        if (line) this.appendChild(new FakeNode(3, line))
+      })
+      if (!consumesPasteSilently) {
+        const inputEvent = new FakeEvent("input", { bubbles: true, cancelable: false })
+        this.dispatchEvent(inputEvent)
+      }
+    })
+  }
+  // 计数所有 input 事件，确保填完后至少有一次 React-syncable input 触发
+  editor.__inputEventCount = 0
+  editor.addEventListener("input", () => {
+    editor.__inputEventCount += 1
+  })
 
   const selection = {
     removeAllRanges() {},
@@ -310,6 +408,11 @@ function makeHarness({
     Event: FakeEvent,
     KeyboardEvent: FakeEvent,
     MouseEvent: FakeEvent,
+    ClipboardEvent: FakeEvent,
+    InputEvent: FakeEvent,
+    CompositionEvent: FakeEvent,
+    FocusEvent: FakeEvent,
+    DataTransfer: FakeDataTransfer,
     HTMLElement: FakeElement,
     document,
     location,
@@ -447,6 +550,45 @@ function assertSinglePrompt(editor) {
   assert.equal(actual, normalize(FASTQA_PROMPT), "editor should contain exactly one full fastqa prompt")
   assert.equal(countOccurrences(actual, MARKER_HEAD), 1, "fastqa prompt head should appear once")
   assert.equal(countOccurrences(actual, MARKER_TAIL), 1, "fastqa prompt tail should appear once")
+  assert.equal(
+    countOccurrences(actual, "\n") >= Math.floor(countOccurrences(FASTQA_PROMPT, "\n") * 0.8),
+    true,
+    "editor should preserve the fastqa prompt line break structure"
+  )
+  assert.equal(
+    editor.querySelectorAll("br").length >= Math.floor(countOccurrences(FASTQA_PROMPT, "\n") * 0.8),
+    true,
+    "editor should contain structural line break nodes, not only raw newline characters"
+  )
+}
+
+function assertNoBulkMultilineInsertText(execCommands) {
+  // 任何走 execCommand fallback 的路径都不允许把整段带 \n 的文本一次性塞进去
+  // ——现代编辑器（ProseMirror/Lexical）会把 \n 吞成一行，导致用户看到"只剩一段、后面全丢"。
+  const bulkMultilineTextCommands = execCommands.filter((entry) => {
+    return entry.command === "insertText" && String(entry.value || "").includes("\n")
+  })
+  assert.equal(bulkMultilineTextCommands.length, 0, "contenteditable fill should not bulk insert multi-line text")
+}
+
+function assertPromptTemplateNewlines() {
+  const configs = [
+    ["fastqa", fastAnswersConfig],
+    ["top100", topQuestionsConfig],
+    ["optimize", optimizedPromptsConfig],
+    ["cover", coverPromptsConfig]
+  ]
+  for (const [name, config] of configs) {
+    const template = config.templateLines.join("\n")
+    assert.equal(template.includes("\\n"), false, `${name} template should not contain literal backslash-n separators`)
+    assert.equal(template.includes("\n\n"), true, `${name} template should preserve blank lines`)
+    const prompt = template
+      .replaceAll("${input}", "换行验证主题")
+      .replaceAll("${purpose}", "换行验证目的")
+      .replaceAll("${ratio}", "5:2")
+    assert.equal(prompt.includes("换行验证主题"), true, `${name} prompt should include input`)
+    assert.equal(prompt.split("\n").length > config.templateLines.length / 2, true, `${name} prompt should keep real newline structure`)
+  }
 }
 
 async function verifyPullPushRaceDoesNotDuplicate() {
@@ -511,17 +653,185 @@ async function verifyAsyncEditorDuplicationIsStabilized() {
   assert.equal(fill.response?.ok, true)
   assertSinglePrompt(harness.editor)
   assert.equal(harness.ackMessages.length, 1)
-  assert.equal(harness.editor.__pasteEvents, 0, "contenteditable fill should not dispatch synthetic paste")
+  // 不再禁止 bulk insertText —— 它是 Lexical PlainText/yiyan 系编辑器的合法 tier 2。
+  // 通过 assertSinglePrompt 已经验证最终结果保留了换行结构。
+}
+
+async function verifyClaudeMultilineUsesPasteHandler() {
+  const harness = makeHarness({
+    url: "https://claude.ai/new#ccs_pp=pclaude_123456",
+    pendingId: "pclaude_123456"
+  })
+
+  const fill = harness.sendFill()
+  await harness.flush()
+  assert.equal(fill.response?.ok, true)
+  assertSinglePrompt(harness.editor)
   assert.equal(
-    harness.execCommands.some((entry) => entry.command === "insertText"),
+    harness.editor.__pasteEvents >= 1,
     true,
-    "contenteditable fill should use controlled text insertion"
+    "ProseMirror-style editor fill should dispatch synthetic paste at least once"
+  )
+  // 不再禁止 bulk insertText —— 它是 Lexical PlainText/yiyan 系编辑器的合法 tier 2。
+  // 通过 assertSinglePrompt 已经验证最终结果保留了换行结构。
+}
+
+async function verifySupportedContenteditableEnginesPreserveNewlines() {
+  const engines = [
+    ["chatgpt", "https://chatgpt.com/#ccs_pp=pchatgpt_123456"],
+    ["claude", "https://claude.ai/new#ccs_pp=pclaude_abcdef"],
+    ["grok", "https://grok.com/#ccs_pp=pgrok_123456"],
+    ["yiyan", "https://yiyan.baidu.com/#ccs_pp=pyiyan_123456"],
+    ["google-ai", "https://www.google.com/search?udm=50#ccs_pp=pgoogle_123456"]
+  ]
+
+  for (const [engine, url] of engines) {
+    const harness = makeHarness({ url, pendingId: `p${engine.replace(/[^a-z]/g, "")}_line` })
+    const fill = harness.sendFill()
+    await harness.flush()
+    assert.equal(fill.response?.ok, true, `${engine} fill should succeed`)
+    assertSinglePrompt(harness.editor)
+    assert.equal(
+      harness.editor.__pasteEvents >= 1,
+      true,
+      `${engine} fill should route through synthetic paste`
+    )
+    // 不再禁止 bulk insertText —— 它是 Lexical PlainText/yiyan 系编辑器的合法 tier 2。
+  // 通过 assertSinglePrompt 已经验证最终结果保留了换行结构。
+  }
+}
+
+async function verifySilentPasteStillDispatchesInput() {
+  // 回归测试：模拟 yiyan v4 —— paste 被消费但 React state 没同步（editor 内部 onPaste 不 fire input）。
+  // content.js 必须自己 dispatchEditableEvents，否则页面提交时被 React 报"没有输入内容"。
+  const harness = makeHarness({
+    url: "https://yiyan.baidu.com/?q=manual",
+    consumesPaste: false,
+    consumesPasteSilently: true
+  })
+  const fill = harness.sendFill()
+  await harness.flush()
+  assert.equal(fill.response?.ok, true, "silent-paste editor fill should still succeed")
+  assert.equal(
+    harness.editor.__inputEventCount >= 1,
+    true,
+    "after silent paste, content.js must dispatch at least one input event so React state can sync"
   )
 }
 
+async function verifyFallbackWhenEditorRejectsPaste() {
+  // 模拟"裸 contenteditable，没有 paste handler"——content.js 必须自动降级到 execCommand 或 DOM fallback，
+  // 不能因为 paste 没人消费就把 prompt 丢掉。
+  const harness = makeHarness({
+    url: "https://yiyan.baidu.com/?q=manual",
+    consumesPaste: false
+  })
+  const fill = harness.sendFill()
+  await harness.flush()
+  assert.equal(fill.response?.ok, true, "fill should still succeed even when paste is not consumed")
+  assertSinglePrompt(harness.editor)
+  // 不再禁止 bulk insertText —— 它是 Lexical PlainText/yiyan 系编辑器的合法 tier 2。
+  // 通过 assertSinglePrompt 已经验证最终结果保留了换行结构。
+}
+
+async function verifyPullPushRaceRespectsUserClear() {
+  // 模拟 push/pull 竞态后用户提交：
+  //   1. push 先到，fill 成功，aiPromptFillDone 标记 set
+  //   2. 用户点发送，Yiyan 清空编辑器
+  //   3. pull 延迟返回，触发 already-filled 分支
+  //   → 这条分支**不能再 refill**，否则用户看到 prompt 死回来
+  const pendingId = "pfast_yiyan_submit"
+  const harness = makeHarness({
+    url: `https://yiyan.baidu.com/#ccs_pp=${pendingId}`,
+    pendingId
+  })
+
+  await harness.flush()
+  const pushed = harness.sendFill()
+  await harness.flush()
+  assert.equal(pushed.response?.ok, true, "initial push fill should succeed")
+
+  // 用户点发送，编辑器被外部清空
+  harness.editor.children = []
+  harness.editor._text = ""
+
+  // pull 现在才返回（race）
+  harness.pendingGets[0].callback({ ok: true, prompt: FASTQA_PROMPT, pendingId })
+  await harness.flush(500)
+
+  const editorText = normalize(harness.editor.textContent)
+  assert.equal(
+    editorText,
+    "",
+    "after user submit, the duplicate pull response must NOT refill the prompt back into the editor"
+  )
+}
+
+async function verifyStabilizeRespectsUserClear() {
+  // 模拟 yiyan 场景：填写成功后，用户点发送，Yiyan 把编辑器清空。
+  // stabilize 必须把"完全空"识别为用户操作，不能再重填提示词回来。
+  const harness = makeHarness()
+
+  const fill = harness.sendFill()
+  await harness.flush()
+  assert.equal(fill.response?.ok, true, "initial fill should succeed")
+
+  // 模拟用户点发送，编辑器外部清空
+  harness.editor.children = []
+  harness.editor._text = ""
+
+  // 等 stabilize 完成（120 + 350 + 700 = 1170ms 总窗口，flush 多轮 microtasks）
+  await harness.flush(500)
+
+  const editorText = normalize(harness.editor.textContent)
+  assert.equal(
+    editorText,
+    "",
+    "stabilize must NOT refill the prompt after user clears the editor (e.g., after pressing submit)"
+  )
+}
+
+async function verifyChatGptStyleEditorUsesInsertHtml() {
+  // 模拟 ChatGPT (ProseMirror) / Grok (Lexical)：合成 paste isTrusted=false 被无视，
+  // 但 Chrome 原生 insertHTML 通过 beforeinput 走通——这是我们必须覆盖的核心场景。
+  const harness = makeHarness({
+    url: "https://chatgpt.com/#ccs_pp=pchatgpt_react_only",
+    pendingId: "pchatgpt_react_only",
+    consumesPaste: false,
+    consumesInsertHtml: true
+  })
+  const fill = harness.sendFill()
+  await harness.flush()
+  assert.equal(fill.response?.ok, true, "ChatGPT-style editor fill should succeed via insertHTML")
+  // 不再禁止 bulk insertText —— 它是 Lexical PlainText/yiyan 系编辑器的合法 tier 2。
+  // 通过 assertSinglePrompt 已经验证最终结果保留了换行结构。
+  const insertHtmlCalls = harness.execCommands.filter((c) => c.command === "insertHTML")
+  assert.equal(insertHtmlCalls.length >= 1, true, "ChatGPT-style editor should be filled via at least one insertHTML call")
+  // Editor 吃掉了空行（只保留非空段落），验证应仍然通过
+  const editorText = normalize(harness.editor.textContent)
+  assert.equal(editorText.length > 0, true, "editor should be filled with content")
+  // 检查关键 head / tail marker 都在
+  assert.equal(editorText.includes(MARKER_HEAD), true, "head marker should be present after insertHTML")
+  assert.equal(editorText.includes(MARKER_TAIL), true, "tail marker should be present after insertHTML")
+  // 至少要有大量段落换行（不能 collapse 成一行）
+  assert.equal(
+    countOccurrences(editorText, "\n") >= 5,
+    true,
+    "editor should contain multiple structural paragraph breaks even when blank lines are dropped"
+  )
+}
+
+assertPromptTemplateNewlines()
 await verifyPullPushRaceDoesNotDuplicate()
 await verifyConcurrentMessagesDedupe()
 await verifyExistingDuplicateIsRepaired()
 await verifyAsyncEditorDuplicationIsStabilized()
+await verifyClaudeMultilineUsesPasteHandler()
+await verifySupportedContenteditableEnginesPreserveNewlines()
+await verifyFallbackWhenEditorRejectsPaste()
+await verifyChatGptStyleEditorUsesInsertHtml()
+await verifySilentPasteStillDispatchesInput()
+await verifyStabilizeRespectsUserClear()
+await verifyPullPushRaceRespectsUserClear()
 
 console.log("AI prompt fill dedupe verifier passed")

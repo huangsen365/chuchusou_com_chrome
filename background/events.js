@@ -372,7 +372,7 @@ async function ccsOpenMenuUrlWithAIRelay(urlPattern, text, fallbackUrl, meta = {
   ) {
     try {
       const preparedUrl = await ccsPrepareAIPromptUrl(urlPattern || fallbackUrl, text, meta);
-      await ccsOpenPreparedAIPromptUrl(preparedUrl);
+      await ccsOpenPreparedAIPromptUrl(preparedUrl, { active: meta.active });
       return;
     } catch (error) {
       if (typeof BG_DBG === 'function') {
@@ -392,7 +392,7 @@ async function ccsOpenMenuUrlWithAIRelay(urlPattern, text, fallbackUrl, meta = {
         engineId: meta.engineId || '',
         tabId: meta.tabId
       });
-      await ccsOpenUrlWithRecovery(prepared.url, prepared.record);
+      await ccsOpenUrlWithRecovery(prepared.url, prepared.record, { active: meta.active });
       return;
     } catch (error) {
       if (typeof BG_DBG === 'function') {
@@ -400,7 +400,16 @@ async function ccsOpenMenuUrlWithAIRelay(urlPattern, text, fallbackUrl, meta = {
       }
     }
   }
-  chrome.tabs.create({ url: fallbackUrl });
+  const createOptions = { url: fallbackUrl };
+  if (meta.active !== undefined) createOptions.active = meta.active;
+  chrome.tabs.create(createOptions);
+}
+
+async function ccsOpenPromptUrlPattern(urlPattern, prompt, meta = {}) {
+  if (!urlPattern || typeof urlPattern !== 'string') return false;
+  const fallbackUrl = urlPattern.replace('${PROMPT}', encodeURIComponent(prompt || ''));
+  await ccsOpenMenuUrlWithAIRelay(urlPattern, prompt, fallbackUrl, meta);
+  return true;
 }
 
 function ccsCreateSafeResponder(sendResponse, action, requestId, timeoutMs = 5000) {
@@ -884,20 +893,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 sendResponse({ success: false, error: 'template-invalid' });
                 return;
               }
-              const encodedPrompt = encodeURIComponent(prompt);
               // 查找对应引擎的URL模式
-              let targetUrl = null;
+              let targetPattern = null;
               if (engineId) {
                 const engine = (config.engines || []).find((e) => e.id === engineId);
                 if (engine && engine.urlPattern) {
-                  targetUrl = engine.urlPattern.replace('${PROMPT}', encodedPrompt);
+                  targetPattern = engine.urlPattern;
                 }
               }
-              if (!targetUrl && urlPattern) {
-                targetUrl = urlPattern.replace('${PROMPT}', encodedPrompt);
+              if (!targetPattern && urlPattern) {
+                targetPattern = urlPattern;
               }
-              if (targetUrl) {
-                chrome.tabs.create({ url: targetUrl });
+              if (targetPattern) {
+                await ccsOpenPromptUrlPattern(targetPattern, prompt, {
+                  source: 'popup-fastqa',
+                  menuId: menuItemId || '',
+                  engineId: engineId || ''
+                });
                 sendResponse({ success: true });
               } else {
                 sendResponse({ success: false, error: 'no-engine-url' });
@@ -924,19 +936,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 sendResponse({ success: false, error: 'template-invalid' });
                 return;
               }
-              const encodedPrompt = encodeURIComponent(prompt);
-              let targetUrl = null;
+              let targetPattern = null;
               if (engineId) {
                 const engine = (config.engines || []).find((e) => e.id === engineId);
                 if (engine && engine.urlPattern) {
-                  targetUrl = engine.urlPattern.replace('${PROMPT}', encodedPrompt);
+                  targetPattern = engine.urlPattern;
                 }
               }
-              if (!targetUrl && urlPattern) {
-                targetUrl = urlPattern.replace('${PROMPT}', encodedPrompt);
+              if (!targetPattern && urlPattern) {
+                targetPattern = urlPattern;
               }
-              if (targetUrl) {
-                chrome.tabs.create({ url: targetUrl });
+              if (targetPattern) {
+                await ccsOpenPromptUrlPattern(targetPattern, prompt, {
+                  source: 'popup-top100',
+                  menuId: menuItemId || '',
+                  engineId: engineId || ''
+                });
                 sendResponse({ success: true });
               } else {
                 sendResponse({ success: false, error: 'no-engine-url' });
@@ -965,13 +980,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 sendResponse({ success: false, error: 'template-invalid' });
                 return;
               }
-              const encodedPrompt = encodeURIComponent(prompt);
-              let targetUrl = null;
+              let targetPattern = null;
               if (urlPattern) {
-                targetUrl = urlPattern.replace('${PROMPT}', encodedPrompt);
+                targetPattern = urlPattern;
               }
-              if (targetUrl) {
-                chrome.tabs.create({ url: targetUrl });
+              if (targetPattern) {
+                await ccsOpenPromptUrlPattern(targetPattern, prompt, {
+                  source: 'popup-optimize',
+                  menuId: menuItemId || '',
+                  engineId: engineId || ''
+                });
                 sendResponse({ success: true });
               } else {
                 sendResponse({ success: false, error: 'no-engine-url' });
@@ -1000,13 +1018,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 sendResponse({ success: false, error: 'template-invalid' });
                 return;
               }
-              const encodedPrompt = encodeURIComponent(prompt);
-              let targetUrl = null;
+              let targetPattern = null;
               if (urlPattern) {
-                targetUrl = urlPattern.replace('${PROMPT}', encodedPrompt);
+                targetPattern = urlPattern;
               }
-              if (targetUrl) {
-                chrome.tabs.create({ url: targetUrl });
+              if (targetPattern) {
+                await ccsOpenPromptUrlPattern(targetPattern, prompt, {
+                  source: 'popup-cover',
+                  menuId: menuItemId || '',
+                  engineId: engineId || ''
+                });
                 sendResponse({ success: true });
               } else {
                 sendResponse({ success: false, error: 'no-engine-url' });
@@ -1048,21 +1069,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 sendResponse({ success: false, error: 'template-invalid' });
                 return;
               }
-              const encodedPrompt = encodeURIComponent(prompt);
               const engines = Array.isArray(config.engines) ? config.engines : [];
               let openedCount = 0;
-              engines.forEach((engine) => {
+              for (const engine of engines) {
                 if (!engine || typeof engine.urlPattern !== 'string' || !engine.urlPattern) {
-                  return;
+                  continue;
                 }
                 const engineMenuId = `ccs-top100-${engine.id}`;
-                if (!isMenuEnabled(engineMenuId)) return;
-                const targetUrl = engine.urlPattern.replace('${PROMPT}', encodedPrompt);
-                if (targetUrl) {
-                  chrome.tabs.create({ url: targetUrl, active: openedCount === 0 });
-                  openedCount += 1;
-                }
-              });
+                if (!isMenuEnabled(engineMenuId)) continue;
+                await ccsOpenPromptUrlPattern(engine.urlPattern, prompt, {
+                  source: 'popup-top100-open-all',
+                  menuId: engineMenuId,
+                  engineId: engine.id || '',
+                  active: openedCount === 0
+                });
+                openedCount += 1;
+              }
               sendResponse({ success: true, openedCount });
             } else if (menuItemId === 'ccs-fastqa-open-all' && keyword) {
               // 打开所有速答壹拾佰引擎
@@ -1081,21 +1103,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 sendResponse({ success: false, error: 'template-invalid' });
                 return;
               }
-              const encodedPrompt = encodeURIComponent(prompt);
               const engines = Array.isArray(config.engines) ? config.engines : [];
               let openedCount = 0;
-              engines.forEach((engine) => {
+              for (const engine of engines) {
                 if (!engine || typeof engine.urlPattern !== 'string' || !engine.urlPattern) {
-                  return;
+                  continue;
                 }
                 const engineMenuId = `ccs-fastqa-${engine.id}`;
-                if (!isMenuEnabled(engineMenuId)) return;
-                const targetUrl = engine.urlPattern.replace('${PROMPT}', encodedPrompt);
-                if (targetUrl) {
-                  chrome.tabs.create({ url: targetUrl, active: openedCount === 0 });
-                  openedCount += 1;
-                }
-              });
+                if (!isMenuEnabled(engineMenuId)) continue;
+                await ccsOpenPromptUrlPattern(engine.urlPattern, prompt, {
+                  source: 'popup-fastqa-open-all',
+                  menuId: engineMenuId,
+                  engineId: engine.id || '',
+                  active: openedCount === 0
+                });
+                openedCount += 1;
+              }
               sendResponse({ success: true, openedCount });
             } else {
               sendResponse({ success: false, error: 'unknown-action' });

@@ -936,8 +936,15 @@
 
     const key = makeAIPromptFillKey(pendingId, text);
     if (aiPromptFillDone.has(key)) {
-      const result = fillChatGptPromptOnce(text);
-      return result.ok ? { ...result, skipped: true, reason: 'already-filled' } : result;
+      // push/pull 竞态时第二次进来——本次已经填过了。
+      // **不要无脑 refill**：如果用户已经点了发送（编辑器被清空），refill 会把 prompt 又塞回去。
+      // 只在编辑器仍有非空内容时做一次"巩固"（覆盖 Lexical revert 场景）。
+      const target = findChatGptComposerTarget();
+      if (target && normalizeFilledText(readEditableText(target))) {
+        const result = fillChatGptPromptOnce(text);
+        return result.ok ? { ...result, skipped: true, reason: 'already-filled' } : result;
+      }
+      return { ok: true, skipped: true, reason: 'already-filled-user-cleared' };
     }
     if (aiPromptFillInFlight.has(key)) {
       return { ok: false, error: 'fill-in-progress' };
@@ -963,8 +970,22 @@
   }
 
   async function stabilizeAIPromptFill(text) {
-    for (const delayMs of [120, 450]) {
+    // 检查窗口覆盖 Lexical 之类 reconcile 撤回（典型 50-500ms 内），但不能太长——
+    // 否则会和用户提交动作抢编辑器（提交后 Yiyan 清空，stabilize 重填，prompt 又出现）。
+    for (const delayMs of [120, 350, 700]) {
       await sleep(delayMs);
+      const target = findChatGptComposerTarget();
+      if (!target) return { ok: true };
+
+      // 已是正确状态，跳过本轮重填
+      if (editableAcceptsFilledText(target, text)) continue;
+
+      // 编辑器跟预期不符。两种可能：
+      //   A. 完全空 —— 用户主动操作（提交、Backspace、清空），**不能争抢**
+      //   B. 有内容但不对 —— Lexical 之类 reconcile 撤回了格式，重填一次
+      const currentText = normalizeFilledText(readEditableText(target));
+      if (!currentText) return { ok: true };
+
       const result = fillChatGptPromptOnce(text);
       if (!result.ok) return result;
     }
@@ -1084,28 +1105,203 @@
     element.focus();
     if (editableAcceptsFilledText(element, text)) return;
 
+    // 关键设计：native trusted execCommand 路径优先；合成 paste 因 isTrusted=false 不可靠，降到 tier 5。
+    // 每条 tier 成功后都 dispatchEditableEvents 保证 React controlled state 同步。
+
+    // Tier 1: execCommand('insertHTML') —— Chrome 内核发 beforeinput(isTrusted=true)，
+    // ProseMirror / Lexical RichText / 接受段落 schema 的 React 编辑器都正经处理。
     clearContentEditable(element);
-    insertTextIntoContentEditable(element, text);
-    if (editableAcceptsFilledText(element, text)) {
+    if (insertHtmlIntoContentEditable(element, text)) {
+      if (editableAcceptsFilledText(element, text) && contentEditableHasStructuralLineBreaks(element, text)) {
+        dispatchEditableEvents(element);
+        return;
+      }
+    }
+
+    // Tier 2: execCommand('insertText') 整段多行 —— Chrome 内核 trusted insertText。
+    // Lexical PlainText / 简单 contenteditable / yiyan 这类"不接受 <p> 但处理 \n"的编辑器走这条。
+    clearContentEditable(element);
+    if (insertBulkTextIntoContentEditable(element, text)) {
+      if (editableAcceptsFilledText(element, text) && contentEditableHasStructuralLineBreaks(element, text)) {
+        dispatchEditableEvents(element);
+        return;
+      }
+    }
+
+    // Tier 3: 逐行 insertText + insertLineBreak
+    clearContentEditable(element);
+    insertContentEditableText(element, text, 'line-break');
+    if (editableAcceptsFilledText(element, text) && contentEditableHasStructuralLineBreaks(element, text)) {
       dispatchEditableEvents(element);
       return;
     }
 
+    // Tier 4: 逐行 insertText + insertParagraph
+    clearContentEditable(element);
+    insertContentEditableText(element, text, 'paragraph');
+    if (editableAcceptsFilledText(element, text) && contentEditableHasStructuralLineBreaks(element, text)) {
+      dispatchEditableEvents(element);
+      return;
+    }
+
+    // Tier 5: 合成 ClipboardEvent('paste') —— fallback for editors that ONLY accept paste（非 React 系老编辑器）
+    clearContentEditable(element);
+    if (pasteIntoContentEditable(element, text)) {
+      if (editableAcceptsFilledText(element, text) && contentEditableHasStructuralLineBreaks(element, text)) {
+        dispatchEditableEvents(element);
+        return;
+      }
+    }
+
+    // Tier 6: 直接 DOM replaceChildren —— 最后兜底
     clearContentEditable(element);
     setContentEditablePlainText(element, text);
     dispatchEditableEvents(element);
   }
 
-  function insertTextIntoContentEditable(element, text) {
+  function insertBulkTextIntoContentEditable(element, text) {
+    try {
+      selectAllInContentEditable(element);
+      const normalized = String(text || '').replace(/\r\n?/g, '\n');
+      return !!document.execCommand?.('insertText', false, normalized);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function insertHtmlIntoContentEditable(element, text) {
+    try {
+      selectAllInContentEditable(element);
+      const html = buildPasteHtml(String(text || '').replace(/\r\n?/g, '\n'));
+      return !!document.execCommand?.('insertHTML', false, html);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function pasteIntoContentEditable(element, text) {
+    const normalized = String(text || '').replace(/\r\n?/g, '\n');
+    if (typeof DataTransfer !== 'function' || typeof ClipboardEvent !== 'function') return false;
+
+    let data;
+    try {
+      data = new DataTransfer();
+      data.setData('text/plain', normalized);
+      data.setData('text/html', buildPasteHtml(normalized));
+    } catch (_) {
+      return false;
+    }
+
+    let event;
+    try {
+      event = new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: data });
+    } catch (_) {
+      return false;
+    }
+
+    if (event.clipboardData !== data) {
+      try {
+        Object.defineProperty(event, 'clipboardData', { value: data, configurable: true });
+      } catch (_) {
+        // ignore — some editors read DataTransfer via getData on event.clipboardData,
+        // others probe Window.event; if both fail we'll just fall through to execCommand.
+      }
+    }
+
+    try {
+      selectAllInContentEditable(element);
+      const notCanceled = element.dispatchEvent(event);
+      // dispatchEvent === false 表示有 listener 调了 preventDefault，
+      // 也就是编辑器自己的 paste handler 消费了这次粘贴，对我们来说是成功。
+      return notCanceled === false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function buildPasteHtml(text) {
+    const escape = (s) => String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    // 每个非空行一个 <p>。**跳过空行** —— ProseMirror/Lexical 不允许 <p><br></p> 这种
+    // "段内 hard-break in paragraph" 非法节点，遇到会把整段 HTML 退化为 plain-text 抽取，
+    // 结构全丢。段落间隙由编辑器的 CSS margin 自然处理。
+    const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n').filter((line) => line.length > 0);
+    return lines.map((line) => `<p>${escape(line)}</p>`).join('');
+  }
+
+  function selectAllInContentEditable(element) {
     try {
       const selection = window.getSelection();
       const range = document.createRange();
       range.selectNodeContents(element);
       selection?.removeAllRanges();
       selection?.addRange(range);
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  function insertContentEditableText(element, text, lineMode = 'line-break') {
+    const normalized = String(text || '').replace(/\r\n?/g, '\n');
+    if (normalized.includes('\n')) {
+      return insertMultilineTextIntoContentEditable(element, normalized, lineMode);
+    }
+    return insertPlainTextIntoContentEditable(element, normalized);
+  }
+
+  function contentEditableHasStructuralLineBreaks(element, text) {
+    const expectedBreaks = countOccurrences(String(text || '').replace(/\r\n?/g, '\n'), '\n');
+    if (expectedBreaks === 0) return true;
+    try {
+      return element.querySelectorAll?.('br, p, div, li, [data-block], [data-node-type]').length > 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function insertPlainTextIntoContentEditable(element, text) {
+    try {
+      placeCaretAtEnd(element);
       return !!document.execCommand?.('insertText', false, text);
     } catch (_) {
       return false;
+    }
+  }
+
+  function insertMultilineTextIntoContentEditable(element, text, lineMode) {
+    try {
+      placeCaretAtEnd(element);
+      const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+      let inserted = true;
+      lines.forEach((line, index) => {
+        if (index > 0) {
+          const command = lineMode === 'paragraph' ? 'insertParagraph' : 'insertLineBreak';
+          const brokeLine = document.execCommand?.(command, false);
+          if (!brokeLine) inserted = false;
+        }
+        if (line) {
+          const wroteLine = document.execCommand?.('insertText', false, line);
+          if (!wroteLine) inserted = false;
+        }
+      });
+      return inserted;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function placeCaretAtEnd(element) {
+    try {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      range.collapse?.(false);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    } catch (_) {
+      // ignore
     }
   }
 
@@ -1145,8 +1341,46 @@
   }
 
   function dispatchEditableEvents(element) {
-    element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+    // 用 InputEvent (带 inputType) 派发——React 的 onInput / Lexical 的 update listener
+    // 才会把它当成真实输入触发 controlled state 同步。普通 Event 在某些编辑器（如 yiyan）
+    // 上不被识别，会出现"DOM 有内容但 state 空"的提交报错。
+    let inputEvent;
+    try {
+      inputEvent = new InputEvent('input', {
+        inputType: 'insertReplacementText',
+        bubbles: true,
+        cancelable: true
+      });
+    } catch (_) {
+      inputEvent = new Event('input', { bubbles: true, cancelable: true });
+    }
+    element.dispatchEvent(inputEvent);
+
+    // Yiyan / 百度系中文 IME 优化编辑器：state 在 compositionend 上 commit，
+    // 不在 input 上 commit。补一发 compositionend 让 state 同步。
+    try {
+      if (typeof CompositionEvent === 'function') {
+        const compEvent = new CompositionEvent('compositionend', {
+          data: readEditableText(element),
+          bubbles: true,
+          cancelable: true
+        });
+        element.dispatchEvent(compEvent);
+      }
+    } catch (_) {
+      // ignore
+    }
+
     element.dispatchEvent(new Event('change', { bubbles: true }));
+
+    // 一些 React 编辑器只在 blur 时把 controlled value 写到表单 state。
+    // 不真的失焦——只触发 blur 事件让 listener 跑一遍；然后立刻 focus 回来。
+    try {
+      element.dispatchEvent(new Event('blur', { bubbles: true }));
+      element.dispatchEvent(new Event('focus', { bubbles: true }));
+    } catch (_) {
+      // ignore
+    }
   }
 
   function editableAcceptsFilledText(element, text) {
@@ -1154,13 +1388,47 @@
     const expected = normalizeFilledText(text);
     if (!expected) return !value;
     if (value === expected) return true;
+    if (!hasRequiredLineBreakStructure(value, expected)) return false;
 
-    const head = expected.slice(0, Math.min(100, expected.length));
-    const tail = expected.slice(Math.max(0, expected.length - 100));
+    // ProseMirror/Lexical 经常吃掉空行（只保留结构性段落分隔），
+    // 比较前先把 \n{2,} 折叠为 \n，让"段落分隔有 / 段间空行没"也算成功。
+    const expectedCollapsed = collapseBlankLines(expected);
+    const valueCollapsed = collapseBlankLines(value);
+
+    const head = expectedCollapsed.slice(0, Math.min(100, expectedCollapsed.length));
+    const tail = expectedCollapsed.slice(Math.max(0, expectedCollapsed.length - 100));
     if (head.length < 20 || tail.length < 20) return false;
-    const headCount = countOccurrences(value, head);
-    const tailCount = countOccurrences(value, tail);
-    return headCount === 1 && tailCount === 1 && value.indexOf(head) <= value.lastIndexOf(tail);
+    const headCount = countOccurrences(valueCollapsed, head);
+    const tailCount = countOccurrences(valueCollapsed, tail);
+    if (headCount !== 1 || tailCount !== 1) return false;
+
+    const start = valueCollapsed.indexOf(head);
+    const end = valueCollapsed.lastIndexOf(tail) + tail.length;
+    if (start < 0 || end <= start) return false;
+    return collapseBlankLines(normalizeFilledText(valueCollapsed.slice(start, end))) === expectedCollapsed;
+  }
+
+  function hasRequiredLineBreakStructure(value, expected) {
+    // 同样：用折叠后的 \n 计数 —— 否则编辑器一吃空行就破 80% 阈值导致后续 fallback 错误清空。
+    const expectedCollapsed = collapseBlankLines(expected);
+    const valueCollapsed = collapseBlankLines(value);
+    const expectedBreaks = countOccurrences(expectedCollapsed, '\n');
+    if (expectedBreaks === 0) return true;
+    const valueBreaks = countOccurrences(valueCollapsed, '\n');
+    if (valueBreaks < Math.max(1, Math.floor(expectedBreaks * 0.8))) return false;
+
+    const expectedLines = expectedCollapsed.split('\n').filter((line) => line.trim().length >= 6);
+    if (expectedLines.length < 2) return true;
+    const sampleLines = [
+      expectedLines[0],
+      expectedLines[Math.floor(expectedLines.length / 2)],
+      expectedLines[expectedLines.length - 1]
+    ];
+    return sampleLines.every((line) => value.includes(line));
+  }
+
+  function collapseBlankLines(s) {
+    return String(s || '').replace(/\n{2,}/g, '\n');
   }
 
   function readEditableText(element) {

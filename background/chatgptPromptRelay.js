@@ -327,7 +327,8 @@
   async function ccsPrepareAIPromptUrl(urlPattern, prompt, meta = {}) {
     const directUrl = ccsBuildPromptUrl(urlPattern, prompt);
     const engine = ccsGetAIEngineForUrl(directUrl);
-    const shouldRelay = !!meta.forceRelay || engine === 'google-ai' || directUrl.length > DIRECT_URL_LIMIT;
+    const hasPromptLineBreaks = /[\r\n]/.test(String(prompt || ''));
+    const shouldRelay = !!meta.forceRelay || engine === 'google-ai' || hasPromptLineBreaks || directUrl.length > DIRECT_URL_LIMIT;
     if (!engine || !shouldRelay) {
       return directUrl;
     }
