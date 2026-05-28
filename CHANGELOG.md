@@ -1,5 +1,22 @@
 # 更新日志
 
+## v1.6.30 (2026-05-29)
+
+**封面生成器默认风格改为「🔴 小红书封面」**，并随版本带上自 v1.6.29 后积累的 AI 提示词换行/中转修复。详细见 [releases/v1.6.30.md](./releases/v1.6.30.md)。
+
+### 🔧 改进
+
+- **封面默认风格 = 小红书封面**：新装用户首次打开封面生成器（侧边栏 / popup 快捷卡片 / 右键菜单）默认勾选的风格，从「🌸 二次元可爱」改为「🔴 小红书封面」。已经手动选过其它风格的老用户不受影响——存储里有值不会被覆盖。
+
+### 🐛 修复
+
+- **AI 提示词填入保留换行**：向 ChatGPT / Claude / Grok / 文心一言等 AI 编辑器填入多行提示词时，改用 native trusted 事件优先的多级回退链路，尽量保住换行结构与提交后的状态同步。
+- **长查询 / 多行提示词走中转更稳**：含换行或超长的提示词强制走 relay 中转打开，并修了 Google AI relay 重定向被错误改写、长引擎查询 URL 恢复等问题。
+
+### 🛠 技术改动
+
+- 封面默认值在 6 处保持同源：`sidepanel/sidepanel.js` `popup/popup.js` `background/menuBuilder.js`（当前生效）+ `sidepanel-v2/sidepanel.js` `src/shared/coverPinConstants.ts` `src/background/menuBuilderAttach.ts`（备用/TS 源），并重新生成 `popup.bundle.js` / `sidepanel.bundle.js`（运行时实际加载的产物）。
+
 ## v1.6.29 (2026-05-21)
 
 **修富文本编辑器（含图片）里 Ctrl+A 全选后关键字徽章偶尔退化回 HTML 标题的问题**。详细见 [releases/v1.6.29.md](./releases/v1.6.29.md)。
