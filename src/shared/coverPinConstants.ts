@@ -17,7 +17,7 @@ export const RATIO_CUSTOM_MAX = 5
 export const DEFAULT_RATIO = "5:2"
 export const RATIO_RE = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/
 
-export const DEFAULT_PIN = { taskId: "cover", categoryId: "anime-cute" } as const
+export const DEFAULT_PIN = { taskId: "cover", categoryId: "xiaohongshu" } as const
 
 export interface PinSnapshot {
   taskId: string
