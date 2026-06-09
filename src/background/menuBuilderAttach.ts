@@ -66,7 +66,7 @@ const COVER_PIN_STORAGE_KEYS = {
   customLine: "ccs_cover_custom_selected_line",
   customPurpose: "ccs_cover_custom_purpose"
 }
-const COVER_PIN_DEFAULT_CATEGORY = "xiaohongshu"
+const COVER_PIN_DEFAULT_CATEGORY = "minimal"
 const COVER_PIN_PREFERRED_ENGINE = "chatgpt-images"
 
 function readCoverPinStorage(g: G): Promise<{ pin: any; customLine: string }> {
