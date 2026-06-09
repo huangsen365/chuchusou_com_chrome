@@ -1,5 +1,17 @@
 # 更新日志
 
+## v1.6.32 (2026-06-09)
+
+**修侧边栏 / popup 冷启动时 chrome://extensions 刷出 `getKeyword` TIMEOUT 警告**。详细见 [releases/v1.6.32.md](./releases/v1.6.32.md)。
+
+### 🐛 修复
+
+- **冷启动关键字超时警告**：侧边栏 / popup 打开时若 Service Worker 正在冷启动（eval 打包产物 + importScripts 多个模块），原本 1200ms / 不重试的"新鲜关键字"拉取来不及，会在 chrome://extensions 刷出 `getKeyword TIMEOUT` 警告。改为冷启动容忍预算（3000ms + 1 次重试，≥ 后台 2500ms 安全兜底响应），并保持已有缓存命中场景的 snappy 体验。关键字本身一直由 storage 缓存 + onChanged 监听兜底，**此前也不影响功能**，本版主要消除噪声并提高冷启动期新鲜值到达率。
+
+### 🛠 技术改动
+
+- `sidepanel/sidepanel.js` `getCurrentKeyword`、`popup/popup.js` 后台刷新关键字 + `getSidePanelState` 校正三处 best-effort 路径统一放宽冷启动超时；重新生成 `sidepanel.bundle.js` / `popup.bundle.js`（运行时实际加载的产物）。未改 storage schema、菜单结构、消息协议。
+
 ## v1.6.31 (2026-06-09)
 
 **封面生成器默认风格改为「⬜ 极简的留白」**。详细见 [releases/v1.6.31.md](./releases/v1.6.31.md)。
