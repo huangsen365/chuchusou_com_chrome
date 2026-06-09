@@ -1,5 +1,17 @@
 # 更新日志
 
+## v1.6.31 (2026-06-09)
+
+**封面生成器默认风格改为「⬜ 极简的留白」**。详细见 [releases/v1.6.31.md](./releases/v1.6.31.md)。
+
+### 🔧 改进
+
+- **封面默认风格 = 极简的留白**：新装用户首次打开封面生成器（侧边栏 / popup 快捷卡片 / 右键菜单）默认勾选的风格，从「🔴 小红书封面」改为「⬜ 极简的留白」(`minimal`)。已经手动选过其它风格的老用户不受影响——存储里有值不会被覆盖。
+
+### 🛠 技术改动
+
+- 封面默认值在 6 处保持同源：`sidepanel/sidepanel.js` `popup/popup.js` `background/menuBuilder.js`（当前生效）+ `sidepanel-v2/sidepanel.js` `src/shared/coverPinConstants.ts` `src/background/menuBuilderAttach.ts`（备用/TS 源），并重新生成 `popup.bundle.js` / `sidepanel.bundle.js`（运行时实际加载的产物）。
+
 ## v1.6.30 (2026-05-29)
 
 **封面生成器默认风格改为「🔴 小红书封面」**，并随版本带上自 v1.6.29 后积累的 AI 提示词换行/中转修复。详细见 [releases/v1.6.30.md](./releases/v1.6.30.md)。
