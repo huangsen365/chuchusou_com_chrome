@@ -1746,10 +1746,15 @@ class SidePanelRenderer {
     const intent = isRefresh
       ? CCSKeywordClient.INTENTS.SIDEPANEL_REFRESH
       : CCSKeywordClient.INTENTS.SIDEPANEL_INIT;
+    // 冷启动容忍：SW 刚被唤醒时要 eval Plasmo bundle + importScripts 18 个 legacy 模块
+    // 再跑 KeywordService，1200ms / retries:0 撑不住，会在 chrome://extensions 刷出
+    // getKeyword TIMEOUT 警告。这条是 best-effort 新鲜值——首屏已由 storage cache +
+    // onChanged 监听覆盖，不阻塞 UI——所以放宽到 3000ms（≥ SW 端 2500ms 安全兜底响应）
+    // + 1 次重试。SW 已热时（切标签场景）<100ms 就回，放宽的超时根本不会触发。
     return CCSKeywordClient.requestKeyword(intent, {
       tab: tabInfo,
-      timeoutMs: 1200,
-      retries: 0
+      timeoutMs: 3000,
+      retries: 1
     });
   }
 

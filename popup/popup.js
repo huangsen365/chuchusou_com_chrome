@@ -226,9 +226,13 @@ class PopupMenuRenderer {
           else setTimeout(fn, cached?.text ? 250 : 900);
         };
         scheduleFreshKeyword(() => {
+          // cache 命中 → 徽章已显示，刷新只为新鲜度，保持 snappy（900ms/0）。
+          // cache miss → 这是冷启动空缓存场景，SW 可能正 eval bundle + importScripts，
+          // 1200ms/0 撑不住会刷 getKeyword TIMEOUT 警告；放宽到 3000ms（≥ SW 端 2500ms
+          // 兜底响应）+ 1 次重试。徽章已由 storage cache + onChanged 监听覆盖，不阻塞首屏。
           this.refreshKeyword({
-            timeoutMs: cached?.text ? 900 : 1200,
-            retries: 0
+            timeoutMs: cached?.text ? 900 : 3000,
+            retries: cached?.text ? 0 : 1
           }).catch((error) => {
             globalThis.CCSLogger?.warn?.(
               'popup',
@@ -686,9 +690,12 @@ class PopupMenuRenderer {
         else setTimeout(fn, 800);
       };
       idleSchedule(() => {
+        // 同 keyword：这是冷启动期唤醒 SW 的 best-effort 校正（storage 值 99% 已对），
+        // 1200ms/0 在 SW 冷启动 ~500ms-2s 时会刷 timeout 警告。放宽到 3000ms + 1 次重试，
+        // 不影响首屏（idle 调度 + storage 权威）。
         this.sendRuntimeAction({ action: 'getSidePanelState', windowId }, {
-          timeoutMs: 1200,
-          retries: 0
+          timeoutMs: 3000,
+          retries: 1
         }).then((result) => {
           if (!result.ok) return;
           const resp = result.data;
