@@ -113,7 +113,12 @@ export async function evaluate(cdp, expression, { timeoutMs } = {}) {
     returnByValue: true
   }, timeoutMs ? { timeoutMs } : {})
   if (result.exceptionDetails) {
-    throw new Error(result.exceptionDetails.text || result.exceptionDetails.exception?.description || "Runtime.evaluate failed")
+    const d = result.exceptionDetails
+    // exception.description 才有真错误（含 stack）；text 往往只是 "Uncaught"
+    const detail = d.exception?.description || d.exception?.value || d.text || "Runtime.evaluate failed"
+    const where = d.lineNumber != null ? ` @line ${d.lineNumber}:${d.columnNumber ?? 0}` : ""
+    const snippet = String(expression || "").trim().slice(0, 120).replace(/\s+/g, " ")
+    throw new Error(`${detail}${where} | expr: ${snippet}...`)
   }
   return result.result?.value
 }
