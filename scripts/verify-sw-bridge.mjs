@@ -120,4 +120,15 @@ if (fs.existsSync(retiredDir)) {
   console.log(`[verify-sw-bridge] ✓ ${retired.length} 个退役文件未混入 importScripts / background/ / build/`)
 }
 
+// 6. background/ 根目录白名单：每个根级 .js 要么是入口 index.js、要么在
+// importScripts 列表里。抓两类污染：误入的僵尸文件、OneDrive 同步冲突副本
+//（实测出现过 events-<机器名>.js —— postbuild 会把它整目录打进商店 zip）。
+{
+  const rootJs = fs.readdirSync(path.join(root, "background")).filter((f) => f.endsWith(".js"))
+  const allowed = new Set(["index.js", ...plasmoList.filter((t) => t.startsWith("background/")).map((t) => t.slice("background/".length)).filter((t) => !t.includes("/"))])
+  const strays = rootJs.filter((f) => !allowed.has(f))
+  assert(strays.length === 0, `background/ 根目录有不明 .js 文件: ${strays.join(", ")}（僵尸或同步冲突副本，会被打进商店 zip）`)
+  console.log(`[verify-sw-bridge] ✓ background/ 根目录 ${rootJs.length} 个 .js 全部在白名单内`)
+}
+
 console.log(`[verify-sw-bridge] 全部 OK — Plasmo SW 桥接与 legacy index.js 等价`)

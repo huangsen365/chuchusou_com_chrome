@@ -26,6 +26,7 @@
 
 import fs from "node:fs"
 import http from "node:http"
+import https from "node:https"
 import os from "node:os"
 import path from "node:path"
 import process from "node:process"
@@ -72,6 +73,29 @@ async function main() {
     return
   }
 
+  // ===== 本地服务器先于 Chrome 启动（resolver 规则需要端口）=====
+  // 去外网化（hermetic）：把 www.baidu.com / www.google.com 解析到本地 HTTPS
+  // 服务器。CI 上百度反爬重定向 / 网络抖动曾让路径 9/12/16 随机红 ——
+  // "真开标签"类断言只关心扩展行为，不应依赖外部网站的可用性。
+  const httpServer = http.createServer((_, res) => {
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
+    res.end(`<!doctype html><meta charset="utf-8"><title>smoke</title>
+      <p id="t" style="font-size:24px;margin:60px 20px">真实选区捕获冒烟标记</p>`)
+  })
+  await new Promise((res) => httpServer.listen(0, "127.0.0.1", res))
+  const httpUrl = `http://127.0.0.1:${httpServer.address().port}/`
+
+  const fixtureDir = path.join(root, "scripts/fixtures")
+  const httpsServer = https.createServer({
+    key: fs.readFileSync(path.join(fixtureDir, "ccs-test-key.pem")),
+    cert: fs.readFileSync(path.join(fixtureDir, "ccs-test-cert.pem"))
+  }, (req, res) => {
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
+    res.end(`<!doctype html><meta charset="utf-8"><title>engine-fixture</title><p>本地引擎夹具页 ${req.url}</p>`)
+  })
+  await new Promise((res) => httpsServer.listen(0, "127.0.0.1", res))
+  const httpsPort = httpsServer.address().port
+
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "ccs-smoke-"))
   const child = spawn(chrome, [
     "--headless=new",
@@ -83,6 +107,8 @@ async function main() {
     // Extensions.loadUnpacked（需要下面这个 flag）。不要再加
     // --load-extension/--disable-extensions-except —— 实测会干扰 CDP 装载的扩展。
     "--enable-unsafe-extension-debugging",
+    `--host-resolver-rules=MAP www.baidu.com 127.0.0.1:${httpsPort},MAP www.google.com 127.0.0.1:${httpsPort}`,
+    "--ignore-certificate-errors",
     "--remote-debugging-port=0",
     `--user-data-dir=${userDataDir}`,
     "about:blank"
@@ -91,7 +117,6 @@ async function main() {
   let browserCdp = null
   let swCdp = null
   let pageCdp = null
-  let httpServer = null
   // 全局看门狗：CDP 挂死时兜底（先杀 Chrome 再退，避免僵尸）
   const watchdog = setTimeout(() => {
     console.error(`${TAG} ✗ 全局超时（240s），强制退出`)
@@ -325,8 +350,8 @@ async function main() {
     console.log(`${TAG} ✓ executeMenuAction 真开新标签且 URL 正确（SSoT URLBuilder 链路通）`)
 
     // 12. URL 关键字提取子系统（keywords.js 搜索引擎分支）：
-    //     复用 #9 开出的百度标签，getKeyword 应直接从 wd= 参数提取关键字
-    //     （纯 URL 解析，不依赖页面网络加载成功 —— CI 无外网也稳定）
+    //     复用 #9 开出的"百度"标签（域名已映射到本地 HTTPS 夹具，URL 与 wd=
+    //     参数原样保留、无反爬重定向）—— getKeyword 走 tabId 重新水化路径提取关键字
     const urlExtract = await evaluate(pageCdp, `
       (async () => {
         const tabs = await new Promise((res) => chrome.tabs.query({}, res));
@@ -399,14 +424,6 @@ async function main() {
     // 14. 真实选区捕获链路（content script 注入 → trusted 鼠标拖选 → mouseup →
     //     selectionChanged → SW 状态）。本地 HTTP 页 + CDP Input trusted 事件，
     //     等价于真人鼠标操作 —— 这是此前认为"只能真机"的路径。
-    httpServer = http.createServer((_, res) => {
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
-      res.end(`<!doctype html><meta charset="utf-8"><title>smoke</title>
-        <p id="t" style="font-size:24px;margin:60px 20px">真实选区捕获冒烟标记</p>`)
-    })
-    await new Promise((res) => httpServer.listen(0, "127.0.0.1", res))
-    const httpUrl = `http://127.0.0.1:${httpServer.address().port}/`
-
     const httpTabId = await evaluate(pageCdp, `
       new Promise((res) => chrome.tabs.create({ url: "${httpUrl}", active: true }, (tab) => res(tab.id)))
     `)
@@ -550,6 +567,7 @@ async function main() {
   } finally {
     clearTimeout(watchdog)
     try { httpServer?.close() } catch (_) { /* noop */ }
+    try { httpsServer?.close() } catch (_) { /* noop */ }
     browserCdp?.close()
     swCdp?.close()
     pageCdp?.close()
