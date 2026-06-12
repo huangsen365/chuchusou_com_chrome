@@ -963,7 +963,7 @@
           return { ok: true, skipped: true, reason: 'already-filled-intact' };
         }
         if (currentText && (expected.includes(currentText) || currentText.includes(expected))) {
-          const result = fillChatGptPromptOnce(text);
+          const result = await fillChatGptPromptOnceAsync(text);
           return result.ok ? { ...result, skipped: true, reason: 'already-filled' } : result;
         }
       }
@@ -1098,7 +1098,7 @@
       const expectedNorm = normalizeFilledText(text);
       if (!(expectedNorm.includes(currentText) || currentText.includes(expectedNorm))) return { ok: true };
 
-      const result = fillChatGptPromptOnce(text);
+      const result = await fillChatGptPromptOnceAsync(text);
       if (!result.ok) return result;
     }
     return { ok: true };
@@ -1122,9 +1122,14 @@
 
     return new Promise((resolve) => {
       let count = 0;
-      const tryFill = () => {
+      const tryFill = async () => {
         count += 1;
-        const result = fillChatGptPromptOnce(prompt);
+        let result;
+        try {
+          result = await fillChatGptPromptOnceAsync(prompt);
+        } catch (error) {
+          result = { ok: false, error: error?.message || 'fill-failed' };
+        }
         if (result.ok || count >= attempts) {
           resolve(result.ok ? result : { ok: false, error: result.error || 'composer-not-found' });
           return;
@@ -1153,6 +1158,68 @@
     } catch (error) {
       return { ok: false, error: error?.message || 'fill-failed' };
     }
+  }
+
+  async function fillChatGptPromptOnceAsync(text) {
+    if (!text) return { ok: false, error: 'no-text' };
+    const target = findChatGptComposerTarget();
+    if (!target) return { ok: false, error: 'composer-not-found' };
+
+    if (isYiyanAIPage() && !editableAcceptsFilledText(target, text)) {
+      const slateResult = await fillYiyanSlatePromptInMainWorld(text);
+      if (slateResult?.ok && editableAcceptsFilledText(target, text)) {
+        lastAIFillMethod = slateResult.method || 'yiyan-slate-main-world';
+        return { ok: true };
+      }
+    }
+
+    return fillChatGptPromptOnce(text);
+  }
+
+  function isYiyanAIPage() {
+    try {
+      return window.location.hostname === 'yiyan.baidu.com';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function fillYiyanSlatePromptInMainWorld(text) {
+    return new Promise((resolve) => {
+      const runtime = globalThis.chrome?.runtime;
+      if (!isYiyanAIPage() || !runtime?.sendMessage) {
+        resolve({ ok: false, error: 'unsupported' });
+        return;
+      }
+
+      let done = false;
+      const timer = setTimeout(() => {
+        if (done) return;
+        done = true;
+        resolve({ ok: false, error: 'timeout' });
+      }, 2500);
+
+      try {
+        runtime.sendMessage({
+          action: 'ccsFillYiyanSlatePromptInMainWorld',
+          text: String(text || '')
+        }, (response) => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          if (runtime.lastError) {
+            resolve({ ok: false, error: runtime.lastError.message || 'runtime-error' });
+            return;
+          }
+          resolve(response || { ok: false, error: 'empty-response' });
+        });
+      } catch (error) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve({ ok: false, error: error?.message || String(error) });
+      }
+    });
   }
 
   function findChatGptComposerTarget() {
@@ -1460,10 +1527,12 @@
     // 用 InputEvent (带 inputType) 派发——React 的 onInput / Lexical 的 update listener
     // 才会把它当成真实输入触发 controlled state 同步。普通 Event 在某些编辑器（如 yiyan）
     // 上不被识别，会出现"DOM 有内容但 state 空"的提交报错。
+    const committedText = readEditableText(element);
     let inputEvent;
     try {
       inputEvent = new InputEvent('input', {
         inputType: 'insertReplacementText',
+        data: committedText,
         bubbles: true,
         cancelable: true
       });
@@ -1473,18 +1542,22 @@
     element.dispatchEvent(inputEvent);
 
     // Yiyan / 百度系中文 IME 优化编辑器：state 在 compositionend 上 commit，
-    // 不在 input 上 commit。补一发 compositionend 让 state 同步。
-    try {
-      if (typeof CompositionEvent === 'function') {
+    // 不在 input 上 commit。contenteditable 编辑器补两发 compositionend：
+    // 第一次对应常规输入提交，第二次覆盖文心这类"下一次 compositionend 才落
+    // model"的实现，避免用户首次点发送时 DOM 有字但内部 state 仍为空。
+    const compositionPasses = element.isContentEditable ? 2 : 1;
+    for (let i = 0; i < compositionPasses; i++) {
+      try {
+        if (typeof CompositionEvent !== 'function') continue;
         const compEvent = new CompositionEvent('compositionend', {
           data: readEditableText(element),
           bubbles: true,
           cancelable: true
         });
         element.dispatchEvent(compEvent);
+      } catch (_) {
+        // ignore
       }
-    } catch (_) {
-      // ignore
     }
 
     element.dispatchEvent(new Event('change', { bubbles: true }));

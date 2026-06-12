@@ -250,7 +250,8 @@ function makeHarness({
   duplicatePromptOnFirstInput = false,
   consumesPaste = true,
   consumesPasteSilently = false,
-  consumesInsertHtml = false
+  consumesInsertHtml = false,
+  yiyanSlateBridge = false
 } = {}) {
   const documentListeners = new Map()
   const windowListeners = new Map()
@@ -453,6 +454,22 @@ function makeHarness({
             pendingGets.push({ message, callback })
             return
           }
+          if (message.action === "ccsFillYiyanSlatePromptInMainWorld") {
+            if (!yiyanSlateBridge) {
+              callback?.({ ok: false, error: "slate-bridge-disabled" })
+              return
+            }
+            const beforeLength = normalize(editor.textContent).length
+            editor.textContent = String(message.text || "")
+            editor.dispatchEvent(new FakeEvent("input", { bubbles: true, cancelable: true }))
+            callback?.({
+              ok: true,
+              method: "yiyan-slate-main-world",
+              beforeLength,
+              afterLength: normalize(editor.textContent).length
+            })
+            return
+          }
           if (message.action === "ccsAckPendingAIPrompt" || message.action === "ccsAckPendingChatGptPrompt") {
             ackMessages.push(message)
             callback?.({ ok: true })
@@ -497,6 +514,7 @@ function makeHarness({
     editor,
     pendingGets,
     ackMessages,
+    runtimeMessages,
     execCommands,
     messageListeners,
     async flush(times = 30) {
@@ -701,6 +719,37 @@ async function verifySupportedContenteditableEnginesPreserveNewlines() {
   }
 }
 
+async function verifyYiyanUsesSlateMainWorldBridge() {
+  const harness = makeHarness({
+    url: "https://yiyan.baidu.com/#ccs_pp=pyiyan_slate_bridge",
+    pendingId: "pyiyan_slate_bridge",
+    consumesPaste: false,
+    yiyanSlateBridge: true
+  })
+
+  const fill = harness.sendFill()
+  await harness.flush(120)
+
+  assert.equal(fill.response?.ok, true, "Yiyan Slate bridge fill should succeed")
+  assert.equal(
+    harness.runtimeMessages.some((message) => message.action === "ccsFillYiyanSlatePromptInMainWorld"),
+    true,
+    "Yiyan fill should ask background to run the MAIN-world Slate bridge"
+  )
+  assert.equal(harness.execCommands.length, 0, "Slate bridge success should not fall back to execCommand DOM fill")
+  assert.equal(harness.editor.__pasteEvents, 0, "Slate bridge success should not dispatch synthetic paste")
+  assert.equal(harness.editor.__inputEventCount >= 1, true, "Slate bridge should still emit an input event")
+
+  const editorText = normalize(harness.editor.textContent)
+  assert.equal(editorText.includes(MARKER_HEAD), true, "Slate bridge text should include the prompt head")
+  assert.equal(editorText.includes(MARKER_TAIL), true, "Slate bridge text should include the prompt tail")
+  assert.equal(
+    countOccurrences(editorText, "\n") >= Math.floor(countOccurrences(FASTQA_PROMPT, "\n") * 0.8),
+    true,
+    "Slate bridge text should preserve newline characters"
+  )
+}
+
 async function verifySilentPasteStillDispatchesInput() {
   // 回归测试：模拟 yiyan v4 —— paste 被消费但 React state 没同步（editor 内部 onPaste 不 fire input）。
   // content.js 必须自己 dispatchEditableEvents，否则页面提交时被 React 报"没有输入内容"。
@@ -828,6 +877,7 @@ await verifyExistingDuplicateIsRepaired()
 await verifyAsyncEditorDuplicationIsStabilized()
 await verifyClaudeMultilineUsesPasteHandler()
 await verifySupportedContenteditableEnginesPreserveNewlines()
+await verifyYiyanUsesSlateMainWorldBridge()
 await verifyFallbackWhenEditorRejectsPaste()
 await verifyChatGptStyleEditorUsesInsertHtml()
 await verifySilentPasteStillDispatchesInput()

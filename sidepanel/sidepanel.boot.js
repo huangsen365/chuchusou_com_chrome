@@ -7,7 +7,8 @@
 
   const FULL_SCRIPT = chrome.runtime.getURL('sidepanel/sidepanel.bundle.js');
   const KEYWORD_TTL_MS = 5 * 60 * 1000;
-  const SIMPLE_URL_TYPES = new Set(['search', 'ai-chat', 'ai-search', 'ecommerce', 'translate', 'portal']);
+  const SEARCH_TEXT_TYPES = new Set(['search', 'ai-search', 'ecommerce', 'translate', 'portal']);
+  const DIRECT_URL_TYPES = new Set(['search', 'ecommerce', 'translate', 'portal']);
   const state = {
     activeTab: null,
     destroyed: false,
@@ -231,13 +232,13 @@
 
   async function executeItem(item) {
     await ensureKeyword();
-    const searchLike = SIMPLE_URL_TYPES.has(item.type);
+    const searchLike = SEARCH_TEXT_TYPES.has(item.type);
     const keyword = searchLike ? (state.keyword.text || state.keyword.raw) : (state.keyword.raw || state.keyword.text);
     if (!keyword) {
       showToast('没有选中文本或无法提取关键词');
       return;
     }
-    if (searchLike && item.urlPattern) {
+    if (DIRECT_URL_TYPES.has(item.type) && item.urlPattern) {
       chrome.tabs.create({ url: item.urlPattern.replace('${KEYWORD}', encodeURIComponent(keyword)) });
       return;
     }

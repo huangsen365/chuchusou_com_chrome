@@ -17,6 +17,9 @@
  *  C. Lexical 式 revert（内容退化为 prompt 残缺版）时巩固重填仍然生效
  *  D. 受控编辑器（仅 input 事件同步内部 model）在填充后 model 必须等于 prompt
  *     （发送按钮可用性的代理指标 —— 框架态没同步就是"点了发送但发出去是空"）
+ *  E. Yiyan 类 IME 编辑器如果要到第二次 compositionend 才提交 model，
+ *     填充完成时就必须预同步，用户第一次点发送应成功；更顽固的编辑器仍由
+ *     驻留侦测器兜底二次发送。
  *
  * 跳过条件与其它 Chrome 校验一致：无全局 WebSocket / 无 Chrome。
  */
@@ -173,9 +176,8 @@ async function main() {
         await wait(1600);
         R.revertRestored = (editor.textContent || '').includes('末行标记丁');
 
-        // ===== 场景 E：顽固编辑器（内部 model 与 DOM 脱钩，仅第 2 次 compositionend
-        //        才同步 —— 模拟 Yiyan"DOM 有字、state 空、点发送无效"）
-        //        期望：首次发送无效 → 驻留侦测器再同步 + 提示 → 第二次发送成功
+        // ===== 场景 E1：Yiyan 类编辑器（内部 model 需要第 2 次 compositionend
+        //        才同步）。填充完成时应该已经预同步，首次发送成功。
         document.body.innerHTML = '';
         const ed2 = document.createElement('div');
         ed2.setAttribute('contenteditable', 'true');
@@ -201,24 +203,58 @@ async function main() {
         deliver(P3, 'pendcase0003');
         await wait(1600);
         R.e_filled = (ed2.textContent || '').includes(MARK3);
-        R.e_modelDesyncedAtFirst = !model2; // 第一次填充后 model 应仍为空（脱钩成立）
+        R.e_modelSyncedBeforeFirstSend = (model2 || '').includes(MARK3);
 
-        send2.click(); // 用户第一次点发送 —— 无效
+        send2.click(); // 用户第一次点发送 —— 应成功
         await wait(80);
-        R.e_firstClickNoSend = window.__sent2.length === 0;
+        R.e_firstClickSent = window.__sent2.length === 1 && window.__sent2[0].includes(MARK3);
+        R.e_editorClearedAfterFirst = (ed2.textContent || '') === '';
+
+        // ===== 场景 E2：更顽固的编辑器（第 3 次 compositionend 才同步）。
+        //        预同步仍不够时，驻留侦测器应介入：首次发送无效 → 提示再点 → 二次成功。
+        document.body.innerHTML = '';
+        const ed3 = document.createElement('div');
+        ed3.setAttribute('contenteditable', 'true');
+        ed3.setAttribute('role', 'textbox');
+        ed3.style.cssText = 'position:fixed;left:20px;right:100px;bottom:24px;height:120px;border:1px solid #888;white-space:pre-wrap;';
+        const send3 = document.createElement('button');
+        send3.textContent = '发送';
+        send3.style.cssText = 'position:fixed;right:24px;bottom:24px;width:56px;height:40px;';
+        document.body.append(ed3, send3);
+        let model3 = '';
+        let compCount3 = 0;
+        ed3.addEventListener('compositionend', () => { compCount3++; if (compCount3 >= 3) model3 = ed3.textContent || ''; });
+        window.__sent3 = [];
+        send3.addEventListener('click', () => {
+          if (!model3) return;
+          window.__sent3.push(model3);
+          ed3.replaceChildren();
+          model3 = '';
+        });
+
+        const MARK4 = '超顽固编辑器标记庚';
+        const P4 = '第四个任务：' + MARK4 + '\\n' + '正文。'.repeat(25) + '\\n末行标记辛';
+        deliver(P4, 'pendcase0004');
+        await wait(1600);
+        R.f_filled = (ed3.textContent || '').includes(MARK4);
+        R.f_modelDesyncedAtFirst = !model3;
+
+        send3.click();
+        await wait(80);
+        R.f_firstClickNoSend = window.__sent3.length === 0;
         await wait(2200); // 驻留侦测器 1.6s 后介入：再同步 + 提示 + 诊断
 
-        R.e_modelAfterResync = (model2 || '').includes(MARK3);
+        R.f_modelAfterResync = (model3 || '').includes(MARK4);
         const retryToast = Array.from(document.querySelectorAll('body > div, body > .ccs-toast'))
           .find((el) => (el.textContent || '').includes('请再点一次发送'));
-        R.e_retryToastShown = !!retryToast;
-        R.e_diagWritten = window.__storageWrites.some((w) =>
+        R.f_retryToastShown = !!retryToast;
+        R.f_diagWritten = window.__storageWrites.some((w) =>
           Array.isArray(w.ccs_aifill_diag) && w.ccs_aifill_diag.some((d) => d.kind === 'residue-after-send' && d.fillMethod));
 
-        send2.click(); // 用户第二次点发送 —— 应成功
+        send3.click(); // 用户第二次点发送 —— 应成功
         await wait(80);
-        R.e_sentFinally = window.__sent2.length === 1 && window.__sent2[0].includes(MARK3);
-        R.e_editorClearedFinally = (ed2.textContent || '') === '';
+        R.f_sentFinally = window.__sent3.length === 1 && window.__sent3[0].includes(MARK4);
+        R.f_editorClearedFinally = (ed3.textContent || '') === '';
 
         return R;
       })()
@@ -238,14 +274,16 @@ async function main() {
     expect(r.editorClearedAfterSend, "A: 发送后编辑器应被站点清空")
     expect(r.draftPreserved, "B: 二次投递把旧 prompt 写回，覆盖了用户新草稿")
     expect(r.revertRestored, "C: revert 残缺后巩固重填未恢复完整 prompt")
-    expect(r.e_filled && r.e_modelDesyncedAtFirst, "E: 顽固编辑器前置条件不成立（填充/脱钩模拟失败）")
-    expect(r.e_firstClickNoSend, "E: 脱钩状态下首次发送本应无效")
-    expect(r.e_modelAfterResync, "E: 驻留侦测器未完成内部状态再同步")
-    expect(r.e_retryToastShown, "E: 未提示用户'请再点一次发送'")
-    expect(r.e_diagWritten, "E: 诊断记录（含 fillMethod）未写入 storage")
-    expect(r.e_sentFinally && r.e_editorClearedFinally, "E: 再同步后的第二次发送未成功")
+    expect(r.e_filled && r.e_modelSyncedBeforeFirstSend, "E1: Yiyan 类编辑器填充后 model 未预同步")
+    expect(r.e_firstClickSent && r.e_editorClearedAfterFirst, "E1: Yiyan 类编辑器首次发送未成功")
+    expect(r.f_filled && r.f_modelDesyncedAtFirst, "E2: 超顽固编辑器前置条件不成立（填充/脱钩模拟失败）")
+    expect(r.f_firstClickNoSend, "E2: 脱钩状态下首次发送本应无效")
+    expect(r.f_modelAfterResync, "E2: 驻留侦测器未完成内部状态再同步")
+    expect(r.f_retryToastShown, "E2: 未提示用户'请再点一次发送'")
+    expect(r.f_diagWritten, "E2: 诊断记录（含 fillMethod）未写入 storage")
+    expect(r.f_sentFinally && r.f_editorClearedFinally, "E2: 再同步后的第二次发送未成功")
 
-    console.log(`${TAG} OK — toast 顶部可穿透 / 发送可达 / model 同步 / 发送真出 / 新草稿不被写回 / revert 巩固恢复 / 顽固编辑器驻留自愈（侦测→再同步→提示→二次发送成功）`)
+    console.log(`${TAG} OK — toast 顶部可穿透 / 发送可达 / model 同步 / 发送真出 / 新草稿不被写回 / revert 巩固恢复 / Yiyan 预同步首发成功 / 顽固编辑器驻留自愈`)
   } finally {
     cdp?.close()
     child.kill("SIGKILL")
