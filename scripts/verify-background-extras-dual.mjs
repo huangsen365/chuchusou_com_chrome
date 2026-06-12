@@ -77,7 +77,7 @@ function loadLegacy() {
     { p: "background/utils/Constants.js", a: "" },
     { p: "background/utils/TextUtils.js", a: "" },
     { p: "background/utils/TextLimits.js", a: "" },
-    { p: "background/Logger.js", a: "" },
+    { p: "legacy/background-retired/Logger.js", a: "" },
     { p: "background/StateManager.js", a: "\nglobalThis.StateManager = StateManager;" },
     { p: "background/keywords.js", a: "\nglobalThis.safeDecodeParam = safeDecodeParam;\nglobalThis.heuristicExtractFromParams = heuristicExtractFromParams;" },
     { p: "background/config.js", a: "" },

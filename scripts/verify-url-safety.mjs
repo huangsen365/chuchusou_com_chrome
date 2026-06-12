@@ -356,10 +356,13 @@ function verifyPromptHandlersDoNotBypassRelay() {
     "runtime menu prompt handlers must not open prompt targetUrl directly"
   )
 
-  const menuHandlersSource = fs.readFileSync(path.join(root, "background/menuHandlers.js"), "utf8")
+  // 右键菜单 onClicked 的运行时主体是 TS port（src/background/menuHandlersAttach.ts，
+  // legacy menuHandlers.js 已退役到 legacy/background-retired/），所以源码检查指向 TS 文件。
+  // openPromptUrlPattern 是 attach 内的统一出口：AI URL 走 ccsPrepareAIPromptUrl relay。
+  const menuHandlersSource = fs.readFileSync(path.join(root, "src/background/menuHandlersAttach.ts"), "utf8")
   for (const blockName of ["top100", "fastqa"]) {
     const startNeedle = blockName === "top100" ? "if (isTopQuestionsOpenAll || isTopQuestionsEngine)" : "if (isFastAnswersOpenAll || isFastAnswersMenu)"
-    const endNeedle = blockName === "top100" ? "if (isFastAnswersOpenAll || isFastAnswersMenu)" : "if (optimizedPromptMenuMap.has"
+    const endNeedle = blockName === "top100" ? "if (isFastAnswersOpenAll || isFastAnswersMenu)" : "if (g.optimizedPromptMenuMap?.has?.(info.menuItemId)"
     const start = menuHandlersSource.indexOf(startNeedle)
     const end = menuHandlersSource.indexOf(endNeedle, start + 1)
     assert(start >= 0 && end > start, `${blockName} context-menu block should be found`)
@@ -370,9 +373,9 @@ function verifyPromptHandlersDoNotBypassRelay() {
       `${blockName} context-menu prompt handler must route through AI relay instead of direct tabs.create`
     )
     assert.equal(
-      block.includes("openMenuUrlWithAIRelay("),
+      block.includes("openPromptUrlPattern("),
       true,
-      `${blockName} context-menu prompt handler should use openMenuUrlWithAIRelay`
+      `${blockName} context-menu prompt handler should use openPromptUrlPattern (AI relay wrapper)`
     )
   }
 }

@@ -4,7 +4,7 @@
  *   - background/utils/Constants.js          ↔ src/background/utils/Constants.ts
  *   - background/utils/TextUtils.js          ↔ src/background/utils/TextUtils.ts
  *   - background/utils/TextLimits.js         ↔ src/background/utils/TextLimits.ts
- *   - background/Logger.js                   ↔ src/background/Logger.ts
+ *   - legacy/background-retired/Logger.js    ↔ src/background/Logger.ts
  *
  * 策略：
  *  1. 在 Node VM 里以 SW 共享作用域风格加载 legacy 4 个文件（依赖 globalThis 串联）
@@ -92,7 +92,7 @@ function loadLegacyGlobals() {
     "background/utils/Constants.js",
     "background/utils/TextUtils.js",
     "background/utils/TextLimits.js",
-    "background/Logger.js"
+    "legacy/background-retired/Logger.js"
   ]
   for (const rel of files) {
     const abs = path.join(root, rel)
