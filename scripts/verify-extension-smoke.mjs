@@ -94,10 +94,10 @@ async function main() {
   let httpServer = null
   // 全局看门狗：CDP 挂死时兜底（先杀 Chrome 再退，避免僵尸）
   const watchdog = setTimeout(() => {
-    console.error(`${TAG} ✗ 全局超时（120s），强制退出`)
+    console.error(`${TAG} ✗ 全局超时（240s），强制退出`)
     try { child.kill("SIGKILL") } catch (_) { /* noop */ }
     process.exit(1)
-  }, 120_000)
+  }, 240_000)
   watchdog.unref?.()
   try {
     const port = await waitForDevToolsPort(userDataDir, child)
@@ -420,38 +420,81 @@ async function main() {
     }
     console.log(`${TAG} ✓ 右键菜单动态标题随选区实时更新（contextMenus.update 命中 ${titleHits} 次）`)
 
-    // 10+11. popup / sidepanel UI 启动回归（历史事故："商店版 popup 卡顿/白屏"）：
-    //    页面当 tab 打开 → 静态预构建菜单渲染齐全 + 关键元素就位 + 启动零未捕获异常
-    const pageExceptions = []
-    pageCdp.on("Runtime.exceptionThrown", (p) => {
-      pageExceptions.push(p?.exceptionDetails?.exception?.description || p?.exceptionDetails?.text || "unknown")
-    })
+    // 10+11+16+17. popup / sidepanel UI 启动 + 点按实操。
+    // 每个 UI 页面用独立 tab + 独立 CDP 客户端 —— popup 点按后 popup.js 会
+    // window.close() 自己的标签，复用同一 target 会让后续 CDP 调用永久悬挂（踩过）。
+    const openUiPage = async (relPath) => {
+      // 先把 http 测试页激活回活动标签（popup/sidepanel 的关键字取自活动标签的
+      // 选区），UI 页用 background:true 开，避免它自己成为活动标签
+      await browserCdp.call("Target.activateTarget", { targetId: httpTarget.id })
+      await wait(200)
+      const { targetId } = await browserCdp.call("Target.createTarget", { url: `chrome-extension://${extensionId}/${relPath}`, background: true })
+      const target = await findTarget(port, (t) => t.id === targetId && t.webSocketDebuggerUrl, 8000)
+      if (!target) fail(`${relPath} 页面 target 没出现`)
+      const cdp = new CdpClient(await connectWebSocket(target.webSocketDebuggerUrl))
+      const exceptions = []
+      cdp.on("Runtime.exceptionThrown", (e) => {
+        exceptions.push(e?.exceptionDetails?.exception?.description || e?.exceptionDetails?.text || "unknown")
+      })
+      await cdp.call("Runtime.enable")
+      await wait(1200)
+      return { cdp, exceptions }
+    }
 
-    await pageCdp.call("Page.navigate", { url: `chrome-extension://${extensionId}/popup/popup.html` })
-    await wait(1200)
-    const popupUi = await evaluate(pageCdp, `(() => ({
+    // 10+16: popup
+    const popupPage = await openUiPage("popup/popup.html")
+    const popupUi = await evaluate(popupPage.cdp, `(() => ({
       menuItems: document.querySelectorAll(".menu-item").length,
-      staticBuilt: !!document.querySelector("[data-static-built]"),
-      keywordEl: !!document.getElementById("currentKeyword") || !!document.querySelector(".keyword, #keyword, [class*='keyword']")
+      staticBuilt: !!document.querySelector("[data-static-built]")
     }))()`)
     if (!(popupUi?.menuItems >= 90)) fail(`popup 菜单渲染异常: ${popupUi?.menuItems} 个 .menu-item（期望 ≥90）`)
     if (!popupUi?.staticBuilt) fail("popup 静态预构建菜单标记（data-static-built）缺失")
-    if (pageExceptions.length > 0) fail(`popup 启动期未捕获异常: ${pageExceptions[0]}`)
+    if (popupPage.exceptions.length > 0) fail(`popup 启动期未捕获异常: ${popupPage.exceptions[0]}`)
     console.log(`${TAG} ✓ popup UI 启动正常（${popupUi.menuItems} 个菜单项，零异常）`)
 
-    await pageCdp.call("Page.navigate", { url: `chrome-extension://${extensionId}/sidepanel/sidepanel.html` })
-    await wait(1200)
-    const spUi = await evaluate(pageCdp, `(() => ({
+    // 16. popup 菜单项点按：点'百度'项 → executeMenuAction → 新标签。
+    //     popup 的关键字来自活动标签（http 测试页的选区文本），与 #9 的关键字
+    //     不同，可区分这次点击开出的标签。等关键字异步到位后再点。
+    await wait(800)
+    await evaluate(popupPage.cdp, `document.querySelector('.menu-item[data-menu-id="ccs-baidu"]')?.click(), "clicked"`)
+    const popupClickTab = await findTarget(port, (t) =>
+      t.type === "page" && (t.url || "").includes("baidu.com/s?wd=" + encodeURIComponent("真实选区捕获冒烟标记")), 8000)
+    if (!popupClickTab) fail("popup 点按'百度'项后没开出携带选区关键字的标签")
+    console.log(`${TAG} ✓ popup 菜单项点按 → executeMenuAction → 新标签（关键字正确传递）`)
+    popupPage.cdp.close() // popup 标签可能已自关，客户端直接丢弃
+
+    // 11+17: sidepanel（新独立标签）
+    const spPage = await openUiPage("sidepanel/sidepanel.html")
+    const spUi = await evaluate(spPage.cdp, `(() => ({
       menuItems: document.querySelectorAll(".sp-menu-item").length,
       keywordEl: !!document.getElementById("spKeyword"),
       pinEl: !!document.getElementById("spPin")
     }))()`)
     if (!(spUi?.menuItems >= 15)) fail(`sidepanel 菜单渲染异常: ${spUi?.menuItems} 个 .sp-menu-item（期望 ≥15）`)
     if (!spUi?.keywordEl || !spUi?.pinEl) fail(`sidepanel 关键元素缺失: ${JSON.stringify(spUi)}`)
-    if (pageExceptions.length > 0) fail(`sidepanel 启动期未捕获异常: ${pageExceptions[0]}`)
+    if (spPage.exceptions.length > 0) fail(`sidepanel 启动期未捕获异常: ${spPage.exceptions[0]}`)
     console.log(`${TAG} ✓ sidepanel UI 启动正常（${spUi.menuItems} 个菜单项，关键元素就位，零异常）`)
 
-    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 13 条协议/端口/动作/存储/选区/菜单标题路径 + 2 个 UI 页面启动全通`)
+    // 17. sidepanel 菜单项点按：点'Google'项。此刻活动标签是 #16 开出的百度页
+    //     （真实网络下会重定向），sidepanel 拿到的关键字不可预期 ——
+    //     只断言"出现了新的 google 搜索标签"，不锁关键字值。
+    await wait(800)
+    const googleCount = async () =>
+      (await fetch(`http://127.0.0.1:${port}/json/list`).then((r) => r.json()))
+        .filter((t) => t.type === "page" && (t.url || "").includes("google.com/search?q=")).length
+    const googleCountBefore = await googleCount()
+    await evaluate(spPage.cdp, `document.querySelector('.sp-menu-item[data-menu-id="ccs-google"]')?.click(), "clicked"`)
+    let googleCountAfter = googleCountBefore
+    for (let i = 0; i < 40; i++) {
+      googleCountAfter = await googleCount()
+      if (googleCountAfter > googleCountBefore) break
+      await wait(200)
+    }
+    if (!(googleCountAfter > googleCountBefore)) fail("sidepanel 点按'Google'项后没开出新的 google 搜索标签")
+    console.log(`${TAG} ✓ sidepanel 菜单项点按 → executeMenuAction → 新标签`)
+    spPage.cdp.close()
+
+    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 13 条协议/端口/动作/存储/选区/菜单标题路径 + 2 个 UI 页面启动 + 2 条 UI 点按实操全通`)
   } finally {
     clearTimeout(watchdog)
     try { httpServer?.close() } catch (_) { /* noop */ }
