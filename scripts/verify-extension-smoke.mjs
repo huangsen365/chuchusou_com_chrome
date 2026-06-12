@@ -345,12 +345,19 @@ async function main() {
           func: (text) => chrome.runtime.sendMessage({ action: "selectionChanged", text, trigger: "smoke-script" }),
           args: ["选区冒烟测试"]
         });
-        await new Promise((r) => setTimeout(r, 800));
-        const resp = await new Promise((res) =>
-          chrome.runtime.sendMessage(
-            { action: "getKeyword", tabId: tab.id, url: freshTab.url || tab.url, title: freshTab.title || tab.title, intent: "popup-open" },
-            res
-          ));
+        // selectionChanged 的 SW 端处理是异步的（active-tab 校验回调）——
+        // 慢机器（CI）上单次等待会让 getKeyword 抢跑拿到 title 兜底。
+        // 轮询直至选区生效（上限 ~6s），消除竞态。
+        let resp = null;
+        for (let i = 0; i < 12; i++) {
+          await new Promise((r) => setTimeout(r, 500));
+          resp = await new Promise((res) =>
+            chrome.runtime.sendMessage(
+              { action: "getKeyword", tabId: tab.id, url: freshTab.url || tab.url, title: freshTab.title || tab.title, intent: "popup-open" },
+              res
+            ));
+          if ((resp?.raw || "").includes("选区冒烟测试") || (resp?.text || "").includes("选区冒烟测试")) break;
+        }
         return { tabId: tab.id, url: freshTab.url || tab.url, raw: resp?.raw || "", text: resp?.text || "", source: resp?.source || "" };
       })()
     `)
