@@ -33,6 +33,7 @@
         border-radius: 6px;
         font-size: 14px;
         z-index: 2147483647;
+        pointer-events: none;
         opacity: 0;
         transform: translateX(20px);
         transition: all 0.3s ease-out;
@@ -116,6 +117,7 @@
         border-radius: 6px;
         font-size: 14px;
         z-index: 2147483647;
+        pointer-events: none;
         animation: slideIn 0.3s ease-out;
       `;
       toast.textContent = message;

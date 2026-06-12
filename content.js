@@ -674,6 +674,18 @@
     fallbackToast(message);
   }
 
+  // AI 填充提示专用：放页面顶部。各家 AI 的发送按钮都在输入框右下角 ——
+  // 默认 bottom-right toast 恰好罩在发送键上（Claude"挡住发送按钮"、
+  // Yiyan"点发送没反应"的根因之一），即便可点透也不该在视觉上遮挡。
+  function showAIFillToast(message) {
+    if (!message) return;
+    if (window.CCSModules?.Toast) {
+      window.CCSModules.Toast.show(message, { position: 'top-right', duration: 4000 });
+      return;
+    }
+    fallbackToast(message, { top: true });
+  }
+
   function showErrorToast(message) {
     if (!message) return;
     if (window.CCSModules?.Toast) {
@@ -683,12 +695,12 @@
     fallbackToast(message);
   }
 
-  function fallbackToast(message) {
+  function fallbackToast(message, options = {}) {
     const toast = document.createElement('div');
     toast.textContent = message;
     toast.style.cssText = `
       position: fixed;
-      bottom: 20px;
+      ${options.top ? 'top: 20px;' : 'bottom: 20px;'}
       right: 20px;
       background: rgba(0, 0, 0, 0.8);
       color: #fff;
@@ -696,6 +708,7 @@
       border-radius: 6px;
       font-size: 14px;
       z-index: 2147483647;
+      pointer-events: none;
       opacity: 0;
       transition: opacity 0.2s ease;
     `;
@@ -937,12 +950,22 @@
     const key = makeAIPromptFillKey(pendingId, text);
     if (aiPromptFillDone.has(key)) {
       // push/pull 竞态时第二次进来——本次已经填过了。
-      // **不要无脑 refill**：如果用户已经点了发送（编辑器被清空），refill 会把 prompt 又塞回去。
-      // 只在编辑器仍有非空内容时做一次"巩固"（覆盖 Lexical revert 场景）。
+      // **不要无脑 refill**：用户点了发送（编辑器被清空）或已开始打新草稿时，
+      // refill 会把旧 prompt 写回去（Yiyan"发送后字符又出现"的根因之一）。
+      // 巩固重填只修复"prompt 自身的损坏形态"：残缺版（Lexical revert 截断）
+      // 或翻倍/夹杂版（Yiyan 重复填充），即与 prompt 存在**双向包含**关系；
+      // 与 prompt 无包含关系的内容视为用户接管，绝不触碰。
       const target = findChatGptComposerTarget();
-      if (target && normalizeFilledText(readEditableText(target))) {
-        const result = fillChatGptPromptOnce(text);
-        return result.ok ? { ...result, skipped: true, reason: 'already-filled' } : result;
+      if (target) {
+        const currentText = normalizeFilledText(readEditableText(target));
+        const expected = normalizeFilledText(text);
+        if (currentText === expected) {
+          return { ok: true, skipped: true, reason: 'already-filled-intact' };
+        }
+        if (currentText && (expected.includes(currentText) || currentText.includes(expected))) {
+          const result = fillChatGptPromptOnce(text);
+          return result.ok ? { ...result, skipped: true, reason: 'already-filled' } : result;
+        }
       }
       return { ok: true, skipped: true, reason: 'already-filled-user-cleared' };
     }
@@ -959,7 +982,7 @@
 
       aiPromptFillDone.add(key);
       cleanupChatGptRelayUrl();
-      showInfoToast('已自动补充完整提示词，请确认后发送');
+      showAIFillToast('已自动补充完整提示词，请确认后发送');
       if (pendingId && ackAction) {
         await sendRuntimeMessage({ action: ackAction, pendingId });
       }
@@ -980,11 +1003,15 @@
       // 已是正确状态，跳过本轮重填
       if (editableAcceptsFilledText(target, text)) continue;
 
-      // 编辑器跟预期不符。两种可能：
+      // 编辑器跟预期不符。三种可能：
       //   A. 完全空 —— 用户主动操作（提交、Backspace、清空），**不能争抢**
-      //   B. 有内容但不对 —— Lexical 之类 reconcile 撤回了格式，重填一次
+      //   B. 内容是本 prompt 的残缺版/翻倍版（与 prompt 双向包含）——
+      //      Lexical revert 或 Yiyan 重复填充，重填修复一次
+      //   C. 内容是别的东西 —— 用户已接管（新草稿/站点回显），**不能争抢**
       const currentText = normalizeFilledText(readEditableText(target));
       if (!currentText) return { ok: true };
+      const expectedNorm = normalizeFilledText(text);
+      if (!(expectedNorm.includes(currentText) || currentText.includes(expectedNorm))) return { ok: true };
 
       const result = fillChatGptPromptOnce(text);
       if (!result.ok) return result;
