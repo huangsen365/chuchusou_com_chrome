@@ -82,11 +82,22 @@ export class CdpClient {
     this.eventListeners.get(method).push(fn)
   }
 
-  call(method, params = {}) {
+  call(method, params = {}, { timeoutMs = 20_000 } = {}) {
     const id = this.nextId++
     this.ws.send(JSON.stringify({ id, method, params }))
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject })
+      // 单调用超时：target 死亡（页面自关/崩溃）时 CDP 永不回包 ——
+      // 没有这层兜底就是无声悬挂直到全局看门狗（实测踩过：popup 点击后
+      // window.close 赢过回包的竞态）。
+      const timer = setTimeout(() => {
+        if (!this.pending.has(id)) return
+        this.pending.delete(id)
+        reject(new Error(`CDP ${method} 在 ${timeoutMs}ms 内无回包（target 可能已关闭）`))
+      }, timeoutMs)
+      this.pending.set(id, {
+        resolve: (v) => { clearTimeout(timer); resolve(v) },
+        reject: (e) => { clearTimeout(timer); reject(e) }
+      })
     })
   }
 
@@ -95,12 +106,12 @@ export class CdpClient {
   }
 }
 
-export async function evaluate(cdp, expression) {
+export async function evaluate(cdp, expression, { timeoutMs } = {}) {
   const result = await cdp.call("Runtime.evaluate", {
     expression,
     awaitPromise: true,
     returnByValue: true
-  })
+  }, timeoutMs ? { timeoutMs } : {})
   if (result.exceptionDetails) {
     throw new Error(result.exceptionDetails.text || result.exceptionDetails.exception?.description || "Runtime.evaluate failed")
   }

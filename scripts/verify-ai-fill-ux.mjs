@@ -260,7 +260,8 @@ async function main() {
       })()
     `
 
-    const r = await evaluate(cdp, expression)
+    // 整套场景链在单次 evaluate 内运行 ~15s，放宽单调用超时
+    const r = await evaluate(cdp, expression, { timeoutMs: 90_000 })
     const expect = (cond, label) => {
       if (!cond) throw new Error(`${label} — 结果: ${JSON.stringify(r)}`)
     }

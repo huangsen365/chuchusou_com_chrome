@@ -530,7 +530,10 @@ async function main() {
     //     popup 的关键字来自活动标签（http 测试页的选区文本），与 #9 的关键字
     //     不同，可区分这次点击开出的标签。等关键字异步到位后再点。
     await wait(800)
-    await evaluate(popupPage.cdp, `document.querySelector('.menu-item[data-menu-id="ccs-baidu"]')?.click(), "clicked"`)
+    // 只发不等：boot 快速通道点击后会 window.close()，关窗可能赢过 CDP 回包
+    popupPage.cdp.call("Runtime.evaluate", {
+      expression: `document.querySelector('.menu-item[data-menu-id="ccs-baidu"]')?.click()`
+    }).catch(() => { /* target 自关属预期 */ })
     const popupClickTab = await findTarget(port, (t) =>
       t.type === "page" && (t.url || "").includes("baidu.com/s?wd=" + encodeURIComponent("真实选区捕获冒烟标记")), 8000)
     if (!popupClickTab) fail("popup 点按'百度'项后没开出携带选区关键字的标签")
@@ -557,7 +560,9 @@ async function main() {
       (await fetch(`http://127.0.0.1:${port}/json/list`).then((r) => r.json()))
         .filter((t) => t.type === "page" && (t.url || "").includes("google.com/search?q=")).length
     const googleCountBefore = await googleCount()
-    await evaluate(spPage.cdp, `document.querySelector('.sp-menu-item[data-menu-id="ccs-google"]')?.click(), "clicked"`)
+    spPage.cdp.call("Runtime.evaluate", {
+      expression: `document.querySelector('.sp-menu-item[data-menu-id="ccs-google"]')?.click()`
+    }).catch(() => { /* target 自关属预期 */ })
     let googleCountAfter = googleCountBefore
     for (let i = 0; i < 40; i++) {
       googleCountAfter = await googleCount()
