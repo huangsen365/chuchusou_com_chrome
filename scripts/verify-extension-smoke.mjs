@@ -14,7 +14,7 @@
  *  4. 消息/端口/动作协议活着（events.js 回归路径，逐步向 ≥20 路径推进）：
  *     getMenuStructure（≥3 分组）/ getKeyword / ccsDiagPing（版本一致）/
  *     getMenuDebugInfo / sidepanel-alive port 生命周期（onConnect）/
- *     selectionChanged → getKeyword 选区回路 / executeMenuAction search
+ *     selectionChanged → getKeyword 选区回路（由真实选区捕获路径承担）/ executeMenuAction search
  *     真开新标签且 URL 走 SSoT 模板 / 百度 wd= URL 关键字提取 /
  *     ccs_kw_ storage 即时缓存写入契约 / 真实选区捕获（本地 HTTP 页 +
  *     trusted 三连击 → content.js → SW）/ 右键菜单动态标题（contextMenus.update
@@ -355,82 +355,10 @@ async function main() {
     }
     console.log(`${TAG} ✓ welcome-watcher 推送协议正常（注册即推 + 开关实时推送）`)
 
-    // 8. selectionChanged → getKeyword 回路（选区状态链）。
-    // selectionChanged 是 content script 协议，必须从普通网页的 content-script
-    // 上下文发出；扩展页 chrome.runtime.sendMessage 不保证带 sender.tab。
-    const selection = await evaluate(pageCdp, `
-      (async () => {
-        const tab = await new Promise((res) => chrome.tabs.create({ url: "${httpUrl}", active: true }, res));
-        await new Promise((res) => {
-          chrome.tabs.get(tab.id, (fresh) => {
-            if (fresh?.status === "complete") { res(); return; }
-            const timer = setTimeout(() => {
-              chrome.tabs.onUpdated.removeListener(onUpdated);
-              res();
-            }, 3000);
-            const onUpdated = (tabId, info) => {
-              if (tabId === tab.id && info.status === "complete") {
-                clearTimeout(timer);
-                chrome.tabs.onUpdated.removeListener(onUpdated);
-                res();
-              }
-            };
-            chrome.tabs.onUpdated.addListener(onUpdated);
-          });
-        });
-        const freshTab = await new Promise((res) => chrome.tabs.get(tab.id, res));
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          func: (text) => chrome.runtime.sendMessage({ action: "selectionChanged", text, trigger: "smoke-script" }),
-          args: ["选区冒烟测试"]
-        });
-        return { tabId: tab.id, url: freshTab.url || tab.url, title: freshTab.title || tab.title };
-      })()
-    `)
-
-    // CI 实测过 tab id 归属与本地不同（选区存到了相邻 id 名下）——
-    // 不再假设 create 回调里的 id 就是 sender.tab.id，而是反查
-    // "哪个 tab 名下真的存进了这段选区"，以生效 id 取关键字。
-    let effTabId = null
-    for (let i = 0; i < 14 && effTabId == null; i++) {
-      await wait(500)
-      effTabId = await evaluate(swCdp, `(() => {
-        const m = globalThis.selectedTextByTab || {};
-        for (const [id, v] of Object.entries(m)) {
-          const text = typeof v === "string" ? v : v?.text;
-          if (String(text || "").includes("选区冒烟测试")) return Number(id);
-        }
-        return null;
-      })()`)
-    }
-    let keywordResp = null
-    if (effTabId != null) {
-      keywordResp = await evaluate(pageCdp, `
-        new Promise((res) => chrome.runtime.sendMessage(
-          { action: "getKeyword", tabId: ${effTabId}, url: "${selection?.url || ""}", title: "", intent: "popup-open" },
-          (r) => res(r || {})
-        ))
-      `)
-    }
-    const selOk = (keywordResp?.raw || "").includes("选区冒烟测试") || (keywordResp?.text || "").includes("选区冒烟测试")
-    if (!selOk) {
-      const evidence = await evaluate(swCdp, `(() => {
-        const ev = (globalThis.__smokeMenuEvents || []).filter((e) =>
-          String(e.stage).startsWith("selection-") || String(e.stage).startsWith("resolver-"));
-        const entries = Object.entries(globalThis.selectedTextByTab || {}).map(([id, v]) => ({
-          id, text: (typeof v === "string" ? v : v?.text || "").slice(0, 40), url: typeof v === "object" ? v?.url : ""
-        }));
-        return { selectionEvents: ev.slice(-10), storedEntries: entries };
-      })()`)
-      const tabsMap = await evaluate(pageCdp, `
-        new Promise((res) => chrome.tabs.query({}, (ts) => res(ts.map((t) => ({ id: t.id, url: (t.url || "").slice(0, 60), active: t.active })))))
-      `)
-      fail(`selectionChanged → getKeyword 回路失败: created=${JSON.stringify(selection)} effTabId=${effTabId} resp=${JSON.stringify(keywordResp)} | SW: ${JSON.stringify(evidence)} | tabs: ${JSON.stringify(tabsMap)}`)
-    }
-    if (effTabId !== Number(selection?.tabId)) {
-      console.log(`${TAG} ℹ selectionChanged 实际落在 tab ${effTabId}（create 回调报告 ${selection?.tabId}）—— 以生效 id 校验通过`)
-    }
-    console.log(`${TAG} ✓ selectionChanged → getKeyword 选区回路正常（source: ${keywordResp.source}）`)
+    // 8.（已并入 14）selectionChanged → getKeyword 选区回路由"真实选区捕获"
+    //    路径承担：trusted 三连击驱动 content.js 真实捕获 → SW → getKeyword，
+    //    比 executeScript 合成发送更忠实（后者在 CI 上 sender/tab 归属不稳定，
+    //    两次 CI 取证给出两种结果 —— 合成路径与生产路径行为不同，弃用）。
 
     // 9. executeMenuAction（search 走 SSoT 快速通道）→ 真开新标签且 URL 正确
     const exec = await evaluate(pageCdp, `
@@ -475,12 +403,12 @@ async function main() {
     console.log(`${TAG} ✓ URL 关键字提取正常（百度 wd= → "${urlExtract.text.slice(0, 20)}"，source: ${urlExtract.source}）`)
 
     // 13. ccs_kw_<tabId> storage 即时缓存契约（popup/sidepanel 首屏即时渲染靠它）：
-    //     #8 对内容页标签的选区解析应已持久化 {text, raw, url, ts}。
-    //     注意：不要用 #9/#12 的百度标签做断言 —— 真实网络下百度会重定向到反爬页，
-    //     KeywordSyncManager 会对新 URL 再提取并覆盖缓存（链路工作正常但值不可预期）。
+    //     #12 的 getKeyword(popup-open) 解析后 KeywordService 应已持久化
+    //     {text, raw, url, ts}。百度域名现已映射本地夹具（hermetic）——
+    //     无反爬重定向，wd= 关键字确定性可断言。
     const cacheEntry = await evaluate(pageCdp, `
       (async () => {
-        const key = "ccs_kw_" + ${selection.tabId};
+        const key = "ccs_kw_" + ${urlExtract.tabId};
         for (let i = 0; i < 10; i++) {
           const data = await new Promise((res) => chrome.storage.local.get([key], res));
           const entry = data?.[key];
@@ -490,7 +418,7 @@ async function main() {
         return { text: "", hasTs: false, hasUrl: false };
       })()
     `)
-    if (!cacheEntry?.text?.includes("选区冒烟测试") || !cacheEntry?.hasTs) {
+    if (!cacheEntry?.text?.includes("冒烟smoke123") || !cacheEntry?.hasTs) {
       fail(`ccs_kw_ 即时缓存契约失败: ${JSON.stringify(cacheEntry)}（首屏即时渲染依赖此写入）`)
     }
     console.log(`${TAG} ✓ ccs_kw_ storage 即时缓存写入正常（{text, ts, url} 契约完整）`)
