@@ -96,6 +96,14 @@ if (fs.existsSync(swBundlePath)) {
   console.warn(`[verify-sw-bridge] ⚠ SW bundle 不存在，跳过 bundle 内容检查（跑 npm run plasmo:build 后再试）`)
 }
 
+// 4.5 顺序不变量：events.js 是最后一个 legacy listener 主体，
+// 顶层会引用前面所有模块（以及前置 attach 的 TS port）提供的 globalThis 符号，
+// 必须排在 importScripts 列表最后（attachInit 在 importScripts 之后另行调用）。
+assert(
+  plasmoList[plasmoList.length - 1] === "background/events.js",
+  `events.js 必须是 importScripts 列表最后一项，实际最后一项是 ${plasmoList[plasmoList.length - 1]}`
+)
+
 // 5. 退役文件守卫：legacy/background-retired/ 里的文件不得回到 importScripts / background/ / build
 const retiredDir = path.join(root, "legacy/background-retired")
 if (fs.existsSync(retiredDir)) {

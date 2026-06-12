@@ -32,6 +32,7 @@ export const KEYWORD_STORAGE_TTL_MS = 5 * 60 * 1000
 const KEYWORD_REQUEST_TIMEOUT_MS = 1500
 const KEYWORD_RETRY_DELAY_MS = 120
 
+// ⚠ 与 shared/runtimeClient.js 的 isReceivingEndError 保持同一正则（双向同步改）
 function isReceivingEndError(message: string): boolean {
   return /Receiving end does not exist|Could not establish connection|message port closed|Extension context invalidated/i.test(message || "")
 }

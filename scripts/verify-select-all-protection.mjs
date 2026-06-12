@@ -92,7 +92,15 @@ async function evaluate(cdp, expression) {
 }
 
 async function main() {
-  const chrome = findChrome()
+  // 找不到 Chrome 时优雅跳过（CI ubuntu-latest / 本地 mac 都有 Chrome；
+  // 无 Chrome 的环境不该因此 brick 整条 npm test 链）。测试失败仍硬性报错。
+  let chrome
+  try {
+    chrome = findChrome()
+  } catch (err) {
+    console.warn(`[verify-select-all-protection] ⚠ SKIPPED — ${err.message}`)
+    return
+  }
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "ccs-select-all-"))
   const child = spawn(chrome, [
     "--headless=new",
