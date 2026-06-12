@@ -19,10 +19,11 @@
   - `init.js` (448) → src/background/{init,initAttach,initPrewarming}.ts
 - **剩余 1 个 listener 主体仍在 legacy**：`background/events.js`
   包含 chrome.tabs.onUpdated / chrome.runtime.onConnect / chrome.runtime.onMessage /
-  chrome.contextMenus.onShown。port 这部分需要回归 ≥ 20 路径——其中 **11 条已被
+  chrome.contextMenus.onShown。port 这部分需要回归 ≥ 20 路径——其中 **13 条已被
   `npm run verify:extension-smoke` 自动化**（SW 启动 / 桥接符号 / getMenuStructure /
   getKeyword / ccsDiagPing / getMenuDebugInfo / sidepanel-alive port / selectionChanged
-  选区回路 / executeMenuAction search 开标签 / popup 与 sidepanel UI 启动渲染）；
+  选区回路 / executeMenuAction search 开标签 / URL 关键字提取 / ccs_kw_ 缓存写入契约 /
+  popup 与 sidepanel UI 启动渲染）；
   剩余 UI 交互类路径（右键菜单 onShown 动态标题、浮窗、popup/sidepanel 点按实操、
   voice）仍需真机。
 - **SW bundle 加载时序**（关键，见 `src/background.ts` 注释，顺序不要随意交换）：

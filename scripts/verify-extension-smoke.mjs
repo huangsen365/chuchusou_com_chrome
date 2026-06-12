@@ -15,7 +15,8 @@
  *     getMenuStructure（≥3 分组）/ getKeyword / ccsDiagPing（版本一致）/
  *     getMenuDebugInfo / sidepanel-alive port 生命周期（onConnect）/
  *     selectionChanged → getKeyword 选区回路 / executeMenuAction search
- *     真开新标签且 URL 走 SSoT 模板
+ *     真开新标签且 URL 走 SSoT 模板 / 百度 wd= URL 关键字提取 /
+ *     ccs_kw_ storage 即时缓存写入契约 / popup + sidepanel UI 启动渲染
  *
  * 优雅跳过条件（不 brick npm test 链）：无全局 WebSocket（Node 21+ 才有）/
  * 找不到 Chrome / build 目录不存在。跳过时打 ⚠ 警告；真跑挂了则硬性报错。
@@ -287,6 +288,50 @@ async function main() {
     if (!newTab) fail(`executeMenuAction 后找不到 URL 含 ${expectedUrlPart} 的新标签 —— URLBuilder/tryOpenMenuUrl 链路断了`)
     console.log(`${TAG} ✓ executeMenuAction 真开新标签且 URL 正确（SSoT URLBuilder 链路通）`)
 
+    // 12. URL 关键字提取子系统（keywords.js 搜索引擎分支）：
+    //     复用 #9 开出的百度标签，getKeyword 应直接从 wd= 参数提取关键字
+    //     （纯 URL 解析，不依赖页面网络加载成功 —— CI 无外网也稳定）
+    const urlExtract = await evaluate(pageCdp, `
+      (async () => {
+        const tabs = await new Promise((res) => chrome.tabs.query({}, res));
+        const baiduTab = tabs.find((t) => (t.url || t.pendingUrl || "").includes("baidu.com/s?wd="));
+        if (!baiduTab) return { error: "no-baidu-tab" };
+        const url = baiduTab.url || baiduTab.pendingUrl;
+        const resp = await new Promise((res) =>
+          chrome.runtime.sendMessage(
+            { action: "getKeyword", tabId: baiduTab.id, url, title: baiduTab.title || "", intent: "popup-open" },
+            res
+          ));
+        return { tabId: baiduTab.id, text: resp?.text || "", raw: resp?.raw || "", source: resp?.source || "" };
+      })()
+    `)
+    if (!urlExtract?.text?.includes("冒烟smoke123") && !urlExtract?.raw?.includes("冒烟smoke123")) {
+      fail(`URL 关键字提取失败: ${JSON.stringify(urlExtract)}`)
+    }
+    console.log(`${TAG} ✓ URL 关键字提取正常（百度 wd= → "${urlExtract.text.slice(0, 20)}"，source: ${urlExtract.source}）`)
+
+    // 13. ccs_kw_<tabId> storage 即时缓存契约（popup/sidepanel 首屏即时渲染靠它）：
+    //     #8 对 welcome 标签的选区解析应已持久化 {text, raw, url, ts}。
+    //     注意：不要用 #9/#12 的百度标签做断言 —— 真实网络下百度会重定向到反爬页，
+    //     KeywordSyncManager 会对新 URL 再提取并覆盖缓存（链路工作正常但值不可预期）。
+    const cacheEntry = await evaluate(pageCdp, `
+      (async () => {
+        const tab = await new Promise((res) => chrome.tabs.getCurrent(res));
+        const key = "ccs_kw_" + tab.id;
+        for (let i = 0; i < 10; i++) {
+          const data = await new Promise((res) => chrome.storage.local.get([key], res));
+          const entry = data?.[key];
+          if (entry?.text) return { text: entry.text, hasTs: typeof entry.ts === "number", hasUrl: typeof entry.url === "string" };
+          await new Promise((r) => setTimeout(r, 300));
+        }
+        return { text: "", hasTs: false, hasUrl: false };
+      })()
+    `)
+    if (!cacheEntry?.text?.includes("选区冒烟测试") || !cacheEntry?.hasTs) {
+      fail(`ccs_kw_ 即时缓存契约失败: ${JSON.stringify(cacheEntry)}（首屏即时渲染依赖此写入）`)
+    }
+    console.log(`${TAG} ✓ ccs_kw_ storage 即时缓存写入正常（{text, ts, url} 契约完整）`)
+
     // 10+11. popup / sidepanel UI 启动回归（历史事故："商店版 popup 卡顿/白屏"）：
     //    页面当 tab 打开 → 静态预构建菜单渲染齐全 + 关键元素就位 + 启动零未捕获异常
     const pageExceptions = []
@@ -318,7 +363,7 @@ async function main() {
     if (pageExceptions.length > 0) fail(`sidepanel 启动期未捕获异常: ${pageExceptions[0]}`)
     console.log(`${TAG} ✓ sidepanel UI 启动正常（${spUi.menuItems} 个菜单项，关键元素就位，零异常）`)
 
-    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 9 条消息/端口/动作路径 + 2 个 UI 页面启动全通`)
+    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 11 条协议/端口/动作/存储路径 + 2 个 UI 页面启动全通`)
   } finally {
     browserCdp?.close()
     swCdp?.close()
