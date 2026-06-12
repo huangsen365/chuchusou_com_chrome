@@ -368,7 +368,7 @@ export class SidepanelController {
         get config() { return controller.config },
         get keyword() { return { text: controller.keyword.text, raw: controller.keyword.raw } },
         showToast: (msg: string) => controller.showToast(msg),
-        handleClick: (item) => {
+        handleClick: (item: unknown) => {
           void controller.handleClick(item as unknown as Parameters<typeof controller.handleClick>[0])
         }
       } as unknown as ConstructorParameters<typeof mod.VoicePanel>[0])

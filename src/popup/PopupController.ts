@@ -7,7 +7,7 @@
  * 用法：在 popup.tsx 的 useEffect 里 `new PopupController().init()`。
  */
 
-import { CCSMenuStructureBuilder, type MenuStructure, type MenuStructureItem } from "../shared/menuStructureBuilder"
+import { CCSMenuStructureBuilder, type BuildOptions, type MenuStructure, type MenuStructureItem } from "../shared/menuStructureBuilder"
 import { requestKeyword, KEYWORD_INTENTS, type KeywordResult } from "../shared/keywordClient"
 import {
   PIN_STORAGE_KEY, CUSTOM_LINE_KEY, CUSTOM_PURPOSE_KEY, RATIO_KEY,
@@ -168,12 +168,12 @@ export class PopupController {
     if (!unifiedConfig) return null
     if (cover) this._cachedCoverConfig = cover as CoverConfigShape  // initPinnedCover 复用
     return CCSMenuStructureBuilder.build({
-      unifiedConfig: unifiedConfig as Parameters<typeof CCSMenuStructureBuilder.build>[0]["unifiedConfig"],
-      enginesConfig: engines as Parameters<typeof CCSMenuStructureBuilder.build>[0]["enginesConfig"],
-      top100Config: top100 as Parameters<typeof CCSMenuStructureBuilder.build>[0]["top100Config"],
-      fastqaConfig: fastqa as Parameters<typeof CCSMenuStructureBuilder.build>[0]["fastqaConfig"],
-      optimizeConfig: optimize as Parameters<typeof CCSMenuStructureBuilder.build>[0]["optimizeConfig"],
-      coverConfig: cover as Parameters<typeof CCSMenuStructureBuilder.build>[0]["coverConfig"]
+      unifiedConfig: unifiedConfig as BuildOptions["unifiedConfig"],
+      enginesConfig: engines as BuildOptions["enginesConfig"],
+      top100Config: top100 as BuildOptions["top100Config"],
+      fastqaConfig: fastqa as BuildOptions["fastqaConfig"],
+      optimizeConfig: optimize as BuildOptions["optimizeConfig"],
+      coverConfig: cover as BuildOptions["coverConfig"]
     })
   }
 

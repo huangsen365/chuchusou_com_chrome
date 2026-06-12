@@ -14,6 +14,7 @@
     "src/assets-json/**/*.json"
   ],
   "compilerOptions": {
+    "strict": true,
     "baseUrl": ".",
     "paths": {
       "~*": [
