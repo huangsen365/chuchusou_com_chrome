@@ -6,6 +6,14 @@
 > 第四节里的 `base.js` 拆分项就此了结；`events.js` 成为最后一个未 port 的 legacy 主体。
 > dual 校验脚本（verify-background-utils-dual / extras-dual）改从新路径加载 Logger.js 对照源；
 > verify-url-safety 的 menuHandlers 源码检查改指向运行时主体 `src/background/menuHandlersAttach.ts`。
+>
+> **events.js 移植就绪状态（2026-06-13）**：`npm run verify-extension-smoke` 已把
+> 20 条回归路径自动化 18 条（真 Chrome 装 build 产物端到端：onMessage 11 个 action、
+> onConnect port 生命周期、tabs.onUpdated 取词、真实选区捕获、菜单动态标题、双 UI
+> 启动+点按）。移植步骤：写 `src/background/eventsAttach.ts`（1:1 转写 + attach 模式）
+> → 两个入口的 importScripts 列表去掉 events.js → npm test（18 条自动断言把关）
+> → 人工补 3 项（原生菜单渲染、voice 录音、UX 手感）→ 按 /release 发版。
+> executeMenuAction 的 tool/copy/base64 分支与 AI relay ack 消息自动覆盖较薄，转写时重点自查。
 
 ## 一、僵尸代码普查结果
 

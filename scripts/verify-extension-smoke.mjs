@@ -344,6 +344,34 @@ async function main() {
     }
     console.log(`${TAG} ✓ ccs_kw_ storage 即时缓存写入正常（{text, ts, url} 契约完整）`)
 
+    // 18. 协议扫掠：events.js 其余只读 onMessage handler 一次问遍 ——
+    //     getSearchText（KeywordService 兼容入口）/ extractKeywords（URL 取词纯函数链）/
+    //     ccsGetUrlRecovery（无恢复记录时的礼貌拒绝）/ contextMenuPreview（debounce，只发不等）
+    const sweep = await evaluate(pageCdp, `
+      (async () => {
+        const tab = await new Promise((res) => chrome.tabs.getCurrent(res));
+        const ask = (msg, ms = 4000) => new Promise((res) => {
+          const timer = setTimeout(() => res({ __timeout: true }), ms);
+          chrome.runtime.sendMessage(msg, (r) => { clearTimeout(timer); res(r ?? { __empty: true }); });
+        });
+        chrome.runtime.sendMessage({ action: "contextMenuPreview", selectionText: "sweep预览" }); // fire-and-forget
+        const [searchText, extract, recovery] = await Promise.all([
+          ask({ action: "getSearchText", tabId: tab.id, url: tab.url, title: tab.title }),
+          ask({ action: "extractKeywords", url: "https://www.google.com/search?q=sweep%E6%89%AB%E6%8E%A0", title: "x" }),
+          ask({ action: "ccsGetUrlRecovery" })
+        ]);
+        return {
+          searchTextOk: !searchText.__timeout && typeof searchText.text === "string",
+          extractKw: extract.__timeout ? "(timeout)" : (extract.keywords ?? "(null)"),
+          recoveryOk: !recovery.__timeout && recovery.ok === false && typeof recovery.error === "string"
+        };
+      })()
+    `)
+    if (!sweep?.searchTextOk) fail(`getSearchText 异常: ${JSON.stringify(sweep)}`)
+    if (sweep?.extractKw !== "sweep扫掠") fail(`extractKeywords 取词错误: "${sweep?.extractKw}"（期望 "sweep扫掠"）`)
+    if (!sweep?.recoveryOk) fail(`ccsGetUrlRecovery 异常: ${JSON.stringify(sweep)}`)
+    console.log(`${TAG} ✓ 协议扫掠正常（getSearchText / extractKeywords="${sweep.extractKw}" / ccsGetUrlRecovery 礼貌拒绝 / contextMenuPreview 已投递）`)
+
     // 14. 真实选区捕获链路（content script 注入 → trusted 鼠标拖选 → mouseup →
     //     selectionChanged → SW 状态）。本地 HTTP 页 + CDP Input trusted 事件，
     //     等价于真人鼠标操作 —— 这是此前认为"只能真机"的路径。
@@ -494,7 +522,7 @@ async function main() {
     console.log(`${TAG} ✓ sidepanel 菜单项点按 → executeMenuAction → 新标签`)
     spPage.cdp.close()
 
-    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 13 条协议/端口/动作/存储/选区/菜单标题路径 + 2 个 UI 页面启动 + 2 条 UI 点按实操全通`)
+    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 14 条协议/端口/动作/存储/选区/菜单标题路径 + 2 个 UI 页面启动 + 2 条 UI 点按实操全通`)
   } finally {
     clearTimeout(watchdog)
     try { httpServer?.close() } catch (_) { /* noop */ }
