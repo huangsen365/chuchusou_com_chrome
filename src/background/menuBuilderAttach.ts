@@ -480,10 +480,14 @@ async function createContextMenus(g: G): Promise<void> {
       optimizeRootEnabled, hasAdvancedSections, needsFastAnswersConfig
     })
 
-    // ccs-main：仅 page/editable 上下文（selection 上下文由孪生根 ccs-main-live
-    // 独占 —— 双根若在同一上下文同时匹配，Chrome 会折叠成扩展名父项）
+    // ccs-main：仅 page 上下文。互斥必须**绝对** —— 'editable' 会在
+    // "输入框内选中文字"时与孪生根的 'selection' 同时匹配（Chrome 的
+    // editable 与 selection 上下文可共存），双根同屏即触发扩展名折叠
+    //（F2 视觉取证实锤：用户"看不到文字但点击拿得到"正是此洞）。
+    // 取舍：空输入框右键不再显示本扩展菜单（与多数扩展一致）；
+    // 输入框内的**选区**完整归 %s 孪生树，第一次右键即显选中文字。
     const mainResult = await createMenuItem(g, {
-      id: "ccs-main", title: g.getMenuTitle?.("ccs-main") ?? "触触搜", contexts: ["page", "editable"]
+      id: "ccs-main", title: g.getMenuTitle?.("ccs-main") ?? "触触搜", contexts: ["page"]
     }, buildMeta(g, "create-main-failed"))
 
     if (mainResult.ok && g.menuRegistry) {

@@ -1275,7 +1275,7 @@ async function main() {
     assert(builderSrc.includes('id === "ccs-main" ? "ccs-main-live" : id + SEL_SUFFIX'), "孪生 id 映射（ccs-main → ccs-main-live）")
     assert(builderSrc.includes("contexts: [\"selection\"]".replace(/\\/g, "\\")) || builderSrc.includes('contexts: ["selection"]'), "孪生树必须 selection 专属")
     assert(builderSrc.includes("'🔍 搜：\"%s\"'") || builderSrc.includes('搜："%s"'), "孪生根标题必须用原生 %s")
-    assert(builderSrc.includes('id: "ccs-main", title:') && builderSrc.includes('contexts: ["page", "editable"]'), "ccs-main 必须退出 selection 上下文（互斥防折叠）")
+    assert(builderSrc.includes('id: "ccs-main", title:') && builderSrc.includes('contexts: ["page"]'), "ccs-main 必须仅 page 上下文（editable 会与 selection 共存触发折叠 —— F2 取证）")
     const handlerSrc = fs.readFileSync(path.join(root, "src/background/menuHandlersAttach.ts"), "utf8")
     assert(handlerSrc.includes('rawMenuItemId.endsWith("--sel")'), "点击入口必须做 --sel 归一化")
     assert(handlerSrc.includes('rawMenuItemId.slice(0, -5)'), "归一化应去掉 --sel 后缀")
