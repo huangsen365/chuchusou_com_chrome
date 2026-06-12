@@ -19,7 +19,11 @@
   - `init.js` (448) → src/background/{init,initAttach,initPrewarming}.ts
 - **剩余 1 个 listener 主体仍在 legacy**：`background/events.js`
   包含 chrome.tabs.onUpdated / chrome.runtime.onConnect / chrome.runtime.onMessage /
-  chrome.contextMenus.onShown。port 这部分需要 Chrome 真机回归 ≥ 20 路径。
+  chrome.contextMenus.onShown。port 这部分需要回归 ≥ 20 路径——其中 **9 条已被
+  `npm run verify:extension-smoke` 自动化**（SW 启动 / 桥接符号 / getMenuStructure /
+  getKeyword / ccsDiagPing / getMenuDebugInfo / sidepanel-alive port / selectionChanged
+  选区回路 / executeMenuAction search 开标签）；剩余 UI 交互类路径（右键菜单 onShown
+  动态标题、浮窗、popup/sidepanel 实操、voice）仍需真机。
 - **SW bundle 加载时序**（关键，见 `src/background.ts` 注释，顺序不要随意交换）：
   1. Plasmo ESM 评估 → attachBaseBridge() / attachMenuBuilder() / attachMenuHandlers() /
      autoRegisterVoiceBridge() **先于 importScripts 调用**（events.js 顶层会立刻引用

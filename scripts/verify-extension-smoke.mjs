@@ -11,8 +11,11 @@
  *  2. SW 启动过程零未捕获异常
  *  3. importScripts 桥接完成：MenuSystem / createContextMenus / getPopupMenuStructure
  *     等关键 globalThis 符号就位
- *  4. 消息协议活着：从扩展页发 getMenuStructure → 返回 ≥3 个分组；
- *     发 getKeyword → 在安全兜底窗口内有响应对象
+ *  4. 消息/端口/动作协议活着（events.js 回归路径，逐步向 ≥20 路径推进）：
+ *     getMenuStructure（≥3 分组）/ getKeyword / ccsDiagPing（版本一致）/
+ *     getMenuDebugInfo / sidepanel-alive port 生命周期（onConnect）/
+ *     selectionChanged → getKeyword 选区回路 / executeMenuAction search
+ *     真开新标签且 URL 走 SSoT 模板
  *
  * 优雅跳过条件（不 brick npm test 链）：无全局 WebSocket（Node 21+ 才有）/
  * 找不到 Chrome / build 目录不存在。跳过时打 ⚠ 警告；真跑挂了则硬性报错。
@@ -192,7 +195,99 @@ async function main() {
     if (keyword?.lastError) fail(`getKeyword lastError: ${keyword.lastError}`)
     console.log(`${TAG} ✓ getKeyword 响应正常（字段: ${keyword.shape}）`)
 
-    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 消息协议全通`)
+    // 5. ccsDiagPing：SW 心跳 + manifest 版本一致
+    const buildVersion = JSON.parse(fs.readFileSync(path.join(buildDir, "manifest.json"), "utf8")).version
+    const ping = await evaluate(pageCdp, `
+      new Promise((resolve) => {
+        const timer = setTimeout(() => resolve({ __timeout: true }), 5000);
+        chrome.runtime.sendMessage({ action: "ccsDiagPing" }, (resp) => {
+          clearTimeout(timer);
+          resolve({ ok: resp?.ok === true, swVersion: resp?.swVersion || "" });
+        });
+      })
+    `)
+    if (!ping?.ok) fail("ccsDiagPing 未返回 ok:true")
+    if (ping.swVersion !== buildVersion) fail(`SW 上报版本 ${ping.swVersion} ≠ build manifest ${buildVersion}`)
+    console.log(`${TAG} ✓ ccsDiagPing 心跳正常（SW 版本 ${ping.swVersion}）`)
+
+    // 6. getMenuDebugInfo：调试信息通道
+    const debugInfo = await evaluate(pageCdp, `
+      new Promise((resolve) => {
+        const timer = setTimeout(() => resolve({ __timeout: true }), 6000);
+        chrome.runtime.sendMessage({ action: "getMenuDebugInfo", tabId: 1 }, (resp) => {
+          clearTimeout(timer);
+          resolve({ success: resp?.success === true, hasData: !!resp?.data });
+        });
+      })
+    `)
+    if (debugInfo?.__timeout || !debugInfo?.success || !debugInfo?.hasData) {
+      fail(`getMenuDebugInfo 异常: ${JSON.stringify(debugInfo)}`)
+    }
+    console.log(`${TAG} ✓ getMenuDebugInfo 响应正常`)
+
+    // 7. sidepanel-alive port 生命周期（onConnect 路径）：
+    //    connect + 注册 windowId → getSidePanelState 翻 true → disconnect → 翻回 false
+    const portLifecycle = await evaluate(pageCdp, `
+      (async () => {
+        const win = await new Promise((res) => chrome.windows.getCurrent(res));
+        const ask = () => new Promise((res) =>
+          chrome.runtime.sendMessage({ action: "getSidePanelState", windowId: win.id }, (r) => res(!!r?.isOpen)));
+        const before = await ask();
+        const port = chrome.runtime.connect({ name: "sidepanel-alive" });
+        port.postMessage({ windowId: win.id });
+        await new Promise((r) => setTimeout(r, 400));
+        const during = await ask();
+        port.disconnect();
+        await new Promise((r) => setTimeout(r, 400));
+        const after = await ask();
+        return { before, during, after };
+      })()
+    `)
+    if (portLifecycle?.before !== false || portLifecycle?.during !== true || portLifecycle?.after !== false) {
+      fail(`sidepanel-alive port 生命周期异常: ${JSON.stringify(portLifecycle)}（期望 false→true→false）`)
+    }
+    console.log(`${TAG} ✓ sidepanel-alive port 生命周期正常（关→开→关）`)
+
+    // 8. selectionChanged → getKeyword 回路（选区状态链）
+    const selection = await evaluate(pageCdp, `
+      (async () => {
+        const tab = await new Promise((res) => chrome.tabs.getCurrent(res));
+        chrome.runtime.sendMessage({ action: "selectionChanged", text: "选区冒烟测试", trigger: "smoke" });
+        await new Promise((r) => setTimeout(r, 800));
+        const resp = await new Promise((res) =>
+          chrome.runtime.sendMessage(
+            { action: "getKeyword", tabId: tab.id, url: tab.url, title: tab.title, intent: "popup-open" },
+            res
+          ));
+        return { raw: resp?.raw || "", text: resp?.text || "", source: resp?.source || "" };
+      })()
+    `)
+    if (!selection?.raw?.includes("选区冒烟测试") && !selection?.text?.includes("选区冒烟测试")) {
+      fail(`selectionChanged → getKeyword 回路失败: ${JSON.stringify(selection)}`)
+    }
+    console.log(`${TAG} ✓ selectionChanged → getKeyword 选区回路正常（source: ${selection.source}）`)
+
+    // 9. executeMenuAction（search 走 SSoT 快速通道）→ 真开新标签且 URL 正确
+    const exec = await evaluate(pageCdp, `
+      new Promise((resolve) => {
+        const timer = setTimeout(() => resolve({ __timeout: true }), 8000);
+        // 按生产消息契约（popup/sidepanel 同款）：search 类必须带 urlPattern
+        chrome.runtime.sendMessage(
+          {
+            action: "executeMenuAction", menuItemId: "ccs-baidu", menuType: "search",
+            keyword: "冒烟smoke123", urlPattern: "https://www.baidu.com/s?wd=\${KEYWORD}"
+          },
+          (resp) => { clearTimeout(timer); resolve({ success: resp?.success === true, raw: resp }); }
+        );
+      })
+    `)
+    if (exec?.__timeout || !exec?.success) fail(`executeMenuAction 失败: ${JSON.stringify(exec?.raw || exec)}`)
+    const expectedUrlPart = "baidu.com/s?wd=" + encodeURIComponent("冒烟smoke123")
+    const newTab = await findTarget(port, (t) => t.type === "page" && (t.url || "").includes(expectedUrlPart), 8000)
+    if (!newTab) fail(`executeMenuAction 后找不到 URL 含 ${expectedUrlPart} 的新标签 —— URLBuilder/tryOpenMenuUrl 链路断了`)
+    console.log(`${TAG} ✓ executeMenuAction 真开新标签且 URL 正确（SSoT URLBuilder 链路通）`)
+
+    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 9 条消息/端口/动作路径全通`)
   } finally {
     browserCdp?.close()
     swCdp?.close()
