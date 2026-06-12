@@ -14,6 +14,9 @@
 > → 两个入口的 importScripts 列表去掉 events.js → npm test（18 条自动断言把关）
 > → 人工补 3 项（原生菜单渲染、voice 录音、UX 手感）→ 按 /release 发版。
 > executeMenuAction 的 tool/copy/base64 分支与 AI relay ack 消息自动覆盖较薄，转写时重点自查。
+> 2026-06-13 起 events.js 还包含 Yiyan Slate MAIN-world 注入桥（ccsFillYiyanSlatePromptInMainWorld，
+> +259 行；安全契约 sender 必须是 yiyan.baidu.com，已被 verify-extension-smoke 协议扫掠锁定）——
+> 转写时该 handler 与 ccsFillYiyanSlatePromptMainWorld 函数一并入 TS。
 
 ## 一、僵尸代码普查结果
 

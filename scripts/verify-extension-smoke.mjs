@@ -404,22 +404,27 @@ async function main() {
           chrome.runtime.sendMessage(msg, (r) => { clearTimeout(timer); res(r ?? { __empty: true }); });
         });
         chrome.runtime.sendMessage({ action: "contextMenuPreview", selectionText: "sweep预览" }); // fire-and-forget
-        const [searchText, extract, recovery] = await Promise.all([
+        const [searchText, extract, recovery, slateBridge] = await Promise.all([
           ask({ action: "getSearchText", tabId: tab.id, url: tab.url, title: tab.title }),
           ask({ action: "extractKeywords", url: "https://www.google.com/search?q=sweep%E6%89%AB%E6%8E%A0", title: "x" }),
-          ask({ action: "ccsGetUrlRecovery" })
+          ask({ action: "ccsGetUrlRecovery" }),
+          // 安全契约：Slate MAIN world 注入只接受来自 yiyan.baidu.com 的 tab 请求，
+          // 其它来源（此处是扩展自家 welcome 页）必须被拒，且绝不执行注入
+          ask({ action: "ccsFillYiyanSlatePromptInMainWorld", text: "越权注入测试" })
         ]);
         return {
           searchTextOk: !searchText.__timeout && typeof searchText.text === "string",
           extractKw: extract.__timeout ? "(timeout)" : (extract.keywords ?? "(null)"),
-          recoveryOk: !recovery.__timeout && recovery.ok === false && typeof recovery.error === "string"
+          recoveryOk: !recovery.__timeout && recovery.ok === false && typeof recovery.error === "string",
+          slateBridgeRejected: !slateBridge.__timeout && slateBridge.ok === false && slateBridge.error === "sender-not-yiyan"
         };
       })()
     `)
     if (!sweep?.searchTextOk) fail(`getSearchText 异常: ${JSON.stringify(sweep)}`)
     if (sweep?.extractKw !== "sweep扫掠") fail(`extractKeywords 取词错误: "${sweep?.extractKw}"（期望 "sweep扫掠"）`)
     if (!sweep?.recoveryOk) fail(`ccsGetUrlRecovery 异常: ${JSON.stringify(sweep)}`)
-    console.log(`${TAG} ✓ 协议扫掠正常（getSearchText / extractKeywords="${sweep.extractKw}" / ccsGetUrlRecovery 礼貌拒绝 / contextMenuPreview 已投递）`)
+    if (!sweep?.slateBridgeRejected) fail(`Slate 桥安全契约破裂: 非 yiyan 来源未被拒 ${JSON.stringify(sweep)}`)
+    console.log(`${TAG} ✓ 协议扫掠正常（getSearchText / extractKeywords="${sweep.extractKw}" / ccsGetUrlRecovery 礼貌拒绝 / Slate 桥拒绝非 yiyan 来源 / contextMenuPreview 已投递）`)
 
     // 14. 真实选区捕获链路（content script 注入 → trusted 鼠标拖选 → mouseup →
     //     selectionChanged → SW 状态）。本地 HTTP 页 + CDP Input trusted 事件，
