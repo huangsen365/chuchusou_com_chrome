@@ -157,7 +157,8 @@ async function main() {
     console.log(`[verify-select-all-protection] OK ${JSON.stringify(value)}`)
   } finally {
     cdp?.close()
-    child.kill()
+    child.kill("SIGKILL")
+    await new Promise((resolve) => setTimeout(resolve, 200)) // 等进程真死，否则 rmSync 清不干净
     fs.rmSync(userDataDir, { recursive: true, force: true })
     if (child.exitCode && stderr) {
       console.error(stderr)

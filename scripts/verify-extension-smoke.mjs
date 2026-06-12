@@ -38,8 +38,9 @@ const buildDir = path.join(root, "build/chrome-mv3-prod")
 const TAG = "[verify-extension-smoke]"
 
 function fail(msg) {
-  console.error(`${TAG} ✗ ${msg}`)
-  process.exit(1)
+  // 抛错而不是 process.exit —— exit 会跳过 finally，留下僵尸 headless Chrome
+  // 和未清理的临时 profile（实测踩过）。main().catch 统一打印并置退出码。
+  throw new Error(msg)
 }
 
 async function findTarget(port, predicate, timeoutMs = 15_000) {
@@ -90,6 +91,13 @@ async function main() {
   let swCdp = null
   let pageCdp = null
   let httpServer = null
+  // 全局看门狗：CDP 挂死时兜底（先杀 Chrome 再退，避免僵尸）
+  const watchdog = setTimeout(() => {
+    console.error(`${TAG} ✗ 全局超时（120s），强制退出`)
+    try { child.kill("SIGKILL") } catch (_) { /* noop */ }
+    process.exit(1)
+  }, 120_000)
+  watchdog.unref?.()
   try {
     const port = await waitForDevToolsPort(userDataDir, child)
 
@@ -415,6 +423,7 @@ async function main() {
 
     console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 12 条协议/端口/动作/存储/选区路径 + 2 个 UI 页面启动全通`)
   } finally {
+    clearTimeout(watchdog)
     try { httpServer?.close() } catch (_) { /* noop */ }
     browserCdp?.close()
     swCdp?.close()
