@@ -4,96 +4,20 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { spawn } from "node:child_process"
+import {
+  hasWebSocket, findChrome, waitForDevToolsPort, connectWebSocket, CdpClient, evaluate
+} from "./lib/cdp.mjs"
 
 const root = process.cwd()
-const chromeCandidates = [
-  process.env.CHROME_BIN,
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "/Applications/Chromium.app/Contents/MacOS/Chromium",
-  "/usr/bin/google-chrome",
-  "/usr/bin/google-chrome-stable",
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser"
-].filter(Boolean)
-
-function findChrome() {
-  for (const candidate of chromeCandidates) {
-    if (fs.existsSync(candidate)) return candidate
-  }
-  throw new Error("Chrome not found. Set CHROME_BIN to run this verifier.")
-}
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-async function waitForDevToolsPort(userDataDir, child) {
-  const portFile = path.join(userDataDir, "DevToolsActivePort")
-  const deadline = Date.now() + 10_000
-  while (Date.now() < deadline) {
-    if (child.exitCode != null) {
-      throw new Error(`Chrome exited early with code ${child.exitCode}`)
-    }
-    if (fs.existsSync(portFile)) {
-      const [port] = fs.readFileSync(portFile, "utf8").trim().split(/\r?\n/)
-      if (port) return port
-    }
-    await wait(100)
-  }
-  throw new Error("Timed out waiting for Chrome DevToolsActivePort")
-}
-
-function connectWebSocket(url) {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url)
-    ws.addEventListener("open", () => resolve(ws), { once: true })
-    ws.addEventListener("error", reject, { once: true })
-  })
-}
-
-class CdpClient {
-  constructor(ws) {
-    this.ws = ws
-    this.nextId = 1
-    this.pending = new Map()
-    ws.addEventListener("message", (event) => {
-      const msg = JSON.parse(event.data)
-      if (!msg.id || !this.pending.has(msg.id)) return
-      const { resolve, reject } = this.pending.get(msg.id)
-      this.pending.delete(msg.id)
-      if (msg.error) reject(new Error(`${msg.error.message || "CDP error"} ${JSON.stringify(msg.error.data || "")}`))
-      else resolve(msg.result)
-    })
-  }
-
-  call(method, params = {}) {
-    const id = this.nextId++
-    this.ws.send(JSON.stringify({ id, method, params }))
-    return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject })
-    })
-  }
-
-  close() {
-    try { this.ws.close() } catch (_) { /* noop */ }
-  }
-}
-
-async function evaluate(cdp, expression) {
-  const result = await cdp.call("Runtime.evaluate", {
-    expression,
-    awaitPromise: true,
-    returnByValue: true
-  })
-  if (result.exceptionDetails) {
-    throw new Error(result.exceptionDetails.text || "Runtime.evaluate failed")
-  }
-  return result.result?.value
-}
 
 async function main() {
   // 找不到 Chrome 时优雅跳过（CI ubuntu-latest / 本地 mac 都有 Chrome；
   // 无 Chrome 的环境不该因此 brick 整条 npm test 链）。测试失败仍硬性报错。
+  // CDP 走全局 WebSocket（Node 21+ 默认提供；Node 20 没有）。缺失时同样优雅跳过。
+  if (!hasWebSocket()) {
+    console.warn("[verify-select-all-protection] ⚠ SKIPPED — 此 Node 版本无全局 WebSocket（需 Node 21+）")
+    return
+  }
   let chrome
   try {
     chrome = findChrome()

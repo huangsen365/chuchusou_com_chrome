@@ -429,6 +429,10 @@ npx eslint .
 # 分析错误（推荐）
 node scripts/analyze-errors.js
 
+# 扩展冒烟回归（headless Chrome 真装 build 产物：SW 启动 + 桥接符号 + 消息协议）
+# npm test 链尾自动跑；无 Chrome / 无全局 WebSocket（Node<21）/ 无 build 时优雅跳过
+npm run verify:extension-smoke
+
 # 语法检查所有 background 脚本
 for f in background/*.js background/**/*.js; do node --check "$f"; done
 ```
