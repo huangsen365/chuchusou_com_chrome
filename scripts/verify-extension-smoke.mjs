@@ -396,7 +396,7 @@ async function main() {
           String(e.stage).startsWith("selection-") || String(e.stage).startsWith("resolver-"));
         return {
           selectionEvents: ev.slice(-12),
-          stored: globalThis.selectedTextByTab?.[${"${selection?.tabId}"}] || null,
+          stored: globalThis.selectedTextByTab?.[${Number(selection?.tabId) || -1}] || null,
           allTabsStored: Object.keys(globalThis.selectedTextByTab || {})
         };
       })()`)
