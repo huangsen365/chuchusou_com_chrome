@@ -202,21 +202,27 @@
     const tab = state.activeTab || await getActiveTab();
     if (!tab) return state.keyword;
     state.activeTab = tab;
-    const result = await sendRuntime({
-      action: 'getKeyword',
-      tabId: tab.id,
-      url: tab.url,
-      title: tab.title,
-      intent: 'sidepanel-refresh'
-    }, 1600);
-    const fresh = result.ok ? result.data : null;
-    if (fresh?.text || fresh?.raw) setKeyword(fresh);
+    // 冷启动容忍：3000ms（≥ SW 端 2500ms 安全兜底响应）+ 1 次重试，
+    // 与主 bundle 的 v1.6.32 修复对齐 —— 页面加载期打开恰逢 SW 冷启动是常态，
+    // 旧的 1600ms 单次预算会在这种场景下稳定超时、关键字空白。
+    // url/title 只是参考值（SW 端会用 tabs.get 重新水化），mid-load 传旧值无妨。
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (state.destroyed) break;
+      const result = await sendRuntime({
+        action: 'getKeyword',
+        tabId: tab.id,
+        url: tab.url,
+        title: tab.title,
+        intent: 'sidepanel-refresh'
+      }, 3000);
+      const fresh = result.ok ? result.data : null;
+      if (fresh?.text || fresh?.raw) {
+        setKeyword(fresh);
+        break;
+      }
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 150));
+    }
     return state.keyword;
-  }
-
-  async function ensureKeyword() {
-    if (state.keyword.text || state.keyword.raw) return state.keyword;
-    return requestKeyword();
   }
 
   function itemFromElement(el) {
@@ -231,7 +237,11 @@
   }
 
   async function executeItem(item) {
-    await ensureKeyword();
+    // fresh-first：点击瞬间重取关键字（SW 端会实时探测页面选区），
+    // 取不到新值时 requestKeyword 内部保留旧 state.keyword 作回落。
+    // 否则 mid-load 先拿到 Title 兜底后，用户手动选中文字再点菜单，
+    // 发出去的还是 Title —— "明明能选中却不被识别"。
+    await requestKeyword();
     const searchLike = SEARCH_TEXT_TYPES.has(item.type);
     const keyword = searchLike ? (state.keyword.text || state.keyword.raw) : (state.keyword.raw || state.keyword.text);
     if (!keyword) {
@@ -320,6 +330,23 @@
       });
     };
     try { chrome.storage.onChanged.addListener(state.storageListener); } catch (_) { /* ignore */ }
+
+    // 启动即主动取一次（cache miss 时徽章不再空等）：SW 端 title 兜底在页面
+    // loading 阶段就可用，无需等 status=complete
+    requestKeyword().catch(() => {});
+
+    // boot 期监听本 tab 的加载事件：title/url 一到就刷新关键字（页面大部分
+    // 内容已渲染但静态资源未完时，不让侧栏停留在"无法获取"状态）
+    const onTabUpdated = (updatedTabId, changeInfo) => {
+      if (state.destroyed || updatedTabId !== tab.id) return;
+      if (changeInfo.title || changeInfo.url || changeInfo.status === 'complete') {
+        requestKeyword().catch(() => {});
+      }
+    };
+    try {
+      chrome.tabs.onUpdated.addListener(onTabUpdated);
+      state.listeners.push(() => { try { chrome.tabs.onUpdated.removeListener(onTabUpdated); } catch (_) { /* ignore */ } });
+    } catch (_) { /* ignore */ }
   }
 
   ready(() => {
