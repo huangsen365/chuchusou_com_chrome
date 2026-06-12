@@ -4,30 +4,31 @@
 
 触触搜是一个 Chrome 扩展，提供文本选择后的快速搜索和处理功能。支持悬浮面板、右键菜单、Popup 菜单、Side Panel 四种交互方式。
 
-## 当前状态快照（2026-05）
+## 当前状态快照（2026-06）
 
 ⚠️ **改代码前先读这段**，避免走冤枉路：
 
-- **SW 双层架构**：Plasmo SW bundle (60KB, TS) + legacy `background/*.js` importScripts 桥接。
-- **已脱离运行时的 5 个 legacy 文件**（2506 行）：
+- **SW 双层架构**：Plasmo SW bundle (TS, `src/background.ts` → `static/background/index.js`) + legacy `background/*.js` importScripts 桥接。
+- **已退役的 6 个 legacy 文件**（~3200 行）已移到 `legacy/background-retired/`（不进 build / 不进商店 zip，详见该目录 README）：
   - `base.js` (889) → src/background/{baseBridge,tabState,menuTitles,menuTitleUpdater,
     menuStateOrchestrator,menuActions,menuDebugInfo,popupMenuStructure,bootstrap}.ts
-  - `Logger.js` (458) → src/background/Logger.ts (via baseBridge)
+  - `Logger.js` (458) → src/background/Logger.ts (via baseBridge)；仍被 dual 校验脚本当 legacy 对照源加载
   - `menuHandlers.js` (611) → src/background/menuHandlersAttach.ts (TS chrome.contextMenus.onClicked listener)
+  - `menuBuilder.js` (718) → src/background/menuBuilderAttach.ts (+ menuBuilderHelpers.ts，createContextMenus orchestrator)
   - `voiceOffscreenBridge.js` (100) → src/background/voiceOffscreenBridge.ts (autoRegisterVoiceBridge)
   - `init.js` (448) → src/background/{init,initAttach,initPrewarming}.ts
-- **剩余 2 个 listener 主体仍在 legacy**：`background/{events.js, menuBuilder.js}`
+- **剩余 1 个 listener 主体仍在 legacy**：`background/events.js`
   包含 chrome.tabs.onUpdated / chrome.runtime.onConnect / chrome.runtime.onMessage /
-  chrome.contextMenus.onShown / createContextMenus orchestrator。port 这部分需要
-  Chrome 真机回归 ≥ 20 路径。
-- **SW bundle 加载时序**（关键）：
-  1. Plasmo ESM 评估 → 顶层 import (baseBridge / menuHandlersAttach / voiceBridge / initAttach 全部 loaded)
-  2. importScripts 18 个 legacy 模块（Constants / TextUtils / TextLimits / menuStructureBuilder /
-     MenuRegistry / KeywordSyncManager / menuIds / StateManager / URLBuilder / menuSystem /
-     config / icons / keywords / keywordResolver / KeywordService / AITaskRegistry /
-     AITaskHandler / menuBuilder / events）
-  3. attachBaseBridge() / attachMenuHandlers() / autoRegisterVoiceBridge() / attachInit() 顺序调用
-     → globalThis.X 覆盖为 TS port 版本，listener 全部注册
+  chrome.contextMenus.onShown。port 这部分需要 Chrome 真机回归 ≥ 20 路径。
+- **SW bundle 加载时序**（关键，见 `src/background.ts` 注释，顺序不要随意交换）：
+  1. Plasmo ESM 评估 → attachBaseBridge() / attachMenuBuilder() / attachMenuHandlers() /
+     autoRegisterVoiceBridge() **先于 importScripts 调用**（events.js 顶层会立刻引用
+     `createContextMenus` / `globalThis.setMenuState` 等，提供方必须先就位）
+  2. importScripts 20 个 legacy 模块（Constants / TextUtils / TextLimits / chatgptPromptRelay /
+     urlSafety / shared/menuStructureBuilder / MenuRegistry / KeywordSyncManager / menuIds /
+     StateManager / URLBuilder / menuSystem / config / icons / keywords / keywordResolver /
+     KeywordService / AITaskRegistry / AITaskHandler / events）
+  3. attachInit() **最后调用**（依赖 importScripts 提供的 g.MenuSystem / g.initKeywordSyncSystem）
 - **新架构已彻底删除**（v1.6.18+）：`MenuManager / menu/* / events/*` 共 7 个文件 3384 行已删（曾经放在 `legacy/_unactivated/`）。审计见 `docs/TECH_DEBT_AUDIT.md`。
 - **三个 SSoT 强制遵守**：
   - URL 模板 → `config/unifiedMenuConfig.json`（通过 `URLBuilder.loadFromConfig()` 装载，启动时即使兼容模式也装）
@@ -36,7 +37,7 @@
 - **添加新菜单**：改 `unifiedMenuConfig.json`；**添加新 AI 任务**：改 `TASK_DEFINITIONS` + 对应 prompts json。
 - **字数保护总闸关闭**：`background/utils/TextLimits.js` 的 `TEXT_LIMITS_ENABLED = false`，两个主函数都 early return。所有截断/smartTruncate/toast/URL 硬上限代码保留作兜底，改一行即可恢复。
 - **Smart Post / Smart Reply 已彻底删除**：popup 和 sidepanel 里都不存在。
-- **老 switch-case fallback 要保留**：两处入口（`menuHandlers.js` / `events.js`）都在 SSoT 快速通道后加了 switch-case 作安全网，**不要擅自删**。
+- **老 switch-case fallback 要保留**：两处入口（`src/background/menuHandlersAttach.ts` / `background/events.js`）都在 SSoT 快速通道后加了 switch-case 作安全网，**不要擅自删**。
 - **发版必走 `/release` skill**：版本号 bump（manifest / package / package-lock 三处必须同步）、CHANGELOG / releases/vX.Y.Z.md、`./build.sh`、commit / tag / push 都已编排在 `.claude/skills/release/SKILL.md`。**不要凭记忆手动发版**——历史上 `package.json` 长期停留 1.0.0、CI 红 5 个 commit 才发现都是手动流程漏步骤导致。
 
 ## 核心架构
@@ -45,9 +46,15 @@
 
 ```
 chuchusou_com_chrome/
-├── manifest.json              # Manifest V3 配置
-├── background/                # Service Worker 后台脚本
-│   ├── index.js              # 入口点（importScripts）
+├── manifest.json              # Manifest V3 配置（源模板；build 时 postbuild 会 patch SW 入口）
+├── src/                       # TS 源码（Plasmo 编译）
+│   ├── background.ts         # 生产 SW 唯一入口（attach* + importScripts 桥接）
+│   ├── background/           # legacy 的 TS 移植（baseBridge / menuBuilderAttach /
+│   │                         #   menuHandlersAttach / initAttach / Logger / ...）
+│   └── shared/               # TS 共享常量（coverPinConstants 等）
+├── background/                # legacy Service Worker 脚本（仍在运行时的部分）
+│   ├── index.js              # legacy 入口（importScripts；与 src/background.ts 保持同序，
+│   │                         #   由 verify-sw-bridge 强制校验）
 │   ├── utils/                # 工具模块
 │   │   ├── Constants.js      # 常量定义（MENU_DEFINITIONS / OPTIMIZE_CATEGORY_TITLES 等）
 │   │   ├── TextUtils.js      # 文本处理函数
@@ -58,40 +65,38 @@ chuchusou_com_chrome/
 │   ├── StateManager.js       # 状态管理器
 │   ├── MenuRegistry.js       # 菜单注册表
 │   ├── URLBuilder.js         # URL 模板构建器（SSoT: unifiedMenuConfig.json）
-│   ├── menuSystem.js         # 菜单系统外壳（new MenuManager 分支在 useNewSystem=true 时启用，当前未启用）
+│   ├── menuSystem.js         # 菜单系统外壳
 │   ├── KeywordSyncManager.js # 关键字同步管理
-│   ├── base.js               # 核心业务函数 + 老菜单流（生产主流）
-│   ├── events.js             # 事件监听（生产主流）
-│   ├── menuBuilder.js        # 右键菜单构建（生产主流）
-│   ├── menuHandlers.js       # 菜单处理（生产主流）
+│   ├── KeywordService.js     # 关键字服务
+│   ├── chatgptPromptRelay.js # AI prompt relay（长 prompt 不走 URL 直开）
+│   ├── urlSafety.js          # URL 安全（截断 / 431/404 恢复）
+│   ├── events.js             # 事件监听（生产主流，最后一个未 port 的 listener 主体）
 │   ├── config.js             # 配置加载 + getEngineTitle() SSoT
 │   └── keywordResolver.js    # 关键字解析
-├── content/                   # 内容脚本模块
-│   ├── SelectionManager.js   # 选区管理器
-│   ├── TextEncoder.js        # 文本编码工具
-│   ├── ToastUI.js            # Toast 通知组件
-│   └── ClipboardHelper.js    # 剪贴板助手
+├── shared/                    # 前后台共用 JS（keywordClient / runtimeClient / logger /
+│                              #   menuStructureBuilder —— SW 也 importScripts 它）
+├── content/                   # 内容脚本模块（SelectionManager / TextEncoder / ToastUI / ClipboardHelper）
+├── modules/                   # 内容脚本主体模块（manifest 按序加载 20 个）
 ├── content.js                 # 主内容脚本
 ├── content.css                # 悬浮面板样式
-├── popup/                     # Popup 菜单
-│   ├── popup.html
-│   ├── popup.js
-│   ├── popup.css
-│   └── modules/              # Popup 模块（MenuRenderer / SettingsManager / ToastHelper）
-├── sidepanel/                 # Side Panel（侧边栏）
-│   ├── sidepanel.html
-│   ├── sidepanel.js
-│   └── sidepanel.css
+├── dockbar.js                 # 底部 dock 栏内容脚本
+├── popup/                     # Popup 菜单（生产，action.default_popup）
+│   └── modules/              # MenuRenderer / SettingsManager / ToastHelper / PromptLibraryManager
+├── popup-v2/                  # Popup 重写版（备用，未在 manifest 启用，随包发布可一键切换）
+├── sidepanel/                 # Side Panel（生产，side_panel.default_path）
+├── sidepanel-v2/              # Side Panel 重写版（备用，未在 manifest 启用）
+├── offscreen/                 # 语音识别 offscreen 文档
+├── voice-permission/          # 麦克风授权引导页
 ├── config/                    # 配置文件
 │   ├── unifiedMenuConfig.json # 统一菜单 URL 模板 SSoT
 │   └── engines.json          # 引擎标题 SSoT（icon + label）
-├── prompts/                   # 提示词模板
-│   ├── topQuestionsPrompts.json
-│   ├── fastAnswersPrompts.json
-│   └── optimizedPrompts.json
-├── legacy/                    # 🗑 历史 content panel fallback (content.panel-legacy.js)
+├── prompts/                   # 提示词模板（topQuestions / fastAnswers / optimized / cover）
+├── scripts/                   # 构建 + 校验脚本（npm test 跑的 13 道关都在这）
+├── legacy/                    # 🗑 退役代码（不进 build / zip，eslint ignore）
+│   ├── background-retired/   # 6 个已退役 legacy SW 文件（见该目录 README）
+│   └── content.panel-legacy.js
 ├── docs/
-│   ├── TECH_DEBT_AUDIT.md    # 技术债审计（2026-04）
+│   ├── TECH_DEBT_AUDIT.md    # 技术债审计
 │   └── archive/              # 历史设计文档
 └── icons/                     # 扩展图标
 ```
@@ -99,28 +104,38 @@ chuchusou_com_chrome/
 ### 模块加载顺序
 
 #### Background (Service Worker)
+
+生产 SW 入口是 `src/background.ts`（Plasmo 编译到 `static/background/index.js`），顺序：
+
 ```javascript
-// background/index.js（当前实际顺序，详见文件）
+// src/background.ts（当前实际顺序，详见文件注释）
+attachBaseBridge()        // ← 必须先于 importScripts：events.js 顶层会引用 setMenuState 等
+attachMenuBuilder()       // ← createContextMenus / COVER_PIN_MENU_ID
+attachMenuHandlers()      // ← chrome.contextMenus.onClicked
+autoRegisterVoiceBridge() // ← voice onMessage bridge
+
 importScripts(
   // 第1层：工具
-  './utils/Constants.js',
-  './utils/TextUtils.js',
-  './utils/TextLimits.js',
-  './Logger.js',
+  'background/utils/Constants.js', 'background/utils/TextUtils.js',
+  'background/utils/TextLimits.js', 'background/chatgptPromptRelay.js',
+  'background/urlSafety.js', 'shared/menuStructureBuilder.js',
   // 第2层：核心管理器
-  './MenuRegistry.js', './KeywordSyncManager.js',
-  './menuIds.js', './StateManager.js', './URLBuilder.js', './menuSystem.js',
+  'background/MenuRegistry.js', 'background/KeywordSyncManager.js', 'background/menuIds.js',
+  'background/StateManager.js', 'background/URLBuilder.js', 'background/menuSystem.js',
   // 第3层：业务
-  './config.js', './icons.js', './keywords.js', './keywordResolver.js',
-  './KeywordService.js', './base.js',
+  'background/config.js', 'background/icons.js', 'background/keywords.js',
+  'background/keywordResolver.js', 'background/KeywordService.js',
   // 第3.5层：AI 任务统一抽象
-  './tasks/AITaskRegistry.js', './tasks/AITaskHandler.js',
-  // 第4层：菜单 + 事件
-  './menuBuilder.js', './menuHandlers.js', './voiceOffscreenBridge.js', './events.js',
-  // 第5层：初始化
-  './init.js'
-);
+  'background/tasks/AITaskRegistry.js', 'background/tasks/AITaskHandler.js',
+  // 第4层：事件（最后一个 legacy listener 主体）
+  'background/events.js'
+)
+
+attachInit()              // ← 必须在 importScripts 之后：依赖 g.MenuSystem / g.initKeywordSyncSystem
 ```
+
+`background/index.js`（legacy 入口）保持同一份 importScripts 列表，`npm run verify:sw-bridge`
+强制两边 24 个 import 顺序一致 —— 改加载顺序时两处要同改。
 
 #### Content Scripts
 按 manifest.json 中定义的顺序加载，新模块优先：
@@ -136,12 +151,12 @@ importScripts(
 #### 三种菜单入口
 
 1. **右键菜单** (`chrome.contextMenus`)
-   - 由 `menuBuilder.js` 的 `createContextMenus()` 构建
+   - 由 `src/background/menuBuilderAttach.ts` 的 `createContextMenus()` 构建
    - 使用 `MENU_DEFINITIONS`、`MENU_GROUPS` 和动态配置
 
 2. **Popup 菜单**（点击扩展图标）
    - `popup.js` 通过 `getMenuStructure` 消息从 background 获取菜单结构
-   - `base.js` 的 `getPopupMenuStructure()` 返回与右键菜单一致的结构
+   - `src/background/popupMenuStructure.ts` 的 `getPopupMenuStructure()` 返回与右键菜单一致的结构
 
 3. **悬浮面板**（鼠标选中文本后显示）
    - 由 `content.js` 管理
@@ -204,38 +219,17 @@ importScripts(
   - `normalizeSearchText()`: 规范化搜索文本
   - `cleanupTitleKeyword()`: 清理标题关键词
 
-#### Menu 模块
+#### 后台菜单/事件逻辑（TS port）
 
-- **MenuBuilder.js**: 菜单构建工具
-  - `createMenuItem()`: 创建菜单项
-  - `createMenuItemsGroup()`: 批量创建
-  - `createSeparator()`: 创建分隔符
+菜单构建、标题更新、点击处理已全部 port 到 `src/background/`：
 
-- **MenuUpdater.js**: 动态标题更新
-  - `updateMainMenuTitle()`: 更新主菜单
-  - `updateLabelMenuTitles()`: 批量更新标签
-  - `handleMenuShown()`: 处理菜单显示事件
+- **menuBuilderAttach.ts**：`createContextMenus()` orchestrator（右键菜单全量构建）
+- **menuTitleUpdater.ts / menuTitles.ts**：动态菜单标题（含 onShown 时的关键字注入）
+- **menuHandlersAttach.ts**：`chrome.contextMenus.onClicked` 监听 + search/tool/top100/fastqa/optimize 分支
+- **menuStateOrchestrator.ts / menuActions.ts / popupMenuStructure.ts**：菜单状态、动作执行、popup 菜单结构
 
-- **MenuHandlers.js**: 点击处理
-  - `handleSearchMenu()`: 处理搜索菜单
-  - `handleToolMenu()`: 处理工具菜单
-  - `handleTopQuestionsMenu()`: 处理百问菜单
-
-#### Events 模块
-
-- **TabEvents.js**: 标签页事件
-  - `handleTabUpdated()`: 标签更新
-  - `handleTabActivated()`: 标签激活
-  - `handleTabRemoved()`: 标签关闭
-
-- **MessageEvents.js**: 消息处理
-  - `handleGetSearchText()`: 获取搜索文本
-  - `handleExecuteMenuAction()`: 执行菜单操作
-  - `handleContextMenuPreview()`: 上下文预览
-
-- **MenuEvents.js**: 菜单事件
-  - `handleMenuShown()`: 菜单显示
-  - `prefetchMenuState()`: 预取菜单状态
+标签页事件 / runtime 消息（onUpdated / onConnect / onMessage / onShown）仍在
+`background/events.js`（最后一个未 port 的 legacy 主体，改它要 Chrome 真机回归）。
 
 #### Content 模块
 
@@ -309,16 +303,16 @@ Popup 菜单和右键菜单必须保持一致：
 推荐路径（SSoT）：只需改 1 处——
 1. 在 `config/unifiedMenuConfig.json` 对应分组 `items` 里新增一项（含 `id` / `type` / `title` / `icon` / `urlPattern` / `enabled`）。
    - 启动时 `URLBuilder.loadFromConfig()` 会自动注册 URL 模板
-   - 运行时各老路径（`menuHandlers.js` / `events.js` / `MessageEvents.js`）已接入 `tryOpenMenuUrl()` 快速通道，命中后跳过硬编码
+   - 运行时各入口（`src/background/menuHandlersAttach.ts` / `background/events.js`）已接入 `tryOpenMenuUrl()` 快速通道，命中后跳过硬编码
 
-老路径（渐进移除中）：在 `utils/Constants.js` 的 `MENU_DEFINITIONS` 加 `{ text, icon }`、在 `background/menuBuilder.js` 的分组数组里登记 id、在 `background/base.js` 的 `getPopupMenuStructure()` 相应 `searchItems` / `toolItems` 里加。工具/复制/编码类（非 URL）菜单仍走老 switch-case。
+老路径（渐进移除中）：在 `utils/Constants.js` 的 `MENU_DEFINITIONS` 加 `{ text, icon }`、在 `src/background/menuBuilderAttach.ts` 的分组数组里登记 id、在 `src/background/popupMenuStructure.ts` 的 `getPopupMenuStructure()` 相应 `searchItems` / `toolItems` 里加。工具/复制/编码类（非 URL）菜单仍走老 switch-case。
 
 **工具/命令类菜单项（`ccs-copy`、`ccs-base64` 等）**
 
 这类没有 URL 模板，仍需走老路径：
 1. `utils/Constants.js` `MENU_DEFINITIONS` 登记 title/icon
-2. `background/menuBuilder.js` 加入分组
-3. `background/menuHandlers.js` / `background/events.js` switch-case 里加处理分支
+2. `src/background/menuBuilderAttach.ts` 加入分组
+3. `src/background/menuHandlersAttach.ts` / `background/events.js` switch-case 里加处理分支
 4. `config/unifiedMenuConfig.json` 登记（用于 popup/sidepanel 展示）
 
 ### 字数保护（TextLimits）
@@ -336,7 +330,7 @@ Popup 菜单和右键菜单必须保持一致：
 挂钩点（均已接入，修改上限请改 `TextLimits.js` LIMITS 常量）：
 - `tryOpenMenuUrl()` - SSoT 快速通道
 - `handleExecuteMenuAction()` - popup/sidepanel 主路径
-- `menuHandlers.js` 的 top100 / fastqa / optimize 分支
+- `src/background/menuHandlersAttach.ts` 的 top100 / fastqa / optimize 分支
 - `events.js` 的 executeMenuAction 老消息路径
 
 ### 调试
@@ -396,7 +390,7 @@ node scripts/analyze-errors.js
 
 ```bash
 # 检查单个文件
-node --check background/base.js
+node --check background/events.js
 
 # 批量检查所有 background 脚本
 for file in background/*.js background/**/*.js; do
@@ -414,7 +408,7 @@ Service Worker 使用 `importScripts()` 加载脚本，所有脚本共享同一�
 // Constants.js
 const MY_VAR = 'value';  // 第一次声明
 
-// base.js
+// events.js
 const MY_VAR = 'value';  // ❌ 错误：Identifier 'MY_VAR' has already been declared
 ```
 

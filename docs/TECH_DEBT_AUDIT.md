@@ -1,5 +1,12 @@
 # 技术债体检报告 · 2026-04
 
+> **2026-06 增补**：TS 移植完成后又退役了 6 个 legacy SW 文件（base.js / Logger.js /
+> menuHandlers.js / menuBuilder.js / voiceOffscreenBridge.js / init.js，~3200 行），
+> 移入 `legacy/background-retired/`（不再随商店 zip 发布），详见该目录 README。
+> 第四节里的 `base.js` 拆分项就此了结；`events.js` 成为最后一个未 port 的 legacy 主体。
+> dual 校验脚本（verify-background-utils-dual / extras-dual）改从新路径加载 Logger.js 对照源；
+> verify-url-safety 的 menuHandlers 源码检查改指向运行时主体 `src/background/menuHandlersAttach.ts`。
+
 ## 一、僵尸代码普查结果
 
 通过 grep 对新架构所有全局符号做真实调用溯源（排除 importScripts/注释/文档/Logger 字符串/README 目录树），发现以下文件**零真实调用**，属于纯僵尸：
