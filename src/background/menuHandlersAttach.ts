@@ -19,6 +19,27 @@ const KEYWORD_INTENTS_DEFAULT = {
   PAGE_CHANGED: "page-changed"
 }
 
+export async function hydrateContextMenuTab(tab: chrome.tabs.Tab | undefined, g: G = globalThis as unknown as G): Promise<chrome.tabs.Tab | undefined> {
+  const tabId = tab?.id
+  if (tabId == null || !g.chrome?.tabs?.get) return tab
+  try {
+    const freshTab = await g.chrome.tabs.get(tabId)
+    if (!freshTab) return tab
+    return {
+      ...tab,
+      ...freshTab,
+      url: freshTab.url || freshTab.pendingUrl || tab?.url || "",
+      title: freshTab.title || tab?.title || ""
+    }
+  } catch (error) {
+    g.logMenuEvent?.("context-click-tab-hydrate-failed", {
+      tabId,
+      error: (error as Error)?.message || String(error)
+    })
+    return tab
+  }
+}
+
 export function attachMenuHandlers(): void {
   const g = globalThis as unknown as G
   const cm = g.chrome?.contextMenus
@@ -40,6 +61,7 @@ export function attachMenuHandlers(): void {
   }
 
   cm.onClicked.addListener(async (info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab) => {
+    tab = await hydrateContextMenuTab(tab, g)
     try { await g.loadMenuToggleConfig?.() } catch { /* ignore */ }
     try { await g.syncSelectionFromTab?.(tab, "context-click", { updateMenu: false }) } catch { /* ignore */ }
 

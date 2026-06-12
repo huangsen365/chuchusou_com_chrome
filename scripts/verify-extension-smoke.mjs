@@ -77,9 +77,15 @@ async function main() {
   // 去外网化（hermetic）：把 www.baidu.com / www.google.com 解析到本地 HTTPS
   // 服务器。CI 上百度反爬重定向 / 网络抖动曾让路径 9/12/16 随机红 ——
   // "真开标签"类断言只关心扩展行为，不应依赖外部网站的可用性。
-  const httpServer = http.createServer((_, res) => {
+  const noSelectionTitleKeyword = "无选区标题回退冒烟标记"
+  const httpServer = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
-    res.end(`<!doctype html><meta charset="utf-8"><title>smoke</title>
+    if ((req.url || "").startsWith("/title2")) {
+      res.end(`<!doctype html><meta charset="utf-8"><title>标题先行刷新冒烟标记 - smoke</title>
+        <p id="t" style="font-size:24px;margin:60px 20px">第二页正文</p>`)
+      return
+    }
+    res.end(`<!doctype html><meta charset="utf-8"><title>${noSelectionTitleKeyword} - smoke</title>
       <p id="t" style="font-size:24px;margin:60px 20px">真实选区捕获冒烟标记</p>`)
   })
   await new Promise((res) => httpServer.listen(0, "127.0.0.1", res))
@@ -310,18 +316,42 @@ async function main() {
     }
     console.log(`${TAG} ✓ welcome-watcher 推送协议正常（注册即推 + 开关实时推送）`)
 
-    // 8. selectionChanged → getKeyword 回路（选区状态链）
+    // 8. selectionChanged → getKeyword 回路（选区状态链）。
+    // selectionChanged 是 content script 协议，必须从普通网页的 content-script
+    // 上下文发出；扩展页 chrome.runtime.sendMessage 不保证带 sender.tab。
     const selection = await evaluate(pageCdp, `
       (async () => {
-        const tab = await new Promise((res) => chrome.tabs.getCurrent(res));
-        chrome.runtime.sendMessage({ action: "selectionChanged", text: "选区冒烟测试", trigger: "smoke" });
+        const tab = await new Promise((res) => chrome.tabs.create({ url: "${httpUrl}", active: true }, res));
+        await new Promise((res) => {
+          chrome.tabs.get(tab.id, (fresh) => {
+            if (fresh?.status === "complete") { res(); return; }
+            const timer = setTimeout(() => {
+              chrome.tabs.onUpdated.removeListener(onUpdated);
+              res();
+            }, 3000);
+            const onUpdated = (tabId, info) => {
+              if (tabId === tab.id && info.status === "complete") {
+                clearTimeout(timer);
+                chrome.tabs.onUpdated.removeListener(onUpdated);
+                res();
+              }
+            };
+            chrome.tabs.onUpdated.addListener(onUpdated);
+          });
+        });
+        const freshTab = await new Promise((res) => chrome.tabs.get(tab.id, res));
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: (text) => chrome.runtime.sendMessage({ action: "selectionChanged", text, trigger: "smoke-script" }),
+          args: ["选区冒烟测试"]
+        });
         await new Promise((r) => setTimeout(r, 800));
         const resp = await new Promise((res) =>
           chrome.runtime.sendMessage(
-            { action: "getKeyword", tabId: tab.id, url: tab.url, title: tab.title, intent: "popup-open" },
+            { action: "getKeyword", tabId: tab.id, url: freshTab.url || tab.url, title: freshTab.title || tab.title, intent: "popup-open" },
             res
           ));
-        return { raw: resp?.raw || "", text: resp?.text || "", source: resp?.source || "" };
+        return { tabId: tab.id, url: freshTab.url || tab.url, raw: resp?.raw || "", text: resp?.text || "", source: resp?.source || "" };
       })()
     `)
     if (!selection?.raw?.includes("选区冒烟测试") && !selection?.text?.includes("选区冒烟测试")) {
@@ -372,13 +402,12 @@ async function main() {
     console.log(`${TAG} ✓ URL 关键字提取正常（百度 wd= → "${urlExtract.text.slice(0, 20)}"，source: ${urlExtract.source}）`)
 
     // 13. ccs_kw_<tabId> storage 即时缓存契约（popup/sidepanel 首屏即时渲染靠它）：
-    //     #8 对 welcome 标签的选区解析应已持久化 {text, raw, url, ts}。
+    //     #8 对内容页标签的选区解析应已持久化 {text, raw, url, ts}。
     //     注意：不要用 #9/#12 的百度标签做断言 —— 真实网络下百度会重定向到反爬页，
     //     KeywordSyncManager 会对新 URL 再提取并覆盖缓存（链路工作正常但值不可预期）。
     const cacheEntry = await evaluate(pageCdp, `
       (async () => {
-        const tab = await new Promise((res) => chrome.tabs.getCurrent(res));
-        const key = "ccs_kw_" + tab.id;
+        const key = "ccs_kw_" + ${selection.tabId};
         for (let i = 0; i < 10; i++) {
           const data = await new Promise((res) => chrome.storage.local.get([key], res));
           const entry = data?.[key];
@@ -457,6 +486,106 @@ async function main() {
       const r = document.getElementById("t").getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     })()`)
+    await evaluate(swCdp, `(() => {
+      if (!globalThis.__smokeLogSpyInstalled) {
+        globalThis.__smokeOriginalLogMenuEvent = globalThis.logMenuEvent;
+        globalThis.logMenuEvent = function(stage, payload) {
+          try {
+            (globalThis.__smokeMenuEvents ||= []).push({ stage, payload: payload || {} });
+          } catch (_) {}
+          if (typeof globalThis.__smokeOriginalLogMenuEvent === "function") {
+            return globalThis.__smokeOriginalLogMenuEvent.apply(this, arguments);
+          }
+        };
+        globalThis.__smokeLogSpyInstalled = true;
+      }
+      globalThis.__smokeTitleSpy = [];
+      globalThis.__smokeMenuEvents = [];
+      if (globalThis.latestTitleByTab) delete globalThis.latestTitleByTab[${httpTabId}];
+      if (globalThis.selectedTextByTab) delete globalThis.selectedTextByTab[${httpTabId}];
+      if (globalThis.fallbackKeywordByTab) delete globalThis.fallbackKeywordByTab[${httpTabId}];
+      if (globalThis.currentMenuState) {
+        Object.assign(globalThis.currentMenuState, { raw: "", normalized: "", display: "", tabId: null, url: "" });
+      }
+    })()`)
+    const noSelectionBeforeRightClick = await evaluate(httpCdp, `(() => {
+      window.getSelection()?.removeAllRanges();
+      return { title: document.title, selection: window.getSelection()?.toString() || "" };
+    })()`)
+    if (noSelectionBeforeRightClick?.selection) {
+      fail(`无选区右键前仍存在选区: ${JSON.stringify(noSelectionBeforeRightClick)}`)
+    }
+    await httpCdp.call("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x, y: box.y })
+    await httpCdp.call("Input.dispatchMouseEvent", { type: "mousePressed", x: box.x, y: box.y, button: "right", buttons: 2, clickCount: 1 })
+    await httpCdp.call("Input.dispatchMouseEvent", { type: "mouseReleased", x: box.x, y: box.y, button: "right", buttons: 0, clickCount: 1 })
+    await wait(800)
+    await evaluate(httpCdp, `
+      document.dispatchEvent(new MouseEvent("contextmenu", {
+        bubbles: true, cancelable: true, button: 2, buttons: 2,
+        clientX: ${Math.round(box.x)}, clientY: ${Math.round(box.y)}
+      }))
+    `)
+    let noSelectionPreview = null
+    for (let i = 0; i < 20; i++) {
+      noSelectionPreview = await evaluate(swCdp, `(() => {
+        const needle = ${JSON.stringify(noSelectionTitleKeyword)};
+        const titles = globalThis.__smokeTitleSpy || [];
+        const events = globalThis.__smokeMenuEvents || [];
+        const stored = globalThis.selectedTextByTab?.[${httpTabId}];
+        const storedText = typeof stored === "string" ? stored : stored?.text;
+        return {
+          titleHits: titles.filter((t) => String(t).includes(needle)).length,
+          hydrated: events.some((e) =>
+            e.stage === "context-preview-tab-hydrated" &&
+            e.payload?.tabId === ${httpTabId} &&
+            String(e.payload?.freshTitle || "").includes(needle)
+          ),
+          fallback: events.some((e) =>
+            e.stage === "context-preview-fallback" &&
+            String(e.payload?.raw || "").includes(needle)
+          ),
+          cached: events.some((e) =>
+            e.stage === "context-selection-cache" &&
+            e.payload?.tabId === ${httpTabId} &&
+            String(e.payload?.text || "").includes(needle)
+          ),
+          stateRaw: globalThis.currentMenuState?.raw || "",
+          storedText: storedText || "",
+          lastTitles: titles.slice(-5),
+          lastEvents: events.slice(-8).map((e) => ({
+            stage: e.stage,
+            tabId: e.payload?.tabId,
+            source: e.payload?.source,
+            text: e.payload?.text,
+            raw: e.payload?.raw,
+            freshTitle: e.payload?.freshTitle
+          }))
+        };
+      })()`)
+      if (
+        noSelectionPreview?.hydrated &&
+        noSelectionPreview?.fallback &&
+        noSelectionPreview?.cached &&
+        (
+          String(noSelectionPreview?.stateRaw || "").includes(noSelectionTitleKeyword) ||
+          String(noSelectionPreview?.storedText || "").includes(noSelectionTitleKeyword)
+        )
+      ) break
+      await wait(200)
+    }
+    if (!(
+      noSelectionPreview?.hydrated &&
+      noSelectionPreview?.fallback &&
+      noSelectionPreview?.cached &&
+      (
+        String(noSelectionPreview?.stateRaw || "").includes(noSelectionTitleKeyword) ||
+        String(noSelectionPreview?.storedText || "").includes(noSelectionTitleKeyword)
+      )
+    )) {
+      fail(`无选区右键标题 fallback 失败: ${JSON.stringify(noSelectionPreview)}`)
+    }
+    console.log(`${TAG} ✓ 无选区右键菜单预览可从当前标签标题回退（tabs.get 水化 + title fallback）`)
+
     // 三连击选中整段（实测比拖选在 headless 下更稳）
     for (const cc of [1, 2, 3]) {
       await httpCdp.call("Input.dispatchMouseEvent", { type: "mousePressed", x: box.x, y: box.y, button: "left", clickCount: cc })
@@ -472,7 +601,7 @@ async function main() {
           (resp) => res({ text: resp?.text || "", raw: resp?.raw || "", source: resp?.source || "" })
         ))
     `)
-    httpCdp.close()
+    // httpCdp 在 15.5（标题先行刷新）之后才关闭
     if (!realSelection?.raw?.includes("真实选区捕获冒烟标记") && !realSelection?.text?.includes("真实选区捕获冒烟标记")) {
       fail(`真实选区捕获链路失败: ${JSON.stringify(realSelection)}`)
     }
@@ -493,6 +622,43 @@ async function main() {
       fail(`右键菜单标题未随选区更新（spy 最近记录: ${JSON.stringify(sample)}）`)
     }
     console.log(`${TAG} ✓ 右键菜单动态标题随选区实时更新（contextMenus.update 命中 ${titleHits} 次）`)
+
+    // 15.5 标题先行刷新（用户实报场景的正确测试）：页面导航后 title 一到达，
+    //      右键菜单标题就应已更新 —— **全程不发生任何右键/preview 消息**。
+    //      原生菜单弹出后不重绘，右键时才修标题永远晚一步；这条断言保证
+    //      "用户右键之前标题已就绪"，不依赖 status=complete。
+    await evaluate(swCdp, `(globalThis.__smokeTitleSpy = [], "reset")`)
+    await httpCdp.call("Page.navigate", { url: `${httpUrl}title2` })
+    let titleArrivedHits = 0
+    for (let i = 0; i < 25; i++) {
+      titleArrivedHits = await evaluate(swCdp, `
+        (globalThis.__smokeTitleSpy || []).filter((t) => String(t).includes("标题先行刷新冒烟标记")).length
+      `)
+      if (titleArrivedHits > 0) break
+      await wait(200)
+    }
+    if (!(titleArrivedHits > 0)) {
+      const sample = await evaluate(swCdp, `(globalThis.__smokeTitleSpy || []).slice(-5)`)
+      fail(`标题先行刷新失败：title 到达后菜单标题未更新（右键前标题不可能正确）。spy 最近: ${JSON.stringify(sample)}`)
+    }
+    console.log(`${TAG} ✓ 标题先行刷新正常（title 到达即更新菜单标题，无需右键/complete，命中 ${titleArrivedHits} 次）`)
+
+    // 恢复现场：15.5 的导航换掉了选区页，导航回原页并重建选区，
+    // 下游 UI 点按路径（#16 期望关键字 = 选区标记）保持原语义
+    await httpCdp.call("Page.navigate", { url: httpUrl })
+    await wait(800)
+    await httpCdp.call("Page.bringToFront")
+    const box2 = await evaluate(httpCdp, `(() => {
+      const r = document.getElementById("t").getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    })()`)
+    for (const cc of [1, 2, 3]) {
+      await httpCdp.call("Input.dispatchMouseEvent", { type: "mousePressed", x: box2.x, y: box2.y, button: "left", clickCount: cc })
+      await httpCdp.call("Input.dispatchMouseEvent", { type: "mouseReleased", x: box2.x, y: box2.y, button: "left", clickCount: cc })
+      await wait(80)
+    }
+    await wait(1200)
+    httpCdp.close()
 
     // 10+11+16+17. popup / sidepanel UI 启动 + 点按实操。
     // 每个 UI 页面用独立 tab + 独立 CDP 客户端 —— popup 点按后 popup.js 会

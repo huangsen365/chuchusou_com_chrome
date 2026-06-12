@@ -1015,6 +1015,34 @@ async function main() {
   const custom = tsMcc.classifyMenuClick("ccs-custom-pin", { coverPinId: "ccs-custom-pin" })
   assert(custom.category === "cover-pin", "custom coverPinId works")
 
+  // menuHandlersAttach.ts: right-click click path hydrates stale/partial tab snapshots
+  const tsMha = loadTs(path.join(root, "src/background/menuHandlersAttach.ts"))
+  assert(typeof tsMha.hydrateContextMenuTab === "function", "hydrateContextMenuTab exists")
+  const hydrateLogs = []
+  const hydratedTab = await tsMha.hydrateContextMenuTab(
+    { id: 77, title: "", url: "" },
+    {
+      chrome: { tabs: { get: async (tabId) => ({ id: tabId, url: "https://example.com/page", title: "Hydrated Page Title" }) } },
+      logMenuEvent: (stage, payload) => hydrateLogs.push({ stage, payload })
+    }
+  )
+  assert(hydratedTab.url === "https://example.com/page", "hydrateContextMenuTab fills missing url")
+  assert(hydratedTab.title === "Hydrated Page Title", "hydrateContextMenuTab fills missing title")
+  const pendingHydrated = await tsMha.hydrateContextMenuTab(
+    { id: 78, url: "", title: "" },
+    { chrome: { tabs: { get: async () => ({ id: 78, pendingUrl: "https://pending.test/", title: "Pending Title" }) } } }
+  )
+  assert(pendingHydrated.url === "https://pending.test/", "hydrateContextMenuTab uses pendingUrl fallback")
+  const failedHydrate = await tsMha.hydrateContextMenuTab(
+    { id: 79, url: "https://old.test/", title: "Old" },
+    {
+      chrome: { tabs: { get: async () => { throw new Error("tabs.get failed") } } },
+      logMenuEvent: (stage, payload) => hydrateLogs.push({ stage, payload })
+    }
+  )
+  assert(failedHydrate.url === "https://old.test/" && failedHydrate.title === "Old", "hydrateContextMenuTab preserves original on failure")
+  assert(hydrateLogs.some((l) => l.stage === "context-click-tab-hydrate-failed"), "hydrate failure logged")
+
   // menuBuilderHelpers.ts: extractErrorMessage / createMenuItem / removeAllContextMenus / isStaleBuild
   const tsMbh = loadTs(path.join(root, "src/background/menuBuilderHelpers.ts"))
   // extractErrorMessage
@@ -1237,7 +1265,7 @@ async function main() {
     }
   }
 
-  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure + menuDebugInfo + bootstrap + menuClickClassifier + menuBuilderHelpers + eventHelpers + contextMenuForTab + menuSystem OK")
+  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure + menuDebugInfo + bootstrap + menuClickClassifier + menuHandlersAttach + menuBuilderHelpers + eventHelpers + contextMenuForTab + menuSystem OK")
 }
 
 main().catch((err) => {

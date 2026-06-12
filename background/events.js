@@ -1556,8 +1556,38 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       let previewText = finalIncoming;
       let normalizedPreview = previewText ? normalizeSearchText(previewText) : '';
       let source = previewText ? 'message' : 'none';
-      const tabUrl = finalSender?.tab?.url || '';
-      const tabStub = finalTabId != null ? { id: finalTabId, url: tabUrl } : null;
+      let previewTab = finalSender?.tab || null;
+      if (finalTabId != null) {
+        try {
+          const freshTab = await chrome.tabs.get(finalTabId);
+          if (freshTab) {
+            previewTab = {
+              ...(previewTab || {}),
+              ...freshTab,
+              url: freshTab.url || freshTab.pendingUrl || previewTab?.url || '',
+              title: freshTab.title || previewTab?.title || ''
+            };
+            if (previewTab.title) {
+              updateLatestTabTitle(finalTabId, previewTab.title);
+            }
+            logMenuEvent('context-preview-tab-hydrated', {
+              tabId: finalTabId,
+              hadSenderUrl: !!finalSender?.tab?.url,
+              hadSenderTitle: !!finalSender?.tab?.title,
+              freshUrl: previewTab.url || '',
+              freshTitle: previewTab.title || ''
+            });
+          }
+        } catch (error) {
+          logMenuEvent('context-preview-tab-hydrate-failed', {
+            tabId: finalTabId,
+            error: error?.message || String(error)
+          });
+        }
+      }
+      const tabUrl = previewTab?.url || '';
+      const tabTitle = previewTab?.title || getLatestTabPageTitle(finalTabId) || '';
+      const tabStub = finalTabId != null ? { id: finalTabId, url: tabUrl, title: tabTitle } : null;
 
       if (finalTabId != null) {
         await syncSelectionFromTab(tabStub, 'context-preview', { updateMenu: false });
@@ -1581,15 +1611,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
       }
 
-      if (!previewText && finalSender?.tab) {
+      if (!previewText && previewTab) {
         try {
-      const fallback = await computeSearchTextForTab({
-        tabId: finalTabId,
-        tabUrl: finalSender.tab.url || '',
-        // BUGFIX: Prefer fresh tab.title over cached value to avoid cross-tab contamination
-        tabTitle: finalSender.tab.title || getLatestTabPageTitle(finalTabId) || '',
-        selectionText: ''
-      }, {
+          const fallback = await computeSearchTextForTab({
+            tabId: finalTabId,
+            tabUrl,
+            // BUGFIX: Prefer freshly hydrated tab.title over sender.tab; MessageSender.tab
+            // often has URL but no title before the tab has been activated again.
+            tabTitle,
+            selectionText: ''
+          }, {
             forceFetchSelection: false,
             skipCurrentMenuFallback: false,
             allowFallbackSelectionFetch: false
@@ -1598,24 +1629,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             previewText = fallback.raw;
             normalizedPreview = fallback.normalized || normalizeSearchText(fallback.raw);
             source = 'resolver-fallback';
-          logMenuEvent('context-preview-fallback', {
-            tabId: finalTabId,
-            raw: fallback.raw,
-            normalized: fallback.normalized
-          });
-          if (finalTabId != null) {
-            fallbackKeywordByTab[finalTabId] = {
+            logMenuEvent('context-preview-fallback', {
+              tabId: finalTabId,
               raw: fallback.raw,
-              normalized: fallback.normalized || normalizeSearchText(fallback.raw),
-              timestamp: Date.now(),
-              url: finalSender.tab.url || ''
-            };
+              normalized: fallback.normalized
+            });
+            if (finalTabId != null) {
+              fallbackKeywordByTab[finalTabId] = {
+                raw: fallback.raw,
+                normalized: fallback.normalized || normalizeSearchText(fallback.raw),
+                timestamp: Date.now(),
+                url: tabUrl
+              };
+            }
           }
-        }
-      } catch (error) {
-        logMenuEvent('context-preview-fallback-error', {
-          tabId: finalTabId,
-          error: error?.message || String(error)
+        } catch (error) {
+          logMenuEvent('context-preview-fallback-error', {
+            tabId: finalTabId,
+            error: error?.message || String(error)
           });
         }
       }
@@ -1820,6 +1851,23 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (BG_TABS_ONUPDATED_LITE) {
     if (typeof changeInfo.title === 'string') {
       updateLatestTabTitle(tabId, changeInfo.title);
+      // v1.6.34: title 到达即刷新右键菜单标题，**不等 status=complete**。
+      // 原生右键菜单弹出后不会重绘 —— 标题必须在用户右键之前就正确；
+      // 静态资源慢的页面 complete 可能晚好几秒，期间右键看到的是旧标题/无关键词
+      //（contextMenuPreview 路径的 update 在菜单已弹出后才落地，治不了"这一次"）。
+      // 性能：一次导航 title 事件通常 1-2 次，这里只做 prefetch + refreshMenuTitle，
+      // LITE 当年砍掉的 syncSelectionFromTab / reinject / 延迟二次 prefetch 仍然不做。
+      const titleUrl = changeInfo.url || tab?.url || '';
+      if (titleUrl) {
+        const titleTab = Object.assign({}, tab, { id: tabId, url: titleUrl, title: changeInfo.title });
+        await prefetchMenuState(titleTab, 'title-arrived');
+        const storedSel = selectedTextByTab[tabId];
+        const hasSel = storedSel && typeof storedSel.text === 'string' && storedSel.text.trim().length > 0;
+        const preserveTitle = shouldPreserveMenuStateForUrl(titleUrl);
+        if (!(preserveTitle && hasSel && storedSel.url === titleUrl)) {
+          await refreshMenuTitle(titleTab);
+        }
+      }
     }
     if (changeInfo.status === 'loading') {
       delete selectedTextByTab[tabId];
