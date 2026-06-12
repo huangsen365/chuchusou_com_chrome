@@ -61,18 +61,13 @@ export function attachMenuHandlers(): void {
   }
 
   cm.onClicked.addListener(async (info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab) => {
-    // ccs-main-live：快搜当前选区（标题用原生 %s 的那一项）。
-    // info.selectionText 由 Chrome 在点击时原生提供 —— 与菜单标题同源，永远一致。
-    if (info.menuItemId === "ccs-main-live") {
-      const liveText = (info.selectionText || "").trim()
-      if (!liveText) return
-      let limited = liveText
-      if (typeof g.applyTextLimit === "function") {
-        limited = g.applyTextLimit("ccs-baidu", liveText, { tabId: tab?.id }).text
-      }
-      if (typeof g.tryOpenMenuUrl === "function" && g.tryOpenMenuUrl("ccs-baidu", limited, { tabId: tab?.id })) return
-      g.chrome?.tabs?.create?.({ url: "https://www.baidu.com/s?wd=" + encodeURIComponent(limited) })
-      return
+    // 选区孪生树（--sel 后缀 / ccs-main-live 根）归一化回页面树 id ——
+    // 两棵树共享全部点击语义；info.selectionText 由 Chrome 原生提供，
+    // 后续各分支已优先使用它。
+    const rawMenuItemId = String(info.menuItemId || "")
+    if (rawMenuItemId === "ccs-main-live") return // 孪生根是 submenu 容器，不可点
+    if (rawMenuItemId.endsWith("--sel")) {
+      info = { ...info, menuItemId: rawMenuItemId.slice(0, -5) }
     }
     tab = await hydrateContextMenuTab(tab, g)
     try { await g.loadMenuToggleConfig?.() } catch { /* ignore */ }

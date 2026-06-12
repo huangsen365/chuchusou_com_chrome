@@ -1265,18 +1265,21 @@ async function main() {
     }
   }
 
-  // ccs-main-live 契约：selection 专属 + 原生 %s 标题 + 点击走 ccs-baidu 快搜
+  // 选区孪生树契约（视觉取证 L1-L4 锁定的架构）：
+  // 1) 双根必须上下文互斥（同上下文双根会被 Chrome 折叠成扩展名父项）
+  // 2) 孪生树标题用原生 %s（SW 冻结下第一次右键依然精准）
+  // 3) 点击入口做 --sel 后缀归一化，两棵树共享全部点击语义
   {
     const builderSrc = fs.readFileSync(path.join(root, "src/background/menuBuilderAttach.ts"), "utf8")
-    assert(builderSrc.includes('id: "ccs-main-live"'), "menuBuilderAttach 应创建 ccs-main-live")
-    const liveBlock = builderSrc.slice(builderSrc.indexOf('id: "ccs-main-live"'), builderSrc.indexOf('id: "ccs-main"'))
-    assert(liveBlock.includes('%s'), "ccs-main-live 标题必须用原生 %s（绘制时代入选区，免疫首次右键竞速）")
-    assert(liveBlock.includes('contexts: ["selection"]'), "ccs-main-live 必须 selection 专属（无选区不显示）")
+    assert(builderSrc.includes('const SEL_SUFFIX = "--sel"'), "孪生后缀常量")
+    assert(builderSrc.includes('id === "ccs-main" ? "ccs-main-live" : id + SEL_SUFFIX'), "孪生 id 映射（ccs-main → ccs-main-live）")
+    assert(builderSrc.includes("contexts: [\"selection\"]".replace(/\\/g, "\\")) || builderSrc.includes('contexts: ["selection"]'), "孪生树必须 selection 专属")
+    assert(builderSrc.includes("'🔍 搜：\"%s\"'") || builderSrc.includes('搜："%s"'), "孪生根标题必须用原生 %s")
+    assert(builderSrc.includes('id: "ccs-main", title:') && builderSrc.includes('contexts: ["page", "editable"]'), "ccs-main 必须退出 selection 上下文（互斥防折叠）")
     const handlerSrc = fs.readFileSync(path.join(root, "src/background/menuHandlersAttach.ts"), "utf8")
-    const branch = handlerSrc.slice(handlerSrc.indexOf('info.menuItemId === "ccs-main-live"'))
-    assert(branch.includes("info.selectionText"), "ccs-main-live 点击必须用 Chrome 原生 selectionText")
-    assert(branch.includes('tryOpenMenuUrl("ccs-baidu"'), "ccs-main-live 点击应走 ccs-baidu SSoT 快搜")
-    assert(branch.includes("applyTextLimit"), "ccs-main-live 点击应过字数保护")
+    assert(handlerSrc.includes('rawMenuItemId.endsWith("--sel")'), "点击入口必须做 --sel 归一化")
+    assert(handlerSrc.includes('rawMenuItemId.slice(0, -5)'), "归一化应去掉 --sel 后缀")
+    assert(handlerSrc.includes('rawMenuItemId === "ccs-main-live"'), "孪生根（submenu 容器）点击应忽略")
   }
 
   console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure + menuDebugInfo + bootstrap + menuClickClassifier + menuHandlersAttach + menuBuilderHelpers + eventHelpers + contextMenuForTab + menuSystem + mainLive OK")

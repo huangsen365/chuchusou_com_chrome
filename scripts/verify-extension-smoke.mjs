@@ -221,7 +221,17 @@ async function main() {
       })
     `)
     if (!/duplicate/i.test(liveProbe || "")) fail(`ccs-main-live 未注册（探针结果: ${JSON.stringify(liveProbe)}）`)
-    console.log(`${TAG} ✓ ccs-main-live（原生 %s 实时选区快搜项）已注册`)
+    const twinProbe = await evaluate(swCdp, `
+      new Promise((res) => {
+        try {
+          chrome.contextMenus.create({ id: "ccs-baidu--sel", title: "probe", contexts: ["selection"] }, () => {
+            res(chrome.runtime.lastError?.message || "");
+          });
+        } catch (e) { res(e?.message || String(e)); }
+      })
+    `)
+    if (!/duplicate/i.test(twinProbe || "")) fail(`选区孪生树未注册（ccs-baidu--sel 探针: ${JSON.stringify(twinProbe)}）`)
+    console.log(`${TAG} ✓ 选区孪生树已注册（ccs-main-live 根 + ccs-baidu--sel 等 %s 子项）`)
 
     // 4. 消息协议：从扩展页（about:blank tab 导航到 welcome 页）发真实消息
     const pageTarget = await findTarget(port, (t) => t.type === "page" && t.webSocketDebuggerUrl)

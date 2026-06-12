@@ -134,12 +134,65 @@ function buildMeta(g: G, stage: string, extra?: Partial<CreateMenuItemMeta>): Cr
   }
 }
 
+const SEL_SUFFIX = "--sel"
+
+/**
+ * 选区孪生树的标题：关键字位用 Chrome 原生 %s（绘制瞬间代入当前选区，
+ * 零管道零竞速 —— 视觉取证 L3/L4 截图证实 SW 冻结下依然精准）。
+ * 哪些项带关键字位：主项 / 各 *-label / 动态搜索与 AI 直达项 / 速答快捷项。
+ */
+function selTwinTitle(g: G, options: chrome.contextMenus.CreateProperties): string | undefined {
+  const id = String(options.id || "")
+  if (!options.title) return options.title
+  if (id === "ccs-main") return '🔍 搜："%s"'
+  const keywordIds = new Set<string>([
+    ...MENU_GROUPS.search.map((i) => i.id),
+    ...MENU_GROUPS.ai.map((i) => i.id),
+    ...(((g.FAST_QA_QUICK_ITEMS || []) as Array<{ id: string }>).map((i) => i.id))
+  ])
+  if (id.endsWith("-label") || keywordIds.has(id)) return `${options.title}: "%s"`
+  return options.title
+}
+
+/**
+ * 双树创建：页面树（动态标题，page/editable 上下文）+ 选区孪生树
+ * （--sel 后缀，selection 上下文，标题静态含 %s）。
+ *
+ * 背景（2026-06 视觉取证，截图 L1-L4）：
+ *  - 扩展有 ≥2 个"当前上下文匹配"的顶层项时，Chrome 会折叠成以扩展名命名的
+ *    父项 —— 任何关键字标题都看不见了；
+ *  - 单根 + contextMenus.update 动态标题：SW 冷启动/忙碌时更新晚于菜单绘制
+ *    （实测选区 t+417ms 到达 vs 绘制 t+251ms），且原生菜单绘制后不重绘 ——
+ *    "第一次右键看不到关键字"物理上无法靠更新解决；
+ *  - 唯一两全：上下文互斥的孪生根。selection 时只有 ccs-main-live 匹配
+ *    （%s 原生代入，第一次必对）；无选区时只有 ccs-main 匹配（页面关键词
+ *    动态标题机制原样保留）。
+ */
 async function createMenuItem(
   g: G,
   options: chrome.contextMenus.CreateProperties,
   meta: CreateMenuItemMeta = {}
 ) {
-  return tsCreateMenuItem(options, meta, buildBuilderDeps(g))
+  const result = await tsCreateMenuItem(options, meta, buildBuilderDeps(g))
+  const id = String(options.id || "")
+  if (result.ok && id && !id.endsWith(SEL_SUFFIX) && id !== "ccs-main-live") {
+    const twin: chrome.contextMenus.CreateProperties = {
+      ...options,
+      id: id === "ccs-main" ? "ccs-main-live" : id + SEL_SUFFIX,
+      contexts: ["selection"]
+    }
+    if (options.parentId != null) {
+      const pid = String(options.parentId)
+      twin.parentId = pid === "ccs-main" ? "ccs-main-live" : pid + SEL_SUFFIX
+    }
+    const twinTitle = selTwinTitle(g, options)
+    if (twinTitle !== undefined) twin.title = twinTitle
+    await tsCreateMenuItem(twin, {
+      ...meta,
+      failureLogStage: meta.failureLogStage ? `${meta.failureLogStage}-sel` : undefined
+    }, buildBuilderDeps(g))
+  }
+  return result
 }
 
 async function createMenuItemsGroup(
@@ -427,17 +480,10 @@ async function createContextMenus(g: G): Promise<void> {
       optimizeRootEnabled, hasAdvancedSections, needsFastAnswersConfig
     })
 
-    // ccs-main-live：selection 专属顶层快搜项，标题用 Chrome 原生 %s ——
-    // 绘制瞬间由浏览器代入**当前**选中文本，零异步、零竞速。
-    // 这是"第一次右键看不到关键字"的根治：mac 的菜单在 mousedown 即弹出、
-    // SW 冷启动要几百毫秒，任何 contextMenus.update 都赶不上第一次绘制；
-    // %s 不走我们的管道，天然总是对的。无选区时该项自动不显示，现有树零变化。
-    await createMenuItem(g, {
-      id: "ccs-main-live", title: '🔍 搜："%s"', contexts: ["selection"]
-    }, buildMeta(g, "create-main-live-failed"))
-
+    // ccs-main：仅 page/editable 上下文（selection 上下文由孪生根 ccs-main-live
+    // 独占 —— 双根若在同一上下文同时匹配，Chrome 会折叠成扩展名父项）
     const mainResult = await createMenuItem(g, {
-      id: "ccs-main", title: g.getMenuTitle?.("ccs-main") ?? "触触搜", contexts: [...MENU_CONTEXTS_DEFAULT]
+      id: "ccs-main", title: g.getMenuTitle?.("ccs-main") ?? "触触搜", contexts: ["page", "editable"]
     }, buildMeta(g, "create-main-failed"))
 
     if (mainResult.ok && g.menuRegistry) {
