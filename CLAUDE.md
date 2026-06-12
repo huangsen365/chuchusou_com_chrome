@@ -442,6 +442,9 @@ node scripts/analyze-errors.js
 # npm test 链尾自动跑；无 Chrome / 无全局 WebSocket（Node<21）/ 无 build 时优雅跳过
 npm run verify:extension-smoke
 
+# 写测试 / 排障 / 复现问题之前，先读测试手册（CDP 套路、视觉取证、血泪经验）：
+# docs/TESTING_PLAYBOOK.md
+
 # 语法检查所有 background 脚本
 for f in background/*.js background/**/*.js; do node --check "$f"; done
 ```
