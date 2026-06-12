@@ -69,7 +69,7 @@ for (let i = 0; i < plasmoList.length; i++) {
     `第 ${i + 1} 个 import 不一致: plasmo="${plasmoList[i]}" legacy="${legacyList[i]}"`
   )
 }
-console.log(`[verify-sw-bridge] ✓ 24 个 import 顺序与 legacy index.js 完全一致`)
+console.log(`[verify-sw-bridge] ✓ ${plasmoList.length} 个 import 顺序与 legacy index.js 完全一致`)
 
 // 3. 验证每个目标文件存在于 build/
 if (fs.existsSync(buildDir)) {
@@ -77,7 +77,7 @@ if (fs.existsSync(buildDir)) {
     const p = path.join(buildDir, target)
     assert(fs.existsSync(p), `build 里找不到 ${target}`)
   }
-  console.log(`[verify-sw-bridge] ✓ build/ 里 24 个 target 文件全部存在`)
+  console.log(`[verify-sw-bridge] ✓ build/ 里 ${plasmoList.length} 个 target 文件全部存在`)
 } else {
   console.warn(`[verify-sw-bridge] ⚠ build dir 不存在，跳过文件存在性检查`)
 }
@@ -94,6 +94,22 @@ if (fs.existsSync(swBundlePath)) {
   console.log(`[verify-sw-bridge] ✓ SW bundle 包含 self.importScripts + 关键 target 引用`)
 } else {
   console.warn(`[verify-sw-bridge] ⚠ SW bundle 不存在，跳过 bundle 内容检查（跑 npm run plasmo:build 后再试）`)
+}
+
+// 5. 退役文件守卫：legacy/background-retired/ 里的文件不得回到 importScripts / background/ / build
+const retiredDir = path.join(root, "legacy/background-retired")
+if (fs.existsSync(retiredDir)) {
+  const retired = fs.readdirSync(retiredDir).filter((f) => f.endsWith(".js"))
+  for (const f of retired) {
+    const asTarget = `background/${f}`
+    assert(!plasmoList.includes(asTarget), `退役文件 ${f} 重新出现在 src/background.ts importScripts`)
+    assert(!legacyList.includes(asTarget), `退役文件 ${f} 重新出现在 background/index.js importScripts`)
+    assert(!fs.existsSync(path.join(root, "background", f)), `退役文件 ${f} 同时存在于 background/ 与 legacy/background-retired/`)
+    if (fs.existsSync(buildDir)) {
+      assert(!fs.existsSync(path.join(buildDir, "background", f)), `退役文件 ${f} 被打进了 build/（postbuild 不应复制 legacy/）`)
+    }
+  }
+  console.log(`[verify-sw-bridge] ✓ ${retired.length} 个退役文件未混入 importScripts / background/ / build/`)
 }
 
 console.log(`[verify-sw-bridge] 全部 OK — Plasmo SW 桥接与 legacy index.js 等价`)

@@ -22,6 +22,8 @@
 - **DOCKBAR_MODULE.md**（79 行）—— Dockbar 模块说明
 - **POPUP_FOOTER_STICKY_SHORT_DISPLAY.md** —— popup footer 短屏固定问题修复记录：记录 fixed footer 方案与失败的 height-sync 路线
 - **MARQUEE_SCROLL_WINDOWS.md** —— Windows marquee 滚动问题修复记录：记录 RAF transform 方案与失败的 CSS marquee 路线
+- **voice-engine-picker.md** —— 语音选引擎麦克风授权问题（2026-05-02 已修复：改走 MV3 offscreen document）
+- **sidepanel-keyword-on-chrome-internal-pages.md** —— sidepanel 在 chrome:// 内置页首次进入拿不到关键字（2026-05-16 已修复：补 tabs 权限 + KeywordService 按 tabId 自取元数据）
 
 ## 当前状态（2026-04）
 

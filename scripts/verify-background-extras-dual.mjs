@@ -1192,7 +1192,52 @@ async function main() {
   assert(cmftState.normalized === "tab kw", "normalized propagated")
   assert(cmftState.tabId === 7, "tabId propagated")
 
-  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure + menuDebugInfo + bootstrap + menuClickClassifier + menuBuilderHelpers + eventHelpers + contextMenuForTab OK")
+  // ============================================================================
+  // menuSystem：legacy globalThis.MenuSystem ↔ TS MenuSystem API 对齐
+  // （MenuManager 死分支已删；锁住两边 API 键集合 + 未 init 时的行为一致）
+  // ============================================================================
+  {
+    const silentConsole = { log: () => {}, warn: () => {}, error: () => {} }
+    const msGlobals = { console: silentConsole }
+    const msCtx = { globalThis: msGlobals, ...msGlobals }
+    msCtx.self = msCtx.globalThis
+    vm.createContext(msCtx)
+    const msAbs = path.join(root, "background/menuSystem.js")
+    vm.runInContext(fs.readFileSync(msAbs, "utf8"), msCtx, { filename: msAbs })
+    const legacyMS = msCtx.globalThis.MenuSystem
+    assert(legacyMS && typeof legacyMS.init === "function", "legacy MenuSystem 未暴露到 globalThis")
+
+    const tsMSModule = loadTs(path.join(root, "src/background/menuSystem.ts"))
+    const tsMS = tsMSModule.MenuSystem || tsMSModule.default
+    assert(tsMS && typeof tsMS.init === "function", "TS MenuSystem 未导出")
+
+    const keyDiff = deepEqual(Object.keys(legacyMS).sort(), Object.keys(tsMS).sort())
+    assert(!keyDiff, `MenuSystem API 键集合不一致: ${keyDiff}`)
+
+    // formatMenuTitle 行为对齐（未 init：maxDisplayLength 默认 20）
+    for (const input of ["", "短标题", "x".repeat(19), "y".repeat(20), "z".repeat(21), "周杰伦".repeat(10)]) {
+      assert(
+        legacyMS.formatMenuTitle(input) === tsMS.formatMenuTitle(input),
+        `formatMenuTitle(len=${input.length}) 不一致: legacy="${legacyMS.formatMenuTitle(input)}" ts="${tsMS.formatMenuTitle(input)}"`
+      )
+    }
+    // buildMenuUrl 未 init → 双方都 null（TS 侧用真 console，临时静音 warn）
+    assert(legacyMS.buildMenuUrl("ccs-baidu", {}) === null, "legacy buildMenuUrl 未 init 应返回 null")
+    const origWarn = console.warn
+    console.warn = () => {}
+    try {
+      assert(tsMS.buildMenuUrl("ccs-baidu", {}) === null, "ts buildMenuUrl 未 init 应返回 null")
+    } finally {
+      console.warn = origWarn
+    }
+    // getStateManager / getURLBuilder / getSystemConfig 未 init → null
+    for (const getter of ["getStateManager", "getURLBuilder", "getSystemConfig"]) {
+      assert(legacyMS[getter]() === null, `legacy ${getter} 未 init 应返回 null`)
+      assert(tsMS[getter]() === null, `ts ${getter} 未 init 应返回 null`)
+    }
+  }
+
+  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure + menuDebugInfo + bootstrap + menuClickClassifier + menuBuilderHelpers + eventHelpers + contextMenuForTab + menuSystem OK")
 }
 
 main().catch((err) => {
