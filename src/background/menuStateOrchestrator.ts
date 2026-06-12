@@ -180,6 +180,23 @@ export async function setMenuState(
     }
   }
 
+  // 标题单调性守卫（2026-06 L6 取证）：新开标签时 onActivated/loading/title/
+  // complete 多个异步写入者并发，实测出现"+46ms 写入正确标题 → +54ms 被空结果
+  // 写入者抹成光板 → 落地顺序决定成败"的竞态 —— 用户机器上空写入者最后落地，
+  // 菜单标题保持无关键字直到切 Tab。规则：**同 tab、URL 未变时，空关键字
+  // 不得覆盖已有的非空标题**。合法清空场景不受影响：导航换页 URL 必变、
+  // 切 tab tabId 必变、清选区路径写的是非空的页面关键词。
+  const wipeSameTab = newTabId != null && previousTabId === newTabId
+  const wipeSameUrl = !meta?.url || meta.url === deps.currentMenuState.url
+  if (!raw && wipeSameTab && wipeSameUrl && deps.currentMenuState.raw) {
+    deps.logMenuEvent("menu-title-wipe-suppressed", {
+      tabId: newTabId,
+      url: meta?.url || "",
+      keptRaw: (deps.currentMenuState.raw || "").slice(0, 50)
+    })
+    return
+  }
+
   deps.currentMenuState.raw = raw
   deps.currentMenuState.normalized = normalized
   deps.currentMenuState.display = displayText

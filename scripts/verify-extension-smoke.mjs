@@ -644,6 +644,30 @@ async function main() {
     }
     console.log(`${TAG} ✓ 标题先行刷新正常（title 到达即更新菜单标题，无需右键/complete，命中 ${titleArrivedHits} 次）`)
 
+    // 15.6 新开标签写入者竞态（用户实测场景）：新 tab 触发 onActivated/loading/
+    //      title/complete 多个异步写入者，曾出现空结果写入者最后落地把标题抹成
+    //      光板（直到切 Tab 才恢复）。守卫上线后：最终标题必含页面关键词，
+    //      且 keyword 写入之后**不得**再出现光板写入。
+    await evaluate(swCdp, `(globalThis.__smokeTitleSpy = [], "reset")`)
+    await evaluate(pageCdp, `new Promise((res) => chrome.tabs.create({ url: "${httpUrl}title2", active: true }, () => res("created")))`)
+    let newTabTitles = []
+    for (let i = 0; i < 20; i++) {
+      await wait(250)
+      newTabTitles = await evaluate(swCdp, `
+        (globalThis.__smokeTitleSpy || []).filter(() => true)
+      `)
+      const lastMain = [...newTabTitles].reverse().find((t) => String(t).startsWith("🔍 触触搜"))
+      if (lastMain && String(lastMain).includes("标题先行刷新冒烟标记")) break
+    }
+    const mainTitles = newTabTitles.map(String).filter((t) => t.startsWith("🔍 触触搜"))
+    const lastMainTitle = mainTitles[mainTitles.length - 1] || "(无)"
+    const keywordIdx = mainTitles.findIndex((t) => t.includes("标题先行刷新冒烟标记"))
+    const wipedAfter = keywordIdx >= 0 && mainTitles.slice(keywordIdx + 1).some((t) => t === "🔍 触触搜")
+    if (!lastMainTitle.includes("标题先行刷新冒烟标记") || wipedAfter) {
+      fail(`新开标签标题竞态复发: titles=${JSON.stringify(mainTitles)} wipedAfter=${wipedAfter}`)
+    }
+    console.log(`${TAG} ✓ 新开标签标题无竞态（最终含页面关键词，无光板回写）`)
+
     // 恢复现场：15.5 的导航换掉了选区页，导航回原页并重建选区，
     // 下游 UI 点按路径（#16 期望关键字 = 选区标记）保持原语义
     await httpCdp.call("Page.navigate", { url: httpUrl })

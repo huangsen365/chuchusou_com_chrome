@@ -1875,7 +1875,10 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     }
     if (changeInfo.status === 'complete' && tab.url) {
       const candidateUrl = changeInfo.url || tab.url;
-      const mergedTab = Object.assign({}, tab, { id: tabId, url: candidateUrl });
+      // title 回填：complete 事件的 tab.title 偶发为空（L6 取证中空标题写入者
+      // 的来源之一），用 title 事件喂过的内存缓存兜底
+      const candidateTitle = tab.title || getLatestTabPageTitle(tabId) || '';
+      const mergedTab = Object.assign({}, tab, { id: tabId, url: candidateUrl, title: candidateTitle });
       await prefetchMenuState(mergedTab, 'tab-complete');
       const stored = selectedTextByTab[tabId];
       const hasStoredSelection =

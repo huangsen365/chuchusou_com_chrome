@@ -738,6 +738,43 @@ async function main() {
   assert(sharedState2.raw === "initial", "inactive-tab reject keeps state.raw unchanged")
   assert(calls2.length === 0, "inactive-tab reject 不触发 refresh/sendMessage")
 
+  // Edge: 标题单调性守卫 —— 同 tab + 同/未知 URL 时，空写入不得抹掉非空标题
+  // （L6 取证：新开标签多写入者竞态，空结果若最后落地标题直到切 Tab 才恢复）
+  {
+    const guardState = { raw: "页面关键词", normalized: "页面关键词", display: "页面关键词", tabId: 7, url: "https://same.example/" }
+    const guardLogs = []
+    const guardDeps = {
+      currentMenuState: guardState,
+      formatMenuTitle: (s) => s,
+      tabs: { query: async () => [{ id: 7 }] },
+      contextMenus: { update: (id, p, cb) => cb() },
+      contextMenusRefresh: { refresh: () => {} },
+      runtimeSendMessage: { sendMessage: async () => {} },
+      action: {},
+      runtime: { lastError: null },
+      menuDefinitions: { "ccs-main": { icon: "🔍", text: "触触搜" } },
+      dynamicSearchMenuItems: [],
+      logMenuEvent: (stage) => guardLogs.push(stage),
+      keywordSyncManager: null,
+      refreshDelayMs: 1,
+      setTimeoutFn: (cb) => cb()
+    }
+    // 1) 同 tab + 同 url 的空写入 → 拦截
+    await tsMso.setMenuState("", "", { tabId: 7, url: "https://same.example/" }, guardDeps)
+    assert(guardState.raw === "页面关键词", "wipe-guard: 空写入不得覆盖非空标题")
+    assert(guardLogs.includes("menu-title-wipe-suppressed"), "wipe-guard: 必须留下取证日志")
+    // 2) 同 tab + 缺 url 的空写入 → 同样拦截（来路不明的清空一律视为竞态）
+    await tsMso.setMenuState("", "", { tabId: 7 }, guardDeps)
+    assert(guardState.raw === "页面关键词", "wipe-guard: 缺 url 的空写入同样拦截")
+    // 3) URL 已变（导航换页）的空写入 → 放行（合法清空）
+    await tsMso.setMenuState("", "", { tabId: 7, url: "https://other.example/" }, guardDeps)
+    assert(guardState.raw === "", "wipe-guard: URL 变化的清空必须放行")
+    // 4) tab 已变的空写入 → 放行
+    guardState.raw = "再填一个"; guardState.tabId = 7
+    await tsMso.setMenuState("", "", { tabId: 8, url: "" }, guardDeps)
+    assert(guardState.raw === "", "wipe-guard: tabId 变化的清空必须放行")
+  }
+
   // menuActions.ts: refreshMenuTitle + refreshContextMenu + copyTextInTab
   const tsMa = loadTs(path.join(root, "src/background/menuActions.ts"))
   assert(typeof tsMa.refreshMenuTitle === "function", "refreshMenuTitle exists")
