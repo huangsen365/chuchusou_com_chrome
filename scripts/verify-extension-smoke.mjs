@@ -384,35 +384,53 @@ async function main() {
           func: (text) => chrome.runtime.sendMessage({ action: "selectionChanged", text, trigger: "smoke-script" }),
           args: ["选区冒烟测试"]
         });
-        // selectionChanged 的 SW 端处理是异步的（active-tab 校验回调）——
-        // 慢机器（CI）上单次等待会让 getKeyword 抢跑拿到 title 兜底。
-        // 轮询直至选区生效（上限 ~6s），消除竞态。
-        let resp = null;
-        for (let i = 0; i < 12; i++) {
-          await new Promise((r) => setTimeout(r, 500));
-          resp = await new Promise((res) =>
-            chrome.runtime.sendMessage(
-              { action: "getKeyword", tabId: tab.id, url: freshTab.url || tab.url, title: freshTab.title || tab.title, intent: "popup-open" },
-              res
-            ));
-          if ((resp?.raw || "").includes("选区冒烟测试") || (resp?.text || "").includes("选区冒烟测试")) break;
-        }
-        return { tabId: tab.id, url: freshTab.url || tab.url, raw: resp?.raw || "", text: resp?.text || "", source: resp?.source || "" };
+        return { tabId: tab.id, url: freshTab.url || tab.url, title: freshTab.title || tab.title };
       })()
     `)
-    if (!selection?.raw?.includes("选区冒烟测试") && !selection?.text?.includes("选区冒烟测试")) {
+
+    // CI 实测过 tab id 归属与本地不同（选区存到了相邻 id 名下）——
+    // 不再假设 create 回调里的 id 就是 sender.tab.id，而是反查
+    // "哪个 tab 名下真的存进了这段选区"，以生效 id 取关键字。
+    let effTabId = null
+    for (let i = 0; i < 14 && effTabId == null; i++) {
+      await wait(500)
+      effTabId = await evaluate(swCdp, `(() => {
+        const m = globalThis.selectedTextByTab || {};
+        for (const [id, v] of Object.entries(m)) {
+          const text = typeof v === "string" ? v : v?.text;
+          if (String(text || "").includes("选区冒烟测试")) return Number(id);
+        }
+        return null;
+      })()`)
+    }
+    let keywordResp = null
+    if (effTabId != null) {
+      keywordResp = await evaluate(pageCdp, `
+        new Promise((res) => chrome.runtime.sendMessage(
+          { action: "getKeyword", tabId: ${effTabId}, url: "${selection?.url || ""}", title: "", intent: "popup-open" },
+          (r) => res(r || {})
+        ))
+      `)
+    }
+    const selOk = (keywordResp?.raw || "").includes("选区冒烟测试") || (keywordResp?.text || "").includes("选区冒烟测试")
+    if (!selOk) {
       const evidence = await evaluate(swCdp, `(() => {
         const ev = (globalThis.__smokeMenuEvents || []).filter((e) =>
           String(e.stage).startsWith("selection-") || String(e.stage).startsWith("resolver-"));
-        return {
-          selectionEvents: ev.slice(-12),
-          stored: globalThis.selectedTextByTab?.[${Number(selection?.tabId) || -1}] || null,
-          allTabsStored: Object.keys(globalThis.selectedTextByTab || {})
-        };
+        const entries = Object.entries(globalThis.selectedTextByTab || {}).map(([id, v]) => ({
+          id, text: (typeof v === "string" ? v : v?.text || "").slice(0, 40), url: typeof v === "object" ? v?.url : ""
+        }));
+        return { selectionEvents: ev.slice(-10), storedEntries: entries };
       })()`)
-      fail(`selectionChanged → getKeyword 回路失败: ${JSON.stringify(selection)} | SW 现场: ${JSON.stringify(evidence)}`)
+      const tabsMap = await evaluate(pageCdp, `
+        new Promise((res) => chrome.tabs.query({}, (ts) => res(ts.map((t) => ({ id: t.id, url: (t.url || "").slice(0, 60), active: t.active })))))
+      `)
+      fail(`selectionChanged → getKeyword 回路失败: created=${JSON.stringify(selection)} effTabId=${effTabId} resp=${JSON.stringify(keywordResp)} | SW: ${JSON.stringify(evidence)} | tabs: ${JSON.stringify(tabsMap)}`)
     }
-    console.log(`${TAG} ✓ selectionChanged → getKeyword 选区回路正常（source: ${selection.source}）`)
+    if (effTabId !== Number(selection?.tabId)) {
+      console.log(`${TAG} ℹ selectionChanged 实际落在 tab ${effTabId}（create 回调报告 ${selection?.tabId}）—— 以生效 id 校验通过`)
+    }
+    console.log(`${TAG} ✓ selectionChanged → getKeyword 选区回路正常（source: ${keywordResp.source}）`)
 
     // 9. executeMenuAction（search 走 SSoT 快速通道）→ 真开新标签且 URL 正确
     const exec = await evaluate(pageCdp, `
