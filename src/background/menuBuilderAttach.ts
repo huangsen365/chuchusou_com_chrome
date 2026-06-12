@@ -427,6 +427,15 @@ async function createContextMenus(g: G): Promise<void> {
       optimizeRootEnabled, hasAdvancedSections, needsFastAnswersConfig
     })
 
+    // ccs-main-live：selection 专属顶层快搜项，标题用 Chrome 原生 %s ——
+    // 绘制瞬间由浏览器代入**当前**选中文本，零异步、零竞速。
+    // 这是"第一次右键看不到关键字"的根治：mac 的菜单在 mousedown 即弹出、
+    // SW 冷启动要几百毫秒，任何 contextMenus.update 都赶不上第一次绘制；
+    // %s 不走我们的管道，天然总是对的。无选区时该项自动不显示，现有树零变化。
+    await createMenuItem(g, {
+      id: "ccs-main-live", title: '🔍 搜："%s"', contexts: ["selection"]
+    }, buildMeta(g, "create-main-live-failed"))
+
     const mainResult = await createMenuItem(g, {
       id: "ccs-main", title: g.getMenuTitle?.("ccs-main") ?? "触触搜", contexts: [...MENU_CONTEXTS_DEFAULT]
     }, buildMeta(g, "create-main-failed"))

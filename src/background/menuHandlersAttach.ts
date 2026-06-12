@@ -61,6 +61,19 @@ export function attachMenuHandlers(): void {
   }
 
   cm.onClicked.addListener(async (info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab) => {
+    // ccs-main-live：快搜当前选区（标题用原生 %s 的那一项）。
+    // info.selectionText 由 Chrome 在点击时原生提供 —— 与菜单标题同源，永远一致。
+    if (info.menuItemId === "ccs-main-live") {
+      const liveText = (info.selectionText || "").trim()
+      if (!liveText) return
+      let limited = liveText
+      if (typeof g.applyTextLimit === "function") {
+        limited = g.applyTextLimit("ccs-baidu", liveText, { tabId: tab?.id }).text
+      }
+      if (typeof g.tryOpenMenuUrl === "function" && g.tryOpenMenuUrl("ccs-baidu", limited, { tabId: tab?.id })) return
+      g.chrome?.tabs?.create?.({ url: "https://www.baidu.com/s?wd=" + encodeURIComponent(limited) })
+      return
+    }
     tab = await hydrateContextMenuTab(tab, g)
     try { await g.loadMenuToggleConfig?.() } catch { /* ignore */ }
     try { await g.syncSelectionFromTab?.(tab, "context-click", { updateMenu: false }) } catch { /* ignore */ }

@@ -1265,7 +1265,21 @@ async function main() {
     }
   }
 
-  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure + menuDebugInfo + bootstrap + menuClickClassifier + menuHandlersAttach + menuBuilderHelpers + eventHelpers + contextMenuForTab + menuSystem OK")
+  // ccs-main-live 契约：selection 专属 + 原生 %s 标题 + 点击走 ccs-baidu 快搜
+  {
+    const builderSrc = fs.readFileSync(path.join(root, "src/background/menuBuilderAttach.ts"), "utf8")
+    assert(builderSrc.includes('id: "ccs-main-live"'), "menuBuilderAttach 应创建 ccs-main-live")
+    const liveBlock = builderSrc.slice(builderSrc.indexOf('id: "ccs-main-live"'), builderSrc.indexOf('id: "ccs-main"'))
+    assert(liveBlock.includes('%s'), "ccs-main-live 标题必须用原生 %s（绘制时代入选区，免疫首次右键竞速）")
+    assert(liveBlock.includes('contexts: ["selection"]'), "ccs-main-live 必须 selection 专属（无选区不显示）")
+    const handlerSrc = fs.readFileSync(path.join(root, "src/background/menuHandlersAttach.ts"), "utf8")
+    const branch = handlerSrc.slice(handlerSrc.indexOf('info.menuItemId === "ccs-main-live"'))
+    assert(branch.includes("info.selectionText"), "ccs-main-live 点击必须用 Chrome 原生 selectionText")
+    assert(branch.includes('tryOpenMenuUrl("ccs-baidu"'), "ccs-main-live 点击应走 ccs-baidu SSoT 快搜")
+    assert(branch.includes("applyTextLimit"), "ccs-main-live 点击应过字数保护")
+  }
+
+  console.log("[verify-background-extras-dual] StateManager + keywords + promptBuilders + voiceOffscreenBridge + KeywordService + config + init + KeywordSyncManager + tabState + menuTitles + menuTitleUpdater + menuStateOrchestrator + menuActions + popupMenuStructure + menuDebugInfo + bootstrap + menuClickClassifier + menuHandlersAttach + menuBuilderHelpers + eventHelpers + contextMenuForTab + menuSystem + mainLive OK")
 }
 
 main().catch((err) => {

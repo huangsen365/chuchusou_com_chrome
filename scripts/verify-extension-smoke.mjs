@@ -209,6 +209,20 @@ async function main() {
     }
     console.log(`${TAG} ✓ SW 启动期零未捕获异常`)
 
+    // 3.5 ccs-main-live 存在性探针：contextMenus 没有查询 API，
+    //     用"重复 id 创建必报 duplicate 错"反证该项已注册
+    const liveProbe = await evaluate(swCdp, `
+      new Promise((res) => {
+        try {
+          chrome.contextMenus.create({ id: "ccs-main-live", title: "probe", contexts: ["selection"] }, () => {
+            res(chrome.runtime.lastError?.message || "");
+          });
+        } catch (e) { res(e?.message || String(e)); }
+      })
+    `)
+    if (!/duplicate/i.test(liveProbe || "")) fail(`ccs-main-live 未注册（探针结果: ${JSON.stringify(liveProbe)}）`)
+    console.log(`${TAG} ✓ ccs-main-live（原生 %s 实时选区快搜项）已注册`)
+
     // 4. 消息协议：从扩展页（about:blank tab 导航到 welcome 页）发真实消息
     const pageTarget = await findTarget(port, (t) => t.type === "page" && t.webSocketDebuggerUrl)
     if (!pageTarget) fail("找不到 page target")
