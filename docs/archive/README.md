@@ -27,6 +27,12 @@
 
 上述设计的"新架构"代码已被确认为**未激活僵尸**（`INIT_CONFIG.useNewSystem=false`），相关文件已全部搬迁到 `legacy/_unactivated/`。生产环境跑的是老流水线（`background/base.js` / `events.js` / `menuBuilder.js` / `menuHandlers.js`）。
 
+## 2026-06 增补
+
+老流水线随后也被逐个 port 成 TS：`base.js / menuBuilder.js / menuHandlers.js` 等 6 个文件
+已退役到 `legacy/background-retired/`（见该目录 README），生产 SW 入口是 `src/background.ts`，
+仅剩 `background/events.js` 仍是 legacy 主体。`menuSystem.js` 的 `useNewSystem` 死分支已删。
+
 详见：
 - 最新审计：`../TECH_DEBT_AUDIT.md`
 - 僵尸代码位置：`/legacy/_unactivated/README.md`
