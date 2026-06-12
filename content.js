@@ -982,6 +982,7 @@
 
       aiPromptFillDone.add(key);
       cleanupChatGptRelayUrl();
+      armPostSendResidueWatcher(text);
       showAIFillToast('已自动补充完整提示词，请确认后发送');
       if (pendingId && ackAction) {
         await sendRuntimeMessage({ action: ackAction, pendingId });
@@ -990,6 +991,90 @@
     } finally {
       aiPromptFillInFlight.delete(key);
     }
+  }
+
+  // ============================================================
+  // 发送驻留侦测：填充成功后盯一次"发送手势 → 1.6s 后输入框原封不动"。
+  // 那意味着站点根本没消费这次发送（典型机理：编辑器内部 state 与 DOM 脱钩，
+  // 站点发送时读 state 拿到空 —— Yiyan 历史上的"提交后提示词驻留"）。
+  // 处置：重新派发一轮输入事件做 state 再同步 + 留诊断 + 提示用户再点一次。
+  // ============================================================
+  let lastAIFillMethod = '';
+  let residueWatcher = null;
+
+  function armPostSendResidueWatcher(text) {
+    // VM 类校验环境（verify-ai-prompt-fill-dedupe）的 document stub 没有事件 API
+    if (typeof document?.addEventListener !== 'function' || typeof document?.removeEventListener !== 'function') return;
+    disarmResidueWatcher();
+    const expected = normalizeFilledText(text);
+    if (!expected) return;
+
+    const onGesture = (event) => {
+      if (!residueWatcher || residueWatcher.checking) return;
+      const composer = findChatGptComposerTarget();
+      if (!composer) return;
+
+      const isComposerEnter = event.type === 'keydown' && event.key === 'Enter' && !event.shiftKey &&
+        (event.target === composer || composer.contains(event.target));
+      const isButtonClick = event.type === 'click' &&
+        !!(event.target instanceof Element && event.target.closest('button, [role="button"], [type="submit"]'));
+      if (!isComposerEnter && !isButtonClick) return;
+      // 用与填充校验同一把模糊尺子（<p> 段落的 innerText 换行数可能与原文不同，
+      // 严格相等会漏判），内容已不是本 prompt 时与本手势无关
+      if (!editableAcceptsFilledText(composer, residueWatcher.rawText)) return;
+
+      residueWatcher.checking = true;
+      const watcherRef = residueWatcher; // 1.6s 间隔内可能被新填充重新 arm/disarm
+      setTimeout(() => {
+        if (residueWatcher !== watcherRef) return;
+        const target = findChatGptComposerTarget();
+        if (target && editableAcceptsFilledText(target, watcherRef.rawText)) {
+          try { dispatchEditableEvents(target); } catch (_) { /* best effort */ }
+          recordAIFillDiagnostic({
+            kind: 'residue-after-send',
+            host: location.hostname,
+            fillMethod: lastAIFillMethod,
+            promptLength: expected.length
+          });
+          showAIFillToast('似乎未发送成功：已重新同步输入框，请再点一次发送');
+          disarmResidueWatcher();
+          return;
+        }
+        // 内容已被站点消费/清空 —— 正常发送，解除侦测
+        disarmResidueWatcher();
+      }, 1600);
+    };
+
+    residueWatcher = { onGesture, checking: false, rawText: text };
+    document.addEventListener('keydown', onGesture, true);
+    document.addEventListener('click', onGesture, true);
+    // 兜底自动解除：填充后 90s 内没有发送手势就不再盯
+    residueWatcher.timeoutId = setTimeout(disarmResidueWatcher, 90000);
+  }
+
+  function disarmResidueWatcher() {
+    if (!residueWatcher) return;
+    try {
+      document.removeEventListener('keydown', residueWatcher.onGesture, true);
+      document.removeEventListener('click', residueWatcher.onGesture, true);
+    } catch (_) { /* document stub 无事件 API */ }
+    clearTimeout(residueWatcher.timeoutId);
+    residueWatcher = null;
+  }
+
+  function recordAIFillDiagnostic(entry) {
+    const record = { ...entry, ts: Date.now() };
+    try {
+      // warn 级别：chrome://extensions 的错误列表也能看到，便于用户零成本回报
+      console.warn('[触触搜][AIFill] 发送后提示词驻留 —— 输入框内部状态疑似未同步', record);
+    } catch (_) { /* ignore */ }
+    try {
+      chrome.storage?.local?.get?.(['ccs_aifill_diag'], (data) => {
+        const list = Array.isArray(data?.ccs_aifill_diag) ? data.ccs_aifill_diag : [];
+        list.push(record);
+        chrome.storage?.local?.set?.({ ccs_aifill_diag: list.slice(-20) });
+      });
+    } catch (_) { /* ignore */ }
   }
 
   async function stabilizeAIPromptFill(text) {
@@ -1059,8 +1144,9 @@
       const tag = (target.tagName || '').toLowerCase();
       if (tag === 'textarea' || tag === 'input') {
         setInputLikeValue(target, text);
+        lastAIFillMethod = 'input-value';
       } else {
-        setContentEditableValue(target, text);
+        lastAIFillMethod = setContentEditableValue(target, text) || 'unknown';
       }
       const verified = editableAcceptsFilledText(target, text);
       return verified ? { ok: true } : { ok: false, error: 'fill-not-verified' };
@@ -1130,7 +1216,7 @@
 
   function setContentEditableValue(element, text) {
     element.focus();
-    if (editableAcceptsFilledText(element, text)) return;
+    if (editableAcceptsFilledText(element, text)) return 'already-ok';
 
     // 关键设计：native trusted execCommand 路径优先；合成 paste 因 isTrusted=false 不可靠，降到 tier 5。
     // 每条 tier 成功后都 dispatchEditableEvents 保证 React controlled state 同步。
@@ -1141,7 +1227,7 @@
     if (insertHtmlIntoContentEditable(element, text)) {
       if (editableAcceptsFilledText(element, text) && contentEditableHasStructuralLineBreaks(element, text)) {
         dispatchEditableEvents(element);
-        return;
+        return 'insert-html';
       }
     }
 
@@ -1151,7 +1237,7 @@
     if (insertBulkTextIntoContentEditable(element, text)) {
       if (editableAcceptsFilledText(element, text) && contentEditableHasStructuralLineBreaks(element, text)) {
         dispatchEditableEvents(element);
-        return;
+        return 'insert-text-bulk';
       }
     }
 
@@ -1160,7 +1246,7 @@
     insertContentEditableText(element, text, 'line-break');
     if (editableAcceptsFilledText(element, text) && contentEditableHasStructuralLineBreaks(element, text)) {
       dispatchEditableEvents(element);
-      return;
+      return 'insert-text-line-break';
     }
 
     // Tier 4: 逐行 insertText + insertParagraph
@@ -1168,7 +1254,7 @@
     insertContentEditableText(element, text, 'paragraph');
     if (editableAcceptsFilledText(element, text) && contentEditableHasStructuralLineBreaks(element, text)) {
       dispatchEditableEvents(element);
-      return;
+      return 'insert-text-paragraph';
     }
 
     // Tier 5: 合成 ClipboardEvent('paste') —— fallback for editors that ONLY accept paste（非 React 系老编辑器）
@@ -1176,7 +1262,7 @@
     if (pasteIntoContentEditable(element, text)) {
       if (editableAcceptsFilledText(element, text) && contentEditableHasStructuralLineBreaks(element, text)) {
         dispatchEditableEvents(element);
-        return;
+        return 'synthetic-paste';
       }
     }
 
@@ -1184,6 +1270,9 @@
     clearContentEditable(element);
     setContentEditablePlainText(element, text);
     dispatchEditableEvents(element);
+    // Tier 6 = 裸 DOM 兜底：编辑器框架不知道这些节点的存在 ——
+    // "DOM 有字但内部 state 空、点发送无效"的高危形态，驻留侦测器会重点盯它
+    return 'raw-dom-fallback';
   }
 
   function insertBulkTextIntoContentEditable(element, text) {
