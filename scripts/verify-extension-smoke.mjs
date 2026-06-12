@@ -166,6 +166,21 @@ async function main() {
     // 给 importScripts + attach 链一点完成时间（通常 <300ms，宽限 1s）
     await wait(1000)
 
+    // 提前安装 logMenuEvent 间谍：全程收集 SW 侧事件，供各路径失败时倾倒现场
+    await evaluate(swCdp, `(() => {
+      if (!globalThis.__smokeLogSpyInstalled) {
+        globalThis.__smokeOriginalLogMenuEvent = globalThis.logMenuEvent;
+        globalThis.logMenuEvent = function(stage, payload) {
+          try { (globalThis.__smokeMenuEvents ||= []).push({ stage, payload: payload || {} }); } catch (_) {}
+          if (typeof globalThis.__smokeOriginalLogMenuEvent === "function") {
+            return globalThis.__smokeOriginalLogMenuEvent.apply(this, arguments);
+          }
+        };
+        globalThis.__smokeLogSpyInstalled = true;
+      }
+      return "spy-on";
+    })()`)
+
     // 注意：StateManager / URLBuilder 是顶层 class 声明 —— 全局词法绑定而非
     // globalThis 属性，必须用裸标识符 typeof 探测
     const bridge = await evaluate(swCdp, `(() => ({
@@ -362,7 +377,16 @@ async function main() {
       })()
     `)
     if (!selection?.raw?.includes("选区冒烟测试") && !selection?.text?.includes("选区冒烟测试")) {
-      fail(`selectionChanged → getKeyword 回路失败: ${JSON.stringify(selection)}`)
+      const evidence = await evaluate(swCdp, `(() => {
+        const ev = (globalThis.__smokeMenuEvents || []).filter((e) =>
+          String(e.stage).startsWith("selection-") || String(e.stage).startsWith("resolver-"));
+        return {
+          selectionEvents: ev.slice(-12),
+          stored: globalThis.selectedTextByTab?.[${"${selection?.tabId}"}] || null,
+          allTabsStored: Object.keys(globalThis.selectedTextByTab || {})
+        };
+      })()`)
+      fail(`selectionChanged → getKeyword 回路失败: ${JSON.stringify(selection)} | SW 现场: ${JSON.stringify(evidence)}`)
     }
     console.log(`${TAG} ✓ selectionChanged → getKeyword 选区回路正常（source: ${selection.source}）`)
 
