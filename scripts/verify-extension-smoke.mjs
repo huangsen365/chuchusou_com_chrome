@@ -17,7 +17,8 @@
  *     selectionChanged → getKeyword 选区回路 / executeMenuAction search
  *     真开新标签且 URL 走 SSoT 模板 / 百度 wd= URL 关键字提取 /
  *     ccs_kw_ storage 即时缓存写入契约 / 真实选区捕获（本地 HTTP 页 +
- *     trusted 三连击 → content.js → SW）/ popup + sidepanel UI 启动渲染
+ *     trusted 三连击 → content.js → SW）/ 右键菜单动态标题（contextMenus.update
+ *     间谍断言标题随选区更新）/ popup + sidepanel UI 启动渲染
  *
  * 优雅跳过条件（不 brick npm test 链）：无全局 WebSocket（Node 21+ 才有）/
  * 找不到 Chrome / build 目录不存在。跳过时打 ⚠ 警告；真跑挂了则硬性报错。
@@ -365,6 +366,19 @@ async function main() {
     await httpCdp.call("Page.bringToFront") // 没有前台焦点时 Input 事件不产生 selection
     await wait(800) // content script (document_start) + 页面渲染
 
+    // 15.（前置）给 SW 的 chrome.contextMenus.update 装标题记录器 ——
+    //     用于断言"选中文本 → 右键菜单标题实时更新"这条原本只能人眼验证的路径
+    await evaluate(swCdp, `(() => {
+      if (globalThis.__smokeTitleSpy) return "already";
+      globalThis.__smokeTitleSpy = [];
+      const orig = chrome.contextMenus.update.bind(chrome.contextMenus);
+      chrome.contextMenus.update = (id, props, cb) => {
+        try { if (props && typeof props.title === "string") globalThis.__smokeTitleSpy.push(props.title) } catch (_) {}
+        return orig(id, props, cb);
+      };
+      return "installed";
+    })()`)
+
     const box = await evaluate(httpCdp, `(() => {
       const r = document.getElementById("t").getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
@@ -389,6 +403,22 @@ async function main() {
       fail(`真实选区捕获链路失败: ${JSON.stringify(realSelection)}`)
     }
     console.log(`${TAG} ✓ 真实选区捕获链路正常（trusted 拖选 → content.js → SW，source: ${realSelection.source}）`)
+
+    // 15. 右键菜单动态标题：选中后 contextMenus.update 必须带着选中文本更新标题
+    //     （标题更新可能有 debounce，轮询 spy 最多 4s）
+    let titleHits = 0
+    for (let i = 0; i < 20; i++) {
+      titleHits = await evaluate(swCdp, `
+        (globalThis.__smokeTitleSpy || []).filter((t) => t.includes("真实选区捕获冒烟标记")).length
+      `)
+      if (titleHits > 0) break
+      await wait(200)
+    }
+    if (!(titleHits > 0)) {
+      const sample = await evaluate(swCdp, `(globalThis.__smokeTitleSpy || []).slice(-5)`)
+      fail(`右键菜单标题未随选区更新（spy 最近记录: ${JSON.stringify(sample)}）`)
+    }
+    console.log(`${TAG} ✓ 右键菜单动态标题随选区实时更新（contextMenus.update 命中 ${titleHits} 次）`)
 
     // 10+11. popup / sidepanel UI 启动回归（历史事故："商店版 popup 卡顿/白屏"）：
     //    页面当 tab 打开 → 静态预构建菜单渲染齐全 + 关键元素就位 + 启动零未捕获异常
@@ -421,7 +451,7 @@ async function main() {
     if (pageExceptions.length > 0) fail(`sidepanel 启动期未捕获异常: ${pageExceptions[0]}`)
     console.log(`${TAG} ✓ sidepanel UI 启动正常（${spUi.menuItems} 个菜单项，关键元素就位，零异常）`)
 
-    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 12 条协议/端口/动作/存储/选区路径 + 2 个 UI 页面启动全通`)
+    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 13 条协议/端口/动作/存储/选区/菜单标题路径 + 2 个 UI 页面启动全通`)
   } finally {
     clearTimeout(watchdog)
     try { httpServer?.close() } catch (_) { /* noop */ }
