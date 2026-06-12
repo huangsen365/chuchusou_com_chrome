@@ -261,6 +261,30 @@ async function main() {
     }
     console.log(`${TAG} ✓ sidepanel-alive port 生命周期正常（关→开→关）`)
 
+    // 19. welcome-watcher 推送协议（onConnect 第二分支）：注册即收到当前态(false)，
+    //     侧边栏 port 开/关时分别收到 true / false 的实时推送
+    const watcherPushes = await evaluate(pageCdp, `
+      (async () => {
+        const win = await new Promise((res) => chrome.windows.getCurrent(res));
+        const pushes = [];
+        const watcher = chrome.runtime.connect({ name: "welcome-watcher" });
+        watcher.onMessage.addListener((m) => { if (m?.action === "sidePanelStateChanged") pushes.push(m.isOpen); });
+        watcher.postMessage({ windowId: win.id });
+        await new Promise((r) => setTimeout(r, 300));
+        const alive = chrome.runtime.connect({ name: "sidepanel-alive" });
+        alive.postMessage({ windowId: win.id });
+        await new Promise((r) => setTimeout(r, 300));
+        alive.disconnect();
+        await new Promise((r) => setTimeout(r, 300));
+        watcher.disconnect();
+        return pushes;
+      })()
+    `)
+    if (JSON.stringify(watcherPushes) !== JSON.stringify([false, true, false])) {
+      fail(`welcome-watcher 推送序列异常: ${JSON.stringify(watcherPushes)}（期望 [false,true,false]）`)
+    }
+    console.log(`${TAG} ✓ welcome-watcher 推送协议正常（注册即推 + 开关实时推送）`)
+
     // 8. selectionChanged → getKeyword 回路（选区状态链）
     const selection = await evaluate(pageCdp, `
       (async () => {
@@ -522,7 +546,7 @@ async function main() {
     console.log(`${TAG} ✓ sidepanel 菜单项点按 → executeMenuAction → 新标签`)
     spPage.cdp.close()
 
-    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 14 条协议/端口/动作/存储/选区/菜单标题路径 + 2 个 UI 页面启动 + 2 条 UI 点按实操全通`)
+    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 15 条协议/端口/动作/存储/选区/菜单标题路径 + 2 个 UI 页面启动 + 2 条 UI 点按实操全通`)
   } finally {
     clearTimeout(watchdog)
     try { httpServer?.close() } catch (_) { /* noop */ }
