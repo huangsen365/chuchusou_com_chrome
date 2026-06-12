@@ -4,6 +4,14 @@
 
 每次重构阶段完成后，请按此清单验证功能完整性。
 
+> **2026-06 起部分条目已自动化**：`npm run verify:extension-smoke`（npm test 链尾自动跑）
+> 会用 headless Chrome 真装 build 产物并自动验证：SW 启动零异常、importScripts 桥接、
+> getMenuStructure（分组结构）、getKeyword、ccsDiagPing 版本一致、getMenuDebugInfo、
+> sidepanel-alive port 生命周期、selectionChanged→getKeyword 选区回路、
+> executeMenuAction(search) 真开标签且 URL 走 SSoT 模板。
+> 人工过清单时这些底层链路可以信任，**重点测 UI 交互**：右键菜单动态标题（onShown）、
+> 悬浮浮窗、popup/sidepanel 实操、语音、AI relay 在真实站点的落地效果。
+
 ---
 
 ## 右键菜单功能
