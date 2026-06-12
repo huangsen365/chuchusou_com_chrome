@@ -10,16 +10,17 @@
 
 ## 功能特性
 
-### 🎯 四种入口，覆盖所有使用场景
+### 🎯 三种入口，覆盖所有使用场景
 
 | 入口 | 触发 | 适用场景 |
 |---|---|---|
-| 🖱️ **悬浮浮窗** | 选中文字自动出现 | 快速操作，不打断阅读 |
 | 🖱️ **右键菜单** | 选中后右键 | 需要全部功能时 |
 | 🪟 **Popup 弹窗** | 点击扩展图标 | 没选中文字也能用（输入关键字 / 改设置） |
-| 📑 **侧边栏** | Alt+S 或 popup 里"📑 打开侧边栏" | 长时间创作 / 反复用同一动作 |
+| 📑 **侧边栏** | popup 里"📑 打开侧边栏" | 长时间创作 / 反复用同一动作 |
 
-四种入口共享同一菜单结构（SSoT 配置），保持体验一致。
+三种入口共享同一菜单结构（SSoT 配置），保持体验一致。
+
+> ℹ️ 早期版本的"悬浮浮窗"和底部 dock 栏在当前版本**暂时关闭**（选中文本的捕获与关键字同步仍在后台工作，右键菜单 / popup / 侧边栏照常实时拿到选中内容）；旧浮窗逻辑保留在 `legacy/content.panel-legacy.js`，未来可能以新形态回归。
 
 ### ⚡ AI 任务全家桶
 
@@ -57,9 +58,9 @@
 
 ### 👋 首次安装欢迎页（v1.4.0+）
 
-装好扩展自动弹欢迎页（仅首次装弹，更新不打扰），介绍四种入口 + 主打功能 + 视频教程；"立即打开侧边栏"按钮一键体验，状态实时同步。
+装好扩展自动弹欢迎页（仅首次装弹，更新不打扰），介绍各入口 + 主打功能 + 视频教程；"立即打开侧边栏"按钮一键体验，状态实时同步。
 
-### ⚙️ 命令系统（输入框内）
+### ⚙️ 命令系统（浮窗输入框内，随浮窗暂时关闭；右键菜单的复制 / Base64 / 时间戳等工具项不受影响）
 
 - `/base64 文本` - Base64 编码 / `/base64 -d 编码文本` - 解码
 - `/md5 文本` - 生成 MD5 哈希
@@ -77,19 +78,10 @@
 
 ## 使用说明
 
-1. **轻触选中**: 用鼠标轻触并拖动选中网页文本，触触搜悬浮框会自动出现在您的光标旁
-2. **一键操作**: 功能按钮就在选中文本旁边，轻点即可执行
-3. **命令模式**: 在输入框输入 `/` 开头的命令，按回车执行
-4. **自然关闭**: 点击 × 按钮、按 ESC 键或点击页面其他地方即可关闭
-
-### 快捷键
-- Alt+S: 切换打开/关闭悬浮面板（Toggle）
-- ESC: 关闭悬浮面板
-- 快捷键可在设置中自定义
-
-提示：当你继续用键盘扩展选择（如 Shift+→），面板会实时更新所选文本；将鼠标悬停在功能按钮上，会显示“功能名: 全文”的完整提示。
-
-智能定位：当你滚动到页面很深处后，若面板仍停留在旧位置，按下 Alt+S 会将面板重新定位到可视区域（优先靠近当前选区，否则在视口居中上方），确保始终可见。
+1. **选中即取词**: 用鼠标选中网页文本，扩展后台立即捕获——右键菜单标题、popup、侧边栏的关键字徽章都会实时更新为选中内容
+2. **右键直达**: 选中后右键，菜单里搜索 / AI 对话 / 速答 / 百问 / 优化 / 封面生成一键直达
+3. **Popup / 侧边栏**: 没选中文字也能用——自动回退到页面标题或 URL 关键词；侧边栏还能把常用动作（如封面生成器）置顶
+4. **AI 长文不截断**: 发往 ChatGPT / Claude 等的长提示词走后台中继，不受 URL 长度限制
 
 💡 **小贴士**：「触触搜」的设计理念是让所有操作都在您的鼠标指尖完成，减少手部移动，提升操作效率。
 
@@ -121,63 +113,24 @@
 
 ```
 chuchusou_com_chrome/
-├── manifest.json              # Manifest V3 配置
-├── CLAUDE.md                  # 开发指南（给 Claude Code 用）
-├── README.md                  # 项目说明文档
-├── eslint.config.mjs          # ESLint 配置
-├── package.json               # NPM 依赖配置
-├── background/                # Service Worker 后台脚本
-│   ├── index.js              # 入口点（importScripts 加载顺序）
-│   ├── utils/                # 工具模块
-│   │   ├── Constants.js      # 常量定义（全局变量集中管理）
-│   │   └── TextUtils.js      # 文本处理函数
-│   ├── menu/                 # 新架构菜单模块
-│   │   ├── MenuBuilder.js    # 菜单构建工具类
-│   │   ├── MenuUpdater.js    # 动态标题更新
-│   │   └── MenuHandlers.js   # 点击处理逻辑
-│   ├── events/               # 新架构事件模块
-│   │   ├── TabEvents.js      # 标签页事件处理
-│   │   ├── MessageEvents.js  # 消息事件处理
-│   │   └── MenuEvents.js     # 菜单事件处理
-│   ├── base.js               # 核心状态与函数（逐步迁移中）
-│   ├── events.js             # 消息处理、事件监听（兼容模式）
-│   ├── menuBuilder.js        # 右键菜单构建
-│   ├── menuHandlers.js       # 菜单点击处理
-│   ├── config.js             # 配置加载
-│   ├── StateManager.js       # 状态管理器
-│   ├── MenuRegistry.js       # 菜单注册表
-│   └── KeywordSyncManager.js # 关键字同步管理
-├── content/                   # 内容脚本模块
-│   ├── SelectionManager.js   # 选区管理器
-│   ├── TextEncoder.js        # 文本编码工具
-│   ├── ToastUI.js            # Toast 通知组件
-│   └── ClipboardHelper.js    # 剪贴板助手
-├── content.js                 # 主内容脚本
-├── content.css                # 悬浮面板样式
-├── popup/                     # Popup 菜单（点击扩展图标）
-│   ├── popup.html
-│   ├── popup.js              # 从 background 获取菜单结构
-│   ├── popup.css
-│   └── modules/              # Popup 模块
-│       ├── MenuRenderer.js   # 菜单渲染器
-│       ├── SettingsManager.js# 设置管理器
-│       └── ToastHelper.js    # Toast 助手
-├── modules/                   # 共享模块
-├── config/                    # 配置文件
-│   ├── unifiedMenuConfig.json # 统一菜单配置（含开关）
-│   └── engines.json          # 引擎配置
-├── prompts/                   # 提示词模板
-│   ├── topQuestionsPrompts.json
-│   ├── fastAnswersPrompts.json
-│   └── optimizedPrompts.json
-├── scripts/                   # 开发工具脚本
-│   ├── analyze-errors.js     # ESLint 错误分析工具
-│   └── log-menu-icons.js     # 菜单图标日志工具
-└── icons/                     # 插件图标
-    ├── 16x16.png
-    ├── 48x48.png
-    └── 128x128.png
+├── manifest.json              # Manifest V3 配置（源模板）
+├── src/                       # TS 源码（Plasmo 编译；生产 SW 入口 src/background.ts）
+├── background/                # legacy Service Worker 脚本（仍在运行时的部分）
+├── shared/                    # 前后台共用 JS（keywordClient / runtimeClient / logger…）
+├── content/ + modules/        # 内容脚本（选区捕获 / AI prompt 填充 / toast…）
+├── content.js / dockbar.js    # 内容脚本入口
+├── popup/  + popup-v2/        # Popup（生产 + 备用重写版）
+├── sidepanel/ + sidepanel-v2/ # 侧边栏（生产 + 备用重写版）
+├── offscreen/                 # 语音识别 offscreen 文档
+├── config/                    # unifiedMenuConfig.json / engines.json（SSoT）
+├── prompts/                   # 提示词模板（速答 / 百问 / 优化 / 封面）
+├── scripts/                   # 构建 + 校验脚本（npm test 全链，含真 Chrome 冒烟回归）
+├── legacy/                    # 退役代码（不进 build / zip）
+├── docs/                      # 技术债审计 / 测试清单 / 归档
+└── icons/                     # 扩展图标
 ```
+
+> 完整架构细节（SW 双层桥接、模块加载顺序、SSoT 约定）见 [CLAUDE.md](./CLAUDE.md)。
 
 ## 开发指南
 
@@ -210,7 +163,7 @@ Service Worker 脚本可以使用 Node.js 快速检查语法：
 
 ```bash
 # 检查单个文件
-node --check background/base.js
+node --check background/events.js
 
 # 批量检查
 for f in background/*.js background/**/*.js; do node --check "$f"; done
@@ -230,6 +183,7 @@ for f in background/*.js background/**/*.js; do node --check "$f"; done
 
 近期里程碑：
 
+- **v1.6.x**（2026-05~06）：SW 移植 TS（Plasmo 双层桥接）/ 封面生成器默认极简留白 / 冷启动关键字拉取修复 / npm test 全链含真 Chrome 冒烟回归
 - **v1.5.1**（2026-05-01）：剪贴板兜底 chrome:// 等不支持选区页面 / Windows 滚动文字修复 / 多项体验改进
 - **v1.4.0**（2026-04-30）：首次安装欢迎页 / AI 检测规避双层引导 / 启发式关键字兜底
 - **v1.2.0**（2026-04-29）：封面生成器 / 侧边栏置顶 / 速答两步流程模板

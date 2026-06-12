@@ -16,13 +16,15 @@
  *     getMenuDebugInfo / sidepanel-alive port 生命周期（onConnect）/
  *     selectionChanged → getKeyword 选区回路 / executeMenuAction search
  *     真开新标签且 URL 走 SSoT 模板 / 百度 wd= URL 关键字提取 /
- *     ccs_kw_ storage 即时缓存写入契约 / popup + sidepanel UI 启动渲染
+ *     ccs_kw_ storage 即时缓存写入契约 / 真实选区捕获（本地 HTTP 页 +
+ *     trusted 三连击 → content.js → SW）/ popup + sidepanel UI 启动渲染
  *
  * 优雅跳过条件（不 brick npm test 链）：无全局 WebSocket（Node 21+ 才有）/
  * 找不到 Chrome / build 目录不存在。跳过时打 ⚠ 警告；真跑挂了则硬性报错。
  */
 
 import fs from "node:fs"
+import http from "node:http"
 import os from "node:os"
 import path from "node:path"
 import process from "node:process"
@@ -87,6 +89,7 @@ async function main() {
   let browserCdp = null
   let swCdp = null
   let pageCdp = null
+  let httpServer = null
   try {
     const port = await waitForDevToolsPort(userDataDir, child)
 
@@ -332,6 +335,53 @@ async function main() {
     }
     console.log(`${TAG} ✓ ccs_kw_ storage 即时缓存写入正常（{text, ts, url} 契约完整）`)
 
+    // 14. 真实选区捕获链路（content script 注入 → trusted 鼠标拖选 → mouseup →
+    //     selectionChanged → SW 状态）。本地 HTTP 页 + CDP Input trusted 事件，
+    //     等价于真人鼠标操作 —— 这是此前认为"只能真机"的路径。
+    httpServer = http.createServer((_, res) => {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
+      res.end(`<!doctype html><meta charset="utf-8"><title>smoke</title>
+        <p id="t" style="font-size:24px;margin:60px 20px">真实选区捕获冒烟标记</p>`)
+    })
+    await new Promise((res) => httpServer.listen(0, "127.0.0.1", res))
+    const httpUrl = `http://127.0.0.1:${httpServer.address().port}/`
+
+    const httpTabId = await evaluate(pageCdp, `
+      new Promise((res) => chrome.tabs.create({ url: "${httpUrl}", active: true }, (tab) => res(tab.id)))
+    `)
+    const httpTarget = await findTarget(port, (t) => t.type === "page" && (t.url || "").startsWith(httpUrl), 8000)
+    if (!httpTarget) fail("本地 HTTP 测试页 target 没出现")
+    const httpCdp = new CdpClient(await connectWebSocket(httpTarget.webSocketDebuggerUrl))
+    await httpCdp.call("Runtime.enable")
+    await httpCdp.call("Page.enable")
+    await httpCdp.call("Page.bringToFront") // 没有前台焦点时 Input 事件不产生 selection
+    await wait(800) // content script (document_start) + 页面渲染
+
+    const box = await evaluate(httpCdp, `(() => {
+      const r = document.getElementById("t").getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    })()`)
+    // 三连击选中整段（实测比拖选在 headless 下更稳）
+    for (const cc of [1, 2, 3]) {
+      await httpCdp.call("Input.dispatchMouseEvent", { type: "mousePressed", x: box.x, y: box.y, button: "left", clickCount: cc })
+      await httpCdp.call("Input.dispatchMouseEvent", { type: "mouseReleased", x: box.x, y: box.y, button: "left", clickCount: cc })
+      await wait(80)
+    }
+    await wait(1200) // content.js mouseup → sendMessage → SW 落状态
+
+    const realSelection = await evaluate(pageCdp, `
+      new Promise((res) =>
+        chrome.runtime.sendMessage(
+          { action: "getKeyword", tabId: ${httpTabId}, url: "${httpUrl}", title: "smoke", intent: "popup-open" },
+          (resp) => res({ text: resp?.text || "", raw: resp?.raw || "", source: resp?.source || "" })
+        ))
+    `)
+    httpCdp.close()
+    if (!realSelection?.raw?.includes("真实选区捕获冒烟标记") && !realSelection?.text?.includes("真实选区捕获冒烟标记")) {
+      fail(`真实选区捕获链路失败: ${JSON.stringify(realSelection)}`)
+    }
+    console.log(`${TAG} ✓ 真实选区捕获链路正常（trusted 拖选 → content.js → SW，source: ${realSelection.source}）`)
+
     // 10+11. popup / sidepanel UI 启动回归（历史事故："商店版 popup 卡顿/白屏"）：
     //    页面当 tab 打开 → 静态预构建菜单渲染齐全 + 关键元素就位 + 启动零未捕获异常
     const pageExceptions = []
@@ -363,8 +413,9 @@ async function main() {
     if (pageExceptions.length > 0) fail(`sidepanel 启动期未捕获异常: ${pageExceptions[0]}`)
     console.log(`${TAG} ✓ sidepanel UI 启动正常（${spUi.menuItems} 个菜单项，关键元素就位，零异常）`)
 
-    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 11 条协议/端口/动作/存储路径 + 2 个 UI 页面启动全通`)
+    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 12 条协议/端口/动作/存储/选区路径 + 2 个 UI 页面启动全通`)
   } finally {
+    try { httpServer?.close() } catch (_) { /* noop */ }
     browserCdp?.close()
     swCdp?.close()
     pageCdp?.close()
