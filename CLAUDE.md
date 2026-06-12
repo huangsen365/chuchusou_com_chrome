@@ -91,7 +91,8 @@ chuchusou_com_chrome/
 │   ├── unifiedMenuConfig.json # 统一菜单 URL 模板 SSoT
 │   └── engines.json          # 引擎标题 SSoT（icon + label）
 ├── prompts/                   # 提示词模板（topQuestions / fastAnswers / optimized / cover）
-├── scripts/                   # 构建 + 校验脚本（npm test 跑的 13 道关都在这）
+├── scripts/                   # 构建 + 校验脚本（npm test 全链的所有关卡都在这，
+│                              #   含链尾 headless Chrome 扩展冒烟回归）
 ├── legacy/                    # 🗑 退役代码（不进 build / zip，eslint ignore）
 │   ├── background-retired/   # 6 个已退役 legacy SW 文件（见该目录 README）
 │   └── content.panel-legacy.js
@@ -135,7 +136,7 @@ attachInit()              // ← 必须在 importScripts 之后：依赖 g.MenuS
 ```
 
 `background/index.js`（legacy 入口）保持同一份 importScripts 列表，`npm run verify:sw-bridge`
-强制两边 24 个 import 顺序一致 —— 改加载顺序时两处要同改。
+强制两边 20 个 import 顺序一致（且 events.js 必须在末位）—— 改加载顺序时两处要同改。
 
 #### Content Scripts
 按 manifest.json 中定义的顺序加载，新模块优先：
