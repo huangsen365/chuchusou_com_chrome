@@ -287,7 +287,38 @@ async function main() {
     if (!newTab) fail(`executeMenuAction 后找不到 URL 含 ${expectedUrlPart} 的新标签 —— URLBuilder/tryOpenMenuUrl 链路断了`)
     console.log(`${TAG} ✓ executeMenuAction 真开新标签且 URL 正确（SSoT URLBuilder 链路通）`)
 
-    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 9 条消息/端口/动作路径全通`)
+    // 10+11. popup / sidepanel UI 启动回归（历史事故："商店版 popup 卡顿/白屏"）：
+    //    页面当 tab 打开 → 静态预构建菜单渲染齐全 + 关键元素就位 + 启动零未捕获异常
+    const pageExceptions = []
+    pageCdp.on("Runtime.exceptionThrown", (p) => {
+      pageExceptions.push(p?.exceptionDetails?.exception?.description || p?.exceptionDetails?.text || "unknown")
+    })
+
+    await pageCdp.call("Page.navigate", { url: `chrome-extension://${extensionId}/popup/popup.html` })
+    await wait(1200)
+    const popupUi = await evaluate(pageCdp, `(() => ({
+      menuItems: document.querySelectorAll(".menu-item").length,
+      staticBuilt: !!document.querySelector("[data-static-built]"),
+      keywordEl: !!document.getElementById("currentKeyword") || !!document.querySelector(".keyword, #keyword, [class*='keyword']")
+    }))()`)
+    if (!(popupUi?.menuItems >= 90)) fail(`popup 菜单渲染异常: ${popupUi?.menuItems} 个 .menu-item（期望 ≥90）`)
+    if (!popupUi?.staticBuilt) fail("popup 静态预构建菜单标记（data-static-built）缺失")
+    if (pageExceptions.length > 0) fail(`popup 启动期未捕获异常: ${pageExceptions[0]}`)
+    console.log(`${TAG} ✓ popup UI 启动正常（${popupUi.menuItems} 个菜单项，零异常）`)
+
+    await pageCdp.call("Page.navigate", { url: `chrome-extension://${extensionId}/sidepanel/sidepanel.html` })
+    await wait(1200)
+    const spUi = await evaluate(pageCdp, `(() => ({
+      menuItems: document.querySelectorAll(".sp-menu-item").length,
+      keywordEl: !!document.getElementById("spKeyword"),
+      pinEl: !!document.getElementById("spPin")
+    }))()`)
+    if (!(spUi?.menuItems >= 15)) fail(`sidepanel 菜单渲染异常: ${spUi?.menuItems} 个 .sp-menu-item（期望 ≥15）`)
+    if (!spUi?.keywordEl || !spUi?.pinEl) fail(`sidepanel 关键元素缺失: ${JSON.stringify(spUi)}`)
+    if (pageExceptions.length > 0) fail(`sidepanel 启动期未捕获异常: ${pageExceptions[0]}`)
+    console.log(`${TAG} ✓ sidepanel UI 启动正常（${spUi.menuItems} 个菜单项，关键元素就位，零异常）`)
+
+    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 9 条消息/端口/动作路径 + 2 个 UI 页面启动全通`)
   } finally {
     browserCdp?.close()
     swCdp?.close()
