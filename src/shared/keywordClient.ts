@@ -20,11 +20,21 @@ export interface KeywordRequestOptions {
   tab?: chrome.tabs.Tab | null
   instantFromStorage?: boolean
   onInstant?: (cached: KeywordResult) => void
+  /** 单次尝试超时；冷启动场景可放宽（如 3000ms）。与 shared/keywordClient.js 对齐 */
+  timeoutMs?: number
+  /** 超时 / SW 未就绪时的重试次数，默认 1（与 shared/keywordClient.js 一致） */
+  retries?: number
 }
 
 export const KEYWORD_STORAGE_PREFIX = "ccs_kw_"
 export const KEYWORD_STORAGE_TTL_MS = 5 * 60 * 1000
-const KEYWORD_REQUEST_TIMEOUT_MS = 1800
+// 与 shared/keywordClient.js 的 REQUEST_TIMEOUT_MS 对齐（JS 版是生产主路径）
+const KEYWORD_REQUEST_TIMEOUT_MS = 1500
+const KEYWORD_RETRY_DELAY_MS = 120
+
+function isReceivingEndError(message: string): boolean {
+  return /Receiving end does not exist|Could not establish connection|message port closed|Extension context invalidated/i.test(message || "")
+}
 
 function queryTabs(queryInfo: chrome.tabs.QueryInfo): Promise<chrome.tabs.Tab | null> {
   return new Promise((resolve) => {
@@ -124,50 +134,75 @@ export async function requestKeyword(
     })
   }
 
+  const timeoutMs = options.timeoutMs || KEYWORD_REQUEST_TIMEOUT_MS
+  const maxRetries = options.retries ?? 1
+
   return new Promise((resolve) => {
     let settled = false
-    let timeoutId: ReturnType<typeof setTimeout> | null = null
     const finalize = (payload: KeywordResult): void => {
       if (settled) return
       settled = true
-      if (timeoutId) {
-        clearTimeout(timeoutId)
-        timeoutId = null
-      }
       resolve(payload)
     }
-    timeoutId = setTimeout(() => {
-      console.warn("[触触搜][KeywordClient] getKeyword timeout:", { intent, tabId: activeTab.id })
-      finalize({ text: "", raw: "" })
-    }, KEYWORD_REQUEST_TIMEOUT_MS)
 
-    try {
-      chrome.runtime.sendMessage(
-        {
-          action: "getKeyword",
-          tabId: activeTab.id,
-          url: activeTab.url,
-          title: activeTab.title,
-          intent
-        },
-        (response?: Partial<KeywordResult>) => {
-          if (settled) return
-          freshResolved = true
-          if (chrome.runtime.lastError) {
-            finalize({ text: "", raw: "" })
-            return
-          }
-
-          finalize({
-            text: response?.text || "",
-            raw: response?.raw || response?.text || ""
-          })
+    // 与 shared/runtimeClient.js 同语义：仅对"超时 / SW 未就绪"重试（间隔 120ms），
+    // 其它 lastError / 异常直接以空结果收尾。
+    const attempt = (remainingRetries: number): void => {
+      if (settled) return
+      let attemptDone = false
+      const timeoutId = setTimeout(() => {
+        if (settled || attemptDone) return
+        attemptDone = true
+        if (remainingRetries > 0) {
+          setTimeout(() => attempt(remainingRetries - 1), KEYWORD_RETRY_DELAY_MS)
+        } else {
+          console.warn("[触触搜][KeywordClient] getKeyword timeout:", { intent, tabId: activeTab.id, timeoutMs })
+          finalize({ text: "", raw: "" })
         }
-      )
-    } catch (error) {
-      freshResolved = true
-      console.warn("[触触搜][KeywordClient] sendMessage 异常:", error)
-      finalize({ text: "", raw: "" })
+      }, timeoutMs)
+
+      try {
+        chrome.runtime.sendMessage(
+          {
+            action: "getKeyword",
+            tabId: activeTab.id,
+            url: activeTab.url,
+            title: activeTab.title,
+            intent
+          },
+          (response?: Partial<KeywordResult>) => {
+            const lastError = chrome.runtime.lastError?.message || ""
+            if (settled || attemptDone) return
+            attemptDone = true
+            clearTimeout(timeoutId)
+            if (lastError) {
+              if (isReceivingEndError(lastError) && remainingRetries > 0) {
+                // 重试期间不置 freshResolved —— 允许 instant 缓存先渲染（与 JS 版一致）
+                setTimeout(() => attempt(remainingRetries - 1), KEYWORD_RETRY_DELAY_MS)
+              } else {
+                freshResolved = true
+                finalize({ text: "", raw: "" })
+              }
+              return
+            }
+
+            freshResolved = true
+            finalize({
+              text: response?.text || "",
+              raw: response?.raw || response?.text || ""
+            })
+          }
+        )
+      } catch (error) {
+        if (settled || attemptDone) return
+        attemptDone = true
+        clearTimeout(timeoutId)
+        freshResolved = true
+        console.warn("[触触搜][KeywordClient] sendMessage 异常:", error)
+        finalize({ text: "", raw: "" })
+      }
     }
+
+    attempt(maxRetries)
   })
 }
