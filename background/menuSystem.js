@@ -24,12 +24,6 @@ let stateManager = null;
 let urlBuilder = null;
 
 /**
- * 菜单管理器实例
- * @type {MenuManager}
- */
-let menuManager = null;
-
-/**
  * 系统配置
  * @type {Object}
  */
@@ -44,7 +38,7 @@ let systemConfig = null;
  *
  * @param {Object} options - 配置选项
  * @param {boolean} [options.debug] - 是否启用调试模式
- * @param {boolean} [options.useNewSystem] - 是否使用新系统（默认 false，保持向后兼容）
+ * @param {boolean} [options.useNewSystem] - 已废弃：MenuManager 已删除（v1.6.18），传 true 只会得到一条 warn
  * @returns {Promise<void>}
  */
 async function initMenuSystem(options = {}) {
@@ -91,25 +85,14 @@ async function initMenuSystem(options = {}) {
     }
 
     if (useNewSystem) {
-      // 使用新的菜单系统
-      menuManager = new MenuManager({
-        stateManager,
-        urlBuilder,
-        debug,
-        maxParamLength: systemConfig.constants.maxParamLength,
-        maxDisplayLength: systemConfig.constants.maxDisplayLength
-      });
-
-      await menuManager.init(systemConfig);
-
-      console.log('[MenuSystem] New system initialized successfully');
+      // useNewSystem 分支：MenuManager 已删除（v1.6.18），不再实例化。
+      // 与 src/background/menuSystem.ts 保持同一语义。
+      console.warn('[MenuSystem] useNewSystem=true 但 MenuManager 已下线，仅 stateManager+urlBuilder 可用');
     } else {
       // 保持使用旧系统，但提供状态管理和 URL 构建能力
       console.log('[MenuSystem] Running in compatibility mode (old system + new utilities)');
 
       // 将新的工具暴露给旧系统使用（兼容 Service Worker）
-      const globalObj = typeof globalThis !== 'undefined' ? globalThis :
-                        typeof self !== 'undefined' ? self : {};
       globalObj._menuSystemCompat = {
         stateManager,
         urlBuilder,
@@ -165,15 +148,6 @@ function getStateManager() {
  */
 function getURLBuilder() {
   return urlBuilder;
-}
-
-/**
- * 获取菜单管理器实例
- *
- * @returns {MenuManager|null}
- */
-function getMenuManager() {
-  return menuManager;
 }
 
 /**
@@ -246,18 +220,13 @@ function buildMenuUrl(menuId, params) {
 }
 
 /**
- * 兼容旧 API：重建菜单
+ * 兼容旧 API：重建菜单（MenuManager 已下线，直接走 createContextMenus）
  *
  * @returns {Promise<void>}
  */
 async function rebuildMenus() {
-  if (menuManager) {
-    await menuManager.buildMenus();
-  } else {
-    console.warn('[MenuSystem] MenuManager not initialized, falling back to old system');
-    if (typeof createContextMenus === 'function') {
-      await createContextMenus();
-    }
+  if (typeof createContextMenus === 'function') {
+    await createContextMenus();
   }
 }
 
@@ -278,7 +247,6 @@ globalObj.MenuSystem = {
   // 获取实例
   getStateManager,
   getURLBuilder,
-  getMenuManager,
   getSystemConfig,
 
   // 兼容 API
@@ -293,18 +261,8 @@ globalObj.MenuSystem = {
 // ============================================
 
 /**
- * 示例 1：使用新系统（完全替换旧系统）
+ * 示例 1：兼容模式初始化（生产唯一模式，由 src/background/init.ts 调用）
  *
- * // 在 background/index.js 中
- * chrome.runtime.onInstalled.addListener(async () => {
- *   await MenuSystem.init({ useNewSystem: true, debug: true });
- * });
- */
-
-/**
- * 示例 2：兼容模式（保留旧系统，使用新工具）
- *
- * // 在 background/index.js 中
  * chrome.runtime.onInstalled.addListener(async () => {
  *   // 初始化新工具
  *   await MenuSystem.init({ useNewSystem: false, debug: false });
@@ -319,9 +277,8 @@ globalObj.MenuSystem = {
  */
 
 /**
- * 示例 3：在旧代码中使用新工具
+ * 示例 2：在旧代码中使用新工具
  *
- * // 在 menuHandlers.js 中
  * function handleMenuClick(info, tab) {
  *   const rawText = info.selectionText || '';
  *
