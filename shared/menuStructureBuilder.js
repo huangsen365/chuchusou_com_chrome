@@ -27,6 +27,7 @@
     'ccs-main': { text: '触触搜', icon: '🔍' },
     'ccs-baidu': { text: '百度搜索', icon: '🐼' },
     'ccs-google': { text: 'Google 搜索', icon: '🔎' },
+    'ccs-x': { text: 'X（推特）搜索', icon: '𝕏' },
     'ccs-yiyan': { text: '文心一言', icon: '🧠' },
     'ccs-chatgpt': { text: 'ChatGPT', icon: '🤖' },
     'ccs-claude': { text: 'Claude', icon: '🧠' },
@@ -96,7 +97,8 @@
   // ============ Popup 菜单常驻条目（urlPattern / type / action） ============
   const SEARCH_ITEMS = [
     { id: 'ccs-baidu', type: 'search', urlPattern: 'https://www.baidu.com/s?wd=${KEYWORD}' },
-    { id: 'ccs-google', type: 'search', urlPattern: 'https://www.google.com/search?q=${KEYWORD}' }
+    { id: 'ccs-google', type: 'search', urlPattern: 'https://www.google.com/search?q=${KEYWORD}' },
+    { id: 'ccs-x', type: 'search', urlPattern: 'https://x.com/search?q=${KEYWORD}' }
   ];
   const AI_ITEMS = [
     { id: 'ccs-chatgpt', type: 'ai-chat', urlPattern: 'https://chatgpt.com/?q=${KEYWORD}' },

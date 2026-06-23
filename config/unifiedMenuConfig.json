@@ -119,6 +119,15 @@
           "contexts": ["selection", "page"],
           "urlPattern": "https://www.google.com/search?q=${KEYWORD}",
           "enabled": true
+        },
+        {
+          "id": "ccs-x",
+          "type": "search",
+          "title": "X（推特）搜索",
+          "icon": "𝕏",
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://x.com/search?q=${KEYWORD}",
+          "enabled": true
         }
       ]
     },

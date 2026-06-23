@@ -38,7 +38,7 @@ const MENU_CONTEXTS_WITH_EDITABLE: ReadonlyArray<chrome.contextMenus.ContextType
 
 const MENU_GROUPS = Object.freeze({
   fastQaQuick: [] as string[],  // dynamic from FAST_QA_QUICK_ITEMS
-  search: [{ id: "ccs-baidu" }, { id: "ccs-google" }],
+  search: [{ id: "ccs-baidu" }, { id: "ccs-google" }, { id: "ccs-x" }],
   ai: [
     { id: "ccs-chatgpt" },
     { id: "ccs-claude" },
