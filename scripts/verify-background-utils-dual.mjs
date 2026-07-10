@@ -185,6 +185,9 @@ function compareConstants(legacy, tsConstants) {
     const diff = deepEqual(legacyVal, tsVal)
     if (diff) throw new Error(`Constant "${label}" diverges: ${diff}`)
   }
+  if (legacy.DYNAMIC_SEARCH_MENU_ITEMS.length !== 0 || tsConstants.DYNAMIC_SEARCH_MENU_ITEMS.length !== 0) {
+    throw new Error("DYNAMIC_SEARCH_MENU_ITEMS must stay empty so child menu titles never repeat the keyword")
+  }
 }
 
 function normalizeReadonlyArrays(obj) {

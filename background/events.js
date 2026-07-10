@@ -375,6 +375,8 @@ async function ccsFillYiyanSlatePromptFromContent(sender, text) {
   let senderAllowed = false;
   try {
     const parsed = new URL(senderUrl);
+    // Deliberately legacy-only: chat.baidu.com is a normal textarea and must
+    // never receive the old MAIN-world Slate editor injection.
     senderAllowed = parsed.hostname.toLowerCase() === 'yiyan.baidu.com';
   } catch (_) {
     senderAllowed = false;
@@ -1421,9 +1423,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                   break;
                 case 'ccs-yiyan':
                   await ccsOpenMenuUrlWithAIRelay(
-                    'https://yiyan.baidu.com/?q=${KEYWORD}',
+                    'https://chat.baidu.com/?enter_type=yiyan_site',
                     keyword,
-                    `https://yiyan.baidu.com/?q=${encodedKeyword}`,
+                    'https://chat.baidu.com/?enter_type=yiyan_site',
                     { source: 'execute-menu-action-fallback', menuId: menuItemId, engineId: 'yiyan' }
                   );
                   handled = true;

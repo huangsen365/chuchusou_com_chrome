@@ -104,7 +104,7 @@
     { id: 'ccs-chatgpt', type: 'ai-chat', urlPattern: 'https://chatgpt.com/?q=${KEYWORD}' },
     { id: 'ccs-claude', type: 'ai-chat', urlPattern: 'https://claude.ai/new?q=${KEYWORD}' },
     { id: 'ccs-grok', type: 'ai-chat', urlPattern: 'https://grok.com/?q=${KEYWORD}' },
-    { id: 'ccs-yiyan', type: 'ai-search', urlPattern: 'https://yiyan.baidu.com/?q=${KEYWORD}' },
+    { id: 'ccs-yiyan', type: 'ai-search', urlPattern: 'https://chat.baidu.com/?enter_type=yiyan_site' },
     { id: 'ccs-google-ai-chat', type: 'ai-chat', urlPattern: 'https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${KEYWORD}' }
   ];
   const GENERAL_ITEMS = [

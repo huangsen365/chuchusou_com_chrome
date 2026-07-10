@@ -157,6 +157,40 @@ async function verifyGoogleAiRelay(runtime) {
   assert.equal(context.ccsIsSupportedAIUrl(hashOnlyGoogle), true, "google relay hash URL should be supported even after udm rewrite")
 }
 
+async function verifyWenxinNewSiteAlwaysUsesRelay(runtime) {
+  const { context } = runtime
+  const officialPattern = "https://chat.baidu.com/?enter_type=yiyan_site"
+  const prompt = "文心新入口短提示"
+
+  assert.equal(
+    context.ccsGetAIEngineForUrl(officialPattern),
+    "yiyan",
+    "chat.baidu.com should be recognized as the yiyan engine"
+  )
+
+  const url = await context.ccsPrepareAIPromptUrl(officialPattern, prompt, {
+    source: "wenxin-new-site-test",
+    menuId: "ccs-yiyan",
+    engineId: "yiyan"
+  })
+  const parsed = new URL(url)
+  const relayId = relayIdFromUrl(url)
+
+  assert.equal(parsed.hostname, "chat.baidu.com", "Wenxin relay should open the new host")
+  assert.equal(parsed.searchParams.get("enter_type"), "yiyan_site", "Wenxin relay should preserve the official entry marker")
+  assert.equal(parsed.searchParams.has("q"), false, "Wenxin new site does not consume q, so relay URLs must not include it")
+  assert(relayId, "Wenxin should use relay even for a short single-line prompt")
+  assert.equal((await context.ccsReadPendingAIPrompt(relayId)).prompt, prompt)
+
+  const legacyUrl = await context.ccsPrepareAIPromptUrl(
+    "https://yiyan.baidu.com/?q=${PROMPT}",
+    "旧模板兼容",
+    { source: "wenxin-legacy-pattern-test", menuId: "ccs-yiyan", engineId: "yiyan" }
+  )
+  assert.equal(new URL(legacyUrl).hostname, "chat.baidu.com", "legacy yiyan patterns should migrate to the new host")
+  assert(relayIdFromUrl(legacyUrl), "legacy yiyan patterns should still use relay")
+}
+
 async function verifyMultilineAiPromptsUseRelay(runtime) {
   const { context } = runtime
   const prompt = "第一行\n\n第二行\n第三行"
@@ -319,6 +353,13 @@ async function verifyConfiguredPatterns(runtime) {
   assert(patterns.length > 20, "expected configured URL patterns to be collected")
 
   for (const item of patterns) {
+    if (item.id.includes("yiyan")) {
+      assert.equal(
+        item.pattern,
+        "https://chat.baidu.com/?enter_type=yiyan_site",
+        `${item.source}:${item.id} should use the official Wenxin entry without a dead q parameter`
+      )
+    }
     const direct = context.ccsBuildUrlFromPattern(item.pattern, longText)
     if (context.ccsIsSupportedAIUrl(direct)) {
       const prepared = await context.ccsPrepareAIPromptUrl(item.pattern, longText, {
@@ -384,10 +425,11 @@ const runtime = loadRuntime()
 verifyPromptHandlersDoNotBypassRelay()
 await verifyAiRelay(runtime)
 await verifyGoogleAiRelay(runtime)
+await verifyWenxinNewSiteAlwaysUsesRelay(runtime)
 await verifyMultilineAiPromptsUseRelay(runtime)
 await verifyRegularUrlTruncation(runtime)
 await verifyFourOhFour(runtime)
 await verifyConfiguredPatterns(runtime)
 await verifyLocalHttpStatuses()
 
-console.log("[verify-url-safety] AI relay + prompt-handler routing + multiline prompt relay + Google AI relay preservation + regular URL truncation + configured engines + 431/404 recovery OK")
+console.log("[verify-url-safety] AI relay + Wenxin new-site relay + prompt-handler routing + multiline prompt relay + Google AI relay preservation + regular URL truncation + configured engines + 431/404 recovery OK")

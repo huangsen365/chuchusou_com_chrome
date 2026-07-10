@@ -139,18 +139,14 @@ const SEL_SUFFIX = "--sel"
 /**
  * 选区孪生树的标题：关键字位用 Chrome 原生 %s（绘制瞬间代入当前选区，
  * 零管道零竞速 —— 视觉取证 L3/L4 截图证实 SW 冻结下依然精准）。
- * 哪些项带关键字位：主项 / 各 *-label / 动态搜索与 AI 直达项 / 速答快捷项。
+ * 仅主项与各级顶部 *-label 显示关键字；可点击的搜索 / AI / 速答叶子
+ * 保持固定标题，避免在同一菜单内反复展示同一个关键字造成视觉疲劳。
  */
-function selTwinTitle(g: G, options: chrome.contextMenus.CreateProperties): string | undefined {
+export function selectionTwinTitle(options: chrome.contextMenus.CreateProperties): string | undefined {
   const id = String(options.id || "")
   if (!options.title) return options.title
   if (id === "ccs-main") return '🔍 搜："%s"'
-  const keywordIds = new Set<string>([
-    ...MENU_GROUPS.search.map((i) => i.id),
-    ...MENU_GROUPS.ai.map((i) => i.id),
-    ...(((g.FAST_QA_QUICK_ITEMS || []) as Array<{ id: string }>).map((i) => i.id))
-  ])
-  if (id.endsWith("-label") || keywordIds.has(id)) return `${options.title}: "%s"`
+  if (id.endsWith("-label")) return `${options.title}: "%s"`
   return options.title
 }
 
@@ -185,7 +181,7 @@ async function createMenuItem(
       const pid = String(options.parentId)
       twin.parentId = pid === "ccs-main" ? "ccs-main-live" : pid + SEL_SUFFIX
     }
-    const twinTitle = selTwinTitle(g, options)
+    const twinTitle = selectionTwinTitle(options)
     if (twinTitle !== undefined) twin.title = twinTitle
     await tsCreateMenuItem(twin, {
       ...meta,

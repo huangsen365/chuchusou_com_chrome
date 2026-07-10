@@ -1304,14 +1304,40 @@ async function main() {
 
   // 选区孪生树契约（视觉取证 L1-L4 锁定的架构）：
   // 1) 双根必须上下文互斥（同上下文双根会被 Chrome 折叠成扩展名父项）
-  // 2) 孪生树标题用原生 %s（SW 冻结下第一次右键依然精准）
+  // 2) 仅根与各级顶部 label 用原生 %s；可点击叶子保持固定标题
   // 3) 点击入口做 --sel 后缀归一化，两棵树共享全部点击语义
   {
-    const builderSrc = fs.readFileSync(path.join(root, "src/background/menuBuilderAttach.ts"), "utf8")
+    const builderPath = path.join(root, "src/background/menuBuilderAttach.ts")
+    const builderSrc = fs.readFileSync(builderPath, "utf8")
+    const builderModule = loadTs(builderPath)
+    assert(typeof builderModule.selectionTwinTitle === "function", "selectionTwinTitle pure helper must be exported")
     assert(builderSrc.includes('const SEL_SUFFIX = "--sel"'), "孪生后缀常量")
     assert(builderSrc.includes('id === "ccs-main" ? "ccs-main-live" : id + SEL_SUFFIX'), "孪生 id 映射（ccs-main → ccs-main-live）")
     assert(builderSrc.includes("contexts: [\"selection\"]".replace(/\\/g, "\\")) || builderSrc.includes('contexts: ["selection"]'), "孪生树必须 selection 专属")
-    assert(builderSrc.includes("'🔍 搜：\"%s\"'") || builderSrc.includes('搜："%s"'), "孪生根标题必须用原生 %s")
+    assert(builderModule.selectionTwinTitle({ id: "ccs-main", title: "🔍 触触搜" }) === '🔍 搜："%s"', "孪生根标题必须用原生 %s")
+    assert(
+      builderModule.selectionTwinTitle({ id: "ccs-search-label", title: "🔍 触触搜" }) === '🔍 触触搜: "%s"',
+      "二级菜单顶部 label 应保留关键词"
+    )
+    for (const { id, title } of [
+      { id: "ccs-baidu", title: "🐼 百度搜索" },
+      { id: "ccs-google", title: "🔎 Google 搜索" },
+      { id: "ccs-x", title: "𝕏 X（推特）搜索" },
+      { id: "ccs-chatgpt", title: "🤖 ChatGPT" },
+      { id: "ccs-claude", title: "🧠 Claude" },
+      { id: "ccs-grok", title: "🦊 Grok" },
+      { id: "ccs-yiyan", title: "🧠 文心一言" },
+      { id: "ccs-google-ai-chat", title: "✨ Google AI 模式" },
+      { id: "ccs-fastqa-chatgpt-quick", title: "🤖 触触搜 · 速答壹拾佰 - ChatGPT" },
+      { id: "ccs-fastqa-claude-quick", title: "🧠 触触搜 · 速答壹拾佰 - Claude" },
+      { id: "ccs-fastqa-grok-quick", title: "🦊 触触搜 · 速答壹拾佰 - Grok" },
+      { id: "ccs-fastqa-yiyan-quick", title: "🧠 触触搜 · 速答壹拾佰 - 文心一言" },
+      { id: "ccs-fastqa-google-ai-quick", title: "✨ 触触搜 · 速答壹拾佰 - Google AI 模式" }
+    ]) {
+      const twinTitle = builderModule.selectionTwinTitle({ id, title })
+      assert(twinTitle === title, `${id} 孪生子项应保持固定标题`)
+      assert(!twinTitle.includes("%s"), `${id} 孪生子项不应重复显示关键词`)
+    }
     assert(builderSrc.includes('id: "ccs-main", title:') && builderSrc.includes('contexts: ["page"]'), "ccs-main 必须仅 page 上下文（editable 会与 selection 共存触发折叠 —— F2 取证）")
     const handlerSrc = fs.readFileSync(path.join(root, "src/background/menuHandlersAttach.ts"), "utf8")
     assert(handlerSrc.includes('rawMenuItemId.endsWith("--sel")'), "点击入口必须做 --sel 归一化")

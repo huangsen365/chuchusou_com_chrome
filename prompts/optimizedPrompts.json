@@ -54,7 +54,7 @@
         {
           "id": "yiyan",
           "label": "文心一言",
-          "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}"
+          "urlPattern": "https://chat.baidu.com/?enter_type=yiyan_site"
         },
         {
           "id": "google-ai",
@@ -86,7 +86,7 @@
         {
           "id": "yiyan",
           "label": "文心一言",
-          "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}"
+          "urlPattern": "https://chat.baidu.com/?enter_type=yiyan_site"
         },
         {
           "id": "google-ai",
@@ -118,7 +118,7 @@
         {
           "id": "yiyan",
           "label": "文心一言",
-          "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}"
+          "urlPattern": "https://chat.baidu.com/?enter_type=yiyan_site"
         },
         {
           "id": "google-ai",
@@ -150,7 +150,7 @@
         {
           "id": "yiyan",
           "label": "文心一言",
-          "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}"
+          "urlPattern": "https://chat.baidu.com/?enter_type=yiyan_site"
         },
         {
           "id": "google-ai",
@@ -182,7 +182,7 @@
         {
           "id": "yiyan",
           "label": "文心一言",
-          "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}"
+          "urlPattern": "https://chat.baidu.com/?enter_type=yiyan_site"
         },
         {
           "id": "google-ai",
@@ -214,7 +214,7 @@
         {
           "id": "yiyan",
           "label": "文心一言",
-          "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}"
+          "urlPattern": "https://chat.baidu.com/?enter_type=yiyan_site"
         },
         {
           "id": "google-ai",
@@ -246,7 +246,7 @@
         {
           "id": "yiyan",
           "label": "文心一言",
-          "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}"
+          "urlPattern": "https://chat.baidu.com/?enter_type=yiyan_site"
         },
         {
           "id": "google-ai",
@@ -278,7 +278,7 @@
         {
           "id": "yiyan",
           "label": "文心一言",
-          "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}"
+          "urlPattern": "https://chat.baidu.com/?enter_type=yiyan_site"
         },
         {
           "id": "google-ai",

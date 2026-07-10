@@ -111,6 +111,7 @@
       if (host === 'chatgpt.com' || host.endsWith('.chatgpt.com')) return 'chatgpt';
       if (host === 'claude.ai' || host.endsWith('.claude.ai')) return 'claude';
       if (host === 'grok.com' || host.endsWith('.grok.com')) return 'grok';
+      if (host === 'chat.baidu.com') return 'yiyan';
       if (host === 'yiyan.baidu.com') return 'yiyan';
       if ((host === 'google.com' || host.endsWith('.google.com')) && (url.searchParams.get('udm') === '50' || hasRelayId)) {
         return 'google-ai';
@@ -1165,7 +1166,7 @@
     const target = findChatGptComposerTarget();
     if (!target) return { ok: false, error: 'composer-not-found' };
 
-    if (isYiyanAIPage() && !editableAcceptsFilledText(target, text)) {
+    if (isLegacyYiyanSlatePage() && !editableAcceptsFilledText(target, text)) {
       const slateResult = await fillYiyanSlatePromptInMainWorld(text);
       if (slateResult?.ok && editableAcceptsFilledText(target, text)) {
         lastAIFillMethod = slateResult.method || 'yiyan-slate-main-world';
@@ -1176,7 +1177,7 @@
     return fillChatGptPromptOnce(text);
   }
 
-  function isYiyanAIPage() {
+  function isLegacyYiyanSlatePage() {
     try {
       return window.location.hostname === 'yiyan.baidu.com';
     } catch (_) {
@@ -1187,7 +1188,9 @@
   function fillYiyanSlatePromptInMainWorld(text) {
     return new Promise((resolve) => {
       const runtime = globalThis.chrome?.runtime;
-      if (!isYiyanAIPage() || !runtime?.sendMessage) {
+      // chat.baidu.com uses a normal textarea and must stay on the generic
+      // input-value path. This MAIN-world bridge is legacy Slate-only.
+      if (!isLegacyYiyanSlatePage() || !runtime?.sendMessage) {
         resolve({ ok: false, error: 'unsupported' });
         return;
       }

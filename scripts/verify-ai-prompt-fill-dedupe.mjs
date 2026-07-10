@@ -251,7 +251,8 @@ function makeHarness({
   consumesPaste = true,
   consumesPasteSilently = false,
   consumesInsertHtml = false,
-  yiyanSlateBridge = false
+  yiyanSlateBridge = false,
+  editorTag = "div"
 } = {}) {
   const documentListeners = new Map()
   const windowListeners = new Map()
@@ -289,7 +290,9 @@ function makeHarness({
       }
     },
     querySelectorAll(selector) {
-      if (selector.includes("contenteditable")) return [editor]
+      if (editor.tagName === "TEXTAREA" && selector.includes("textarea")) return [editor]
+      if (editor.tagName === "INPUT" && selector.includes("input")) return [editor]
+      if (editor.isContentEditable && selector.includes("contenteditable")) return [editor]
       return []
     },
     getElementById(id) {
@@ -318,10 +321,15 @@ function makeHarness({
   }
 
   document.body = new FakeElement("body", document)
-  const editor = new FakeElement("div", document)
-  editor.setAttribute("contenteditable", "true")
-  editor.setAttribute("role", "textbox")
-  editor.textContent = initialText
+  const editor = new FakeElement(editorTag, document)
+  if (editor.tagName === "TEXTAREA" || editor.tagName === "INPUT") {
+    editor.value = initialText
+    editor.setAttribute("placeholder", "询问AI任何问题")
+  } else {
+    editor.setAttribute("contenteditable", "true")
+    editor.setAttribute("role", "textbox")
+    editor.textContent = initialText
+  }
   if (duplicatePromptOnFirstInput) editor.__duplicatePromptOnInput = prompt
   document.body.appendChild(editor)
 
@@ -750,6 +758,37 @@ async function verifyYiyanUsesSlateMainWorldBridge() {
   )
 }
 
+async function verifyChatBaiduTextareaUsesGenericRelayFill() {
+  const pendingId = "pwenxin_textarea_123"
+  const harness = makeHarness({
+    url: `https://chat.baidu.com/?enter_type=yiyan_site#ccs_pp=${pendingId}`,
+    pendingId,
+    editorTag: "textarea",
+    consumesPaste: false,
+    yiyanSlateBridge: true
+  })
+
+  await harness.flush()
+  assert.equal(harness.pendingGets.length, 1, "Wenxin new site should pull its relayed prompt")
+
+  harness.pendingGets[0].callback({ ok: true, prompt: FASTQA_PROMPT, pendingId })
+  await harness.flush(120)
+
+  assert.equal(normalize(harness.editor.value), normalize(FASTQA_PROMPT), "Wenxin textarea should receive the full prompt")
+  assert.equal(harness.editor.__inputEventCount >= 1, true, "Wenxin textarea fill should dispatch an input event")
+  assert.equal(
+    harness.runtimeMessages.some((message) => message.action === "ccsFillYiyanSlatePromptInMainWorld"),
+    false,
+    "Wenxin new site must not invoke the legacy Slate bridge"
+  )
+  assert.equal(harness.ackMessages.length, 1, "Wenxin new-site relay should be acknowledged once")
+
+  const cleaned = new URL(harness.context.location.href)
+  assert.equal(cleaned.hostname, "chat.baidu.com")
+  assert.equal(cleaned.searchParams.get("enter_type"), "yiyan_site")
+  assert.equal(cleaned.hash.includes("ccs_pp"), false, "relay marker should be removed after filling")
+}
+
 async function verifySilentPasteStillDispatchesInput() {
   // 回归测试：模拟 yiyan v4 —— paste 被消费但 React state 没同步（editor 内部 onPaste 不 fire input）。
   // content.js 必须自己 dispatchEditableEvents，否则页面提交时被 React 报"没有输入内容"。
@@ -878,6 +917,7 @@ await verifyAsyncEditorDuplicationIsStabilized()
 await verifyClaudeMultilineUsesPasteHandler()
 await verifySupportedContenteditableEnginesPreserveNewlines()
 await verifyYiyanUsesSlateMainWorldBridge()
+await verifyChatBaiduTextareaUsesGenericRelayFill()
 await verifyFallbackWhenEditorRejectsPaste()
 await verifyChatGptStyleEditorUsesInsertHtml()
 await verifySilentPasteStillDispatchesInput()

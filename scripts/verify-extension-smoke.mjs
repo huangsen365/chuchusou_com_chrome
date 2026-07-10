@@ -74,7 +74,7 @@ async function main() {
   }
 
   // ===== 本地服务器先于 Chrome 启动（resolver 规则需要端口）=====
-  // 去外网化（hermetic）：把 www.baidu.com / www.google.com 解析到本地 HTTPS
+  // 去外网化（hermetic）：把 www.baidu.com / chat.baidu.com / www.google.com 解析到本地 HTTPS
   // 服务器。CI 上百度反爬重定向 / 网络抖动曾让路径 9/12/16 随机红 ——
   // "真开标签"类断言只关心扩展行为，不应依赖外部网站的可用性。
   const noSelectionTitleKeyword = "无选区标题回退冒烟标记"
@@ -113,7 +113,7 @@ async function main() {
     // Extensions.loadUnpacked（需要下面这个 flag）。不要再加
     // --load-extension/--disable-extensions-except —— 实测会干扰 CDP 装载的扩展。
     "--enable-unsafe-extension-debugging",
-    `--host-resolver-rules=MAP www.baidu.com 127.0.0.1:${httpsPort},MAP www.google.com 127.0.0.1:${httpsPort}`,
+    `--host-resolver-rules=MAP www.baidu.com 127.0.0.1:${httpsPort},MAP chat.baidu.com 127.0.0.1:${httpsPort},MAP www.google.com 127.0.0.1:${httpsPort}`,
     "--ignore-certificate-errors",
     "--remote-debugging-port=0",
     `--user-data-dir=${userDataDir}`,
@@ -209,29 +209,39 @@ async function main() {
     }
     console.log(`${TAG} ✓ SW 启动期零未捕获异常`)
 
-    // 3.5 ccs-main-live 存在性探针：contextMenus 没有查询 API，
-    //     用"重复 id 创建必报 duplicate 错"反证该项已注册
+    // 3.5 ccs-main-live 存在性探针：contextMenus 没有查询 API，轮询 update
+    //     直到目标 id 可更新。不能用“重复 id 创建”探针：启动较慢时探针会
+    //     抢先占用生产 id，既制造假红，也会反过来阻断真实菜单注册。
     const liveProbe = await evaluate(swCdp, `
-      new Promise((res) => {
-        try {
-          chrome.contextMenus.create({ id: "ccs-main-live", title: "probe", contexts: ["selection"] }, () => {
-            res(chrome.runtime.lastError?.message || "");
+      (async () => {
+        let lastError = "";
+        for (let i = 0; i < 40; i++) {
+          lastError = await new Promise((res) => {
+            try {
+              chrome.contextMenus.update("ccs-main-live", { visible: true }, () => {
+                res(chrome.runtime.lastError?.message || "");
+              });
+            } catch (e) { res(e?.message || String(e)); }
           });
-        } catch (e) { res(e?.message || String(e)); }
-      })
+          if (!lastError) return { ok: true, attempts: i + 1 };
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        return { ok: false, lastError };
+      })()
     `)
-    if (!/duplicate/i.test(liveProbe || "")) fail(`ccs-main-live 未注册（探针结果: ${JSON.stringify(liveProbe)}）`)
+    if (!liveProbe?.ok) fail(`ccs-main-live 未注册（探针结果: ${JSON.stringify(liveProbe)}）`)
     const twinProbe = await evaluate(swCdp, `
       new Promise((res) => {
         try {
-          chrome.contextMenus.create({ id: "ccs-baidu--sel", title: "probe", contexts: ["selection"] }, () => {
-            res(chrome.runtime.lastError?.message || "");
+          chrome.contextMenus.update("ccs-baidu--sel", { visible: true }, () => {
+            const lastError = chrome.runtime.lastError?.message || "";
+            res({ ok: !lastError, lastError });
           });
-        } catch (e) { res(e?.message || String(e)); }
+        } catch (e) { res({ ok: false, lastError: e?.message || String(e) }); }
       })
     `)
-    if (!/duplicate/i.test(twinProbe || "")) fail(`选区孪生树未注册（ccs-baidu--sel 探针: ${JSON.stringify(twinProbe)}）`)
-    console.log(`${TAG} ✓ 选区孪生树已注册（ccs-main-live 根 + ccs-baidu--sel 等 %s 子项）`)
+    if (!twinProbe?.ok) fail(`选区孪生树未注册（ccs-baidu--sel 探针: ${JSON.stringify(twinProbe)}）`)
+    console.log(`${TAG} ✓ 选区孪生树已注册（动态关键词根/顶部标签 + 固定标题子项）`)
 
     // 4. 消息协议：从扩展页（about:blank tab 导航到 welcome 页）发真实消息
     const pageTarget = await findTarget(port, (t) => t.type === "page" && t.webSocketDebuggerUrl)
@@ -379,6 +389,63 @@ async function main() {
     const newTab = await findTarget(port, (t) => t.type === "page" && (t.url || "").includes(expectedUrlPart), 8000)
     if (!newTab) fail(`executeMenuAction 后找不到 URL 含 ${expectedUrlPart} 的新标签 —— URLBuilder/tryOpenMenuUrl 链路断了`)
     console.log(`${TAG} ✓ executeMenuAction 真开新标签且 URL 正确（SSoT URLBuilder 链路通）`)
+
+    // 9.1 文心新入口专属契约：短提示也必须走 storage relay，最终标签只带
+    //     官方 enter_type + ccs_pp，不再带已失效的 q 参数。目标域名映射到
+    //     本地 HTTPS 夹具，测试只验证扩展行为，不依赖真实文心站可用性。
+    const wenxinPrompt = "文心新入口冒烟123"
+    const wenxinExec = await evaluate(pageCdp, `
+      new Promise((resolve) => {
+        const timer = setTimeout(() => resolve({ __timeout: true }), 8000);
+        chrome.runtime.sendMessage(
+          {
+            action: "executeMenuAction", menuItemId: "ccs-yiyan", menuType: "ai-search",
+            keyword: ${JSON.stringify("文心新入口冒烟123")},
+            urlPattern: "https://chat.baidu.com/?enter_type=yiyan_site"
+          },
+          (resp) => { clearTimeout(timer); resolve({ success: resp?.success === true, raw: resp }); }
+        );
+      })
+    `)
+    if (wenxinExec?.__timeout || !wenxinExec?.success) {
+      fail(`文心 executeMenuAction 失败: ${JSON.stringify(wenxinExec?.raw || wenxinExec)}`)
+    }
+    const wenxinTabTarget = await findTarget(port, (t) =>
+      t.type === "page" && (t.url || "").startsWith("https://chat.baidu.com/?enter_type=yiyan_site"), 8000)
+    if (!wenxinTabTarget) fail("文心菜单没有打开 chat.baidu.com 官方新入口")
+    const wenxinUrl = new URL(wenxinTabTarget.url)
+    const wenxinRelayId = new URLSearchParams(wenxinUrl.hash.replace(/^#/, "")).get("ccs_pp")
+    if (wenxinUrl.searchParams.get("enter_type") !== "yiyan_site" || wenxinUrl.searchParams.has("q") || !wenxinRelayId) {
+      fail(`文心 relay URL 契约异常: ${wenxinUrl}`)
+    }
+    const relayIdLiteral = /^[A-Za-z0-9_-]{6,80}$/.test(wenxinRelayId) ? JSON.stringify(wenxinRelayId) : null
+    if (!relayIdLiteral) fail(`文心 relay id 非法: ${wenxinRelayId}`)
+    const storedWenxinRelay = await evaluate(pageCdp, `
+      (async () => {
+        const relayId = ${relayIdLiteral};
+        const promptKey = "ccs_ai_pending_prompt_" + relayId;
+        for (let i = 0; i < 20; i++) {
+          const tabs = await new Promise((res) => chrome.tabs.query({}, res));
+          const tab = tabs.find((t) => (t.url || t.pendingUrl || "").startsWith("https://chat.baidu.com/?enter_type=yiyan_site"));
+          const bindingKey = tab ? "ccs_ai_pending_tab_" + tab.id : "";
+          const keys = bindingKey ? [promptKey, bindingKey] : [promptKey];
+          const data = await new Promise((res) => chrome.storage.session.get(keys, res));
+          if (data?.[promptKey]?.prompt && bindingKey && data?.[bindingKey]?.id === relayId) {
+            return {
+              prompt: data[promptKey].prompt,
+              relayEngine: data[promptKey].relayEngine,
+              tabBound: !!bindingKey && data?.[bindingKey]?.id === relayId
+            };
+          }
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        return null;
+      })()
+    `)
+    if (storedWenxinRelay?.prompt !== wenxinPrompt || storedWenxinRelay?.relayEngine !== "yiyan" || !storedWenxinRelay?.tabBound) {
+      fail(`文心 relay storage/tab 绑定异常: ${JSON.stringify(storedWenxinRelay)}`)
+    }
+    console.log(`${TAG} ✓ 文心新入口短提示走 storage relay（新域名 / 无 q / prompt + tab 绑定完整）`)
 
     // 12. URL 关键字提取子系统（keywords.js 搜索引擎分支）：
     //     复用 #9 开出的"百度"标签（域名已映射到本地 HTTPS 夹具，URL 与 wd=

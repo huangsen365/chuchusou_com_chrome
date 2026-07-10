@@ -5,6 +5,7 @@ import path from "node:path"
 import process from "node:process"
 
 const root = process.cwd()
+const WENXIN_ENTRY_URL = "https://chat.baidu.com/?enter_type=yiyan_site"
 
 function readJson(relativePath) {
   return JSON.parse(fs.readFileSync(path.join(root, relativePath), "utf8"))
@@ -56,6 +57,10 @@ function main() {
     }
 
     if (item.urlPattern) {
+      if (item.engineId === "yiyan" || item.id.includes("yiyan")) {
+        assert(item.urlPattern === WENXIN_ENTRY_URL, `Menu item ${item.id} must use the official Wenxin relay entry`)
+        continue
+      }
       const hasKnownToken = ["${KEYWORD}", "${keyword}", "${PROMPT}", "${prompt}"].some((token) => item.urlPattern.includes(token))
       assert(hasKnownToken, `Menu item ${item.id} urlPattern has no known interpolation token`)
     }
@@ -65,7 +70,12 @@ function main() {
   for (const [engineId, engine] of Object.entries(engines.engines)) {
     assert(engine.id === engineId, `Engine key/id mismatch: ${engineId} vs ${engine.id}`)
     assert(engine.label, `Engine ${engineId} missing label`)
-    assert(engine.urlPattern?.includes("${PROMPT}"), `Engine ${engineId} urlPattern must include \${PROMPT}`)
+    if (engineId === "yiyan") {
+      assert(engine.urlPattern === WENXIN_ENTRY_URL, "Engine yiyan must use the official Wenxin relay entry")
+      assert(engine.searchUrlPattern === WENXIN_ENTRY_URL, "Engine yiyan search URL must use the official Wenxin relay entry")
+    } else {
+      assert(engine.urlPattern?.includes("${PROMPT}"), `Engine ${engineId} urlPattern must include \${PROMPT}`)
+    }
   }
 
   for (const { source: promptFile, mirror: mirrorPromptFile, validateEngineRefs } of promptFiles) {

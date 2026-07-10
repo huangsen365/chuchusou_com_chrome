@@ -79,7 +79,7 @@
           "titleKey": "yiyan",
           "dynamicTitle": true,
           "contexts": ["selection", "page", "editable"],
-          "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}",
+          "urlPattern": "https://chat.baidu.com/?enter_type=yiyan_site",
           "enabled": true
         },
         {
@@ -174,7 +174,7 @@
           "icon": "🧠",
           "dynamicTitle": true,
           "contexts": ["selection", "page"],
-          "urlPattern": "https://yiyan.baidu.com/?q=${KEYWORD}",
+          "urlPattern": "https://chat.baidu.com/?enter_type=yiyan_site",
           "enabled": true
         },
         {
@@ -292,7 +292,7 @@
               "titleKey": "yiyan",
               "dynamicTitle": true,
               "contexts": ["selection", "page"],
-              "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}",
+              "urlPattern": "https://chat.baidu.com/?enter_type=yiyan_site",
               "enabled": true
             }
           ]
@@ -322,7 +322,7 @@
               "titleKey": "yiyan",
               "dynamicTitle": true,
               "contexts": ["selection", "page"],
-              "urlPattern": "https://yiyan.baidu.com/?q=${PROMPT}",
+              "urlPattern": "https://chat.baidu.com/?enter_type=yiyan_site",
               "enabled": true
             }
           ]

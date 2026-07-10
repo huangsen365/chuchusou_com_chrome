@@ -13,6 +13,8 @@
   const DIRECT_URL_LIMIT = 1800;
   const RELAY_TTL_MS = 30 * 60 * 1000;
   const AI_QUERY_PARAM_KEYS = ['prompt', 'q', 'query', 'text'];
+  const YIYAN_CHAT_HOST = 'chat.baidu.com';
+  const YIYAN_LEGACY_HOST = 'yiyan.baidu.com';
   const memoryStore = new Map();
 
   function ccsAIPromptStorageKey(id) {
@@ -105,7 +107,7 @@
       if (host === 'chatgpt.com' || host.endsWith('.chatgpt.com')) return 'chatgpt';
       if (host === 'claude.ai' || host.endsWith('.claude.ai')) return 'claude';
       if (host === 'grok.com' || host.endsWith('.grok.com')) return 'grok';
-      if (host === 'yiyan.baidu.com') return 'yiyan';
+      if (host === YIYAN_CHAT_HOST || host === YIYAN_LEGACY_HOST) return 'yiyan';
       if ((host === 'google.com' || host.endsWith('.google.com')) && (parsed.searchParams.get('udm') === '50' || hasRelayId)) {
         return 'google-ai';
       }
@@ -115,6 +117,7 @@
       if (/(^|\/\/)([^/]+\.)?chatgpt\.com([/?#:]|$)/i.test(raw)) return 'chatgpt';
       if (/(^|\/\/)([^/]+\.)?claude\.ai([/?#:]|$)/i.test(raw)) return 'claude';
       if (/(^|\/\/)([^/]+\.)?grok\.com([/?#:]|$)/i.test(raw)) return 'grok';
+      if (/(^|\/\/)chat\.baidu\.com([/?#:]|$)/i.test(raw)) return 'yiyan';
       if (/(^|\/\/)yiyan\.baidu\.com([/?#:]|$)/i.test(raw)) return 'yiyan';
       if (/(^|\/\/)([^/]+\.)?google\.com\/search\?/i.test(raw) && (/[?&]udm=50(&|$)/i.test(raw) || /[?&#]ccs_pp=[A-Za-z0-9_-]+/i.test(raw))) return 'google-ai';
       return '';
@@ -149,6 +152,15 @@
         parsed.searchParams.delete(key);
       }
       parsed.searchParams.delete(RELAY_QUERY_KEY);
+      if (engine === 'yiyan' && parsed.hostname.toLowerCase() === YIYAN_LEGACY_HOST) {
+        // The legacy host is now only an upgrade notice. Keep accepting stale
+        // saved URL patterns, but land their relay on the current chat entry.
+        parsed.protocol = 'https:';
+        parsed.hostname = YIYAN_CHAT_HOST;
+        parsed.port = '';
+        parsed.pathname = '/';
+        parsed.searchParams.set('enter_type', 'yiyan_site');
+      }
       if (engine === 'google-ai') {
         // Keep the relay id in query as well as hash, but do not add q.
         // A q value makes Google AI mode execute immediately instead of waiting
@@ -328,7 +340,10 @@
     const directUrl = ccsBuildPromptUrl(urlPattern, prompt);
     const engine = ccsGetAIEngineForUrl(directUrl);
     const hasPromptLineBreaks = /[\r\n]/.test(String(prompt || ''));
-    const shouldRelay = !!meta.forceRelay || engine === 'google-ai' || hasPromptLineBreaks || directUrl.length > DIRECT_URL_LIMIT;
+    // chat.baidu.com ignores the historical q URL parameter. Yiyan therefore
+    // always uses storage relay, including short one-line prompts.
+    const shouldRelay = !!meta.forceRelay || engine === 'google-ai' || engine === 'yiyan' ||
+      hasPromptLineBreaks || directUrl.length > DIRECT_URL_LIMIT;
     if (!engine || !shouldRelay) {
       return directUrl;
     }
