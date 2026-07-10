@@ -2,6 +2,10 @@ name: CI
 
 on:
   push:
+    # 只在分支推送时跑（'**' 匹配所有分支含带斜杠的）；tag 推送不匹配 branches → 不再重复触发。
+    # 发版 push 分支 + push tag 曾各触发一次全套 CI，这里让 tag 不再重跑。
+    branches:
+      - '**'
   pull_request:
 
 jobs:
