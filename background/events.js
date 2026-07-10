@@ -1461,6 +1461,34 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                   );
                   handled = true;
                   break;
+                case 'ccs-zhihu':
+                  chrome.tabs.create({ url: `https://www.zhihu.com/search?q=${encodedKeyword}` });
+                  handled = true;
+                  break;
+                case 'ccs-weixin':
+                  chrome.tabs.create({ url: `https://search.weixin.qq.com/cgi-bin/newsearchweb/userclientjump?path=page/search/christmas_jump&query=${encodedKeyword}` });
+                  handled = true;
+                  break;
+                case 'ccs-taobao':
+                  chrome.tabs.create({ url: `https://s.taobao.com/search?q=${encodedKeyword}` });
+                  handled = true;
+                  break;
+                case 'ccs-jd':
+                  chrome.tabs.create({ url: `https://search.jd.com/Search?keyword=${encodedKeyword}` });
+                  handled = true;
+                  break;
+                case 'ccs-sov2ex':
+                  chrome.tabs.create({ url: `https://www.sov2ex.com/?q=${encodedKeyword}` });
+                  handled = true;
+                  break;
+                case 'ccs-google-translate':
+                  chrome.tabs.create({ url: `https://translate.google.com/?sl=auto&tl=zh-CN&text=${encodedKeyword}` });
+                  handled = true;
+                  break;
+                case 'ccs-chuchusou':
+                  chrome.tabs.create({ url: `https://chuchusou.com/?q=${encodedKeyword}` });
+                  handled = true;
+                  break;
               }
               if (handled) {
                 sendResponse({ success: true });
