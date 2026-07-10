@@ -1412,6 +1412,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                   chrome.tabs.create({ url: `https://www.google.com/search?q=${encodedKeyword}` });
                   handled = true;
                   break;
+                case 'ccs-x':
+                  chrome.tabs.create({ url: `https://x.com/search?q=${encodedKeyword}` });
+                  handled = true;
+                  break;
                 case 'ccs-google-ai-chat':
                   await ccsOpenMenuUrlWithAIRelay(
                     'https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${KEYWORD}',

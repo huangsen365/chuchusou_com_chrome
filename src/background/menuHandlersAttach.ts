@@ -522,6 +522,9 @@ export function attachMenuHandlers(): void {
       case "ccs-google":
         openIfHas(`https://www.google.com/search?q=${enc(finalNormalized)}`)
         break
+      case "ccs-x":
+        openIfHas(`https://x.com/search?q=${enc(finalNormalized)}`)
+        break
       case "ccs-google-ai-chat":
         openIfHas(
           `https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${enc(finalNormalized)}`,
