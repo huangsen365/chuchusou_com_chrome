@@ -34,7 +34,15 @@ export function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-export async function waitForDevToolsPort(userDataDir, child, timeoutMs = 10_000) {
+// DevToolsActivePort 落盘超时：冷启动的 CI runner 首次拉起 Chrome 常 > 10s（无暖盘缓存），
+// 10s 硬上限会偶发 "Timed out waiting for Chrome DevToolsActivePort" 把 CI 打红。
+// CI 下给 45s、本地 15s；可用 CHROME_DEVTOOLS_PORT_TIMEOUT_MS 覆盖。三个 Chrome 校验
+// (select-all-protection / ai-fill-ux / extension-smoke) 都不传显式 timeout，共用此默认。
+const DEVTOOLS_PORT_TIMEOUT_MS =
+  Number(process.env.CHROME_DEVTOOLS_PORT_TIMEOUT_MS) ||
+  (process.env.CI ? 45_000 : 15_000)
+
+export async function waitForDevToolsPort(userDataDir, child, timeoutMs = DEVTOOLS_PORT_TIMEOUT_MS) {
   const portFile = path.join(userDataDir, "DevToolsActivePort")
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {

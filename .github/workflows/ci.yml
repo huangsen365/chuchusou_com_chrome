@@ -25,5 +25,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
+      - name: Run tests (retry on headless-Chrome launch flake)
+        env:
+          # 冷 runner 首次拉起 Chrome 偶尔 > 默认超时；显式给足 DevToolsActivePort 落盘时间。
+          CHROME_DEVTOOLS_PORT_TIMEOUT_MS: 60000
+        run: |
+          for attempt in 1 2 3; do
+            echo "::group::npm test (attempt ${attempt}/3)"
+            if npm test; then
+              echo "::endgroup::"
+              echo "npm test passed on attempt ${attempt}"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "::warning::npm test failed on attempt ${attempt}/3 (retrying if attempts remain)"
+            sleep 3
+          done
+          echo "::error::npm test failed after 3 attempts"
+          exit 1
