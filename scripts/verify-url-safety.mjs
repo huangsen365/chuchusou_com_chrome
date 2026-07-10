@@ -159,7 +159,7 @@ async function verifyGoogleAiRelay(runtime) {
 
 async function verifyWenxinNewSiteAlwaysUsesRelay(runtime) {
   const { context } = runtime
-  const officialPattern = "https://chat.baidu.com/?enter_type=yiyan_site"
+  const officialPattern = "https://chat.baidu.com/"
   const prompt = "文心新入口短提示"
 
   assert.equal(
@@ -177,7 +177,7 @@ async function verifyWenxinNewSiteAlwaysUsesRelay(runtime) {
   const relayId = relayIdFromUrl(url)
 
   assert.equal(parsed.hostname, "chat.baidu.com", "Wenxin relay should open the new host")
-  assert.equal(parsed.searchParams.get("enter_type"), "yiyan_site", "Wenxin relay should preserve the official entry marker")
+  assert.equal(parsed.searchParams.has("enter_type"), false, "Wenxin relay should not carry the dropped enter_type marker")
   assert.equal(parsed.searchParams.has("q"), false, "Wenxin new site does not consume q, so relay URLs must not include it")
   assert(relayId, "Wenxin should use relay even for a short single-line prompt")
   assert.equal((await context.ccsReadPendingAIPrompt(relayId)).prompt, prompt)
@@ -356,7 +356,7 @@ async function verifyConfiguredPatterns(runtime) {
     if (item.id.includes("yiyan")) {
       assert.equal(
         item.pattern,
-        "https://chat.baidu.com/?enter_type=yiyan_site",
+        "https://chat.baidu.com/",
         `${item.source}:${item.id} should use the official Wenxin entry without a dead q parameter`
       )
     }

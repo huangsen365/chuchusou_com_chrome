@@ -529,7 +529,7 @@ export function attachMenuHandlers(): void {
         )
         break
       case "ccs-yiyan":
-        openIfHas("https://chat.baidu.com/?enter_type=yiyan_site", "https://chat.baidu.com/?enter_type=yiyan_site")
+        openIfHas("https://chat.baidu.com/", "https://chat.baidu.com/")
         break
       case "ccs-chatgpt":
         openIfHas(`https://chatgpt.com/?q=${enc(finalNormalized)}`, "https://chatgpt.com/?q=${KEYWORD}")

@@ -5,7 +5,7 @@ import path from "node:path"
 import process from "node:process"
 
 const root = process.cwd()
-const WENXIN_ENTRY_URL = "https://chat.baidu.com/?enter_type=yiyan_site"
+const WENXIN_ENTRY_URL = "https://chat.baidu.com/"
 
 function readJson(relativePath) {
   return JSON.parse(fs.readFileSync(path.join(root, relativePath), "utf8"))

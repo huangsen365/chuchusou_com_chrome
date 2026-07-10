@@ -1423,9 +1423,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                   break;
                 case 'ccs-yiyan':
                   await ccsOpenMenuUrlWithAIRelay(
-                    'https://chat.baidu.com/?enter_type=yiyan_site',
+                    'https://chat.baidu.com/',
                     keyword,
-                    'https://chat.baidu.com/?enter_type=yiyan_site',
+                    'https://chat.baidu.com/',
                     { source: 'execute-menu-action-fallback', menuId: menuItemId, engineId: 'yiyan' }
                   );
                   handled = true;

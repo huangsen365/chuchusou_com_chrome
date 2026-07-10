@@ -391,7 +391,7 @@ async function main() {
     console.log(`${TAG} ✓ executeMenuAction 真开新标签且 URL 正确（SSoT URLBuilder 链路通）`)
 
     // 9.1 文心新入口专属契约：短提示也必须走 storage relay，最终标签只带
-    //     官方 enter_type + ccs_pp，不再带已失效的 q 参数。目标域名映射到
+    //     ccs_pp（enter_type 已去除），不再带已失效的 q 参数。目标域名映射到
     //     本地 HTTPS 夹具，测试只验证扩展行为，不依赖真实文心站可用性。
     const wenxinPrompt = "文心新入口冒烟123"
     const wenxinExec = await evaluate(pageCdp, `
@@ -401,7 +401,7 @@ async function main() {
           {
             action: "executeMenuAction", menuItemId: "ccs-yiyan", menuType: "ai-search",
             keyword: ${JSON.stringify("文心新入口冒烟123")},
-            urlPattern: "https://chat.baidu.com/?enter_type=yiyan_site"
+            urlPattern: "https://chat.baidu.com/"
           },
           (resp) => { clearTimeout(timer); resolve({ success: resp?.success === true, raw: resp }); }
         );
@@ -411,11 +411,11 @@ async function main() {
       fail(`文心 executeMenuAction 失败: ${JSON.stringify(wenxinExec?.raw || wenxinExec)}`)
     }
     const wenxinTabTarget = await findTarget(port, (t) =>
-      t.type === "page" && (t.url || "").startsWith("https://chat.baidu.com/?enter_type=yiyan_site"), 8000)
+      t.type === "page" && (t.url || "").startsWith("https://chat.baidu.com/"), 8000)
     if (!wenxinTabTarget) fail("文心菜单没有打开 chat.baidu.com 官方新入口")
     const wenxinUrl = new URL(wenxinTabTarget.url)
     const wenxinRelayId = new URLSearchParams(wenxinUrl.hash.replace(/^#/, "")).get("ccs_pp")
-    if (wenxinUrl.searchParams.get("enter_type") !== "yiyan_site" || wenxinUrl.searchParams.has("q") || !wenxinRelayId) {
+    if (wenxinUrl.searchParams.has("enter_type") || wenxinUrl.searchParams.has("q") || !wenxinRelayId) {
       fail(`文心 relay URL 契约异常: ${wenxinUrl}`)
     }
     const relayIdLiteral = /^[A-Za-z0-9_-]{6,80}$/.test(wenxinRelayId) ? JSON.stringify(wenxinRelayId) : null
@@ -426,7 +426,7 @@ async function main() {
         const promptKey = "ccs_ai_pending_prompt_" + relayId;
         for (let i = 0; i < 20; i++) {
           const tabs = await new Promise((res) => chrome.tabs.query({}, res));
-          const tab = tabs.find((t) => (t.url || t.pendingUrl || "").startsWith("https://chat.baidu.com/?enter_type=yiyan_site"));
+          const tab = tabs.find((t) => (t.url || t.pendingUrl || "").startsWith("https://chat.baidu.com/"));
           const bindingKey = tab ? "ccs_ai_pending_tab_" + tab.id : "";
           const keys = bindingKey ? [promptKey, bindingKey] : [promptKey];
           const data = await new Promise((res) => chrome.storage.session.get(keys, res));

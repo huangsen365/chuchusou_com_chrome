@@ -58,7 +58,7 @@
     {
       "id": "yiyan",
       "label": "文心一言",
-      "urlPattern": "https://chat.baidu.com/?enter_type=yiyan_site"
+      "urlPattern": "https://chat.baidu.com/"
     },
     {
       "id": "google-ai",

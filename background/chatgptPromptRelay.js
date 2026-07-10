@@ -159,7 +159,6 @@
         parsed.hostname = YIYAN_CHAT_HOST;
         parsed.port = '';
         parsed.pathname = '/';
-        parsed.searchParams.set('enter_type', 'yiyan_site');
       }
       if (engine === 'google-ai') {
         // Keep the relay id in query as well as hash, but do not add q.
