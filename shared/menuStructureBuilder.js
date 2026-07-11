@@ -96,7 +96,7 @@
 
   // ============ Popup 菜单常驻条目（urlPattern / type / action） ============
   const SEARCH_ITEMS = [
-    { id: 'ccs-baidu', type: 'search', urlPattern: 'https://www.baidu.com/s?wd=${KEYWORD}' },
+    { id: 'ccs-baidu', type: 'search', urlPattern: 'https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=${KEYWORD}' },
     { id: 'ccs-google', type: 'search', urlPattern: 'https://www.google.com/search?q=${KEYWORD}' },
     { id: 'ccs-x', type: 'search', urlPattern: 'https://x.com/search?q=${KEYWORD}' }
   ];

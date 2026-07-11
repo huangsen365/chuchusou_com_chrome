@@ -378,14 +378,14 @@ async function main() {
         chrome.runtime.sendMessage(
           {
             action: "executeMenuAction", menuItemId: "ccs-baidu", menuType: "search",
-            keyword: "冒烟smoke123", urlPattern: "https://www.baidu.com/s?wd=\${KEYWORD}"
+            keyword: "冒烟smoke123", urlPattern: "https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd=\${KEYWORD}"
           },
           (resp) => { clearTimeout(timer); resolve({ success: resp?.success === true, raw: resp }); }
         );
       })
     `)
     if (exec?.__timeout || !exec?.success) fail(`executeMenuAction 失败: ${JSON.stringify(exec?.raw || exec)}`)
-    const expectedUrlPart = "baidu.com/s?wd=" + encodeURIComponent("冒烟smoke123")
+    const expectedUrlPart = "baidu.com/s?ie=utf-8&oe=utf-8&wd=" + encodeURIComponent("冒烟smoke123")
     const newTab = await findTarget(port, (t) => t.type === "page" && (t.url || "").includes(expectedUrlPart), 8000)
     if (!newTab) fail(`executeMenuAction 后找不到 URL 含 ${expectedUrlPart} 的新标签 —— URLBuilder/tryOpenMenuUrl 链路断了`)
     console.log(`${TAG} ✓ executeMenuAction 真开新标签且 URL 正确（SSoT URLBuilder 链路通）`)
@@ -453,7 +453,7 @@ async function main() {
     const urlExtract = await evaluate(pageCdp, `
       (async () => {
         const tabs = await new Promise((res) => chrome.tabs.query({}, res));
-        const baiduTab = tabs.find((t) => (t.url || t.pendingUrl || "").includes("baidu.com/s?wd="));
+        const baiduTab = tabs.find((t) => (t.url || t.pendingUrl || "").includes("baidu.com/s?ie=utf-8&oe=utf-8&wd="));
         if (!baiduTab) return { error: "no-baidu-tab" };
         const url = baiduTab.url || baiduTab.pendingUrl;
         const resp = await new Promise((res) =>
@@ -793,7 +793,7 @@ async function main() {
       expression: `document.querySelector('.menu-item[data-menu-id="ccs-baidu"]')?.click()`
     }).catch(() => { /* target 自关属预期 */ })
     const popupClickTab = await findTarget(port, (t) =>
-      t.type === "page" && (t.url || "").includes("baidu.com/s?wd=" + encodeURIComponent("真实选区捕获冒烟标记")), 8000)
+      t.type === "page" && (t.url || "").includes("baidu.com/s?ie=utf-8&oe=utf-8&wd=" + encodeURIComponent("真实选区捕获冒烟标记")), 8000)
     if (!popupClickTab) fail("popup 点按'百度'项后没开出携带选区关键字的标签")
     console.log(`${TAG} ✓ popup 菜单项点按 → executeMenuAction → 新标签（关键字正确传递）`)
     popupPage.cdp.close() // popup 标签可能已自关，客户端直接丢弃

@@ -85,10 +85,62 @@ for (const id of urlIds) {
   }
 }
 
+// ---- 5. 编码参数一致性：百度/Google 模板必须显式带 ie/oe，且各处逐字一致 ----
+// 背景：曾出现 SSoT 主通道（?wd=）与 legacy 兜底（?ie=utf-8&oe=utf-8&wd=）分裂。
+// 定调（2026-07）：统一显式声明编码（防御性，不依赖站方默认值），锁死不许回潜。
+// 注意：ie/oe 是 Google/百度私有参数，其他引擎（知乎/淘宝等）不认识，不要外扩。
+const BAIDU_CANON = "https://www.baidu.com/s?ie=utf-8&oe=utf-8&wd="
+const GOOGLE_AI_CANON = "https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q="
+const ENCODING_SURFACES = [
+  [BAIDU_CANON, /baidu\.com\/s\?(?!ie=utf-8&oe=utf-8&wd=)/, [
+    "config/unifiedMenuConfig.json",
+    "src/assets-json/config/unifiedMenuConfig.json",
+    "shared/menuStructureBuilder.js",
+    "src/shared/menuStructureBuilder.ts",
+    "src/background/menuHandlersAttach.ts",
+    "background/events.js",
+    "modules/buttons.js",
+    "modules/buttonDefinitions.js",
+    "modules/commands.js",
+    "src/content-modules/buttons.ts",
+    "src/content-modules/buttonDefinitions.ts",
+    "src/content-modules/commands.ts",
+  ]],
+  [GOOGLE_AI_CANON, /google\.com\/search\?udm=50(?!&ie=UTF-8&oe=UTF-8&q=)/, [
+    "config/unifiedMenuConfig.json",
+    "src/assets-json/config/unifiedMenuConfig.json",
+    "config/engines.json",
+    "src/assets-json/config/engines.json",
+    "shared/menuStructureBuilder.js",
+    "src/shared/menuStructureBuilder.ts",
+    "src/background/menuHandlersAttach.ts",
+    "background/events.js",
+    "prompts/fastAnswersPrompts.json",
+    "prompts/topQuestionsPrompts.json",
+    "prompts/optimizedPrompts.json",
+    "src/assets-json/prompts/fastAnswersPrompts.json",
+    "src/assets-json/prompts/topQuestionsPrompts.json",
+    "src/assets-json/prompts/optimizedPrompts.json",
+  ]],
+]
+for (const [canon, barePattern, files] of ENCODING_SURFACES) {
+  for (const f of files) {
+    const src = read(f)
+    if (!src.includes(canon)) {
+      fail(`${f} 缺规范模板前缀 ${canon} —— 编码参数被删或模板形态漂移`)
+    }
+    if (barePattern.test(src)) {
+      fail(`${f} 出现缺 ie/oe 的裸模板（${barePattern}）—— 与规范形式分裂，会回到 SSoT/兜底不一致的老坑`)
+    }
+  }
+}
+
 if (process.exitCode) {
   console.error(`${TAG} 修复指引：新增 URL 型菜单项需同时登记 ①unifiedMenuConfig.json（SSoT）`
-    + ` ②menuHandlersAttach.ts switch-case ③events.js switch-case，缺一不可`)
+    + ` ②menuHandlersAttach.ts switch-case ③events.js switch-case，缺一不可；`
+    + `百度/Google 模板必须逐字使用带 ie/oe 的规范形式（见本脚本 ENCODING_SURFACES）`)
   process.exit(1)
 }
 console.log(`${TAG} 全部 OK — ${allStaticIds.length} 个静态菜单项兜底齐全`
-  + `（URL 型 ${urlIds.length} 个三处登记一致：config SSoT + 右键兜底 + popup 老路径兜底）`)
+  + `（URL 型 ${urlIds.length} 个三处登记一致：config SSoT + 右键兜底 + popup 老路径兜底；`
+  + `百度/Google 编码参数 ${ENCODING_SURFACES.reduce((n, [, , fs]) => n + fs.length, 0)} 处逐字一致）`)
