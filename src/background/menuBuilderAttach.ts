@@ -27,6 +27,14 @@ import {
   type MenuBuilderDeps,
   type CreateMenuItemMeta
 } from "./menuBuilderHelpers"
+import {
+  PIN_STORAGE_KEY,
+  CUSTOM_LINE_KEY,
+  CUSTOM_PURPOSE_KEY,
+  DEFAULT_PIN,
+  parseCustomLines,
+  truncateLine
+} from "../shared/coverPinConstants"
 
 type G = Record<string, any> & { chrome?: any }
 
@@ -61,26 +69,21 @@ const MENU_GROUPS = Object.freeze({
 
 const COVER_PIN_MENU_ID = "ccs-cover-pinned"
 const COVER_PIN_SEPARATOR_ID = "ccs-cover-pinned-separator"
-const COVER_PIN_STORAGE_KEYS = {
-  pin: "ccs_sidepanel_pinned_action",
-  customLine: "ccs_cover_custom_selected_line",
-  customPurpose: "ccs_cover_custom_purpose"
-}
-const COVER_PIN_DEFAULT_CATEGORY = "minimal"
+// storage key / 默认风格 SSoT：src/shared/coverPinConstants.ts（popup / sidepanel / 守卫脚本共用）
 const COVER_PIN_PREFERRED_ENGINE = "chatgpt-images"
 
 function readCoverPinStorage(g: G): Promise<{ pin: any; customLine: string }> {
   return new Promise((resolve) => {
     try {
       g.chrome.storage.local.get(
-        [COVER_PIN_STORAGE_KEYS.pin, COVER_PIN_STORAGE_KEYS.customLine, COVER_PIN_STORAGE_KEYS.customPurpose],
+        [PIN_STORAGE_KEY, CUSTOM_LINE_KEY, CUSTOM_PURPOSE_KEY],
         (result: Record<string, unknown>) => {
-          const pin = (result?.[COVER_PIN_STORAGE_KEYS.pin] as any) || null
-          const customPurpose = result?.[COVER_PIN_STORAGE_KEYS.customPurpose]
+          const pin = (result?.[PIN_STORAGE_KEY] as any) || null
+          const customPurpose = result?.[CUSTOM_PURPOSE_KEY]
           const fallbackLine = typeof customPurpose === "string"
-            ? (customPurpose.split(/\r?\n/)[0] || "").trim()
+            ? (parseCustomLines(customPurpose)[0] || "")
             : ""
-          const customLineRaw = result?.[COVER_PIN_STORAGE_KEYS.customLine]
+          const customLineRaw = result?.[CUSTOM_LINE_KEY]
           const customLine = (typeof customLineRaw === "string" ? customLineRaw : fallbackLine || "").trim()
           resolve({ pin, customLine })
         }
@@ -99,10 +102,10 @@ async function resolveCoverPinTarget(g: G): Promise<{ leafMenuId: string; label:
   let categoryId =
     pin && pin.taskId === "cover" && typeof pin.categoryId === "string"
       ? pin.categoryId
-      : COVER_PIN_DEFAULT_CATEGORY
+      : DEFAULT_PIN.categoryId
   let category = config.categories.find((c: any) => c.id === categoryId)
   if (category && category.id === "custom" && !customLine) {
-    categoryId = COVER_PIN_DEFAULT_CATEGORY
+    categoryId = DEFAULT_PIN.categoryId
     category = config.categories.find((c: any) => c.id === categoryId)
   }
   if (!category) return null
@@ -110,7 +113,7 @@ async function resolveCoverPinTarget(g: G): Promise<{ leafMenuId: string; label:
   const engine = engines.find((e: any) => e.id === COVER_PIN_PREFERRED_ENGINE) || engines[0]
   if (!engine) return null
   const rawLabel = category.id === "custom"
-    ? `🖌️ ${customLine.length > 15 ? customLine.slice(0, 15) + "…" : customLine}`
+    ? `🖌️ ${truncateLine(customLine)}`
     : category.label || category.id
   return {
     leafMenuId: `ccs-cover-${category.id}-${engine.id}`,
@@ -745,11 +748,7 @@ function installCoverPinSync(g: G): void {
   if (!storage?.onChanged?.addListener) return
   storage.onChanged.addListener(async (changes: Record<string, unknown>, area: string) => {
     if (area !== "local") return
-    const watchedKeys = [
-      COVER_PIN_STORAGE_KEYS.pin,
-      COVER_PIN_STORAGE_KEYS.customLine,
-      COVER_PIN_STORAGE_KEYS.customPurpose
-    ]
+    const watchedKeys = [PIN_STORAGE_KEY, CUSTOM_LINE_KEY, CUSTOM_PURPOSE_KEY]
     if (!watchedKeys.some((k) => k in changes)) return
     try {
       const target = await resolveCoverPinTarget(g)
