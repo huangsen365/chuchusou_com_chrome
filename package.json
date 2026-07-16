@@ -1,6 +1,6 @@
 {
   "name": "chuchusou_com_chrome",
-  "version": "1.6.41",
+  "version": "1.6.42",
   "description": "**触触搜** —— 基于 ChatGPT Images 2.0 的封面生成器（二次元可爱 / 小红书 / 椰树牌 / 极简留白）+ 多 AI 速答 / 提示词优化 / 选中文本快速搜索处理。",
   "directories": {
     "doc": "docs"
