@@ -253,14 +253,30 @@ async function compareKeywords(legacy, tsKeywords) {
     }
   }
 
-  // heuristicExtractFromParams
-  const sp = new URLSearchParams("q=hello&utm_source=test&foo=bar")
-  const la = legacy.heuristicExtractFromParams(sp)
-  const lb = tsKeywords.heuristicExtractFromParams(sp)
-  if (la) la.score = Math.round(la.score * 100) / 100
-  if (lb) lb.score = Math.round(lb.score * 100) / 100
-  const hDiff = deepEqual(la, lb)
-  if (hDiff) throw new Error(`heuristicExtractFromParams diverges: ${hDiff}`)
+  // heuristicExtractFromParams：dual 一致 + 选取规则回归
+  // 历史 bug：value.length<2 一刀切丢掉 q=d / q=中，噪声参数 src=typed_query 捡漏当选
+  const heuristicCases = [
+    ["q=hello&utm_source=test&foo=bar", "q", "hello"],
+    ["q=d&src=typed_query", "q", "d"],                    // 单字符关键字必须压过噪声参数
+    ["q=%E4%B8%AD&src=typed_query", "q", "中"],            // 单汉字同理
+    ["p=1&title=hello world", "title", "hello world"],    // 纯数字单字符是分页参数，不是关键字
+    ["src=typed_query", null, null]                        // 只剩噪声参数 → 无候选（走 title fallback）
+  ]
+  for (const [qs, expectKey, expectValue] of heuristicCases) {
+    const sp = new URLSearchParams(qs)
+    const la = legacy.heuristicExtractFromParams(sp)
+    const lb = tsKeywords.heuristicExtractFromParams(sp)
+    if (la) la.score = Math.round(la.score * 100) / 100
+    if (lb) lb.score = Math.round(lb.score * 100) / 100
+    const hDiff = deepEqual(la, lb)
+    if (hDiff) throw new Error(`heuristicExtractFromParams(${qs}) diverges: ${hDiff}`)
+    if (expectKey === null) {
+      assert(la === null, `heuristicExtractFromParams(${qs}) 应无候选，实际 ${JSON.stringify(la)}`)
+    } else {
+      assert(la && la.key === expectKey && la.value === expectValue,
+        `heuristicExtractFromParams(${qs}) 应选 ${expectKey}=${expectValue}，实际 ${JSON.stringify(la)}`)
+    }
+  }
 
   // extractSearchKeywords
   const urls = [
@@ -273,7 +289,19 @@ async function compareKeywords(legacy, tsKeywords) {
     ["https://noparams.test/", { title: "标题" }, "标题"],
     // YouTube：watch?v=11char-id 不能被启发式当关键字；必须走 title fallback
     ["https://www.youtube.com/watch?v=IurBXe0jpVg", { title: "Awesome Video Title - YouTube" }, "Awesome Video Title"],
-    ["https://youtu.be/dQw4w9WgXcQ", { title: "Never Gonna Give You Up - YouTube" }, "Never Gonna Give You Up"]
+    ["https://youtu.be/dQw4w9WgXcQ", { title: "Never Gonna Give You Up - YouTube" }, "Never Gonna Give You Up"],
+    // X (Twitter)：站点规则必须命中 q，且不能被 ?src=typed_query 噪声参数盖掉
+    ["https://x.com/search?q=d&src=typed_query", { title: "d - 在 X 上搜索" }, "d"],
+    ["https://x.com/search?q=%E4%B8%AD&src=typed_query", null, "中"],
+    ["https://twitter.com/search?q=hello+world&src=typed_query", null, "hello world"],
+    // X 规则必须后缀匹配：netflix.com 含 "x.com" 子串，误命中会把 URL 值当关键字返回
+    // （正确路径：非 X → 启发式 → q 是 URL 被判负分 → 无候选 → title fallback）
+    ["https://www.netflix.com/watch?q=https%3A%2F%2Fexample.com", { title: "网飞标题" }, "网飞标题"],
+    // X 分享链接 ?s=20：分享码不是关键字，必须跳过启发式走 title（顺带剥掉 " / X" 尾巴）
+    ["https://x.com/someone/status/1234567890?s=20",
+      { title: "某人 在 X 上：「今天天气不错」 / X" }, "某人 在 X 上：「今天天气不错」"],
+    // 跳过名单同样必须后缀匹配：youtube.com.evil.test 不是 YouTube，不该被跳过
+    ["https://youtube.com.evil.test/?q=hello", { title: "钓鱼站标题" }, "hello"]
   ]
   for (const [url, tab, expected] of urls) {
     const a = await legacy.extractSearchKeywords(url, tab)

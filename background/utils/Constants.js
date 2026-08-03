@@ -193,7 +193,8 @@ const TITLE_CLEANUP_SUFFIXES = [
   ' — ChatGPT',
   ' - Claude',
   ' – Claude',
-  ' — Claude'
+  ' — Claude',
+  ' / X'      // X (Twitter) 推文/主页标题尾巴，如 '某人 在 X 上：「...」 / X'
 ];
 
 /**

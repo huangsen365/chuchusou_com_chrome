@@ -158,6 +158,18 @@
           }
         }
 
+        // X (Twitter)
+        // 注意用后缀匹配而非 includes('x.com')：netflix.com / box.com 都包含 "x.com" 子串
+        if (hostname === 'x.com' || hostname.endsWith('.x.com') ||
+            hostname === 'twitter.com' || hostname.endsWith('.twitter.com')) {
+          const q = params.get('q');
+          if (q) {
+            const decoded = safeDecodeParam(q);
+            console.log('[触触搜] extractSearchKeyword - X/Twitter搜索关键词:', decoded);
+            return decoded;
+          }
+        }
+
         // GitHub
         if (hostname.includes('github.com')) {
           const q = params.get('q');

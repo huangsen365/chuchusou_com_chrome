@@ -60,7 +60,8 @@ function cleanupTitleKeyword(rawTitle) {
     ' — ChatGPT',
     ' - Claude',
     ' – Claude',
-    ' — Claude'
+    ' — Claude',
+    ' / X'
   ];
 
   // 移除后缀

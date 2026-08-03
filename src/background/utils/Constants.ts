@@ -173,7 +173,8 @@ export const TITLE_CLEANUP_SUFFIXES: readonly string[] = [
   " — ChatGPT",
   " - Claude",
   " – Claude",
-  " — Claude"
+  " — Claude",
+  " / X"      // X (Twitter) 推文/主页标题尾巴，如 "某人 在 X 上：「...」 / X"
 ]
 
 export const SEARCH_ENGINE_SUFFIXES: readonly string[] = [

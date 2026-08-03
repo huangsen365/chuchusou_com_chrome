@@ -46,12 +46,21 @@ export const COMMON_QUERY_KEYS = [
   "q", "query", "search", "s", "kw", "keyword", "wd", "word", "p", "text", "k", "searchword"
 ] as const
 
+// src：来源标记参数（x.com 的 ?src=typed_query、多数站的 ?src=share），值长得像词但不是关键字
 export const PARAM_BLACKLIST =
-  /^(utm_|ref|fbclid|gclid|tbm|hl|source|sourceid|ie|oe|biw|bih|sa|ved|ei|sclient|cs|aep|atvm|chrome_task)/i
+  /^(utm_|ref|fbclid|gclid|tbm|hl|source|sourceid|src|ie|oe|biw|bih|sa|ved|ei|sclient|cs|aep|atvm|chrome_task)/i
 
-// 启发式跳过名单：这些站的 URL 参数不是用户关键字（如 youtube watch?v=ID 把 11 字符 video ID 误当关键字）
-// 命中后跳过 heuristicExtractFromParams，直接走 title fallback
-export const HOSTS_SKIP_HEURISTIC = ["youtube.com", "youtu.be"] as const
+// 域名匹配必须后缀对齐，不能用 includes：
+//   "netflix.com".includes("x.com") === true、"youtube.com.evil.test".includes("youtube.com") === true
+export function matchesHostSuffix(hostname: string, domain: string): boolean {
+  return hostname === domain || hostname.endsWith("." + domain)
+}
+
+// 启发式跳过名单：这些站的 URL 参数从来不是用户关键字，命中后跳过 heuristicExtractFromParams
+// 直接走 title fallback（真正的关键字参数已由上面的站点规则取走）
+//   youtube: watch?v=ID 会把 11 字符 video ID 误当关键字
+//   x/twitter: 分享链接 ?s=20 会把分享码误当关键字
+export const HOSTS_SKIP_HEURISTIC = ["youtube.com", "youtu.be", "x.com", "twitter.com"] as const
 
 export interface HeuristicMatch {
   key: string
@@ -60,24 +69,32 @@ export interface HeuristicMatch {
 }
 
 export function heuristicExtractFromParams(searchParams: URLSearchParams): HeuristicMatch | null {
-  const candidates: HeuristicMatch[] = []
+  const candidates: (HeuristicMatch & { common: number })[] = []
   for (const [key, value] of searchParams) {
-    if (!value || value.length < 2 || value.length > 500) continue
+    if (!value || value.length > 500) continue
     if (PARAM_BLACKLIST.test(key)) continue
 
+    const isCommonKey = (COMMON_QUERY_KEYS as readonly string[]).includes(key.toLowerCase())
+    // 常见关键字 key 允许单字符：q=d / q=中 都是合法搜索词（曾被 length<2 一刀切丢掉，
+    // 结果噪声参数捡漏当选）。但纯数字单字符排除：?p=1 / ?s=2 分页远比搜索 "1" 常见
+    const minLength = (isCommonKey && !/^\d+$/.test(value)) ? 1 : 2
+    if (value.length < minLength) continue
+
     let score = 0
-    if ((COMMON_QUERY_KEYS as readonly string[]).includes(key.toLowerCase())) score += 10
+    if (isCommonKey) score += 10
     score += Math.min(value.length / 10, 5)
     if (/[一-龥]/.test(value)) score += 3
     if (/^https?:\/\//.test(value)) score -= 100
     if (/^[0-9a-f-]{20,}$/i.test(value)) score -= 100
     if (/^\d+$/.test(value)) score -= 5
 
-    if (score > 0) candidates.push({ key, value, score })
+    if (score > 0) candidates.push({ key, value, score, common: isCommonKey ? 1 : 0 })
   }
   if (!candidates.length) return null
-  candidates.sort((a, b) => b.score - a.score)
-  return candidates[0]
+  // 常见关键字 key 整体优先于其它 param：无论长短，src/foo 这类都不得越过 q/wd/query
+  candidates.sort((a, b) => (b.common - a.common) || (b.score - a.score))
+  const best = candidates[0]
+  return { key: best.key, value: best.value, score: best.score }
 }
 
 export interface TabLike {
@@ -261,6 +278,16 @@ export async function extractSearchKeywords(
       }
     }
 
+    // X (Twitter)
+    if (matchesHostSuffix(hostname, "x.com") || matchesHostSuffix(hostname, "twitter.com")) {
+      const q = searchParams.get("q")
+      if (q) {
+        const kw = safeDecodeParam(q)
+        dbg("[触触搜][BG][DEBUG] matched x/twitter q:", kw)
+        return kw
+      }
+    }
+
     // GitHub
     if (hostname.includes("github.com")) {
       const q = searchParams.get("q")
@@ -303,7 +330,7 @@ export async function extractSearchKeywords(
 
     // 启发式兜底
     // youtube 等 HOSTS_SKIP_HEURISTIC 跳过：避免把 watch?v=11 字符 ID 误当关键字，直接走 title fallback
-    const skipHeuristic = HOSTS_SKIP_HEURISTIC.some((h) => hostname.includes(h))
+    const skipHeuristic = HOSTS_SKIP_HEURISTIC.some((h) => matchesHostSuffix(hostname, h))
     if (!skipHeuristic) {
       const heuristic = heuristicExtractFromParams(searchParams)
       if (heuristic) {
