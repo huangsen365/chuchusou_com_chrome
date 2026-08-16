@@ -52,6 +52,7 @@
         "modules/textSync.js",
         "modules/positioning.js",
         "modules/domMonitor.js",
+        "modules/xTweetFastQa.js",
         "dockbar.js",
         "content.js"
       ],

@@ -7,7 +7,7 @@
   },
   "scripts": {
     "lint": "eslint .",
-    "test": "npm run lint && npm run typecheck && npm run verify:shared-config && npm run verify:menu-fallback && npm run verify:cover-consistency && npm run verify:menu-structure-builder && npm run verify:menu-structure-builder-dual && npm run verify:background-utils-dual && npm run verify:background-pure-modules-dual && npm run verify:background-extras-dual && npm run verify:dom-modules-structural && npm run verify:ai-prompt-fill && npm run verify:url-safety && npm run verify:select-all-protection && npm run verify:ai-fill-ux && npm run plasmo:build && npm run verify:perf-budget && npm run verify:sw-bridge && npm run verify:extension-smoke",
+    "test": "npm run lint && npm run typecheck && npm run verify:shared-config && npm run verify:menu-fallback && npm run verify:cover-consistency && npm run verify:menu-structure-builder && npm run verify:menu-structure-builder-dual && npm run verify:background-utils-dual && npm run verify:background-pure-modules-dual && npm run verify:background-extras-dual && npm run verify:dom-modules-structural && npm run verify:x-tweet-fastqa && npm run verify:ai-prompt-fill && npm run verify:url-safety && npm run verify:select-all-protection && npm run verify:ai-fill-ux && npm run plasmo:build && npm run verify:perf-budget && npm run verify:sw-bridge && npm run verify:extension-smoke",
     "plasmo:dev": "plasmo dev --target=chrome-mv3 --src-path=src",
     "plasmo:build": "node scripts/bundle-shared-deps.mjs . && plasmo build --target=chrome-mv3 --src-path=src && node scripts/plasmo-compat-postbuild.mjs && node scripts/prebuild-popup-menu.mjs && node scripts/bundle-shared-deps.mjs && npm run plasmo:verify",
     "plasmo:package": "npm run plasmo:build && plasmo package --target=chrome-mv3 --src-path=src && npm run plasmo:verify-package",
@@ -23,6 +23,7 @@
     "verify:background-pure-modules-dual": "node scripts/verify-background-pure-modules-dual.mjs",
     "verify:background-extras-dual": "node scripts/verify-background-extras-dual.mjs",
     "verify:dom-modules-structural": "node scripts/verify-dom-modules-structural.mjs",
+    "verify:x-tweet-fastqa": "node scripts/verify-x-tweet-fastqa.mjs",
     "verify:ai-prompt-fill": "node scripts/verify-ai-prompt-fill-dedupe.mjs",
     "verify:url-safety": "node scripts/verify-url-safety.mjs",
     "verify:select-all-protection": "node scripts/verify-select-all-protection.mjs",

@@ -30,6 +30,7 @@ import { Shortcuts } from "./content-modules/shortcuts"
 import { TextSync } from "./content-modules/textSync"
 import { Toast as ContentToast } from "./content-modules/toast"
 import { Utils } from "./content-modules/utils"
+import { startXTweetFastQaIntegration, XTweetFastQa } from "./content-modules/xTweetFastQa"
 
 // 把 20 个 TS 模块单例都挂到 window.CCSModules，让 legacy 调用点（如 backgroundComm 访问 Toast）
 // 不论谁先加载都能找到对方
@@ -55,7 +56,8 @@ Object.assign(_ccsModulesHost.CCSModules, {
   Shortcuts,
   TextSync,
   Toast: ContentToast,
-  Utils
+  Utils,
+  XTweetFastQa
 })
 
 const EXTENSION_NAME = "触触搜"
@@ -160,6 +162,7 @@ win.__initDockBar = (): void => {
 }
 
 const ch = getChrome()
+startXTweetFastQaIntegration()
 ch?.storage?.local?.get?.(["ccs_debug"], (res) => {
   updateDebug(!!(res as { ccs_debug?: unknown })?.ccs_debug)
 })
