@@ -27,12 +27,18 @@ function loadLegacyApi() {
     setTimeout,
     clearTimeout,
     Set,
+    Map,
     Array,
     String,
     Promise,
     Error
   }
   vm.createContext(context)
+  vm.runInContext(
+    fs.readFileSync(path.join(root, "modules/siteFastQaRuntime.js"), "utf8"),
+    context,
+    { filename: "modules/siteFastQaRuntime.js" }
+  )
   vm.runInContext(
     fs.readFileSync(path.join(root, "modules/xTweetFastQa.js"), "utf8"),
     context,
@@ -163,6 +169,11 @@ verifyApi("typescript", tsApi)
 
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"))
 const contentScripts = manifest.content_scripts?.flatMap((entry) => entry.js || []) || []
+assert(contentScripts.includes("modules/siteFastQaRuntime.js"), "manifest must load shared site fastqa runtime")
 assert(contentScripts.includes("modules/xTweetFastQa.js"), "manifest must load modules/xTweetFastQa.js")
+assert(
+  contentScripts.indexOf("modules/siteFastQaRuntime.js") < contentScripts.indexOf("modules/xTweetFastQa.js"),
+  "shared site fastqa runtime must load before X adapter"
+)
 
 console.log("[verify-x-tweet-fastqa] ✓ 主推文正文提取、引用排除、精简正文块及双轨入口验证通过")

@@ -97,6 +97,65 @@ async function main() {
     cert: fs.readFileSync(path.join(fixtureDir, "ccs-test-cert.pem"))
   }, (req, res) => {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
+    const hostname = String(req.headers.host || "").split(":")[0]
+    if (hostname === "x.com") {
+      res.end(`<!doctype html><meta charset="utf-8"><title>X site-fastqa fixture</title>
+        <article data-testid="tweet">
+          <div data-testid="tweetText">共享运行时 X 主推文正文。</div>
+          <div role="group">
+            <div><button data-testid="reply" aria-label="回复">回复</button></div>
+            <div><button aria-label="转发">转发</button></div>
+            <div id="x-share-cell"><button aria-label="分享帖子">分享</button></div>
+          </div>
+        </article>`)
+      return
+    }
+    if (hostname === "www.zhihu.com") {
+      res.end(`<!doctype html><meta charset="utf-8"><title>知乎回答 site-fastqa fixture</title>
+        <main>
+          <h1>怎样验证可扩展站点速答？</h1>
+          <div class="ContentItem AnswerItem" itemprop="answer">
+            <meta itemprop="url" content="https://www.zhihu.com/question/123/answer/456">
+            <h2 class="ContentItem-title"><a href="/question/123/answer/456">怎样验证可扩展站点速答？</a></h2>
+            <div class="AuthorInfo"></div>
+            <div class="RichContent is-collapsed">
+              <div class="RichContent-inner">
+                <span class="RichText" itemprop="text">知乎回答折叠摘要。</span>
+                <button class="ContentItem-more">阅读全文</button>
+              </div>
+              <div class="ContentItem-actions">
+                <button aria-label="收藏">收藏</button>
+                <div class="Popover ShareMenu ContentItem-action"><button>分享</button></div>
+                <div class="Popover ContentItem-action"><button aria-label="更多"></button></div>
+              </div>
+            </div>
+          </div>
+        </main>
+        <script>
+          document.querySelector('.ContentItem-more').addEventListener('click', () => {
+            const root = document.querySelector('.AnswerItem')
+            root.querySelector('.RichContent').classList.remove('is-collapsed')
+            root.querySelector('[itemprop="text"]').textContent = '知乎回答展开后的完整正文，用于验证状态恢复。'
+            root.querySelector('.ContentItem-actions').outerHTML = '<div class="ContentItem-actions"><button aria-label="收藏">收藏</button><div class="Popover ShareMenu ContentItem-action"><button>分享</button></div><div class="Popover ContentItem-action"><button aria-label="更多"></button></div></div>'
+          })
+        </script>`)
+      return
+    }
+    if (hostname === "zhuanlan.zhihu.com") {
+      res.end(`<!doctype html><meta charset="utf-8"><title>知乎专栏 site-fastqa fixture</title>
+        <article class="Post-Main Post-NormalMain">
+          <meta itemprop="url" content="https://zhuanlan.zhihu.com/p/789">
+          <meta itemprop="headline" content="可扩展速答架构专栏">
+          <h1 class="Post-Title">可扩展速答架构专栏</h1>
+          <div class="Post-RichTextContainer"><div class="RichText">知乎专栏完整正文。</div></div>
+          <div class="Sticky RichContent-actions"><div class="ContentItem-actions">
+            <button aria-label="收藏">收藏</button>
+            <div class="Popover ShareMenu ContentItem-action"><button>分享</button></div>
+            <div class="Post-ActionMenuButton"><button aria-label="更多"></button></div>
+          </div></div>
+        </article>`)
+      return
+    }
     res.end(`<!doctype html><meta charset="utf-8"><title>engine-fixture</title><p>本地引擎夹具页 ${req.url}</p>`)
   })
   await new Promise((res) => httpsServer.listen(0, "127.0.0.1", res))
@@ -113,7 +172,7 @@ async function main() {
     // Extensions.loadUnpacked（需要下面这个 flag）。不要再加
     // --load-extension/--disable-extensions-except —— 实测会干扰 CDP 装载的扩展。
     "--enable-unsafe-extension-debugging",
-    `--host-resolver-rules=MAP www.baidu.com 127.0.0.1:${httpsPort},MAP chat.baidu.com 127.0.0.1:${httpsPort},MAP www.google.com 127.0.0.1:${httpsPort}`,
+    `--host-resolver-rules=MAP www.baidu.com 127.0.0.1:${httpsPort},MAP chat.baidu.com 127.0.0.1:${httpsPort},MAP www.google.com 127.0.0.1:${httpsPort},MAP chatgpt.com 127.0.0.1:${httpsPort},MAP x.com 127.0.0.1:${httpsPort},MAP www.zhihu.com 127.0.0.1:${httpsPort},MAP zhuanlan.zhihu.com 127.0.0.1:${httpsPort}`,
     "--ignore-certificate-errors",
     "--remote-debugging-port=0",
     `--user-data-dir=${userDataDir}`,
@@ -523,6 +582,106 @@ async function main() {
     if (!sweep?.slateBridgeRejected) fail(`Slate 桥安全契约破裂: 非 yiyan 来源未被拒 ${JSON.stringify(sweep)}`)
     console.log(`${TAG} ✓ 协议扫掠正常（getSearchText / extractKeywords="${sweep.extractKw}" / ccsGetUrlRecovery 礼貌拒绝 / Slate 桥拒绝非 yiyan 来源 / contextMenuPreview 已投递）`)
 
+    // 13.5 站点速答适配器：使用映射到本地 HTTPS 的 X / 知乎真实域名夹具，
+    //      让生产 build 中的 content_scripts 按真实 hostname 自动启动。
+    const openSiteFixture = async (url) => {
+      const { targetId } = await browserCdp.call("Target.createTarget", { url })
+      const target = await findTarget(port, (t) => t.id === targetId && t.webSocketDebuggerUrl, 8000)
+      if (!target) fail(`站点速答夹具 target 没出现: ${url}`)
+      const cdp = new CdpClient(await connectWebSocket(target.webSocketDebuggerUrl))
+      const exceptions = []
+      cdp.on("Runtime.exceptionThrown", (event) => {
+        exceptions.push(event?.exceptionDetails?.exception?.description || event?.exceptionDetails?.text || "unknown")
+      })
+      await cdp.call("Runtime.enable")
+      await cdp.call("Page.enable")
+      await browserCdp.call("Target.activateTarget", { targetId })
+      await wait(1200)
+      return { cdp, exceptions }
+    }
+
+    const xFixture = await openSiteFixture("https://x.com/site-fastqa")
+    const xFastQa = await evaluate(xFixture.cdp, `(() => {
+      const button = document.querySelector('[data-ccs-x-tweet-fastqa]');
+      const host = button?.closest('[data-ccs-site-fastqa-host="x"]');
+      return {
+        count: document.querySelectorAll('[data-ccs-x-tweet-fastqa]').length,
+        label: button?.getAttribute('aria-label') || '',
+        state: button?.dataset.ccsState || '',
+        beforeShare: host?.nextElementSibling?.id === 'x-share-cell'
+      };
+    })()`)
+    if (xFastQa?.count !== 1 || xFastQa.state !== "idle" || !xFastQa.beforeShare || !xFastQa.label.includes("ChatGPT")) {
+      fail(`X 速答适配器注入异常: ${JSON.stringify(xFastQa)}`)
+    }
+    if (xFixture.exceptions.length > 0) fail(`X 速答适配器未捕获异常: ${xFixture.exceptions[0]}`)
+    console.log(`${TAG} ✓ X 速答适配器注入正常（单实例 / 分享前 / idle）`)
+    xFixture.cdp.close()
+
+    const zhihuFixture = await openSiteFixture("https://www.zhihu.com/question/123/answer/456")
+    const zhihuBefore = await evaluate(zhihuFixture.cdp, `(() => {
+      const button = document.querySelector('[data-ccs-zhihu-fastqa]');
+      const host = button?.closest('[data-ccs-site-fastqa-host="zhihu"]');
+      return {
+        count: document.querySelectorAll('[data-ccs-zhihu-fastqa]').length,
+        text: button?.textContent?.trim() || '',
+        state: button?.dataset.ccsState || '',
+        beforeShare: host?.nextElementSibling?.classList.contains('ShareMenu') === true,
+        collapsed: document.querySelector('.RichContent')?.classList.contains('is-collapsed') === true
+      };
+    })()`)
+    if (zhihuBefore?.count !== 1 || zhihuBefore.text !== "速答" || zhihuBefore.state !== "idle" ||
+        !zhihuBefore.beforeShare || !zhihuBefore.collapsed) {
+      fail(`知乎回答速答初始注入异常: ${JSON.stringify(zhihuBefore)}`)
+    }
+
+    await evaluate(zhihuFixture.cdp, `document.querySelector('[data-ccs-zhihu-fastqa]')?.click()`)
+    let zhihuAfter = null
+    for (let i = 0; i < 30; i++) {
+      await wait(150)
+      zhihuAfter = await evaluate(zhihuFixture.cdp, `(() => {
+        const button = document.querySelector('[data-ccs-zhihu-fastqa]');
+        const host = button?.closest('[data-ccs-site-fastqa-host="zhihu"]');
+        return {
+          count: document.querySelectorAll('[data-ccs-zhihu-fastqa]').length,
+          text: button?.textContent?.trim() || '',
+          state: button?.dataset.ccsState || '',
+          body: document.querySelector('[itemprop="text"]')?.textContent || '',
+          collapsed: document.querySelector('.RichContent')?.classList.contains('is-collapsed') === true,
+          beforeShare: host?.nextElementSibling?.classList.contains('ShareMenu') === true
+        };
+      })()`)
+      if (zhihuAfter?.state === "success") break
+    }
+    if (zhihuAfter?.count !== 1 || zhihuAfter.state !== "success" || zhihuAfter.text !== "已发送" ||
+        zhihuAfter.collapsed || !zhihuAfter.body.includes("展开后的完整正文") || !zhihuAfter.beforeShare) {
+      fail(`知乎展开/操作栏重建/状态恢复异常: ${JSON.stringify(zhihuAfter)}`)
+    }
+    if (zhihuFixture.exceptions.length > 0) fail(`知乎回答速答适配器未捕获异常: ${zhihuFixture.exceptions[0]}`)
+    const chatGptTarget = await findTarget(port, (t) => t.type === "page" && (t.url || "").includes("chatgpt.com/"), 4000)
+    if (!chatGptTarget) fail("知乎速答点击后未走现有 ChatGPT fastqa 链路")
+    console.log(`${TAG} ✓ 知乎回答速答全链正常（展开全文 / 操作栏重建 / 状态恢复 / ChatGPT）`)
+    zhihuFixture.cdp.close()
+
+    const articleFixture = await openSiteFixture("https://zhuanlan.zhihu.com/p/789")
+    const articleFastQa = await evaluate(articleFixture.cdp, `(() => {
+      const button = document.querySelector('[data-ccs-zhihu-fastqa]');
+      const host = button?.closest('[data-ccs-site-fastqa-host="zhihu"]');
+      return {
+        count: document.querySelectorAll('[data-ccs-zhihu-fastqa]').length,
+        kind: button?.dataset.ccsContentKind || '',
+        label: button?.getAttribute('aria-label') || '',
+        beforeShare: host?.nextElementSibling?.classList.contains('ShareMenu') === true
+      };
+    })()`)
+    if (articleFastQa?.count !== 1 || articleFastQa.kind !== "article" ||
+        !articleFastQa.label.includes("知乎文章") || !articleFastQa.beforeShare) {
+      fail(`知乎专栏速答适配器注入异常: ${JSON.stringify(articleFastQa)}`)
+    }
+    if (articleFixture.exceptions.length > 0) fail(`知乎专栏速答适配器未捕获异常: ${articleFixture.exceptions[0]}`)
+    console.log(`${TAG} ✓ 知乎专栏速答适配器注入正常（文章识别 / 分享前 / 单实例）`)
+    articleFixture.cdp.close()
+
     // 14. 真实选区捕获链路（content script 注入 → trusted 鼠标拖选 → mouseup →
     //     selectionChanged → SW 状态）。本地 HTTP 页 + CDP Input trusted 事件，
     //     等价于真人鼠标操作 —— 这是此前认为"只能真机"的路径。
@@ -831,7 +990,7 @@ async function main() {
     console.log(`${TAG} ✓ sidepanel 菜单项点按 → executeMenuAction → 新标签`)
     spPage.cdp.close()
 
-    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 15 条协议/端口/动作/存储/选区/菜单标题路径 + 2 个 UI 页面启动 + 2 条 UI 点按实操全通`)
+    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 15 条协议/端口/动作/存储/选区/菜单标题路径 + X/知乎站点速答 + 2 个 UI 页面启动 + 2 条 UI 点按实操全通`)
   } finally {
     clearTimeout(watchdog)
     try { httpServer?.close() } catch (_) { /* noop */ }

@@ -3,10 +3,10 @@
  *
  * 与 content.js + modules/*.js 1:1 行为对等。chrome.* 通过 globalThis 防御性访问。
  *
- * 生产仍跑 legacy content.js + 25 个 modules/* legacy 脚本（manifest content_scripts 未切）。
- * 本 entry 等 manifest 切换时接管：单 Plasmo bundle 替换 26 个 legacy 文件。
+ * 生产仍跑 legacy content.js + modules/* legacy 脚本（manifest content_scripts 未切）。
+ * 本 entry 等 manifest 切换时接管：单 Plasmo bundle 替换 legacy 内容脚本集合。
  *
- * 通过 import 把已 port 的 20 个 src/content-modules/*.ts 的单例拉起来（构造时已挂上事件），
+ * 通过 import 把已 port 的 src/content-modules/*.ts 单例拉起来（构造时已挂上事件），
  * 然后挂到 window.CCSModules 命名空间，与 legacy 脚本对外 API 保持一致。
  */
 
@@ -30,9 +30,11 @@ import { Shortcuts } from "./content-modules/shortcuts"
 import { TextSync } from "./content-modules/textSync"
 import { Toast as ContentToast } from "./content-modules/toast"
 import { Utils } from "./content-modules/utils"
+import { SiteFastQaRuntime } from "./content-modules/siteFastQaRuntime"
 import { startXTweetFastQaIntegration, XTweetFastQa } from "./content-modules/xTweetFastQa"
+import { startZhihuFastQaIntegration, ZhihuFastQa } from "./content-modules/zhihuFastQa"
 
-// 把 20 个 TS 模块单例都挂到 window.CCSModules，让 legacy 调用点（如 backgroundComm 访问 Toast）
+// 把 TS 模块单例都挂到 window.CCSModules，让 legacy 调用点（如 backgroundComm 访问 Toast）
 // 不论谁先加载都能找到对方
 const _ccsModulesHost = window as unknown as { CCSModules?: Record<string, unknown> }
 _ccsModulesHost.CCSModules = _ccsModulesHost.CCSModules || {}
@@ -57,7 +59,9 @@ Object.assign(_ccsModulesHost.CCSModules, {
   TextSync,
   Toast: ContentToast,
   Utils,
-  XTweetFastQa
+  SiteFastQaRuntime,
+  XTweetFastQa,
+  ZhihuFastQa
 })
 
 const EXTENSION_NAME = "触触搜"
@@ -163,6 +167,7 @@ win.__initDockBar = (): void => {
 
 const ch = getChrome()
 startXTweetFastQaIntegration()
+startZhihuFastQaIntegration()
 ch?.storage?.local?.get?.(["ccs_debug"], (res) => {
   updateDebug(!!(res as { ccs_debug?: unknown })?.ccs_debug)
 })
