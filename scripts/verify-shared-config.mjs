@@ -81,7 +81,16 @@ function main() {
   for (const { source: promptFile, mirror: mirrorPromptFile, validateEngineRefs } of promptFiles) {
     const prompt = assertJsonMirror(promptFile, mirrorPromptFile)
     assert(Array.isArray(prompt.templateLines) && prompt.templateLines.length > 0, `${promptFile} templateLines must be non-empty`)
-    assert(prompt.templateLines.join("\n").includes("${input}"), `${promptFile} template must include \${input}`)
+    const promptTemplate = prompt.templateLines.join("\n")
+    assert(promptTemplate.includes("${input}"), `${promptFile} template must include \${input}`)
+    if (promptFile === "prompts/fastAnswersPrompts.json") {
+      assert(promptTemplate.includes("第一轮回复必须恰好包含两个彼此独立的 writing block"), "fast answers must require two independent writing blocks")
+      assert(promptTemplate.includes("在 writing block 之外输出标题：【短篇回答】"), "short answer label must stay outside its writing block")
+      assert(promptTemplate.includes("在 writing block 之外输出标题：【中篇回答】"), "medium answer label must stay outside its writing block")
+      assert(promptTemplate.includes("在所有 writing block 之外输出以下两个选项"), "A/B options must stay outside writing blocks")
+      assert(promptTemplate.includes("用户选择 A："), "fast answers must define the A follow-up")
+      assert(promptTemplate.includes("用户选择 B："), "fast answers must define the B follow-up")
+    }
     const promptEngines = [
       ...(prompt.engines || []),
       ...(prompt.categories || []).flatMap((category) => category.engines || [])

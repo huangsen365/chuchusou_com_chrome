@@ -13,7 +13,7 @@ const optimizedPromptsConfig = JSON.parse(fs.readFileSync(path.join(root, "promp
 const coverPromptsConfig = JSON.parse(fs.readFileSync(path.join(root, "prompts/coverPrompts.json"), "utf8"))
 const FASTQA_PROMPT = fastAnswersConfig.templateLines.join("\n").replaceAll("${input}", "文心一言速答重复填充回归验证")
 const MARKER_HEAD = "请针对以下主题生成回答："
-const MARKER_TAIL = "* 在用户确认后，再输出详细内容"
+const MARKER_TAIL = "* B 的口吻要求："
 
 class FakeEvent {
   constructor(type, init = {}) {
