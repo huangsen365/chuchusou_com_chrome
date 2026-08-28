@@ -665,6 +665,71 @@ async function ccsOpenPromptUrlPattern(urlPattern, prompt, meta = {}) {
   return true;
 }
 
+const CCS_ARTICLE_REWRITE_TARGETS = Object.freeze({
+  chatgpt: 'https://chatgpt.com/?q=${PROMPT}',
+  claude: 'https://claude.ai/new?q=${PROMPT}'
+});
+const CCS_GOOGLE_DOC_PATH_PATTERN = /^\/document\/(?:u\/\d+\/)?d\/[^/]+(?:\/|$)/;
+let ccsArticleRewriteTemplatePromise = null;
+
+function ccsNormalizeGoogleDocUrl(urlValue) {
+  try {
+    const url = new URL(String(urlValue || ''));
+    if (
+      url.protocol !== 'https:' ||
+      url.hostname !== 'docs.google.com' ||
+      !CCS_GOOGLE_DOC_PATH_PATTERN.test(url.pathname)
+    ) return '';
+    url.hash = '';
+    return url.href;
+  } catch (_) {
+    return '';
+  }
+}
+
+async function ccsLoadArticleRewriteTemplate() {
+  if (!ccsArticleRewriteTemplatePromise) {
+    ccsArticleRewriteTemplatePromise = fetch(chrome.runtime.getURL('prompts/articleRewritePrompts.json'))
+      .then((response) => {
+        if (!response.ok) throw new Error(`article-rewrite-template-http-${response.status}`);
+        return response.json();
+      })
+      .then((config) => {
+        const template = Array.isArray(config?.templateLines)
+          ? config.templateLines.join('\n').trim()
+          : '';
+        if (!template) throw new Error('article-rewrite-template-empty');
+        if (template.split('${url}').length - 1 !== 1) {
+          throw new Error('article-rewrite-template-url-placeholder-invalid');
+        }
+        return template;
+      })
+      .catch((error) => {
+        ccsArticleRewriteTemplatePromise = null;
+        throw error;
+      });
+  }
+  return ccsArticleRewriteTemplatePromise;
+}
+
+async function ccsOpenGoogleDocRewrite(sourceUrlValue, target) {
+  const sourceUrl = ccsNormalizeGoogleDocUrl(sourceUrlValue);
+  const urlPattern = CCS_ARTICLE_REWRITE_TARGETS[target];
+  if (!sourceUrl) throw new Error('unsupported-google-doc-url');
+  if (!urlPattern) throw new Error('unsupported-rewrite-target');
+  const template = await ccsLoadArticleRewriteTemplate();
+  const prompt = template.replace('${url}', sourceUrl);
+  await ccsOpenPromptUrlPattern(urlPattern, prompt, {
+    source: 'google-doc-rewrite',
+    taskId: 'article-rewrite',
+    engineId: target,
+    menuId: `ccs-google-doc-rewrite-${target}`,
+    forceRelay: true,
+    active: true
+  });
+  return true;
+}
+
 function ccsCreateSafeResponder(sendResponse, action, requestId, timeoutMs = 5000) {
   let responded = false;
   const startedAt = Date.now();
@@ -764,6 +829,46 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     });
     return true;
   }
+  if (request.action === 'ccsGetSelectARewritePrompt') {
+    const requestId = ccsGetRequestId(request, 'ccsGetSelectARewritePrompt');
+    const respond = ccsCreateSafeResponder(sendResponse, 'ccsGetSelectARewritePrompt', requestId, 6000);
+    const senderUrl = sender?.url || sender?.tab?.url || '';
+    let senderHost = '';
+    try {
+      senderHost = new URL(senderUrl).hostname.toLowerCase();
+    } catch (_) {
+      senderHost = '';
+    }
+    if (!(
+      senderHost === 'chatgpt.com' || senderHost.endsWith('.chatgpt.com') ||
+      senderHost === 'chat.openai.com' || senderHost.endsWith('.chat.openai.com')
+    )) {
+      respond({ success: false, error: 'sender-not-chatgpt' });
+      return true;
+    }
+    ccsLoadArticleRewriteTemplate()
+      .then((template) => respond({
+        success: true,
+        prompt: `选A并且按照提示词改写：\n${template.replace('${url}', '原始素材参考本次对话上下文。')}`
+      }))
+      .catch((error) => respond({ success: false, error: error?.message || String(error) }));
+    return true;
+  }
+  if (request.action === 'ccsCreateGoogleDocRewrite') {
+    const requestId = ccsGetRequestId(request, 'ccsCreateGoogleDocRewrite');
+    const respond = ccsCreateSafeResponder(sendResponse, 'ccsCreateGoogleDocRewrite', requestId, 6000);
+    const senderUrl = sender?.url || sender?.tab?.url || '';
+    const senderDocumentUrl = ccsNormalizeGoogleDocUrl(senderUrl);
+    const sourceUrl = ccsNormalizeGoogleDocUrl(request.sourceUrl);
+    if (!senderDocumentUrl || !sourceUrl || senderDocumentUrl !== sourceUrl) {
+      respond({ success: false, error: 'unsupported-google-doc-url' });
+      return true;
+    }
+    ccsOpenGoogleDocRewrite(sourceUrl, request.target)
+      .then(() => respond({ success: true }))
+      .catch((error) => respond({ success: false, error: error?.message || String(error) }));
+    return true;
+  }
   if (request.action === 'ccsFillYiyanSlatePromptInMainWorld') {
     const text = typeof request.text === 'string' ? request.text : '';
     const respond = ccsCreateSafeResponder(sendResponse, 'ccsFillYiyanSlatePromptInMainWorld', ccsCreateRequestId('ccsFillYiyanSlatePromptInMainWorld'), 4000);
@@ -795,6 +900,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       .then((record) => {
         if (!record) {
           respond({ ok: false, error: 'pending-prompt-not-found' });
+          return;
+        }
+        const senderEngine = typeof ccsGetAIEngineForUrl === 'function'
+          ? ccsGetAIEngineForUrl(senderUrl)
+          : '';
+        if (record.relayEngine && senderEngine && record.relayEngine !== senderEngine) {
+          respond({ ok: false, error: 'pending-prompt-target-mismatch' });
           return;
         }
         respond({

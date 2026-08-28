@@ -671,6 +671,18 @@ async function verifyExistingDuplicateIsRepaired() {
   assert.equal(harness.ackMessages.length, 1)
 }
 
+async function verifyExistingUnrelatedDraftIsPreserved() {
+  const draft = "这是用户尚未发送的独立草稿，不能被自动提示词覆盖。"
+  const harness = makeHarness({ initialText: draft })
+
+  const fill = harness.sendFill()
+  await harness.flush()
+  assert.equal(fill.response?.ok, false, "existing draft should reject automatic fill")
+  assert.equal(fill.response?.stage, "existing_draft", "existing draft rejection should be explicit")
+  assert.equal(normalize(harness.editor.textContent), draft, "existing draft must remain unchanged")
+  assert.equal(harness.ackMessages.length, 0, "rejected prompt must remain unacknowledged")
+}
+
 async function verifyAsyncEditorDuplicationIsStabilized() {
   const harness = makeHarness({ duplicatePromptOnFirstInput: true })
 
@@ -913,6 +925,7 @@ assertPromptTemplateNewlines()
 await verifyPullPushRaceDoesNotDuplicate()
 await verifyConcurrentMessagesDedupe()
 await verifyExistingDuplicateIsRepaired()
+await verifyExistingUnrelatedDraftIsPreserved()
 await verifyAsyncEditorDuplicationIsStabilized()
 await verifyClaudeMultilineUsesPasteHandler()
 await verifySupportedContenteditableEnginesPreserveNewlines()

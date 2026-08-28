@@ -939,6 +939,10 @@
       ackAction: 'ccsAckPendingAIPrompt'
     });
     if (!result.ok) {
+      if (result.stage === 'existing_draft') {
+        showAIFillToast('输入框已有草稿，为避免覆盖，触触搜未自动填入');
+        return result;
+      }
       throw new Error(result.error || 'fill-failed');
     }
     return result;
@@ -976,7 +980,11 @@
 
     aiPromptFillInFlight.add(key);
     try {
-      const result = await fillChatGptPrompt(text, { attempts: 80, intervalMs: 500 });
+      const result = await fillChatGptPrompt(text, {
+        attempts: 80,
+        intervalMs: 500,
+        preserveExistingDraft: true
+      });
       if (!result.ok) return result;
       const stableResult = await stabilizeAIPromptFill(text);
       if (!stableResult.ok) return stableResult;
@@ -1120,6 +1128,7 @@
     const prompt = typeof text === 'string' ? text : '';
     const attempts = Number.isFinite(options.attempts) ? options.attempts : 30;
     const intervalMs = Number.isFinite(options.intervalMs) ? options.intervalMs : 400;
+    const preserveExistingDraft = options.preserveExistingDraft !== false;
 
     return new Promise((resolve) => {
       let count = 0;
@@ -1127,12 +1136,16 @@
         count += 1;
         let result;
         try {
-          result = await fillChatGptPromptOnceAsync(prompt);
+          result = await fillChatGptPromptOnceAsync(prompt, { preserveExistingDraft });
         } catch (error) {
           result = { ok: false, error: error?.message || 'fill-failed' };
         }
-        if (result.ok || count >= attempts) {
-          resolve(result.ok ? result : { ok: false, error: result.error || 'composer-not-found' });
+        if (result.ok || result.stage === 'existing_draft' || count >= attempts) {
+          resolve(result.ok ? result : {
+            ok: false,
+            error: result.error || 'composer-not-found',
+            ...(result.stage ? { stage: result.stage } : {})
+          });
           return;
         }
         setTimeout(tryFill, intervalMs);
@@ -1141,12 +1154,20 @@
     });
   }
 
-  function fillChatGptPromptOnce(text) {
+  function fillChatGptPromptOnce(text, options = {}) {
     if (!text) return { ok: false, error: 'no-text' };
     const target = findChatGptComposerTarget();
     if (!target) return { ok: false, error: 'composer-not-found' };
 
     try {
+      const expected = normalizeFilledText(text);
+      const current = normalizeFilledText(readEditableText(target));
+      if (current === expected) return { ok: true, skipped: true, reason: 'already-filled-intact' };
+      const safeCurrentTask = current.length >= 32 &&
+        (expected.includes(current) || current.includes(expected));
+      if (options.preserveExistingDraft !== false && current && !safeCurrentTask) {
+        return { ok: false, error: 'existing-draft', stage: 'existing_draft' };
+      }
       const tag = (target.tagName || '').toLowerCase();
       if (tag === 'textarea' || tag === 'input') {
         setInputLikeValue(target, text);
@@ -1161,10 +1182,19 @@
     }
   }
 
-  async function fillChatGptPromptOnceAsync(text) {
+  async function fillChatGptPromptOnceAsync(text, options = {}) {
     if (!text) return { ok: false, error: 'no-text' };
     const target = findChatGptComposerTarget();
     if (!target) return { ok: false, error: 'composer-not-found' };
+
+    const expected = normalizeFilledText(text);
+    const current = normalizeFilledText(readEditableText(target));
+    if (current === expected) return { ok: true, skipped: true, reason: 'already-filled-intact' };
+    const safeCurrentTask = current.length >= 32 &&
+      (expected.includes(current) || current.includes(expected));
+    if (options.preserveExistingDraft !== false && current && !safeCurrentTask) {
+      return { ok: false, error: 'existing-draft', stage: 'existing_draft' };
+    }
 
     if (isLegacyYiyanSlatePage() && !editableAcceptsFilledText(target, text)) {
       const slateResult = await fillYiyanSlatePromptInMainWorld(text);
@@ -1174,7 +1204,7 @@
       }
     }
 
-    return fillChatGptPromptOnce(text);
+    return fillChatGptPromptOnce(text, options);
   }
 
   function isLegacyYiyanSlatePage() {
@@ -1706,6 +1736,25 @@
     }
   }
 
+  async function fillAIPromptFromPage(text, options = {}) {
+    const prompt = typeof text === 'string' ? text : '';
+    if (!prompt) return { ok: false, error: 'no-text' };
+    const result = await fillChatGptPrompt(prompt, {
+      attempts: Number.isFinite(options.attempts) ? options.attempts : 30,
+      intervalMs: Number.isFinite(options.intervalMs) ? options.intervalMs : 400,
+      preserveExistingDraft: options.preserveExistingDraft !== false
+    });
+    if (!result.ok) return result;
+    const stableResult = await stabilizeAIPromptFill(prompt);
+    if (!stableResult.ok) return stableResult;
+    if (options.watchSendResidue !== false) armPostSendResidueWatcher(prompt);
+    return result;
+  }
+
+  window.CCSModules = window.CCSModules || {};
+  window.CCSModules.AIPromptFill = {
+    fill: fillAIPromptFromPage
+  };
   window.safeChromeSendMessage = safeChromeSendMessage;
 
   function pickPreferredText(value) {

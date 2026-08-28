@@ -87,6 +87,7 @@ function main() {
     "prompts/fastAnswersPrompts.json",
     "prompts/topQuestionsPrompts.json",
     "prompts/optimizedPrompts.json",
+    "prompts/articleRewritePrompts.json",
     "shared/logger.js",
     "shared/runtimeClient.js",
     "shared/storageDefaults.js",

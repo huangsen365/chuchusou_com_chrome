@@ -55,6 +55,9 @@
         "modules/siteFastQaRuntime.js",
         "modules/xTweetFastQa.js",
         "modules/zhihuFastQa.js",
+        "modules/articleRewriteRuntime.js",
+        "modules/googleDocsRewrite.js",
+        "modules/chatGptSelectARewrite.js",
         "dockbar.js",
         "content.js"
       ],

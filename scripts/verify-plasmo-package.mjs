@@ -61,6 +61,7 @@ function main() {
     "prompts/topQuestionsPrompts.json",
     "prompts/optimizedPrompts.json",
     "prompts/coverPrompts.json",
+    "prompts/articleRewritePrompts.json",
     "shared/menuStructureBuilder.js",
     "shared/keywordClient.js",
     "offscreen/voice.html",

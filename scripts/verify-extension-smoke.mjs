@@ -98,6 +98,51 @@ async function main() {
   }, (req, res) => {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
     const hostname = String(req.headers.host || "").split(":")[0]
+    if (hostname === "chatgpt.com" && (req.url || "").startsWith("/rewrite-fixture")) {
+      res.end(`<!doctype html><meta charset="utf-8"><title>ChatGPT select-A rewrite fixture</title>
+        <style>
+          body { font: 16px/1.5 system-ui; }
+          #prompt-textarea { width: 720px; min-height: 160px; border: 1px solid #999; white-space: pre-wrap; }
+        </style>
+        <section data-testid="conversation-turn-2">
+          <div data-message-author-role="assistant" data-message-id="assistant-rewrite-1">
+            <div class="markdown">
+              <p>【短篇回答】</p>
+              <div data-testid="writing-block-container" data-writing-block="true">
+                <div>这是独立 Writing block 中的短篇回答。</div>
+                <div role="toolbar"><button aria-label="Copy">Copy</button></div>
+              </div>
+              <p>【中篇回答】</p>
+              <div data-testid="writing-block-container" data-writing-block="true">
+                <div>这是独立 Writing block 中的中篇回答。</div>
+                <div role="toolbar"><button aria-label="Copy">Copy</button></div>
+              </div>
+              <p>A：是否继续生成详细内容？<br>B：是否需要将【短篇回答】和【中篇回答】改得更口语、更有活人感？</p>
+            </div>
+          </div>
+          <div role="group"><button data-testid="copy-turn-action-button" aria-label="Copy response">Copy</button></div>
+        </section>
+        <form id="composer-form">
+          <div id="prompt-textarea" contenteditable="true" role="textbox"></div>
+          <button type="submit">发送</button>
+        </form>
+        <script>
+          window.__submitClicks = 0
+          document.getElementById('composer-form').addEventListener('submit', (event) => {
+            event.preventDefault()
+            window.__submitClicks += 1
+          })
+        </script>`)
+      return
+    }
+    if (hostname === "docs.google.com") {
+      res.end(`<!doctype html><meta charset="utf-8"><title>Google Docs rewrite fixture</title>
+        <div class="docs-titlebar-buttons">
+          <button id="docs-titlebar-share-client-button">分享</button>
+        </div>
+        <main>Google Docs 改写夹具正文</main>`)
+      return
+    }
     if (hostname === "x.com") {
       if ((req.url || "").startsWith("/article-fastqa")) {
         res.end(`<!doctype html><meta charset="utf-8"><title>X article site-fastqa fixture</title>
@@ -192,7 +237,7 @@ async function main() {
     // Extensions.loadUnpacked（需要下面这个 flag）。不要再加
     // --load-extension/--disable-extensions-except —— 实测会干扰 CDP 装载的扩展。
     "--enable-unsafe-extension-debugging",
-    `--host-resolver-rules=MAP www.baidu.com 127.0.0.1:${httpsPort},MAP chat.baidu.com 127.0.0.1:${httpsPort},MAP www.google.com 127.0.0.1:${httpsPort},MAP chatgpt.com 127.0.0.1:${httpsPort},MAP x.com 127.0.0.1:${httpsPort},MAP www.zhihu.com 127.0.0.1:${httpsPort},MAP zhuanlan.zhihu.com 127.0.0.1:${httpsPort}`,
+    `--host-resolver-rules=MAP www.baidu.com 127.0.0.1:${httpsPort},MAP chat.baidu.com 127.0.0.1:${httpsPort},MAP www.google.com 127.0.0.1:${httpsPort},MAP chatgpt.com 127.0.0.1:${httpsPort},MAP claude.ai 127.0.0.1:${httpsPort},MAP docs.google.com 127.0.0.1:${httpsPort},MAP x.com 127.0.0.1:${httpsPort},MAP www.zhihu.com 127.0.0.1:${httpsPort},MAP zhuanlan.zhihu.com 127.0.0.1:${httpsPort}`,
     "--ignore-certificate-errors",
     "--remote-debugging-port=0",
     `--user-data-dir=${userDataDir}`,
@@ -619,6 +664,132 @@ async function main() {
       await wait(1200)
       return { cdp, exceptions }
     }
+
+    const chatRewriteFixture = await openSiteFixture("https://chatgpt.com/rewrite-fixture")
+    const chatRewriteAction = await evaluate(chatRewriteFixture.cdp, `(() => {
+      const button = document.querySelector('[data-ccs-select-a-rewrite]');
+      return {
+        count: document.querySelectorAll('[data-ccs-select-a-rewrite]').length,
+        label: button?.textContent?.trim() || '',
+        afterCopy: button?.previousElementSibling?.dataset?.testid === 'copy-turn-action-button'
+      };
+    })()`)
+    if (chatRewriteAction?.count !== 1 || !chatRewriteAction.label.includes("选A并优化改写") || !chatRewriteAction.afterCopy) {
+      fail(`ChatGPT 选A改写按钮注入异常: ${JSON.stringify(chatRewriteAction)}`)
+    }
+    await evaluate(chatRewriteFixture.cdp, `document.querySelector('[data-ccs-select-a-rewrite]')?.click()`)
+    let chatRewriteFill = null
+    for (let i = 0; i < 40; i++) {
+      await wait(200)
+      chatRewriteFill = await evaluate(chatRewriteFixture.cdp, `(() => {
+        const composer = document.getElementById('prompt-textarea');
+        const text = composer?.innerText || composer?.textContent || '';
+        return {
+          text,
+          submitClicks: window.__submitClicks || 0,
+          buttonText: document.querySelector('[data-ccs-select-a-rewrite]')?.textContent || ''
+        };
+      })()`)
+      if (chatRewriteFill?.text?.includes("原始素材参考本次对话上下文。")) break
+    }
+    if (!chatRewriteFill?.text?.startsWith("选A并且按照提示词改写：") ||
+        !chatRewriteFill.text.includes("原始素材参考本次对话上下文。") ||
+        chatRewriteFill.text.includes("${url}") || chatRewriteFill.submitClicks !== 0) {
+      fail(`ChatGPT 选A提示词填充异常: ${JSON.stringify(chatRewriteFill)?.slice(0, 1200)}`)
+    }
+    for (let i = 0; i < 30; i++) {
+      const ready = await evaluate(chatRewriteFixture.cdp, `document.querySelector('[data-ccs-select-a-rewrite]')?.disabled === false`)
+      if (ready) break
+      await wait(200)
+    }
+    await evaluate(chatRewriteFixture.cdp, `(() => {
+      const composer = document.getElementById('prompt-textarea');
+      composer.textContent = '这是用户尚未发送的独立草稿，绝不能被覆盖。';
+      composer.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: composer.textContent }));
+      document.querySelector('[data-ccs-select-a-rewrite]')?.click();
+    })()`)
+    await wait(1000)
+    const preservedChatDraft = await evaluate(chatRewriteFixture.cdp, `(() => ({
+      text: document.getElementById('prompt-textarea')?.textContent || '',
+      buttonText: document.querySelector('[data-ccs-select-a-rewrite]')?.textContent || '',
+      submitClicks: window.__submitClicks || 0
+    }))()`)
+    if (preservedChatDraft?.text !== "这是用户尚未发送的独立草稿，绝不能被覆盖。" ||
+        !preservedChatDraft.buttonText.includes("填入失败") || preservedChatDraft.submitClicks !== 0) {
+      fail(`ChatGPT 已有草稿保护异常: ${JSON.stringify(preservedChatDraft)}`)
+    }
+    if (chatRewriteFixture.exceptions.length > 0) {
+      fail(`ChatGPT 选A改写未捕获异常: ${chatRewriteFixture.exceptions[0]}`)
+    }
+    console.log(`${TAG} ✓ ChatGPT 选A改写正常（严格结构 / 单按钮 / 完整填入 / 不自动发送 / 草稿保护）`)
+    chatRewriteFixture.cdp.close()
+
+    const docsFixture = await openSiteFixture("https://docs.google.com/document/d/smoke-doc/edit?tab=t.0#heading=h.smoke")
+    const docsButtons = await evaluate(docsFixture.cdp, `(() => {
+      const container = document.querySelector('.docs-titlebar-buttons');
+      const buttons = Array.from(document.querySelectorAll('[data-ccs-google-doc-rewrite]'));
+      return {
+        count: buttons.length,
+        labels: buttons.map((button) => button.textContent?.trim() || ''),
+        modes: buttons.map((button) => button.getAttribute('data-ccs-google-doc-rewrite')),
+        beforeShare: buttons.every((button) =>
+          container && Array.from(container.children).indexOf(button) < Array.from(container.children).indexOf(document.getElementById('docs-titlebar-share-client-button'))
+        )
+      };
+    })()`)
+    if (docsButtons?.count !== 2 || !docsButtons.labels.includes("ChatGPT 改写") ||
+        !docsButtons.labels.includes("Claude 改写") || docsButtons.modes.some((mode) => mode !== "inline") ||
+        !docsButtons.beforeShare) {
+      fail(`Google Docs 双改写按钮注入异常: ${JSON.stringify(docsButtons)}`)
+    }
+
+    const targetIdsBeforeChatGpt = new Set(
+      (await fetch(`http://127.0.0.1:${port}/json/list`).then((r) => r.json())).map((target) => target.id)
+    )
+    await evaluate(docsFixture.cdp, `Array.from(document.querySelectorAll('[data-ccs-google-doc-rewrite]')).find((button) => button.dataset.ccsRewriteTarget === 'chatgpt')?.click()`)
+    const docsChatTarget = await findTarget(port, (target) =>
+      target.type === "page" && !targetIdsBeforeChatGpt.has(target.id) && (target.url || "").includes("chatgpt.com/"),
+      8000
+    )
+    if (!docsChatTarget) fail("Google Docs → ChatGPT 改写未打开目标标签页")
+    const docsChatUrl = new URL(docsChatTarget.url)
+    const docsChatRelayId = docsChatUrl.searchParams.get("ccs_pp") || new URLSearchParams(docsChatUrl.hash.slice(1)).get("ccs_pp")
+    if (!docsChatRelayId) fail(`Google Docs → ChatGPT 未使用本地提示词 relay: ${docsChatTarget.url}`)
+    const docsChatRecord = await evaluate(swCdp, `new Promise((resolve) => {
+      const key = ${JSON.stringify("ccs_ai_pending_prompt_")} + ${JSON.stringify(docsChatRelayId)};
+      (chrome.storage.session || chrome.storage.local).get([key], (data) => resolve(data[key] || null));
+    })`)
+    if (!docsChatRecord?.prompt?.startsWith("# 通用「GPT-4.5 感」") ||
+        !docsChatRecord.prompt.includes("https://docs.google.com/document/d/smoke-doc/edit?tab=t.0") ||
+        docsChatRecord.prompt.includes("#heading") || docsChatRecord.prompt.includes("${url}") ||
+        docsChatRecord.relayEngine !== "chatgpt") {
+      fail(`Google Docs → ChatGPT relay 记录异常: ${JSON.stringify(docsChatRecord)?.slice(0, 1200)}`)
+    }
+
+    const targetIdsBeforeClaude = new Set(
+      (await fetch(`http://127.0.0.1:${port}/json/list`).then((r) => r.json())).map((target) => target.id)
+    )
+    await evaluate(docsFixture.cdp, `Array.from(document.querySelectorAll('[data-ccs-google-doc-rewrite]')).find((button) => button.dataset.ccsRewriteTarget === 'claude')?.click()`)
+    const docsClaudeTarget = await findTarget(port, (target) =>
+      target.type === "page" && !targetIdsBeforeClaude.has(target.id) && (target.url || "").includes("claude.ai/"),
+      8000
+    )
+    if (!docsClaudeTarget) fail("Google Docs → Claude 改写未打开目标标签页")
+    const docsClaudeUrl = new URL(docsClaudeTarget.url)
+    const docsClaudeRelayId = docsClaudeUrl.searchParams.get("ccs_pp") || new URLSearchParams(docsClaudeUrl.hash.slice(1)).get("ccs_pp")
+    const docsClaudeRecord = docsClaudeRelayId
+      ? await evaluate(swCdp, `new Promise((resolve) => {
+          const key = ${JSON.stringify("ccs_ai_pending_prompt_")} + ${JSON.stringify(docsClaudeRelayId)};
+          (chrome.storage.session || chrome.storage.local).get([key], (data) => resolve(data[key] || null));
+        })`)
+      : null
+    if (!docsClaudeRelayId || !docsClaudeRecord?.prompt?.includes("https://docs.google.com/document/d/smoke-doc/edit?tab=t.0") ||
+        docsClaudeRecord.prompt.includes("${url}") || docsClaudeRecord.relayEngine !== "claude") {
+      fail(`Google Docs → Claude relay 记录异常: ${JSON.stringify(docsClaudeRecord)?.slice(0, 1200)}`)
+    }
+    if (docsFixture.exceptions.length > 0) fail(`Google Docs 改写未捕获异常: ${docsFixture.exceptions[0]}`)
+    console.log(`${TAG} ✓ Google Docs 双目标改写正常（顶部双按钮 / URL 规范化 / 本地 relay / ChatGPT + Claude）`)
+    docsFixture.cdp.close()
 
     const xFixture = await openSiteFixture("https://x.com/site-fastqa")
     const xFastQa = await evaluate(xFixture.cdp, `(() => {

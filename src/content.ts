@@ -33,6 +33,9 @@ import { Utils } from "./content-modules/utils"
 import { SiteFastQaRuntime } from "./content-modules/siteFastQaRuntime"
 import { startXTweetFastQaIntegration, XTweetFastQa } from "./content-modules/xTweetFastQa"
 import { startZhihuFastQaIntegration, ZhihuFastQa } from "./content-modules/zhihuFastQa"
+import { ArticleRewriteRuntime } from "./content-modules/articleRewriteRuntime"
+import { GoogleDocsRewrite, startGoogleDocsRewriteIntegration } from "./content-modules/googleDocsRewrite"
+import { ChatGptSelectARewrite, startChatGptSelectARewriteIntegration } from "./content-modules/chatGptSelectARewrite"
 
 // 把 TS 模块单例都挂到 window.CCSModules，让 legacy 调用点（如 backgroundComm 访问 Toast）
 // 不论谁先加载都能找到对方
@@ -61,7 +64,10 @@ Object.assign(_ccsModulesHost.CCSModules, {
   Utils,
   SiteFastQaRuntime,
   XTweetFastQa,
-  ZhihuFastQa
+  ZhihuFastQa,
+  ArticleRewriteRuntime,
+  GoogleDocsRewrite,
+  ChatGptSelectARewrite
 })
 
 const EXTENSION_NAME = "触触搜"
@@ -168,6 +174,8 @@ win.__initDockBar = (): void => {
 const ch = getChrome()
 startXTweetFastQaIntegration()
 startZhihuFastQaIntegration()
+startGoogleDocsRewriteIntegration()
+startChatGptSelectARewriteIntegration()
 ch?.storage?.local?.get?.(["ccs_debug"], (res) => {
   updateDebug(!!(res as { ccs_debug?: unknown })?.ccs_debug)
 })
