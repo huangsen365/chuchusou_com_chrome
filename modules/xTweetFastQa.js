@@ -7,6 +7,9 @@
 
   const ARTICLE_SELECTOR = 'article[data-testid="tweet"]';
   const TWEET_TEXT_SELECTOR = '[data-testid="tweetText"]';
+  const X_ARTICLE_SELECTOR = '[data-testid="twitterArticleReadView"]';
+  const X_ARTICLE_TITLE_SELECTOR = '[data-testid="twitter-article-title"]';
+  const X_ARTICLE_BODY_SELECTOR = '[data-testid="twitterArticleRichTextView"]';
   const BUTTON_MARKER = 'data-ccs-x-tweet-fastqa';
   const HOST_MARKER = 'data-ccs-x-tweet-fastqa-host';
   const STYLE_ID = 'ccs-x-tweet-fastqa-styles';
@@ -48,9 +51,34 @@
     return elementText(textElement);
   }
 
+  function primaryXArticle(root) {
+    return Array.from(root.querySelectorAll(X_ARTICLE_SELECTOR))
+      .find((element) => belongsToTweetRoot(element, root) && !isInsideEmbeddedTweet(element, root)) || null;
+  }
+
+  function extractXArticleTitle(root) {
+    return elementText(primaryXArticle(root)?.querySelector(X_ARTICLE_TITLE_SELECTOR));
+  }
+
+  function extractXArticleBody(root) {
+    return elementText(primaryXArticle(root)?.querySelector(X_ARTICLE_BODY_SELECTOR));
+  }
+
   function buildTweetFastQaInput(body) {
     const normalized = normalizeTweetBody(body);
     return normalized ? `【推文正文】\n${normalized}\n【正文结束】` : '';
+  }
+
+  function buildXArticleFastQaInput(title, body) {
+    const normalizedTitle = normalizeTweetBody(title);
+    const normalizedBody = normalizeTweetBody(body);
+    if (!normalizedBody) return '';
+    return [
+      ...(normalizedTitle ? ['【X 长文标题】', normalizedTitle] : []),
+      '【X 长文正文】',
+      normalizedBody,
+      '【正文结束】'
+    ].join('\n');
   }
 
   function tweetSourceKey(root, body) {
@@ -73,6 +101,24 @@
   }
 
   function extractXTweetFastQaContent(root) {
+    const articleBody = extractXArticleBody(root);
+    if (articleBody) {
+      const title = extractXArticleTitle(root);
+      const keyword = buildXArticleFastQaInput(title, articleBody);
+      const postKey = tweetSourceKey(root, articleBody);
+      const sourceKey = postKey.startsWith('x:')
+        ? `x-article:${postKey.slice(2)}`
+        : `x-article-body:${title || articleBody.slice(0, 200)}`;
+      return {
+        platform: 'x',
+        kind: 'article',
+        sourceKey,
+        keyword,
+        body: articleBody,
+        ...(title ? { title } : {})
+      };
+    }
+
     const body = extractPrimaryTweetBody(root);
     const keyword = buildTweetFastQaInput(body);
     if (!keyword) return null;
@@ -86,10 +132,15 @@
   }
 
   function findTweetActionGroup(root) {
-    return Array.from(root.querySelectorAll('[role="group"]')).find((group) =>
-      Array.from(group.querySelectorAll('[data-testid="reply"]'))
-        .some((reply) => belongsToTweetRoot(reply, root))
-    ) || null;
+    const scopes = [primaryXArticle(root), root].filter(Boolean);
+    for (const scope of scopes) {
+      const group = Array.from(scope.querySelectorAll('[role="group"]')).find((candidate) =>
+        Array.from(candidate.querySelectorAll('[data-testid="reply"]'))
+          .some((reply) => belongsToTweetRoot(reply, root))
+      );
+      if (group) return group;
+    }
+    return null;
   }
 
   function directGroupChild(element, group) {
@@ -167,22 +218,37 @@
     ownsElement(element, root) {
       return belongsToTweetRoot(element, root);
     },
-    copy(state) {
+    copy(state, content) {
+      const isArticle = content?.kind === 'article';
       if (state === 'idle') {
         return {
-          label: '用 ChatGPT 速答这条推文',
-          title: '速答 · ChatGPT：仅发送这条推文正文'
+          label: isArticle ? '用 ChatGPT 速答这篇 X 长文' : '用 ChatGPT 速答这条推文',
+          title: isArticle
+            ? '速答 · ChatGPT：仅发送这篇 X 长文的标题和正文'
+            : '速答 · ChatGPT：仅发送这条推文正文'
         };
       }
-      if (state === 'busy') return { label: '正在发送到 ChatGPT', title: '正在准备速答并打开 ChatGPT' };
-      if (state === 'success') return { label: '已发送到 ChatGPT', title: '推文正文已发送到速答 · ChatGPT' };
+      if (state === 'busy') {
+        return {
+          label: '正在发送到 ChatGPT',
+          title: isArticle ? '正在提取 X 长文并打开 ChatGPT' : '正在准备速答并打开 ChatGPT'
+        };
+      }
+      if (state === 'success') {
+        return {
+          label: '已发送到 ChatGPT',
+          title: isArticle ? 'X 长文已发送到速答 · ChatGPT' : '推文正文已发送到速答 · ChatGPT'
+        };
+      }
       if (state === 'error') return { label: '发送失败，可以重试', title: '发送失败，点击重试' };
-      return { label: '未提取到推文正文', title: '这条推文没有可提取的正文' };
+      return { label: '未提取到 X 正文', title: '这则 X 内容没有可提取的正文' };
     },
-    successToast() {
-      return '推文正文已发送到速答 · ChatGPT';
+    successToast(content) {
+      return content.kind === 'article'
+        ? 'X 长文标题和正文已发送到速答 · ChatGPT'
+        : '推文正文已发送到速答 · ChatGPT';
     },
-    unavailableToast: '未提取到这条推文的正文'
+    unavailableToast: '未提取到这则 X 内容的正文'
   };
 
   function startXTweetFastQaIntegration() {
@@ -192,7 +258,10 @@
   const XTweetFastQa = {
     normalizeTweetBody,
     extractPrimaryTweetBody,
+    extractXArticleTitle,
+    extractXArticleBody,
     buildTweetFastQaInput,
+    buildXArticleFastQaInput,
     extract: extractXTweetFastQaContent,
     start: startXTweetFastQaIntegration
   };

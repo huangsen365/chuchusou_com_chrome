@@ -8,6 +8,7 @@ import ts from "typescript"
 
 const root = process.cwd()
 const ARTICLE_SELECTOR = 'article[data-testid="tweet"]'
+const X_ARTICLE_SELECTOR = '[data-testid="twitterArticleReadView"]'
 
 function assert(condition, message) {
   if (!condition) throw new Error(message)
@@ -106,6 +107,8 @@ class FakeElement {
     this.role = role
     this.parentElement = parent
     this.tweetTexts = []
+    this.xArticles = []
+    this.queryMap = new Map()
   }
 
   matches(selector) {
@@ -126,13 +129,21 @@ class FakeElement {
   }
 
   querySelectorAll(selector) {
-    return selector === '[data-testid="tweetText"]' ? this.tweetTexts : []
+    if (selector === '[data-testid="tweetText"]') return this.tweetTexts
+    if (selector === X_ARTICLE_SELECTOR) return this.xArticles
+    return []
+  }
+
+  querySelector(selector) {
+    return this.queryMap.get(selector) || null
   }
 }
 
 function verifyApi(name, api) {
   assert(api && typeof api.extractPrimaryTweetBody === "function", `${name}: missing extractor`)
   assert(typeof api.buildTweetFastQaInput === "function", `${name}: missing formatter`)
+  assert(typeof api.extractXArticleBody === "function", `${name}: missing X article extractor`)
+  assert(typeof api.buildXArticleFastQaInput === "function", `${name}: missing X article formatter`)
 
   const rootElement = new FakeElement({ article: true })
   const mainText = new FakeElement({ text: "第一行  \n\n\n第二行", parent: rootElement })
@@ -158,6 +169,36 @@ function verifyApi(name, api) {
   rootElement.tweetTexts = [nestedText]
   assert(api.extractPrimaryTweetBody(rootElement) === "", `${name}: nested article text must be excluded`)
   assert(api.buildTweetFastQaInput("  \n ") === "", `${name}: empty body must not create a request`)
+
+  const articleTweet = new FakeElement({ article: true })
+  const articleRoot = new FakeElement({ parent: articleTweet })
+  const articleTitle = new FakeElement({ text: "  一篇 X 长文  ", parent: articleRoot })
+  const articleBody = new FakeElement({ text: "第一段  \n\n\n第二段", parent: articleRoot })
+  articleRoot.queryMap.set('[data-testid="twitter-article-title"]', articleTitle)
+  articleRoot.queryMap.set('[data-testid="twitterArticleRichTextView"]', articleBody)
+  articleTweet.xArticles = [articleRoot]
+  articleTweet.tweetTexts = [new FakeElement({ text: "外层推文摘要不能发送", parent: articleTweet })]
+
+  assert(api.extractXArticleTitle(articleTweet) === "一篇 X 长文", `${name}: X article title extraction failed`)
+  assert(api.extractXArticleBody(articleTweet) === "第一段\n\n第二段", `${name}: X article body extraction failed`)
+  assert(
+    api.buildXArticleFastQaInput("一篇 X 长文", "第一段\n\n第二段") ===
+      "【X 长文标题】\n一篇 X 长文\n【X 长文正文】\n第一段\n\n第二段\n【正文结束】",
+    `${name}: X article prompt block must contain title, full body, and requested delimiters`
+  )
+  const articleContent = api.extract(articleTweet)
+  assert(articleContent?.kind === "article", `${name}: X article must use article content kind`)
+  assert(articleContent?.title === "一篇 X 长文", `${name}: X article title missing from content contract`)
+  assert(articleContent?.body === "第一段\n\n第二段", `${name}: X article body missing from content contract`)
+  assert(!articleContent?.keyword.includes("外层推文摘要"), `${name}: outer tweet teaser leaked into X article input`)
+
+  const articleCardTweet = new FakeElement({ article: true })
+  const articleCardLink = new FakeElement({ role: "link", parent: articleCardTweet })
+  const embeddedArticle = new FakeElement({ parent: articleCardLink })
+  const embeddedBody = new FakeElement({ text: "引用卡片里的长文不能发送", parent: embeddedArticle })
+  embeddedArticle.queryMap.set('[data-testid="twitterArticleRichTextView"]', embeddedBody)
+  articleCardTweet.xArticles = [embeddedArticle]
+  assert(api.extractXArticleBody(articleCardTweet) === "", `${name}: embedded X article card must be excluded`)
 }
 
 const legacyApi = loadLegacyApi()
@@ -176,4 +217,4 @@ assert(
   "shared site fastqa runtime must load before X adapter"
 )
 
-console.log("[verify-x-tweet-fastqa] ✓ 主推文正文提取、引用排除、精简正文块及双轨入口验证通过")
+console.log("[verify-x-tweet-fastqa] ✓ 推文 / X 长文提取、引用排除、正文块及双轨入口验证通过")

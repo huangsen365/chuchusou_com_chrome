@@ -99,6 +99,26 @@ async function main() {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
     const hostname = String(req.headers.host || "").split(":")[0]
     if (hostname === "x.com") {
+      if ((req.url || "").startsWith("/article-fastqa")) {
+        res.end(`<!doctype html><meta charset="utf-8"><title>X article site-fastqa fixture</title>
+          <article data-testid="tweet">
+            <div data-testid="User-Name">夹具作者 @fixture</div>
+            <article data-testid="twitterArticleReadView">
+              <div data-testid="twitter-article-title">X 长文夹具标题</div>
+              <div role="group">
+                <div><button data-testid="reply" aria-label="回复">回复</button></div>
+                <div><button aria-label="转发">转发</button></div>
+                <div id="x-article-share-cell"><button aria-label="分享帖子">分享</button></div>
+              </div>
+              <div data-testid="twitterArticleRichTextView">
+                <h2>第一节</h2><p>这是 X 长文第一段。</p><p>这是 X 长文第二段。</p>
+              </div>
+            </article>
+            <a href="/fixture/status/123"><time>刚刚</time></a>
+            <div role="group"><div><button data-testid="reply">底部回复</button></div></div>
+          </article>`)
+        return
+      }
       res.end(`<!doctype html><meta charset="utf-8"><title>X site-fastqa fixture</title>
         <article data-testid="tweet">
           <div data-testid="tweetText">共享运行时 X 主推文正文。</div>
@@ -617,6 +637,33 @@ async function main() {
     if (xFixture.exceptions.length > 0) fail(`X 速答适配器未捕获异常: ${xFixture.exceptions[0]}`)
     console.log(`${TAG} ✓ X 速答适配器注入正常（单实例 / 分享前 / idle）`)
     xFixture.cdp.close()
+
+    const xArticleFixture = await openSiteFixture("https://x.com/article-fastqa")
+    const xArticleFastQa = await evaluate(xArticleFixture.cdp, `(() => {
+      const root = document.querySelector('article[data-testid="tweet"]');
+      const button = document.querySelector('[data-ccs-x-tweet-fastqa]');
+      const host = button?.closest('[data-ccs-site-fastqa-host="x"]');
+      return {
+        count: document.querySelectorAll('[data-ccs-x-tweet-fastqa]').length,
+        kind: button?.dataset.ccsContentKind || '',
+        state: button?.dataset.ccsState || '',
+        sourceKey: button?.dataset.ccsSourceKey || '',
+        label: button?.getAttribute('aria-label') || '',
+        beforeArticleShare: host?.nextElementSibling?.id === 'x-article-share-cell',
+        domTitle: root?.querySelector('[data-testid="twitter-article-title"]')?.innerText || '',
+        domBody: root?.querySelector('[data-testid="twitterArticleRichTextView"]')?.innerText || ''
+      };
+    })()`)
+    if (xArticleFastQa?.count !== 1 || xArticleFastQa.kind !== "article" ||
+        xArticleFastQa.state !== "idle" || !xArticleFastQa.sourceKey.startsWith("x-article:") ||
+        !xArticleFastQa.label.includes("X 长文") || !xArticleFastQa.beforeArticleShare ||
+        xArticleFastQa.domTitle !== "X 长文夹具标题" ||
+        !xArticleFastQa.domBody.includes("这是 X 长文第二段。")) {
+      fail(`X 长文速答适配器注入异常: ${JSON.stringify(xArticleFastQa)}`)
+    }
+    if (xArticleFixture.exceptions.length > 0) fail(`X 长文速答适配器未捕获异常: ${xArticleFixture.exceptions[0]}`)
+    console.log(`${TAG} ✓ X 长文速答适配器正常（article 识别 / 单实例 / 内层分享前）`)
+    xArticleFixture.cdp.close()
 
     const zhihuFixture = await openSiteFixture("https://www.zhihu.com/question/123/answer/456")
     const zhihuBefore = await evaluate(zhihuFixture.cdp, `(() => {

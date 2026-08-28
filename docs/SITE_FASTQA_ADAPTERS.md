@@ -7,7 +7,7 @@
 
 - `src/content-modules/siteFastQaRuntime.ts`：TypeScript 共享运行时与内容契约。
 - `modules/siteFastQaRuntime.js`：当前生产 manifest 实际加载的 legacy 共享运行时。
-- `src/content-modules/xTweetFastQa.ts` / `modules/xTweetFastQa.js`：X 适配器。
+- `src/content-modules/xTweetFastQa.ts` / `modules/xTweetFastQa.js`：X 推文 / 长文适配器。
 - `src/content-modules/zhihuFastQa.ts` / `modules/zhihuFastQa.js`：知乎适配器。
 
 共享内容契约 `SiteFastQaContent` 包含平台、内容类型、稳定来源键、最终速答输入、

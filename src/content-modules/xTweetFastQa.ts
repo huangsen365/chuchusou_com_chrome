@@ -1,4 +1,4 @@
-/** X 推文正文 -> 速答 · ChatGPT 的站点适配器。 */
+/** X 推文 / 长文正文 -> 速答 · ChatGPT 的站点适配器。 */
 
 import {
   startSiteFastQaIntegration,
@@ -8,6 +8,9 @@ import {
 
 const ARTICLE_SELECTOR = 'article[data-testid="tweet"]'
 const TWEET_TEXT_SELECTOR = '[data-testid="tweetText"]'
+const X_ARTICLE_SELECTOR = '[data-testid="twitterArticleReadView"]'
+const X_ARTICLE_TITLE_SELECTOR = '[data-testid="twitter-article-title"]'
+const X_ARTICLE_BODY_SELECTOR = '[data-testid="twitterArticleRichTextView"]'
 const BUTTON_MARKER = "data-ccs-x-tweet-fastqa"
 const HOST_MARKER = "data-ccs-x-tweet-fastqa-host"
 const STYLE_ID = "ccs-x-tweet-fastqa-styles"
@@ -39,7 +42,7 @@ export function normalizeTweetBody(value: string): string {
     .trim()
 }
 
-function elementText(element: HTMLElement | undefined): string {
+function elementText(element: HTMLElement | null | undefined): string {
   if (!element) return ""
   return normalizeTweetBody(element.innerText || element.textContent || "")
 }
@@ -51,9 +54,36 @@ export function extractPrimaryTweetBody(root: HTMLElement): string {
   return elementText(textElement)
 }
 
+/** 返回当前推文承载的 X 长文根节点；排除引用卡片和嵌套推文中的文章。 */
+function primaryXArticle(root: HTMLElement): HTMLElement | null {
+  return Array.from(root.querySelectorAll<HTMLElement>(X_ARTICLE_SELECTOR))
+    .find((element) => belongsToTweetRoot(element, root) && !isInsideEmbeddedTweet(element, root))
+    ?? null
+}
+
+export function extractXArticleTitle(root: HTMLElement): string {
+  return elementText(primaryXArticle(root)?.querySelector<HTMLElement>(X_ARTICLE_TITLE_SELECTOR))
+}
+
+export function extractXArticleBody(root: HTMLElement): string {
+  return elementText(primaryXArticle(root)?.querySelector<HTMLElement>(X_ARTICLE_BODY_SELECTOR))
+}
+
 export function buildTweetFastQaInput(body: string): string {
   const normalized = normalizeTweetBody(body)
   return normalized ? `【推文正文】\n${normalized}\n【正文结束】` : ""
+}
+
+export function buildXArticleFastQaInput(title: string, body: string): string {
+  const normalizedTitle = normalizeTweetBody(title)
+  const normalizedBody = normalizeTweetBody(body)
+  if (!normalizedBody) return ""
+  return [
+    ...(normalizedTitle ? ["【X 长文标题】", normalizedTitle] : []),
+    "【X 长文正文】",
+    normalizedBody,
+    "【正文结束】"
+  ].join("\n")
 }
 
 function tweetSourceKey(root: HTMLElement, body: string): string {
@@ -76,6 +106,24 @@ function tweetSourceKey(root: HTMLElement, body: string): string {
 }
 
 export function extractXTweetFastQaContent(root: HTMLElement): SiteFastQaContent | null {
+  const articleBody = extractXArticleBody(root)
+  if (articleBody) {
+    const title = extractXArticleTitle(root)
+    const keyword = buildXArticleFastQaInput(title, articleBody)
+    const postKey = tweetSourceKey(root, articleBody)
+    const sourceKey = postKey.startsWith("x:")
+      ? `x-article:${postKey.slice(2)}`
+      : `x-article-body:${title || articleBody.slice(0, 200)}`
+    return {
+      platform: "x",
+      kind: "article",
+      sourceKey,
+      keyword,
+      body: articleBody,
+      ...(title ? { title } : {})
+    }
+  }
+
   const body = extractPrimaryTweetBody(root)
   const keyword = buildTweetFastQaInput(body)
   if (!keyword) return null
@@ -89,10 +137,15 @@ export function extractXTweetFastQaContent(root: HTMLElement): SiteFastQaContent
 }
 
 function findTweetActionGroup(root: HTMLElement): HTMLElement | null {
-  return Array.from(root.querySelectorAll<HTMLElement>('[role="group"]')).find((group) =>
-    Array.from(group.querySelectorAll<HTMLElement>('[data-testid="reply"]'))
-      .some((reply) => belongsToTweetRoot(reply, root))
-  ) ?? null
+  const scopes = [primaryXArticle(root), root].filter((scope): scope is HTMLElement => scope !== null)
+  for (const scope of scopes) {
+    const group = Array.from(scope.querySelectorAll<HTMLElement>('[role="group"]')).find((candidate) =>
+      Array.from(candidate.querySelectorAll<HTMLElement>('[data-testid="reply"]'))
+        .some((reply) => belongsToTweetRoot(reply, root))
+    )
+    if (group) return group
+  }
+  return null
 }
 
 function directGroupChild(element: Element, group: HTMLElement): Element | null {
@@ -170,22 +223,37 @@ export const xTweetFastQaAdapter: SiteFastQaAdapter = {
   ownsElement(element, root) {
     return belongsToTweetRoot(element, root)
   },
-  copy(state) {
+  copy(state, content) {
+    const isArticle = content?.kind === "article"
     if (state === "idle") {
       return {
-        label: "用 ChatGPT 速答这条推文",
-        title: "速答 · ChatGPT：仅发送这条推文正文"
+        label: isArticle ? "用 ChatGPT 速答这篇 X 长文" : "用 ChatGPT 速答这条推文",
+        title: isArticle
+          ? "速答 · ChatGPT：仅发送这篇 X 长文的标题和正文"
+          : "速答 · ChatGPT：仅发送这条推文正文"
       }
     }
-    if (state === "busy") return { label: "正在发送到 ChatGPT", title: "正在准备速答并打开 ChatGPT" }
-    if (state === "success") return { label: "已发送到 ChatGPT", title: "推文正文已发送到速答 · ChatGPT" }
+    if (state === "busy") {
+      return {
+        label: "正在发送到 ChatGPT",
+        title: isArticle ? "正在提取 X 长文并打开 ChatGPT" : "正在准备速答并打开 ChatGPT"
+      }
+    }
+    if (state === "success") {
+      return {
+        label: "已发送到 ChatGPT",
+        title: isArticle ? "X 长文已发送到速答 · ChatGPT" : "推文正文已发送到速答 · ChatGPT"
+      }
+    }
     if (state === "error") return { label: "发送失败，可以重试", title: "发送失败，点击重试" }
-    return { label: "未提取到推文正文", title: "这条推文没有可提取的正文" }
+    return { label: "未提取到 X 正文", title: "这则 X 内容没有可提取的正文" }
   },
-  successToast() {
-    return "推文正文已发送到速答 · ChatGPT"
+  successToast(content) {
+    return content.kind === "article"
+      ? "X 长文标题和正文已发送到速答 · ChatGPT"
+      : "推文正文已发送到速答 · ChatGPT"
   },
-  unavailableToast: "未提取到这条推文的正文"
+  unavailableToast: "未提取到这则 X 内容的正文"
 }
 
 export function startXTweetFastQaIntegration(): () => void {
@@ -195,7 +263,10 @@ export function startXTweetFastQaIntegration(): () => void {
 export const XTweetFastQa = {
   normalizeTweetBody,
   extractPrimaryTweetBody,
+  extractXArticleTitle,
+  extractXArticleBody,
   buildTweetFastQaInput,
+  buildXArticleFastQaInput,
   extract: extractXTweetFastQaContent,
   start: startXTweetFastQaIntegration
 }
