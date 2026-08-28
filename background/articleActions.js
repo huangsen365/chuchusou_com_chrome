@@ -104,10 +104,18 @@
     }
   }
 
-  function trustedChatGptSource(senderUrl, sourceUrl) {
+  function trustedChatGptSource(senderUrl, sourceUrl, senderTabUrl) {
     const sender = normalizeUrl(senderUrl);
     const source = normalizeUrl(sourceUrl);
-    return Boolean(sender && source && sender === source && isChatGptUrl(sender));
+    const senderTab = normalizeUrl(senderTabUrl);
+    const trustedSender = sender || senderTab;
+    return Boolean(
+      trustedSender &&
+      source &&
+      isChatGptUrl(trustedSender) &&
+      isChatGptUrl(source) &&
+      (sender === source || senderTab === source)
+    );
   }
 
   function normalizeArticleInput(value) {

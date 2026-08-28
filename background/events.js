@@ -889,9 +889,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'ccsCreateXArticleDraft') {
     const requestId = ccsGetRequestId(request, 'ccsCreateXArticleDraft');
     const respond = ccsCreateSafeResponder(sendResponse, 'ccsCreateXArticleDraft', requestId, 90000);
-    const senderUrl = sender?.url || sender?.tab?.url || '';
+    const senderUrl = sender?.url || '';
+    const senderTabUrl = sender?.tab?.url || '';
     const sourceUrl = typeof request.sourceUrl === 'string' ? request.sourceUrl : '';
-    if (!globalThis.CCSArticleActions?.trustedChatGptSource(senderUrl, sourceUrl)) {
+    if (!globalThis.CCSArticleActions?.trustedChatGptSource(senderUrl, sourceUrl, senderTabUrl)) {
       respond({ success: false, error: 'sender-not-chatgpt' });
       return true;
     }
@@ -903,9 +904,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'ccsCreateLongArticleCover') {
     const requestId = ccsGetRequestId(request, 'ccsCreateLongArticleCover');
     const respond = ccsCreateSafeResponder(sendResponse, 'ccsCreateLongArticleCover', requestId, 10000);
-    const senderUrl = sender?.url || sender?.tab?.url || '';
+    const senderUrl = sender?.url || '';
+    const senderTabUrl = sender?.tab?.url || '';
     const sourceUrl = typeof request.sourceUrl === 'string' ? request.sourceUrl : '';
-    if (!globalThis.CCSArticleActions?.trustedChatGptSource(senderUrl, sourceUrl)) {
+    if (!globalThis.CCSArticleActions?.trustedChatGptSource(senderUrl, sourceUrl, senderTabUrl)) {
       respond({ success: false, error: 'sender-not-chatgpt' });
       return true;
     }

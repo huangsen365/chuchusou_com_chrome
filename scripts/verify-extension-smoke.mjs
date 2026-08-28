@@ -928,6 +928,13 @@ async function main() {
     const beforeXTargets = new Set(
       (await fetch(`http://127.0.0.1:${port}/json/list`).then((r) => r.json())).map((target) => target.id)
     )
+    const spaSourceUrl = await evaluate(chatRewriteFixture.cdp, `(() => {
+      history.pushState({}, '', '/rewrite-fixture-current');
+      return location.href;
+    })()`)
+    if (spaSourceUrl !== "https://chatgpt.com/rewrite-fixture-current") {
+      fail(`ChatGPT SPA 路由夹具切换失败: ${spaSourceUrl}`)
+    }
     await evaluate(chatRewriteFixture.cdp, `document.querySelector('[data-ccs-long-article-x-draft]')?.click()`)
     const xDraftTarget = await findTarget(port, (target) =>
       target.type === "page" && !beforeXTargets.has(target.id) && (target.url || "").startsWith("https://x.com/compose/articles"),
@@ -1007,7 +1014,7 @@ async function main() {
       fail(`ChatGPT 选A改写未捕获异常: ${chatRewriteFixture.exceptions[0]}`)
     }
     console.log(`${TAG} ✓ ChatGPT 选A改写正常（严格结构 / 单按钮 / 完整填入 / 不自动发送 / 草稿保护）`)
-    console.log(`${TAG} ✓ ChatGPT 长文双动作正常（工作流识别 / writing block 外工具栏 / X 草稿精确写入与保存 / 完整文章封面中转）`)
+    console.log(`${TAG} ✓ ChatGPT 长文双动作正常（工作流识别 / SPA 路由来源校验 / writing block 外工具栏 / X 草稿精确写入与保存 / 完整文章封面中转）`)
     chatRewriteFixture.cdp.close()
 
     const docsFixture = await openSiteFixture("https://docs.google.com/document/u/0/d/smoke-doc/edit?tab=t.0#heading=h.smoke")

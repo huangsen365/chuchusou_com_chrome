@@ -227,6 +227,30 @@ const article = {
   bodyHtml: `<p>${"正文段落。".repeat(180)}</p>`
 }
 assert(bg.api.trustedChatGptSource("https://chatgpt.com/c/abc", "https://chatgpt.com/c/abc"), "trusted ChatGPT source rejected")
+assert(
+  bg.api.trustedChatGptSource(
+    "https://chatgpt.com/c/previous",
+    "https://chatgpt.com/c/current",
+    "https://chatgpt.com/c/current"
+  ),
+  "ChatGPT SPA navigation source rejected"
+)
+assert(
+  !bg.api.trustedChatGptSource(
+    "https://chatgpt.com/c/previous",
+    "https://chatgpt.com/c/current",
+    "https://chatgpt.com/c/another"
+  ),
+  "unrelated ChatGPT source accepted"
+)
+assert(
+  !bg.api.trustedChatGptSource(
+    "https://x.com/compose/articles",
+    "https://chatgpt.com/c/current",
+    "https://chatgpt.com/c/current"
+  ),
+  "non-ChatGPT sender accepted through its tab URL"
+)
 assert(!bg.api.trustedChatGptSource("https://chatgpt.com.evil.test/c/abc", "https://chatgpt.com.evil.test/c/abc"), "lookalike ChatGPT host accepted")
 const delivery = await bg.api.createAndDeliverXArticleDraft(article, "https://chatgpt.com/c/abc")
 assert(delivery.success === true, "X article task delivery failed")
@@ -281,5 +305,9 @@ for (const action of [
 ]) {
   assert(eventSource.includes(action), `background route ${action} missing`)
 }
+assert(
+  eventSource.includes("trustedChatGptSource(senderUrl, sourceUrl, senderTabUrl)"),
+  "background must pass the current tab URL for ChatGPT SPA navigation"
+)
 
 console.log("[verify-long-article-actions] ✓ 长文来源识别、任务隔离、封面复用、MAIN-world Draft.js 写入及保存保护验证通过")
