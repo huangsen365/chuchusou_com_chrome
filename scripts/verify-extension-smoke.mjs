@@ -134,23 +134,40 @@ async function main() {
 原始素材参考本次对话上下文。</div>
         </section>
         <section data-testid="conversation-turn-4">
-          <div data-message-author-role="assistant" data-message-id="assistant-long-rewrite-1">
+          <div data-message-author-role="assistant" data-message-id="assistant-long-rewrite-1" data-is-streaming="true">
             <div data-testid="writing-block-container" data-writing-block="true">
-              <div role="toolbar"><button data-testid="writing-block-copy-button" aria-label="Copy">Copy</button></div>
-              <div class="ProseMirror markdown prose" contenteditable="true">
+              <div role="toolbar"><button data-testid="writing-block-copy-button" aria-label="Copy" aria-disabled="true" disabled>Copy</button></div>
+              <div id="long-article-editor" class="ProseMirror markdown prose" contenteditable="true">
                 <h1>真正成熟的判断，来自理解事情背后的结构</h1>
                 <h2>我们为什么容易停留在表面</h2>
-                ${longArticleParagraphs}
+                <p>这是正在生成的开头，尚未形成完整文章。</p>
               </div>
             </div>
           </div>
         </section>
+        <template id="long-article-final-content">
+          <h1>真正成熟的判断，来自理解事情背后的结构</h1>
+          <h2>我们为什么容易停留在表面</h2>
+          ${longArticleParagraphs}
+        </template>
         <form id="composer-form">
           <div id="prompt-textarea" contenteditable="true" role="textbox"></div>
           <button type="submit">发送</button>
         </form>
         <script>
           window.__submitClicks = 0
+          window.__finishLongArticleFixture = () => {
+            const message = document.querySelector('[data-message-id="assistant-long-rewrite-1"]')
+            const copy = message?.querySelector('[data-testid="writing-block-copy-button"]')
+            const editor = document.getElementById('long-article-editor')
+            const finalContent = document.getElementById('long-article-final-content')
+            if (!message || !copy || !editor || !finalContent) return false
+            editor.replaceChildren(finalContent.content.cloneNode(true))
+            message.removeAttribute('data-is-streaming')
+            copy.disabled = false
+            copy.removeAttribute('aria-disabled')
+            return true
+          }
           document.getElementById('composer-form').addEventListener('submit', (event) => {
             event.preventDefault()
             window.__submitClicks += 1
@@ -814,6 +831,71 @@ async function main() {
       fail(`ChatGPT 已有草稿保护异常: ${JSON.stringify(preservedChatDraft)}`)
     }
 
+    let longArticleLoading = null
+    for (let i = 0; i < 40; i++) {
+      longArticleLoading = await evaluate(chatRewriteFixture.cdp, `(() => {
+        const message = document.querySelector('[data-message-id="assistant-long-rewrite-1"]');
+        const actions = message?.querySelector('[data-ccs-long-article-actions]');
+        const buttons = Array.from(actions?.querySelectorAll('button') || []);
+        return {
+          state: actions?.dataset.ccsLongArticleState || '',
+          count: buttons.length,
+          disabled: buttons.map((button) => button.disabled),
+          ariaBusy: buttons.map((button) => button.getAttribute('aria-busy')),
+          spinnerDisplay: buttons.map((button) => getComputedStyle(button.querySelector('.ccs-long-article-action-spinner')).display)
+        };
+      })()`)
+      if (longArticleLoading?.state === "generating" && longArticleLoading.count === 2) break
+      await wait(100)
+    }
+    if (longArticleLoading?.state !== "generating" || longArticleLoading.count !== 2 ||
+        longArticleLoading.disabled.some((value) => value !== true) ||
+        longArticleLoading.ariaBusy.some((value) => value !== "true") ||
+        longArticleLoading.spinnerDisplay.some((value) => value === "none")) {
+      fail(`ChatGPT 长文生成中按钮加载态异常: ${JSON.stringify(longArticleLoading)}`)
+    }
+
+    const finishLongArticle = await evaluate(chatRewriteFixture.cdp, `window.__finishLongArticleFixture?.()`)
+    if (finishLongArticle !== true) fail("ChatGPT 长文流式夹具未能完成生成")
+    let longArticleSettling = null
+    for (let i = 0; i < 20; i++) {
+      longArticleSettling = await evaluate(chatRewriteFixture.cdp, `(() => {
+        const actions = document.querySelector('[data-message-id="assistant-long-rewrite-1"] [data-ccs-long-article-actions]');
+        const buttons = Array.from(actions?.querySelectorAll('button') || []);
+        return {
+          state: actions?.dataset.ccsLongArticleState || '',
+          disabled: buttons.map((button) => button.disabled),
+          spinners: buttons.map((button) => getComputedStyle(button.querySelector('.ccs-long-article-action-spinner')).display)
+        };
+      })()`)
+      if (longArticleSettling?.state === "settling") break
+      await wait(60)
+    }
+    if (longArticleSettling?.state !== "settling" ||
+        longArticleSettling.disabled.some((value) => value !== true) ||
+        longArticleSettling.spinners.some((value) => value === "none")) {
+      fail(`ChatGPT 长文完成后稳定等待态异常: ${JSON.stringify(longArticleSettling)}`)
+    }
+    let longArticleReady = null
+    for (let i = 0; i < 30; i++) {
+      longArticleReady = await evaluate(chatRewriteFixture.cdp, `(() => {
+        const actions = document.querySelector('[data-message-id="assistant-long-rewrite-1"] [data-ccs-long-article-actions]');
+        const buttons = Array.from(actions?.querySelectorAll('button') || []);
+        return {
+          state: actions?.dataset.ccsLongArticleState || '',
+          disabled: buttons.map((button) => button.disabled),
+          spinners: buttons.map((button) => getComputedStyle(button.querySelector('.ccs-long-article-action-spinner')).display)
+        };
+      })()`)
+      if (longArticleReady?.state === "ready") break
+      await wait(100)
+    }
+    if (longArticleReady?.state !== "ready" ||
+        longArticleReady.disabled.some((value) => value !== false) ||
+        longArticleReady.spinners.some((value) => value !== "none")) {
+      fail(`ChatGPT 长文完整后按钮可用态异常: ${JSON.stringify(longArticleReady)}`)
+    }
+
     const longArticleActions = await evaluate(chatRewriteFixture.cdp, `(() => {
       const longMessage = document.querySelector('[data-message-id="assistant-long-rewrite-1"]');
       const firstMessage = document.querySelector('[data-message-id="assistant-rewrite-1"]');
@@ -830,6 +912,8 @@ async function main() {
         firstMessageActions: firstMessage?.querySelectorAll('[data-ccs-long-article-actions]').length || 0,
         outsideEditor: !!xButton && !editor?.contains(xButton) && !!coverButton && !editor?.contains(coverButton),
         followsCopy: xButton?.closest('[data-ccs-long-article-actions]')?.previousElementSibling?.dataset?.testid === 'writing-block-copy-button',
+        state: xButton?.closest('[data-ccs-long-article-actions]')?.dataset?.ccsLongArticleState || '',
+        enabled: xButton?.disabled === false && coverButton?.disabled === false,
         title,
         body
       };
@@ -837,7 +921,7 @@ async function main() {
     if (longArticleActions?.xCount !== 1 || longArticleActions?.coverCount !== 1 ||
         !longArticleActions.labels.includes("注入X草稿") || !longArticleActions.labels.includes("生成封面") ||
         longArticleActions.firstMessageActions !== 0 || !longArticleActions.outsideEditor || !longArticleActions.followsCopy ||
-        longArticleActions.body.length < 600) {
+        longArticleActions.state !== "ready" || !longArticleActions.enabled || longArticleActions.body.length < 600) {
       fail(`ChatGPT 长篇 writing block 双按钮识别异常: ${JSON.stringify(longArticleActions)}`)
     }
 

@@ -20,8 +20,28 @@
   const X_MARKER = 'data-ccs-long-article-x-draft';
   const COVER_MARKER = 'data-ccs-long-article-cover';
   const STYLE_ID = 'ccs-long-article-action-styles';
+  const LABEL_CLASS = 'ccs-long-article-action-label';
+  const SPINNER_CLASS = 'ccs-long-article-action-spinner';
   const STABLE_MS = 800;
   const MIN_BODY_LENGTH = 600;
+  const GENERATION_SIGNAL_SELECTOR = [
+    '[aria-busy="true"]',
+    '[data-streaming="true"]',
+    '[data-is-streaming="true"]',
+    '[data-generating="true"]',
+    '[data-loading="true"]',
+    '[data-state="streaming"]',
+    '[data-state="generating"]',
+    '[data-status="streaming"]',
+    '[data-status="generating"]',
+    '.result-streaming'
+  ].join(', ');
+  const STOP_PATTERN = /^(?:stop|stop generating|stop streaming|stop response|停止|停止生成|停止回答|停止流式传输)$/iu;
+  const ACTION_STATE_TITLES = {
+    generating: '内容正在生成中，请耐心等待；完成后即可使用此操作。',
+    settling: '内容刚生成完成，正在确认完整性，请稍候。',
+    unavailable: '暂未读取到完整文章，当前操作不可用。'
+  };
   const stability = new WeakMap();
 
   function isSupportedPage() {
@@ -70,11 +90,34 @@
     return previous?.getAttribute('data-message-author-role') === 'user' ? previous : null;
   }
 
-  function isStreaming(assistant, copyButton) {
+  function isVisible(element) {
+    if (!(element instanceof HTMLElement) || !element.isConnected) return false;
+    const style = getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }
+
+  function controlName(element) {
+    return normalizeText(
+      element.getAttribute('aria-label') || element.getAttribute('title') || element.textContent
+    );
+  }
+
+  function hasExternalGenerationSignal(root) {
+    if (root.matches(GENERATION_SIGNAL_SELECTOR) && !root.closest(`[${ACTIONS_MARKER}]`)) return true;
+    return Array.from(root.querySelectorAll(GENERATION_SIGNAL_SELECTOR)).some(
+      (element) => !element.closest(`[${ACTIONS_MARKER}]`)
+    );
+  }
+
+  function isStreaming(assistant, block, copyButton) {
     if (copyButton?.disabled || copyButton?.getAttribute('aria-disabled') === 'true') return true;
-    return Boolean(assistant.querySelector(
-      '[data-is-streaming="true"], .result-streaming, [data-testid="stop-button"]'
-    ));
+    if (hasExternalGenerationSignal(assistant) || hasExternalGenerationSignal(block)) return true;
+    if (assistant.querySelector('[data-testid="stop-button"]')) return true;
+    return Array.from(document.querySelectorAll('button, [role="button"]')).some((control) =>
+      !control.closest(`[${ACTIONS_MARKER}]`) && isVisible(control) && STOP_PATTERN.test(controlName(control))
+    );
   }
 
   function findCopyButton(block) {
@@ -144,18 +187,33 @@
     return { bodyHtml: output.innerHTML.trim(), bodyText: plainTextFrom(output), omittedMedia };
   }
 
-  function extractArticle(block) {
+  function extractArticleSnapshot(block) {
     const editor = block.querySelector(EDITOR_SELECTOR);
     if (!editor) return null;
     const titleElement = editor.querySelector('h1');
     const title = normalizeText(titleElement?.textContent || '');
-    if (title.length < 2 || title.length > 500) return null;
     const body = sanitizeBody(editor, titleElement);
-    if (body.bodyText.length < MIN_BODY_LENGTH || !body.bodyHtml) return null;
-    return { title, ...body };
+    return {
+      title,
+      ...body,
+      signature: `${title}\u0000${body.bodyText}\u0000${body.bodyHtml}`
+    };
   }
 
-  function candidateFor(assistant) {
+  function extractArticle(block) {
+    const snapshot = extractArticleSnapshot(block);
+    if (!snapshot) return null;
+    if (snapshot.title.length < 2 || snapshot.title.length > 500) return null;
+    if (snapshot.bodyText.length < MIN_BODY_LENGTH || !snapshot.bodyHtml) return null;
+    return {
+      title: snapshot.title,
+      bodyHtml: snapshot.bodyHtml,
+      bodyText: snapshot.bodyText,
+      omittedMedia: snapshot.omittedMedia
+    };
+  }
+
+  function workflowCandidateFor(assistant) {
     if (!(assistant instanceof HTMLElement) || !assistant.matches(ASSISTANT_SELECTOR)) return null;
     const blocks = Array.from(assistant.querySelectorAll(WRITING_BLOCK_SELECTOR));
     if (blocks.length !== 1) return null;
@@ -163,9 +221,22 @@
     if (!previous || !isArticleRewritePromptText(messageText(previous))) return null;
     const block = blocks[0];
     const copyButton = findCopyButton(block);
-    if (!copyButton || isStreaming(assistant, copyButton)) return null;
-    const article = extractArticle(block);
-    return article ? { article, block, copyButton } : null;
+    const toolbar = copyButton?.closest('[role="toolbar"]') || block.querySelector('[role="toolbar"]');
+    if (!copyButton && !toolbar) return null;
+    return {
+      block,
+      copyButton,
+      toolbar,
+      streaming: isStreaming(assistant, block, copyButton),
+      snapshot: extractArticleSnapshot(block)
+    };
+  }
+
+  function candidateFor(assistant) {
+    const candidate = workflowCandidateFor(assistant);
+    if (!candidate || candidate.streaming || !candidate.copyButton) return null;
+    const article = extractArticle(candidate.block);
+    return article ? { ...candidate, article } : null;
   }
 
   function sendMessage(message) {
@@ -189,40 +260,101 @@
     if (typeof api?.[type] === 'function') api[type](message);
   }
 
-  async function runAction(button, action, article) {
+  function setButtonLabel(button, label) {
+    const target = button.querySelector(`.${LABEL_CLASS}`);
+    if (target) target.textContent = label;
+    else button.textContent = label;
+  }
+
+  function setActionsState(actions, state) {
+    if (!actions) return;
+    if (actions.dataset.ccsLongArticleState !== state) {
+      actions.dataset.ccsLongArticleState = state;
+    }
+    actions.querySelectorAll(`.${ACTION_CLASS}`).forEach((button) => {
+      const busy = button.dataset.ccsLongArticleBusy === 'true';
+      const disabled = busy || state !== 'ready';
+      if (button.disabled !== disabled) button.disabled = disabled;
+      if (button.getAttribute('aria-disabled') !== String(disabled)) {
+        button.setAttribute('aria-disabled', String(disabled));
+      }
+      const waiting = busy || state === 'generating' || state === 'settling';
+      if (waiting) button.setAttribute('aria-busy', 'true');
+      else button.removeAttribute('aria-busy');
+      const enabledTitle = button.dataset.ccsLongArticleEnabledTitle || '';
+      const nextTitle = busy
+        ? (button.dataset.ccsLongArticleBusyTitle || '操作正在处理中，请勿重复点击。')
+        : (ACTION_STATE_TITLES[state] || enabledTitle);
+      if (button.title !== nextTitle) button.title = nextTitle;
+      const defaultLabel = button.dataset.ccsLongArticleDefaultLabel || '';
+      const ariaLabel = state === 'generating'
+        ? `${defaultLabel}（内容生成中）`
+        : state === 'settling'
+          ? `${defaultLabel}（正在确认内容完整性）`
+          : state === 'unavailable'
+            ? `${defaultLabel}（内容尚未就绪）`
+            : defaultLabel;
+      if (!busy && defaultLabel && button.getAttribute('aria-label') !== ariaLabel) {
+        button.setAttribute('aria-label', ariaLabel);
+      }
+    });
+  }
+
+  async function runAction(button, action, assistant, schedule) {
     const isX = action === 'ccsCreateXArticleDraft';
-    const original = button.textContent || (isX ? '注入X草稿' : '生成封面');
-    button.disabled = true;
-    button.textContent = isX ? '正在注入…' : '正在生成…';
+    const original = button.dataset.ccsLongArticleDefaultLabel || (isX ? '注入X草稿' : '生成封面');
+    const current = workflowCandidateFor(assistant);
+    const article = current && !current.streaming ? extractArticle(current.block) : null;
+    if (!article) {
+      toast('warning', current?.streaming
+        ? ACTION_STATE_TITLES.generating
+        : ACTION_STATE_TITLES.unavailable);
+      schedule();
+      return;
+    }
+    button.dataset.ccsLongArticleBusy = 'true';
+    button.dataset.ccsLongArticleBusyTitle = isX ? '正在注入 X 草稿…' : '正在准备封面…';
+    setButtonLabel(button, isX ? '正在注入…' : '正在生成…');
+    setActionsState(button.closest(`[${ACTIONS_MARKER}]`), 'ready');
     try {
       const response = await sendMessage({ action, sourceUrl: location.href, input: article });
       if (!response?.success) throw new Error(response?.error || '操作失败');
-      button.textContent = '✓ 已完成';
+      setButtonLabel(button, '✓ 已完成');
       if (isX) {
         toast(response.warning ? 'warning' : 'success', response.warning || '文章已注入 X 草稿并确认自动保存；不会自动发布');
       } else {
         toast('success', '已打开封面生成页并填入完整文章；请检查后手动发送');
       }
     } catch (error) {
-      button.textContent = '⚠ 失败';
+      setButtonLabel(button, '⚠ 失败');
       toast('error', error?.message || String(error));
     } finally {
       window.setTimeout(() => {
-        button.disabled = false;
-        button.textContent = original;
+        delete button.dataset.ccsLongArticleBusy;
+        delete button.dataset.ccsLongArticleBusyTitle;
+        setButtonLabel(button, original);
+        schedule();
       }, 3000);
     }
   }
 
-  function createActionButton(marker, label, title, action, article) {
+  function createActionButton(marker, label, title, action, assistant, schedule) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = ACTION_CLASS;
     button.setAttribute(marker, 'true');
     button.setAttribute('aria-label', label);
     button.title = title;
-    button.textContent = label;
-    button.addEventListener('click', () => void runAction(button, action, article));
+    button.dataset.ccsLongArticleDefaultLabel = label;
+    button.dataset.ccsLongArticleEnabledTitle = title;
+    const spinner = document.createElement('span');
+    spinner.className = SPINNER_CLASS;
+    spinner.setAttribute('aria-hidden', 'true');
+    const labelNode = document.createElement('span');
+    labelNode.className = LABEL_CLASS;
+    labelNode.textContent = label;
+    button.append(spinner, labelNode);
+    button.addEventListener('click', () => void runAction(button, action, assistant, schedule));
     return button;
   }
 
@@ -232,7 +364,7 @@
     style.id = STYLE_ID;
     style.textContent = `
       .${ACTION_CLASS} {
-        display: inline-flex; align-items: center; min-height: 28px; padding: 3px 8px;
+        display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 3px 8px;
         border: 0; border-radius: 7px; background: transparent; color: inherit;
         cursor: pointer; font: 500 12px/1.2 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
         opacity: .82; white-space: nowrap;
@@ -240,6 +372,17 @@
       .${ACTION_CLASS}:hover:not(:disabled) { background: color-mix(in srgb, currentColor 8%, transparent); opacity: 1; }
       .${ACTION_CLASS}:focus-visible { outline: 2px solid color-mix(in srgb, currentColor 42%, transparent); outline-offset: 2px; }
       .${ACTION_CLASS}:disabled { cursor: wait; opacity: .55; }
+      .${SPINNER_CLASS} {
+        display: none; width: 11px; height: 11px; box-sizing: border-box; flex: 0 0 auto;
+        border: 2px solid color-mix(in srgb, currentColor 28%, transparent);
+        border-top-color: currentColor; border-radius: 50%;
+        animation: ccs-long-article-spin 720ms linear infinite;
+      }
+      [${ACTIONS_MARKER}][data-ccs-long-article-state="generating"] .${SPINNER_CLASS},
+      [${ACTIONS_MARKER}][data-ccs-long-article-state="settling"] .${SPINNER_CLASS},
+      .${ACTION_CLASS}[data-ccs-long-article-busy="true"] .${SPINNER_CLASS} { display: inline-block; }
+      @keyframes ccs-long-article-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { .${SPINNER_CLASS} { animation-duration: 1.8s; } }
     `;
     (document.head || document.documentElement).appendChild(style);
   }
@@ -248,35 +391,43 @@
     assistant.querySelectorAll(`[${ACTIONS_MARKER}]`).forEach((node) => node.remove());
   }
 
-  function injectCandidate(assistant, candidate) {
-    const { block, copyButton, article } = candidate;
+  function ensureActions(assistant, candidate, schedule) {
+    const { block, copyButton, toolbar } = candidate;
     let actions = block.querySelector(`[${ACTIONS_MARKER}]`);
-    if (actions) return;
-    actions = document.createElement('span');
-    actions.setAttribute(ACTIONS_MARKER, 'true');
-    actions.style.display = 'inline-flex';
-    actions.style.alignItems = 'center';
-    actions.append(
-      createActionButton(
-        X_MARKER,
-        '注入X草稿',
-        '打开专用 X Articles 标签页并写入草稿；遇到已有内容会停止，不会自动发布',
-        'ccsCreateXArticleDraft',
-        article
-      ),
-      createActionButton(
-        COVER_MARKER,
-        '生成封面',
-        '用完整文章生成极简留白封面；打开 ChatGPT 并填入提示词，不会自动发送',
-        'ccsCreateLongArticleCover',
-        article
-      )
-    );
-    copyButton.insertAdjacentElement('afterend', actions);
+    if (!actions) {
+      actions = document.createElement('span');
+      actions.setAttribute(ACTIONS_MARKER, 'true');
+      actions.style.display = 'inline-flex';
+      actions.style.alignItems = 'center';
+      actions.append(
+        createActionButton(
+          X_MARKER,
+          '注入X草稿',
+          '打开专用 X Articles 标签页并写入草稿；遇到已有内容会停止，不会自动发布',
+          'ccsCreateXArticleDraft',
+          assistant,
+          schedule
+        ),
+        createActionButton(
+          COVER_MARKER,
+          '生成封面',
+          '用完整文章生成极简留白封面；打开 ChatGPT 并填入提示词，不会自动发送',
+          'ccsCreateLongArticleCover',
+          assistant,
+          schedule
+        )
+      );
+    }
+    if (copyButton && actions.previousElementSibling !== copyButton) {
+      copyButton.insertAdjacentElement('afterend', actions);
+    } else if (!actions.isConnected && toolbar) {
+      toolbar.appendChild(actions);
+    }
+    return actions;
   }
 
   function consider(assistant, schedule) {
-    const candidate = candidateFor(assistant);
+    const candidate = workflowCandidateFor(assistant);
     if (!candidate) {
       const prior = stability.get(assistant);
       if (prior?.timer) window.clearTimeout(prior.timer);
@@ -284,18 +435,37 @@
       removeActions(assistant);
       return;
     }
-    const signature = `${candidate.article.title}\u0000${candidate.article.bodyText}\u0000${candidate.article.bodyHtml}`;
-    const prior = stability.get(assistant);
-    if (!prior || prior.signature !== signature) {
-      if (prior?.timer) window.clearTimeout(prior.timer);
-      const record = { signature, since: Date.now(), timer: 0 };
-      record.timer = window.setTimeout(schedule, STABLE_MS + 30);
+    const actions = ensureActions(assistant, candidate, schedule);
+    const signature = candidate.snapshot?.signature || '';
+    let record = stability.get(assistant);
+    if (!record) {
+      record = { signature, since: 0, timer: 0, wasStreaming: false };
       stability.set(assistant, record);
-      removeActions(assistant);
+    }
+    if (candidate.streaming) {
+      if (record.timer) window.clearTimeout(record.timer);
+      record.signature = signature;
+      record.since = 0;
+      record.timer = 0;
+      record.wasStreaming = true;
+      setActionsState(actions, 'generating');
       return;
     }
-    if (Date.now() - prior.since < STABLE_MS) return;
-    injectCandidate(assistant, candidate);
+    if (record.wasStreaming || record.signature !== signature || !record.since) {
+      if (record.timer) window.clearTimeout(record.timer);
+      record.signature = signature;
+      record.since = Date.now();
+      record.wasStreaming = false;
+      record.timer = window.setTimeout(schedule, STABLE_MS + 30);
+      setActionsState(actions, 'settling');
+      return;
+    }
+    if (Date.now() - record.since < STABLE_MS) {
+      setActionsState(actions, 'settling');
+      return;
+    }
+    record.timer = 0;
+    setActionsState(actions, extractArticle(candidate.block) ? 'ready' : 'unavailable');
   }
 
   function start() {
@@ -314,8 +484,29 @@
         document.querySelectorAll(ASSISTANT_SELECTOR).forEach((assistant) => consider(assistant, schedule));
       });
     };
-    const observer = new MutationObserver(schedule);
-    observer.observe(document.documentElement, { childList: true, characterData: true, subtree: true });
+    const observer = new MutationObserver((mutations) => {
+      const onlyOwnStateChanges = mutations.every((mutation) =>
+        mutation.target instanceof Element && Boolean(mutation.target.closest(`[${ACTIONS_MARKER}]`))
+      );
+      if (!onlyOwnStateChanges) schedule();
+    });
+    observer.observe(document.documentElement, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: [
+        'disabled',
+        'aria-disabled',
+        'aria-busy',
+        'data-streaming',
+        'data-is-streaming',
+        'data-generating',
+        'data-loading',
+        'data-state',
+        'data-status'
+      ]
+    });
     window.addEventListener('popstate', schedule);
     schedule();
     return () => {

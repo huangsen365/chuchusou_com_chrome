@@ -263,6 +263,14 @@ assert(deliverySource.includes("scoreTitleCandidate"), "DraftBridge title-candid
 assert(deliverySource.includes("scoreBodyCandidate"), "DraftBridge body-candidate fallback is missing")
 assert(!deliverySource.includes("publish"), "delivery module must never publish")
 
+const longActionSource = fs.readFileSync(path.join(root, "modules/longArticleActions.js"), "utf8")
+assert(longActionSource.includes("workflowCandidateFor"), "long actions must mount before the article payload is ready")
+assert(longActionSource.includes("ccsLongArticleState"), "long actions generation state is missing")
+assert(longActionSource.includes("'generating'"), "long actions generating state is missing")
+assert(longActionSource.includes("'settling'"), "long actions settling state is missing")
+assert(longActionSource.includes("extractArticle(current.block)"), "long actions must read the live article at click time")
+assert(longActionSource.includes("ccs-long-article-action-spinner"), "long actions loading spinner is missing")
+
 const eventSource = fs.readFileSync(path.join(root, "background/events.js"), "utf8")
 for (const action of [
   "ccsCreateXArticleDraft",
