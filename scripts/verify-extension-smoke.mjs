@@ -78,6 +78,9 @@ async function main() {
   // 服务器。CI 上百度反爬重定向 / 网络抖动曾让路径 9/12/16 随机红 ——
   // "真开标签"类断言只关心扩展行为，不应依赖外部网站的可用性。
   const noSelectionTitleKeyword = "无选区标题回退冒烟标记"
+  const longArticleParagraphs = Array.from({ length: 12 }, (_, index) =>
+    `<p>这是用于验证长篇文章动作的第 ${index + 1} 段正文。它包含足够完整的论述、解释、现实背景与判断边界，确保系统依靠工作流来源和文章结构识别，而不是仅凭一个模糊的长度阈值。</p>`
+  ).join("")
   const httpServer = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
     if ((req.url || "").startsWith("/title2")) {
@@ -122,6 +125,26 @@ async function main() {
           </div>
           <div role="group"><button data-testid="copy-turn-action-button" aria-label="Copy response">Copy</button></div>
         </section>
+        <section data-testid="conversation-turn-3">
+          <div data-message-author-role="user" data-message-id="user-long-rewrite-1" style="white-space:pre-wrap">选A并且按照提示词改写：
+# 通用「GPT-4.5 感」原始素材深度改写提示词
+# 二十八、输出与排版要求
+只需要：主标题 + 小标题 + 正文
+# 原始素材
+原始素材参考本次对话上下文。</div>
+        </section>
+        <section data-testid="conversation-turn-4">
+          <div data-message-author-role="assistant" data-message-id="assistant-long-rewrite-1">
+            <div data-testid="writing-block-container" data-writing-block="true">
+              <div role="toolbar"><button data-testid="writing-block-copy-button" aria-label="Copy">Copy</button></div>
+              <div class="ProseMirror markdown prose" contenteditable="true">
+                <h1>真正成熟的判断，来自理解事情背后的结构</h1>
+                <h2>我们为什么容易停留在表面</h2>
+                ${longArticleParagraphs}
+              </div>
+            </div>
+          </div>
+        </section>
         <form id="composer-form">
           <div id="prompt-textarea" contenteditable="true" role="textbox"></div>
           <button type="submit">发送</button>
@@ -144,6 +167,78 @@ async function main() {
       return
     }
     if (hostname === "x.com") {
+      if ((req.url || "").startsWith("/compose/articles")) {
+        res.end(`<!doctype html><meta charset="utf-8"><title>X Articles draft fixture</title>
+          <style>main { display:block; } input, [contenteditable] { display:block; width:720px; min-height:36px; margin:12px; border:1px solid #999; white-space:pre-wrap; }</style>
+          <main id="x-main"><h2>文章</h2><button id="x-create" type="button" aria-label="create"></button></main>
+          <script>
+            (() => {
+              const plainBlocks = (html) => {
+                const parsed = new DOMParser().parseFromString(html, 'text/html')
+                return Array.from(parsed.body.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,blockquote'))
+                  .map((node, index) => ({ key: String(index), text: (node.textContent || '').trim() }))
+                  .filter((block) => block.text)
+              }
+              const contentFrom = (blocks) => ({
+                blocks,
+                getLastBlock: () => {
+                  const block = blocks[blocks.length - 1] || { key: '0', text: '' }
+                  return { getKey: () => block.key, getLength: () => block.text.length }
+                },
+                getBlockMap: () => ({ size: blocks.length }),
+                getPlainText: (delimiter = '\\n') => blocks.map((block) => block.text).join(delimiter)
+              })
+              const draft = {
+                convertFromHTML: (html) => ({ contentBlocks: plainBlocks(html), entityMap: {} }),
+                ContentState: { createFromBlockArray: (blocks) => contentFrom(blocks) },
+                EditorState: {
+                  push: (_current, content) => ({
+                    __content: content,
+                    getCurrentContent: () => content,
+                    getSelection: () => ({})
+                  }),
+                  forceSelection: (state) => state
+                },
+                SelectionState: { createEmpty: () => ({ merge: () => ({}) }) }
+              }
+              const runtime = () => draft
+              runtime.c = { 1: { exports: draft } }
+              window.webpackChunk_twitter_responsive_web = []
+              window.webpackChunk_twitter_responsive_web.push = (chunk) => { chunk[2](runtime); return 1 }
+              window.__xCreateClicks = 0
+              window.__xDraftFixtureReady = false
+              const mountEditor = () => {
+                window.__xCreateClicks += 1
+                history.pushState({}, '', '/compose/articles/edit/local-fixture')
+                document.getElementById('x-main').innerHTML = '<textarea id="x-title" placeholder="添加标题" rows="1"></textarea><div id="x-body" class="public-DraftEditor-content" data-testid="composer" role="textbox" contenteditable="true"></div><div id="x-save-status" role="status">准备就绪</div>'
+                const title = document.getElementById('x-title')
+                const body = document.getElementById('x-body')
+                const status = document.getElementById('x-save-status')
+                const emptyState = { getCurrentContent: () => contentFrom([]), getSelection: () => ({}) }
+                Object.defineProperty(title, '__reactProps$fixture', { value: {
+                  value: '', maxLength: 250,
+                  onChange: (event) => {
+                    title.value = event.target.value
+                    status.textContent = 'Saving...'
+                    setTimeout(() => { status.textContent = 'Last saved just now' }, 180)
+                  }
+                } })
+                Object.defineProperty(body, '__reactProps$fixture', { value: {
+                  editorState: emptyState,
+                  onChange: (state) => {
+                    const blocks = state.__content.blocks
+                    body.innerHTML = blocks.map((block) => '<div>' + block.text.replace(/[&<>]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[char])) + '</div>').join('')
+                    status.textContent = 'Saving...'
+                    setTimeout(() => { status.textContent = 'Last saved just now' }, 180)
+                  }
+                } })
+                window.__xDraftFixtureReady = true
+              }
+              document.getElementById('x-create').addEventListener('click', mountEditor)
+            })()
+          </script>`)
+        return
+      }
       if ((req.url || "").startsWith("/article-fastqa")) {
         res.end(`<!doctype html><meta charset="utf-8"><title>X article site-fastqa fixture</title>
           <article data-testid="tweet">
@@ -718,10 +813,117 @@ async function main() {
         !preservedChatDraft.buttonText.includes("填入失败") || preservedChatDraft.submitClicks !== 0) {
       fail(`ChatGPT 已有草稿保护异常: ${JSON.stringify(preservedChatDraft)}`)
     }
+
+    const longArticleActions = await evaluate(chatRewriteFixture.cdp, `(() => {
+      const longMessage = document.querySelector('[data-message-id="assistant-long-rewrite-1"]');
+      const firstMessage = document.querySelector('[data-message-id="assistant-rewrite-1"]');
+      const editor = longMessage?.querySelector('.ProseMirror');
+      const xButton = longMessage?.querySelector('[data-ccs-long-article-x-draft]');
+      const coverButton = longMessage?.querySelector('[data-ccs-long-article-cover]');
+      const normalize = (value) => String(value || '').replace(/\\r\\n?/g, '\\n').split('\\n').map((line) => line.trim()).join('\\n').replace(/\\n{3,}/g, '\\n\\n').trim();
+      const title = normalize(editor?.querySelector('h1')?.textContent || '');
+      const body = normalize(Array.from(editor?.children || []).filter((node) => node.tagName !== 'H1').map((node) => node.innerText || node.textContent || '').join('\\n'));
+      return {
+        xCount: document.querySelectorAll('[data-ccs-long-article-x-draft]').length,
+        coverCount: document.querySelectorAll('[data-ccs-long-article-cover]').length,
+        labels: [xButton?.textContent?.trim() || '', coverButton?.textContent?.trim() || ''],
+        firstMessageActions: firstMessage?.querySelectorAll('[data-ccs-long-article-actions]').length || 0,
+        outsideEditor: !!xButton && !editor?.contains(xButton) && !!coverButton && !editor?.contains(coverButton),
+        followsCopy: xButton?.closest('[data-ccs-long-article-actions]')?.previousElementSibling?.dataset?.testid === 'writing-block-copy-button',
+        title,
+        body
+      };
+    })()`)
+    if (longArticleActions?.xCount !== 1 || longArticleActions?.coverCount !== 1 ||
+        !longArticleActions.labels.includes("注入X草稿") || !longArticleActions.labels.includes("生成封面") ||
+        longArticleActions.firstMessageActions !== 0 || !longArticleActions.outsideEditor || !longArticleActions.followsCopy ||
+        longArticleActions.body.length < 600) {
+      fail(`ChatGPT 长篇 writing block 双按钮识别异常: ${JSON.stringify(longArticleActions)}`)
+    }
+
+    const beforeXTargets = new Set(
+      (await fetch(`http://127.0.0.1:${port}/json/list`).then((r) => r.json())).map((target) => target.id)
+    )
+    await evaluate(chatRewriteFixture.cdp, `document.querySelector('[data-ccs-long-article-x-draft]')?.click()`)
+    const xDraftTarget = await findTarget(port, (target) =>
+      target.type === "page" && !beforeXTargets.has(target.id) && (target.url || "").startsWith("https://x.com/compose/articles"),
+      12000
+    )
+    if (!xDraftTarget?.webSocketDebuggerUrl) fail("长篇文章动作未打开专用 X Articles 标签页")
+    const xDraftCdp = new CdpClient(await connectWebSocket(xDraftTarget.webSocketDebuggerUrl))
+    const xDraftExceptions = []
+    xDraftCdp.on("Runtime.exceptionThrown", (event) => {
+      xDraftExceptions.push(event?.exceptionDetails?.exception?.description || event?.exceptionDetails?.text || "unknown")
+    })
+    await xDraftCdp.call("Runtime.enable")
+    let xDraftState = null
+    for (let i = 0; i < 100; i++) {
+      xDraftState = await evaluate(xDraftCdp, `(() => ({
+        ready: window.__xDraftFixtureReady === true,
+        createClicks: window.__xCreateClicks || 0,
+        title: document.getElementById('x-title')?.value || '',
+        body: document.getElementById('x-body')?.innerText || document.getElementById('x-body')?.textContent || '',
+        save: document.getElementById('x-save-status')?.textContent || ''
+      }))()`)
+      const normalize = (value) => String(value || "").replace(/\r\n?/g, "\n").split("\n").map((line) => line.trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim()
+      if (xDraftState?.title === longArticleActions.title &&
+          normalize(xDraftState?.body) === normalize(longArticleActions.body) &&
+          /Last saved just now/i.test(xDraftState?.save || "")) break
+      await wait(150)
+    }
+    const normalizeDraft = (value) => String(value || "").replace(/\r\n?/g, "\n").split("\n").map((line) => line.trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim()
+    if (!xDraftState?.ready || xDraftState.createClicks !== 1 || xDraftState.title !== longArticleActions.title ||
+        normalizeDraft(xDraftState.body) !== normalizeDraft(longArticleActions.body) ||
+        !/Last saved just now/i.test(xDraftState.save || "") || xDraftExceptions.length > 0) {
+      fail(`X Articles 草稿注入或保存校验异常: ${JSON.stringify({ xDraftState, exception: xDraftExceptions[0] })}`)
+    }
+    let storedXTask = null
+    for (let i = 0; i < 120; i++) {
+      storedXTask = await evaluate(swCdp, `new Promise((resolve) => chrome.storage.local.get(null, (data) => {
+        const task = Object.entries(data).filter(([key]) => key.startsWith('ccs_x_article_draft_')).map(([, value]) => value).sort((a, b) => b.createdAt - a.createdAt)[0];
+        resolve(task || null);
+      }))`)
+      if (storedXTask?.status === "delivered") break
+      await wait(150)
+    }
+    if (storedXTask?.status !== "delivered" || storedXTask?.lastError || storedXTask?.title !== longArticleActions.title ||
+        !storedXTask?.bodyText?.includes("我们为什么容易停留在表面") ||
+        !storedXTask?.bodyText?.includes("用于验证长篇文章动作的第 12 段正文")) {
+      fail(`X Articles 本地任务状态/内容异常: ${JSON.stringify({
+        status: storedXTask?.status,
+        title: storedXTask?.title,
+        bodyLength: storedXTask?.bodyText?.length,
+        lastError: storedXTask?.lastError
+      })}`)
+    }
+    xDraftCdp.close()
+
+    const beforeCoverTargets = new Set(
+      (await fetch(`http://127.0.0.1:${port}/json/list`).then((r) => r.json())).map((target) => target.id)
+    )
+    await evaluate(chatRewriteFixture.cdp, `document.querySelector('[data-ccs-long-article-cover]')?.click()`)
+    const coverTarget = await findTarget(port, (target) =>
+      target.type === "page" && !beforeCoverTargets.has(target.id) && (target.url || "").startsWith("https://chatgpt.com/"),
+      10000
+    )
+    if (!coverTarget) fail("长篇文章动作未打开封面生成 ChatGPT 标签页")
+    const coverUrl = new URL(coverTarget.url)
+    const coverRelayId = coverUrl.searchParams.get("ccs_pp") || new URLSearchParams(coverUrl.hash.slice(1)).get("ccs_pp")
+    if (!coverRelayId) fail(`长篇封面生成未使用本地提示词 relay: ${coverTarget.url}`)
+    const coverRecord = await evaluate(swCdp, `new Promise((resolve) => {
+      const key = ${JSON.stringify("ccs_ai_pending_prompt_")} + ${JSON.stringify(coverRelayId)};
+      (chrome.storage.session || chrome.storage.local).get([key], (data) => resolve(data[key] || null));
+    })`)
+    if (coverRecord?.taskId !== "cover" || coverRecord?.categoryId !== "minimal" ||
+        coverRecord?.relayEngine !== "chatgpt" || !coverRecord?.prompt?.includes(longArticleActions.title) ||
+        !coverRecord?.prompt?.includes("用于验证长篇文章动作的第 12 段正文")) {
+      fail(`长篇封面提示词/完整正文中转异常: ${JSON.stringify(coverRecord)?.slice(0, 1400)}`)
+    }
     if (chatRewriteFixture.exceptions.length > 0) {
       fail(`ChatGPT 选A改写未捕获异常: ${chatRewriteFixture.exceptions[0]}`)
     }
     console.log(`${TAG} ✓ ChatGPT 选A改写正常（严格结构 / 单按钮 / 完整填入 / 不自动发送 / 草稿保护）`)
+    console.log(`${TAG} ✓ ChatGPT 长文双动作正常（工作流识别 / writing block 外工具栏 / X 草稿精确写入与保存 / 完整文章封面中转）`)
     chatRewriteFixture.cdp.close()
 
     const docsFixture = await openSiteFixture("https://docs.google.com/document/d/smoke-doc/edit?tab=t.0#heading=h.smoke")

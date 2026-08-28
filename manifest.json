@@ -58,6 +58,8 @@
         "modules/articleRewriteRuntime.js",
         "modules/googleDocsRewrite.js",
         "modules/chatGptSelectARewrite.js",
+        "modules/longArticleActions.js",
+        "modules/xArticleDraftDelivery.js",
         "dockbar.js",
         "content.js"
       ],
@@ -67,6 +69,18 @@
       "run_at": "document_start",
       "all_frames": true,
       "match_about_blank": true
+    },
+    {
+      "matches": [
+        "https://x.com/compose/articles*",
+        "https://www.x.com/compose/articles*"
+      ],
+      "js": [
+        "modules/xArticleMainWorld.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false,
+      "world": "MAIN"
     }
   ],
   "action": {

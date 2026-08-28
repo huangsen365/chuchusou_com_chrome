@@ -88,6 +88,7 @@ sw.importScripts(
   // 第 3.5 层：AI 任务统一抽象
   absoluteUrl("background/tasks/AITaskRegistry.js"),
   absoluteUrl("background/tasks/AITaskHandler.js"),
+  absoluteUrl("background/articleActions.js"),
 
   // 第 4 层：菜单 + 事件
   // ↓ background/menuBuilder.js 已被 src/background/menuBuilderAttach.ts 取代 ↓

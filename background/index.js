@@ -27,6 +27,7 @@ importScripts(
   // ==================== 第3.5层：AI 任务统一抽象 ====================
   './tasks/AITaskRegistry.js',
   './tasks/AITaskHandler.js',
+  './articleActions.js',
 
   // ==================== 第4层：菜单 + 事件 ====================
   // ↓ menuBuilder.js 已被 src/background/menuBuilderAttach.ts 取代 ↓

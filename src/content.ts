@@ -36,6 +36,8 @@ import { startZhihuFastQaIntegration, ZhihuFastQa } from "./content-modules/zhih
 import { ArticleRewriteRuntime } from "./content-modules/articleRewriteRuntime"
 import { GoogleDocsRewrite, startGoogleDocsRewriteIntegration } from "./content-modules/googleDocsRewrite"
 import { ChatGptSelectARewrite, startChatGptSelectARewriteIntegration } from "./content-modules/chatGptSelectARewrite"
+import { LongArticleActions } from "./content-modules/longArticleActions"
+import { XArticleDraftDelivery } from "./content-modules/xArticleDraftDelivery"
 
 // 把 TS 模块单例都挂到 window.CCSModules，让 legacy 调用点（如 backgroundComm 访问 Toast）
 // 不论谁先加载都能找到对方
@@ -67,7 +69,9 @@ Object.assign(_ccsModulesHost.CCSModules, {
   ZhihuFastQa,
   ArticleRewriteRuntime,
   GoogleDocsRewrite,
-  ChatGptSelectARewrite
+  ChatGptSelectARewrite,
+  LongArticleActions,
+  XArticleDraftDelivery
 })
 
 const EXTENSION_NAME = "触触搜"
