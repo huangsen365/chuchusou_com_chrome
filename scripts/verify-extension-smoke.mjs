@@ -926,7 +926,7 @@ async function main() {
     console.log(`${TAG} ✓ ChatGPT 长文双动作正常（工作流识别 / writing block 外工具栏 / X 草稿精确写入与保存 / 完整文章封面中转）`)
     chatRewriteFixture.cdp.close()
 
-    const docsFixture = await openSiteFixture("https://docs.google.com/document/d/smoke-doc/edit?tab=t.0#heading=h.smoke")
+    const docsFixture = await openSiteFixture("https://docs.google.com/document/u/0/d/smoke-doc/edit?tab=t.0#heading=h.smoke")
     const docsButtons = await evaluate(docsFixture.cdp, `(() => {
       const container = document.querySelector('.docs-titlebar-buttons');
       const buttons = Array.from(document.querySelectorAll('[data-ccs-google-doc-rewrite]'));

@@ -10,7 +10,7 @@ const BLOCK_TAGS = new Set([
   "ADDRESS", "BLOCKQUOTE", "DIV", "H1", "H2", "H3", "H4", "H5", "H6",
   "LI", "OL", "P", "PRE", "SECTION", "UL"
 ])
-const GOOGLE_DOC_PATH_PATTERN = /^\/document\/(?:u\/\d+\/)?d\/[^/]+(?:\/|$)/
+const GOOGLE_DOC_PATH_PATTERN = /^\/document\/(?:u\/\d+\/)?d\/([^/]+)(?:\/|$)/
 
 export interface PromptFillResult {
   ok?: boolean
@@ -148,11 +148,9 @@ export function matchesSelectARewriteResponse(root: HTMLElement): boolean {
 export function normalizeGoogleDocUrl(urlValue: string): string {
   try {
     const url = new URL(urlValue)
-    if (
-      url.protocol !== "https:" ||
-      url.hostname !== "docs.google.com" ||
-      !GOOGLE_DOC_PATH_PATTERN.test(url.pathname)
-    ) return ""
+    const match = url.pathname.match(GOOGLE_DOC_PATH_PATTERN)
+    if (url.protocol !== "https:" || url.hostname !== "docs.google.com" || !match?.[1]) return ""
+    url.pathname = `/document/d/${match[1]}/edit`
     url.hash = ""
     return url.href
   } catch {

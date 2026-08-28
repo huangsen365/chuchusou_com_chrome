@@ -669,17 +669,27 @@ const CCS_ARTICLE_REWRITE_TARGETS = Object.freeze({
   chatgpt: 'https://chatgpt.com/?q=${PROMPT}',
   claude: 'https://claude.ai/new?q=${PROMPT}'
 });
-const CCS_GOOGLE_DOC_PATH_PATTERN = /^\/document\/(?:u\/\d+\/)?d\/[^/]+(?:\/|$)/;
+const CCS_GOOGLE_DOC_PATH_PATTERN = /^\/document\/(?:u\/\d+\/)?d\/([^/]+)(?:\/|$)/;
 let ccsArticleRewriteTemplatePromise = null;
+
+function ccsGoogleDocId(urlValue) {
+  try {
+    const url = new URL(String(urlValue || ''));
+    const match = url.pathname.match(CCS_GOOGLE_DOC_PATH_PATTERN);
+    return url.protocol === 'https:' && url.hostname === 'docs.google.com'
+      ? (match?.[1] || '')
+      : '';
+  } catch (_) {
+    return '';
+  }
+}
 
 function ccsNormalizeGoogleDocUrl(urlValue) {
   try {
     const url = new URL(String(urlValue || ''));
-    if (
-      url.protocol !== 'https:' ||
-      url.hostname !== 'docs.google.com' ||
-      !CCS_GOOGLE_DOC_PATH_PATTERN.test(url.pathname)
-    ) return '';
+    const documentId = ccsGoogleDocId(url.href);
+    if (!documentId) return '';
+    url.pathname = `/document/d/${documentId}/edit`;
     url.hash = '';
     return url.href;
   } catch (_) {
@@ -860,7 +870,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const senderUrl = sender?.url || sender?.tab?.url || '';
     const senderDocumentUrl = ccsNormalizeGoogleDocUrl(senderUrl);
     const sourceUrl = ccsNormalizeGoogleDocUrl(request.sourceUrl);
-    if (!senderDocumentUrl || !sourceUrl || senderDocumentUrl !== sourceUrl) {
+    const senderDocumentId = ccsGoogleDocId(senderUrl);
+    const sourceDocumentId = ccsGoogleDocId(request.sourceUrl);
+    if (
+      !senderDocumentUrl ||
+      !sourceUrl ||
+      !senderDocumentId ||
+      senderDocumentId !== sourceDocumentId
+    ) {
       respond({ success: false, error: 'unsupported-google-doc-url' });
       return true;
     }

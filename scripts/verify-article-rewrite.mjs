@@ -134,7 +134,7 @@ async function verifyApi(name, api, hooks) {
   assert(api && typeof api.normalizeGoogleDocUrl === "function", `${name}: missing runtime API`)
   const docsUrl = "https://docs.google.com/document/u/0/d/document-id/edit?tab=t.0#heading=h.test"
   assert(
-    api.normalizeGoogleDocUrl(docsUrl) === "https://docs.google.com/document/u/0/d/document-id/edit?tab=t.0",
+    api.normalizeGoogleDocUrl(docsUrl) === "https://docs.google.com/document/d/document-id/edit?tab=t.0",
     `${name}: Google Docs URL normalization failed`
   )
   assert(api.normalizeGoogleDocUrl("https://docs.google.com.evil.test/document/d/id/edit") === "", `${name}: lookalike Docs host accepted`)

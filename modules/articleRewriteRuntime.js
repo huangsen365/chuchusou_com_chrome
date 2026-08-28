@@ -14,7 +14,7 @@
     'ADDRESS', 'BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
     'LI', 'OL', 'P', 'PRE', 'SECTION', 'UL'
   ]);
-  const GOOGLE_DOC_PATH_PATTERN = /^\/document\/(?:u\/\d+\/)?d\/[^/]+(?:\/|$)/;
+  const GOOGLE_DOC_PATH_PATTERN = /^\/document\/(?:u\/\d+\/)?d\/([^/]+)(?:\/|$)/;
   let promptTemplatePromise = null;
 
   function escapeRegExp(value) {
@@ -138,11 +138,13 @@
   function normalizeGoogleDocUrl(urlValue) {
     try {
       const url = new URL(String(urlValue || ''));
-      if (
-        url.protocol !== 'https:' ||
-        url.hostname !== 'docs.google.com' ||
-        !GOOGLE_DOC_PATH_PATTERN.test(url.pathname)
-      ) return '';
+      const match = url.pathname.match(GOOGLE_DOC_PATH_PATTERN);
+      if (url.protocol !== 'https:' || url.hostname !== 'docs.google.com' || !match?.[1]) return '';
+      // Google may add or remove an account segment such as /u/0/ while the
+      // same document stays open. Keep the query (notably ?tab=), but make the
+      // document path stable so a harmless account-route change is not treated
+      // as a different source document.
+      url.pathname = `/document/d/${match[1]}/edit`;
       url.hash = '';
       return url.href;
     } catch (_) {
