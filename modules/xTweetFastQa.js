@@ -216,6 +216,10 @@
       const shareButton = Array.from(group.querySelectorAll('button'))
         .find((candidate) => /^(分享帖子|分享|Share post)$/i.test(candidate.getAttribute('aria-label') || ''));
       const shareCell = shareButton ? directGroupChild(shareButton, group) : null;
+      if (host.parentElement === group) {
+        if (shareCell && host.nextElementSibling === shareCell) return;
+        if (!shareCell && host === group.lastElementChild) return;
+      }
       group.insertBefore(host, shareCell);
     },
     decorateHost(host) {

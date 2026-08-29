@@ -178,10 +178,19 @@
       const containers = actionContainers(root);
       if (!containers.length) return;
       const content = adapter.extract(root);
+      const rootButtons = Array.from(root.querySelectorAll(buttonSelector))
+        .filter((button) => ownsElement(button, root));
+      const claimedButtons = new Set();
       containers.forEach((container) => {
-        const existing = Array.from(container.querySelectorAll(buttonSelector))
+        let existing = Array.from(container.querySelectorAll(buttonSelector))
           .find((button) => ownsElement(button, root));
+        if (!existing && containers.length === 1) {
+          existing = rootButtons.find((button) => !claimedButtons.has(button));
+        }
         if (existing) {
+          claimedButtons.add(existing);
+          const host = existing.closest(hostSelector);
+          if (host) adapter.insertHost(root, container, host);
           const active = content ? activeActions.get(content.sourceKey) : undefined;
           setActionState(existing, active?.state || (content ? 'idle' : 'unavailable'), active?.content || content);
           return;

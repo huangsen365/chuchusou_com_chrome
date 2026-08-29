@@ -304,20 +304,24 @@ async function main() {
                 <span class="RichText" itemprop="text">知乎回答折叠摘要。</span>
                 <button class="ContentItem-more">阅读全文</button>
               </div>
-              <div class="ContentItem-actions">
+              <div class="ContentItem-actions" id="zhihu-outer-actions">
                 <button aria-label="收藏">收藏</button>
-                <div class="Popover ShareMenu ContentItem-action"><button>分享</button></div>
-                <div class="Popover ContentItem-action"><button aria-label="更多"></button></div>
+                <div class="Post-ActionMenuButton"><button aria-label="更多"></button></div>
               </div>
             </div>
           </div>
         </main>
         <script>
+          setTimeout(() => {
+            const outer = document.getElementById('zhihu-outer-actions')
+            if (!outer || document.getElementById('zhihu-inner-actions')) return
+            outer.insertAdjacentHTML('afterbegin', '<div class="ContentItem-actions" id="zhihu-inner-actions"><button aria-label="收藏">收藏</button><div class="Popover ShareMenu ContentItem-action"><button>分享</button></div><div class="Popover ContentItem-action"><button aria-label="更多"></button></div></div>')
+          }, 1800)
           document.querySelector('.ContentItem-more').addEventListener('click', () => {
             const root = document.querySelector('.AnswerItem')
             root.querySelector('.RichContent').classList.remove('is-collapsed')
             root.querySelector('[itemprop="text"]').textContent = '知乎回答展开后的完整正文，用于验证状态恢复。'
-            root.querySelector('.ContentItem-actions').outerHTML = '<div class="ContentItem-actions"><button aria-label="收藏">收藏</button><div class="Popover ShareMenu ContentItem-action"><button>分享</button></div><div class="Popover ContentItem-action"><button aria-label="更多"></button></div></div>'
+            root.querySelector('#zhihu-inner-actions').outerHTML = '<div class="ContentItem-actions" id="zhihu-inner-actions"><button aria-label="收藏">收藏</button><div class="Popover ShareMenu ContentItem-action"><button>分享</button></div><div class="Popover ContentItem-action"><button aria-label="更多"></button></div></div>'
           })
         </script>`)
       return
@@ -1141,17 +1145,36 @@ async function main() {
     const zhihuBefore = await evaluate(zhihuFixture.cdp, `(() => {
       const button = document.querySelector('[data-ccs-zhihu-fastqa]');
       const host = button?.closest('[data-ccs-site-fastqa-host="zhihu"]');
+      const outer = document.getElementById('zhihu-outer-actions');
       return {
         count: document.querySelectorAll('[data-ccs-zhihu-fastqa]').length,
         text: button?.textContent?.trim() || '',
         state: button?.dataset.ccsState || '',
-        beforeShare: host?.nextElementSibling?.classList.contains('ShareMenu') === true,
+        inInitialOuter: host?.parentElement === outer,
         collapsed: document.querySelector('.RichContent')?.classList.contains('is-collapsed') === true
       };
     })()`)
     if (zhihuBefore?.count !== 1 || zhihuBefore.text !== "速答" || zhihuBefore.state !== "idle" ||
-        !zhihuBefore.beforeShare || !zhihuBefore.collapsed) {
+        !zhihuBefore.inInitialOuter || !zhihuBefore.collapsed) {
       fail(`知乎回答速答初始注入异常: ${JSON.stringify(zhihuBefore)}`)
+    }
+
+    let zhihuReanchored = null
+    for (let i = 0; i < 20; i++) {
+      await wait(100)
+      zhihuReanchored = await evaluate(zhihuFixture.cdp, `(() => {
+        const inner = document.getElementById('zhihu-inner-actions');
+        const host = document.querySelector('[data-ccs-site-fastqa-host="zhihu"]');
+        return {
+          count: document.querySelectorAll('[data-ccs-zhihu-fastqa]').length,
+          inInner: host?.parentElement === inner,
+          beforeShare: host?.nextElementSibling?.classList.contains('ShareMenu') === true
+        };
+      })()`)
+      if (zhihuReanchored?.inInner && zhihuReanchored?.beforeShare) break
+    }
+    if (zhihuReanchored?.count !== 1 || !zhihuReanchored.inInner || !zhihuReanchored.beforeShare) {
+      fail(`知乎嵌套操作栏/延迟分享锚点校位异常: ${JSON.stringify(zhihuReanchored)}`)
     }
 
     await evaluate(zhihuFixture.cdp, `document.querySelector('[data-ccs-zhihu-fastqa]')?.click()`)

@@ -174,6 +174,24 @@ function waitForExpandedBody(root: HTMLElement, initialLength: number): Promise<
   })
 }
 
+function isDirectShareAction(element: Element): boolean {
+  if (element.matches(".ContentItem-actions")) return false
+  return element.matches(".ShareMenu") || /分享/.test(elementText(element))
+}
+
+function findZhihuActionContainer(root: HTMLElement): HTMLElement | null {
+  const candidates = Array.from(root.querySelectorAll<HTMLElement>(".ContentItem-actions"))
+  if (!candidates.length) return null
+  const withDirectShare = candidates.find((container) =>
+    Array.from(container.children).some(isDirectShareAction)
+  )
+  if (withDirectShare) return withDirectShare
+  const leafContainers = candidates.filter((container) =>
+    !Array.from(container.children).some((element) => element.matches(".ContentItem-actions"))
+  )
+  return leafContainers.at(-1) ?? candidates.at(-1) ?? null
+}
+
 export async function prepareZhihuFastQaRoot(root: HTMLElement): Promise<void> {
   const collapsed = root.querySelector<HTMLElement>(".RichContent.is-collapsed")
   if (!collapsed) return
@@ -245,14 +263,22 @@ export const zhihuFastQaAdapter: SiteFastQaAdapter = {
     return prepareZhihuFastQaRoot(root)
   },
   findActionContainer(root) {
-    return root.querySelector<HTMLElement>(".ContentItem-actions")
+    return findZhihuActionContainer(root)
   },
   insertHost(_root, container, host) {
     const share = Array.from(container.children)
-      .find((element) => element.matches(".ShareMenu") || /分享/.test(elementText(element)))
+      .find(isDirectShareAction)
     const fallback = Array.from(container.children)
-      .find((element) => element.matches(".OptionsButton, .Post-ActionMenuButton, .Popover"))
-    container.insertBefore(host, share ?? fallback ?? null)
+      .find((element) =>
+        !element.matches(".ContentItem-actions") &&
+        element.matches(".OptionsButton, .Post-ActionMenuButton, .Popover")
+      )
+    const anchor = share ?? fallback ?? null
+    if (host.parentElement === container) {
+      if (anchor && host.nextElementSibling === anchor) return
+      if (!anchor && host === container.lastElementChild) return
+    }
+    container.insertBefore(host, anchor)
   },
   createHost() {
     return document.createElement("span")
@@ -306,6 +332,7 @@ export const ZhihuFastQa = {
   buildZhihuFastQaInput,
   extract: extractZhihuFastQaContent,
   prepare: prepareZhihuFastQaRoot,
+  findActionContainer: findZhihuActionContainer,
   start: startZhihuFastQaIntegration
 }
 

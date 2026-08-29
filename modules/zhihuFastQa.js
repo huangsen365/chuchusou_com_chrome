@@ -164,6 +164,24 @@
     });
   }
 
+  function isDirectShareAction(element) {
+    if (element.matches('.ContentItem-actions')) return false;
+    return element.matches('.ShareMenu') || /分享/.test(elementText(element));
+  }
+
+  function findZhihuActionContainer(root) {
+    const candidates = Array.from(root.querySelectorAll('.ContentItem-actions'));
+    if (!candidates.length) return null;
+    const withDirectShare = candidates.find((container) =>
+      Array.from(container.children).some(isDirectShareAction)
+    );
+    if (withDirectShare) return withDirectShare;
+    const leafContainers = candidates.filter((container) =>
+      !Array.from(container.children).some((element) => element.matches('.ContentItem-actions'))
+    );
+    return leafContainers.at(-1) || candidates.at(-1) || null;
+  }
+
   async function prepareZhihuFastQaRoot(root) {
     const collapsed = root.querySelector('.RichContent.is-collapsed');
     if (!collapsed) return;
@@ -231,14 +249,22 @@
       return prepareZhihuFastQaRoot(root);
     },
     findActionContainer(root) {
-      return root.querySelector('.ContentItem-actions');
+      return findZhihuActionContainer(root);
     },
     insertHost(_root, container, host) {
       const share = Array.from(container.children)
-        .find((element) => element.matches('.ShareMenu') || /分享/.test(elementText(element)));
+        .find(isDirectShareAction);
       const fallback = Array.from(container.children)
-        .find((element) => element.matches('.OptionsButton, .Post-ActionMenuButton, .Popover'));
-      container.insertBefore(host, share || fallback || null);
+        .find((element) =>
+          !element.matches('.ContentItem-actions') &&
+          element.matches('.OptionsButton, .Post-ActionMenuButton, .Popover')
+        );
+      const anchor = share || fallback || null;
+      if (host.parentElement === container) {
+        if (anchor && host.nextElementSibling === anchor) return;
+        if (!anchor && host === container.lastElementChild) return;
+      }
+      container.insertBefore(host, anchor);
     },
     createHost() {
       return document.createElement('span');
@@ -292,6 +318,7 @@
     buildZhihuFastQaInput,
     extract: extractZhihuFastQaContent,
     prepare: prepareZhihuFastQaRoot,
+    findActionContainer: findZhihuActionContainer,
     start: startZhihuFastQaIntegration
   };
 
