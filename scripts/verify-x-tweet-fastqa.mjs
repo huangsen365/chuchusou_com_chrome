@@ -208,6 +208,13 @@ const tsApi = loadTs(path.join(root, "src/content-modules/xTweetFastQa.ts")).XTw
 verifyApi("legacy", legacyApi)
 verifyApi("typescript", tsApi)
 
+const legacyRuntimeSource = fs.readFileSync(path.join(root, "modules/siteFastQaRuntime.js"), "utf8")
+const legacyAdapterSource = fs.readFileSync(path.join(root, "modules/xTweetFastQa.js"), "utf8")
+assert(legacyRuntimeSource.includes("adapter.findActionContainers?.(root)"), "shared runtime must support multiple action containers")
+assert(legacyRuntimeSource.includes("container.querySelectorAll(buttonSelector)"), "shared runtime must deduplicate buttons per container")
+assert(legacyAdapterSource.includes("findTweetActionGroups"), "X adapter must discover both long-article action groups")
+assert(legacyAdapterSource.includes("findActionContainers(root)"), "X adapter must expose multiple long-article action groups")
+
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"))
 const contentScripts = manifest.content_scripts?.flatMap((entry) => entry.js || []) || []
 assert(contentScripts.includes("modules/siteFastQaRuntime.js"), "manifest must load shared site fastqa runtime")
@@ -217,4 +224,4 @@ assert(
   "shared site fastqa runtime must load before X adapter"
 )
 
-console.log("[verify-x-tweet-fastqa] ✓ 推文 / X 长文提取、引用排除、正文块及双轨入口验证通过")
+console.log("[verify-x-tweet-fastqa] ✓ 推文 / X 长文提取、引用排除、正文块、双操作栏及双轨入口验证通过")

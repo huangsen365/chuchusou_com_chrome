@@ -272,7 +272,11 @@ async function main() {
               </div>
             </article>
             <a href="/fixture/status/123"><time>刚刚</time></a>
-            <div role="group"><div><button data-testid="reply">底部回复</button></div></div>
+            <div role="group">
+              <div><button data-testid="reply" aria-label="底部回复">底部回复</button></div>
+              <div><button aria-label="底部转发">底部转发</button></div>
+              <div id="x-article-bottom-share-cell"><button aria-label="分享帖子">底部分享</button></div>
+            </div>
           </article>`)
         return
       }
@@ -1105,28 +1109,32 @@ async function main() {
     const xArticleFixture = await openSiteFixture("https://x.com/article-fastqa")
     const xArticleFastQa = await evaluate(xArticleFixture.cdp, `(() => {
       const root = document.querySelector('article[data-testid="tweet"]');
-      const button = document.querySelector('[data-ccs-x-tweet-fastqa]');
-      const host = button?.closest('[data-ccs-site-fastqa-host="x"]');
+      const buttons = Array.from(root?.querySelectorAll('[data-ccs-x-tweet-fastqa]') || []);
+      const hosts = buttons.map((button) => button.closest('[data-ccs-site-fastqa-host="x"]'));
       return {
-        count: document.querySelectorAll('[data-ccs-x-tweet-fastqa]').length,
-        kind: button?.dataset.ccsContentKind || '',
-        state: button?.dataset.ccsState || '',
-        sourceKey: button?.dataset.ccsSourceKey || '',
-        label: button?.getAttribute('aria-label') || '',
-        beforeArticleShare: host?.nextElementSibling?.id === 'x-article-share-cell',
+        count: buttons.length,
+        kinds: buttons.map((button) => button.dataset.ccsContentKind || ''),
+        states: buttons.map((button) => button.dataset.ccsState || ''),
+        sourceKeys: buttons.map((button) => button.dataset.ccsSourceKey || ''),
+        labels: buttons.map((button) => button.getAttribute('aria-label') || ''),
+        beforeArticleShare: hosts.some((host) => host?.nextElementSibling?.id === 'x-article-share-cell'),
+        beforeBottomShare: hosts.some((host) => host?.nextElementSibling?.id === 'x-article-bottom-share-cell'),
         domTitle: root?.querySelector('[data-testid="twitter-article-title"]')?.innerText || '',
         domBody: root?.querySelector('[data-testid="twitterArticleRichTextView"]')?.innerText || ''
       };
     })()`)
-    if (xArticleFastQa?.count !== 1 || xArticleFastQa.kind !== "article" ||
-        xArticleFastQa.state !== "idle" || !xArticleFastQa.sourceKey.startsWith("x-article:") ||
-        !xArticleFastQa.label.includes("X 长文") || !xArticleFastQa.beforeArticleShare ||
+    if (xArticleFastQa?.count !== 2 || xArticleFastQa.kinds.some((kind) => kind !== "article") ||
+        xArticleFastQa.states.some((state) => state !== "idle") ||
+        xArticleFastQa.sourceKeys.some((key) => !key.startsWith("x-article:")) ||
+        new Set(xArticleFastQa.sourceKeys).size !== 1 ||
+        xArticleFastQa.labels.some((label) => !label.includes("X 长文")) ||
+        !xArticleFastQa.beforeArticleShare || !xArticleFastQa.beforeBottomShare ||
         xArticleFastQa.domTitle !== "X 长文夹具标题" ||
         !xArticleFastQa.domBody.includes("这是 X 长文第二段。")) {
       fail(`X 长文速答适配器注入异常: ${JSON.stringify(xArticleFastQa)}`)
     }
     if (xArticleFixture.exceptions.length > 0) fail(`X 长文速答适配器未捕获异常: ${xArticleFixture.exceptions[0]}`)
-    console.log(`${TAG} ✓ X 长文速答适配器正常（article 识别 / 单实例 / 内层分享前）`)
+    console.log(`${TAG} ✓ X 长文速答适配器正常（article 识别 / 顶部与底部双实例 / 同源状态键 / 各自分享前）`)
     xArticleFixture.cdp.close()
 
     const zhihuFixture = await openSiteFixture("https://www.zhihu.com/question/123/answer/456")

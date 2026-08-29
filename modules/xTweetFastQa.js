@@ -131,16 +131,22 @@
     };
   }
 
+  function findTweetActionGroups(root) {
+    const article = primaryXArticle(root);
+    const candidates = Array.from(root.querySelectorAll('[role="group"]')).filter((candidate) =>
+      !isInsideEmbeddedTweet(candidate, root) &&
+      Array.from(candidate.querySelectorAll('[data-testid="reply"]'))
+        .some((reply) => belongsToTweetRoot(reply, root))
+    );
+    if (!article) return candidates.slice(0, 1);
+
+    const articleGroup = candidates.find((candidate) => article.contains(candidate));
+    const tweetGroup = candidates.find((candidate) => !article.contains(candidate));
+    return Array.from(new Set([articleGroup, tweetGroup].filter(Boolean)));
+  }
+
   function findTweetActionGroup(root) {
-    const scopes = [primaryXArticle(root), root].filter(Boolean);
-    for (const scope of scopes) {
-      const group = Array.from(scope.querySelectorAll('[role="group"]')).find((candidate) =>
-        Array.from(candidate.querySelectorAll('[data-testid="reply"]'))
-          .some((reply) => belongsToTweetRoot(reply, root))
-      );
-      if (group) return group;
-    }
-    return null;
+    return findTweetActionGroups(root)[0] || null;
   }
 
   function directGroupChild(element, group) {
@@ -202,6 +208,9 @@
     },
     findActionContainer(root) {
       return findTweetActionGroup(root);
+    },
+    findActionContainers(root) {
+      return findTweetActionGroups(root);
     },
     insertHost(_root, group, host) {
       const shareButton = Array.from(group.querySelectorAll('button'))

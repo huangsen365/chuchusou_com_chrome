@@ -136,16 +136,22 @@ export function extractXTweetFastQaContent(root: HTMLElement): SiteFastQaContent
   }
 }
 
+function findTweetActionGroups(root: HTMLElement): HTMLElement[] {
+  const article = primaryXArticle(root)
+  const candidates = Array.from(root.querySelectorAll<HTMLElement>('[role="group"]')).filter((candidate) =>
+    !isInsideEmbeddedTweet(candidate, root) &&
+    Array.from(candidate.querySelectorAll<HTMLElement>('[data-testid="reply"]'))
+      .some((reply) => belongsToTweetRoot(reply, root))
+  )
+  if (!article) return candidates.slice(0, 1)
+
+  const articleGroup = candidates.find((candidate) => article.contains(candidate))
+  const tweetGroup = candidates.find((candidate) => !article.contains(candidate))
+  return Array.from(new Set([articleGroup, tweetGroup].filter((group): group is HTMLElement => group != null)))
+}
+
 function findTweetActionGroup(root: HTMLElement): HTMLElement | null {
-  const scopes = [primaryXArticle(root), root].filter((scope): scope is HTMLElement => scope !== null)
-  for (const scope of scopes) {
-    const group = Array.from(scope.querySelectorAll<HTMLElement>('[role="group"]')).find((candidate) =>
-      Array.from(candidate.querySelectorAll<HTMLElement>('[data-testid="reply"]'))
-        .some((reply) => belongsToTweetRoot(reply, root))
-    )
-    if (group) return group
-  }
-  return null
+  return findTweetActionGroups(root)[0] ?? null
 }
 
 function directGroupChild(element: Element, group: HTMLElement): Element | null {
@@ -207,6 +213,9 @@ export const xTweetFastQaAdapter: SiteFastQaAdapter = {
   },
   findActionContainer(root) {
     return findTweetActionGroup(root)
+  },
+  findActionContainers(root) {
+    return findTweetActionGroups(root)
   },
   insertHost(_root, group, host) {
     const shareButton = Array.from(group.querySelectorAll<HTMLButtonElement>("button"))

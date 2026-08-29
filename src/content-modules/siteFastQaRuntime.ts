@@ -35,6 +35,7 @@ export interface SiteFastQaAdapter {
   extract(root: HTMLElement): SiteFastQaContent | null
   prepare?(root: HTMLElement): Promise<void>
   findActionContainer(root: HTMLElement): HTMLElement | null
+  findActionContainers?(root: HTMLElement): HTMLElement[]
   insertHost(root: HTMLElement, container: HTMLElement, host: HTMLElement): void
   createHost?(): HTMLElement
   decorateHost?(host: HTMLElement): void
@@ -143,6 +144,11 @@ export function startSiteFastQaIntegration(adapter: SiteFastQaAdapter): () => vo
   let observer: MutationObserver | null = null
   let scheduled = false
 
+  const actionContainers = (root: HTMLElement): HTMLElement[] => {
+    const candidates = adapter.findActionContainers?.(root) ?? [adapter.findActionContainer(root)]
+    return Array.from(new Set(candidates.filter((container): container is HTMLElement => container != null)))
+  }
+
   const matchingButtons = (sourceKey: string): HTMLButtonElement[] =>
     Array.from(document.querySelectorAll<HTMLButtonElement>(buttonSelector))
       .filter((button) => button.dataset.ccsSourceKey === sourceKey)
@@ -226,46 +232,48 @@ export function startSiteFastQaIntegration(adapter: SiteFastQaAdapter): () => vo
   }
 
   const inject = (root: HTMLElement): void => {
-    const container = adapter.findActionContainer(root)
-    if (!container) return
-    const existing = Array.from(root.querySelectorAll<HTMLButtonElement>(buttonSelector))
-      .find((button) => ownsElement(button, root))
+    const containers = actionContainers(root)
+    if (!containers.length) return
     const content = adapter.extract(root)
-    if (existing) {
-      const active = content ? activeActions.get(content.sourceKey) : undefined
-      setActionState(existing, active?.state ?? (content ? "idle" : "unavailable"), active?.content ?? content)
-      return
-    }
-    if (!content) return
+    containers.forEach((container) => {
+      const existing = Array.from(container.querySelectorAll<HTMLButtonElement>(buttonSelector))
+        .find((button) => ownsElement(button, root))
+      if (existing) {
+        const active = content ? activeActions.get(content.sourceKey) : undefined
+        setActionState(existing, active?.state ?? (content ? "idle" : "unavailable"), active?.content ?? content)
+        return
+      }
+      if (!content) return
 
-    const host = adapter.createHost?.() ?? document.createElement("div")
-    host.setAttribute("data-ccs-site-fastqa-host", adapter.id)
-    adapter.decorateHost?.(host)
-    host.addEventListener("click", (event) => event.stopPropagation())
-    host.addEventListener("pointerdown", (event) => event.stopPropagation())
+      const host = adapter.createHost?.() ?? document.createElement("div")
+      host.setAttribute("data-ccs-site-fastqa-host", adapter.id)
+      adapter.decorateHost?.(host)
+      host.addEventListener("click", (event) => event.stopPropagation())
+      host.addEventListener("pointerdown", (event) => event.stopPropagation())
 
-    const button = document.createElement("button")
-    button.type = "button"
-    button.setAttribute("data-ccs-site-fastqa", adapter.id)
-    adapter.decorateButton?.(button)
-    const spinner = document.createElement("span")
-    spinner.setAttribute("data-ccs-site-fastqa-spinner", "true")
-    spinner.setAttribute("aria-hidden", "true")
-    button.append(createFastQaIcon(), spinner)
-    if (adapter.visibleText) {
-      const visibleText = document.createElement("span")
-      visibleText.setAttribute("data-ccs-site-fastqa-text", "true")
-      button.appendChild(visibleText)
-    }
-    button.addEventListener("click", (event) => {
-      event.preventDefault()
-      event.stopPropagation()
-      void runFastQa(root, button)
+      const button = document.createElement("button")
+      button.type = "button"
+      button.setAttribute("data-ccs-site-fastqa", adapter.id)
+      adapter.decorateButton?.(button)
+      const spinner = document.createElement("span")
+      spinner.setAttribute("data-ccs-site-fastqa-spinner", "true")
+      spinner.setAttribute("aria-hidden", "true")
+      button.append(createFastQaIcon(), spinner)
+      if (adapter.visibleText) {
+        const visibleText = document.createElement("span")
+        visibleText.setAttribute("data-ccs-site-fastqa-text", "true")
+        button.appendChild(visibleText)
+      }
+      button.addEventListener("click", (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        void runFastQa(root, button)
+      })
+      host.appendChild(button)
+      adapter.insertHost(root, container, host)
+      const active = activeActions.get(content.sourceKey)
+      setActionState(button, active?.state ?? "idle", active?.content ?? content)
     })
-    host.appendChild(button)
-    adapter.insertHost(root, container, host)
-    const active = activeActions.get(content.sourceKey)
-    setActionState(button, active?.state ?? "idle", active?.content ?? content)
   }
 
   const scan = (): void => {

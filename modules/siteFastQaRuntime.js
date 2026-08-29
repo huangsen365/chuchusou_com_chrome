@@ -91,6 +91,11 @@
     let observer = null;
     let scheduled = false;
 
+    const actionContainers = (root) => {
+      const candidates = adapter.findActionContainers?.(root) || [adapter.findActionContainer(root)];
+      return Array.from(new Set(candidates.filter(Boolean)));
+    };
+
     const matchingButtons = (sourceKey) =>
       Array.from(document.querySelectorAll(buttonSelector))
         .filter((button) => button.dataset.ccsSourceKey === sourceKey);
@@ -170,46 +175,48 @@
     };
 
     const inject = (root) => {
-      const container = adapter.findActionContainer(root);
-      if (!container) return;
-      const existing = Array.from(root.querySelectorAll(buttonSelector))
-        .find((button) => ownsElement(button, root));
+      const containers = actionContainers(root);
+      if (!containers.length) return;
       const content = adapter.extract(root);
-      if (existing) {
-        const active = content ? activeActions.get(content.sourceKey) : undefined;
-        setActionState(existing, active?.state || (content ? 'idle' : 'unavailable'), active?.content || content);
-        return;
-      }
-      if (!content) return;
+      containers.forEach((container) => {
+        const existing = Array.from(container.querySelectorAll(buttonSelector))
+          .find((button) => ownsElement(button, root));
+        if (existing) {
+          const active = content ? activeActions.get(content.sourceKey) : undefined;
+          setActionState(existing, active?.state || (content ? 'idle' : 'unavailable'), active?.content || content);
+          return;
+        }
+        if (!content) return;
 
-      const host = adapter.createHost?.() || document.createElement('div');
-      host.setAttribute('data-ccs-site-fastqa-host', adapter.id);
-      adapter.decorateHost?.(host);
-      host.addEventListener('click', (event) => event.stopPropagation());
-      host.addEventListener('pointerdown', (event) => event.stopPropagation());
+        const host = adapter.createHost?.() || document.createElement('div');
+        host.setAttribute('data-ccs-site-fastqa-host', adapter.id);
+        adapter.decorateHost?.(host);
+        host.addEventListener('click', (event) => event.stopPropagation());
+        host.addEventListener('pointerdown', (event) => event.stopPropagation());
 
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.setAttribute('data-ccs-site-fastqa', adapter.id);
-      adapter.decorateButton?.(button);
-      const spinner = document.createElement('span');
-      spinner.setAttribute('data-ccs-site-fastqa-spinner', 'true');
-      spinner.setAttribute('aria-hidden', 'true');
-      button.append(createFastQaIcon(), spinner);
-      if (adapter.visibleText) {
-        const visibleText = document.createElement('span');
-        visibleText.setAttribute('data-ccs-site-fastqa-text', 'true');
-        button.appendChild(visibleText);
-      }
-      button.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        void runFastQa(root, button);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.setAttribute('data-ccs-site-fastqa', adapter.id);
+        adapter.decorateButton?.(button);
+        const spinner = document.createElement('span');
+        spinner.setAttribute('data-ccs-site-fastqa-spinner', 'true');
+        spinner.setAttribute('aria-hidden', 'true');
+        button.append(createFastQaIcon(), spinner);
+        if (adapter.visibleText) {
+          const visibleText = document.createElement('span');
+          visibleText.setAttribute('data-ccs-site-fastqa-text', 'true');
+          button.appendChild(visibleText);
+        }
+        button.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void runFastQa(root, button);
+        });
+        host.appendChild(button);
+        adapter.insertHost(root, container, host);
+        const active = activeActions.get(content.sourceKey);
+        setActionState(button, active?.state || 'idle', active?.content || content);
       });
-      host.appendChild(button);
-      adapter.insertHost(root, container, host);
-      const active = activeActions.get(content.sourceKey);
-      setActionState(button, active?.state || 'idle', active?.content || content);
     };
 
     const scan = () => {
