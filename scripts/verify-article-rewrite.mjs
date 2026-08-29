@@ -146,6 +146,9 @@ async function verifyApi(name, api, hooks) {
   const prompt = await api.buildSelectARewritePrompt()
   assert(prompt.startsWith("选A并且按照提示词改写：\n# 通用「GPT-4.5 感」"), `${name}: Select-A prefix/template missing`)
   assert(prompt.endsWith("原始素材参考本次对话上下文。"), `${name}: conversation source note missing`)
+  assert(prompt.includes("正文默认采用“一句话一个自然段”的方式排版"), `${name}: single-sentence layout rule missing from built prompt`)
+  assert(prompt.includes("这种短段落是有意的移动端轻阅读布局"), `${name}: mobile reading intent missing from built prompt`)
+  assert(!prompt.includes("不要把每句话都拆成一个自然段"), `${name}: obsolete medium-paragraph rule leaked into built prompt`)
   assert(!prompt.includes("${url}"), `${name}: literal URL placeholder leaked`)
 
   const fill = await api.fillCurrentComposer("改写提示词")
@@ -163,8 +166,52 @@ const sourceJson = JSON.parse(fs.readFileSync(promptSourcePath, "utf8"))
 const mirrorJson = JSON.parse(fs.readFileSync(promptMirrorPath, "utf8"))
 assert(JSON.stringify(sourceJson) === JSON.stringify(mirrorJson), "TypeScript prompt asset must mirror the runtime prompt asset")
 assert(sourceJson.id === "article_rewrite" && sourceJson.status === "active", "article rewrite prompt metadata invalid")
-assert(sourceJson.templateLines.length === 747, "article rewrite prompt line count drifted")
+assert(sourceJson.version === 19, "article rewrite prompt version must be 19")
+assert(sourceJson.templateLines.length === 748, "article rewrite prompt line count drifted")
 assert(sourceJson.templateLines.join("\n").split("${url}").length - 1 === 1, "article rewrite prompt must contain one URL placeholder")
+
+const articleRewriteTemplate = sourceJson.templateLines.join("\n")
+const secondVersionReferenceProfile = {
+  paragraphs: 313,
+  singleSentenceParagraphs: 311,
+  medianChars: 20,
+  p90Chars: 42,
+  maxChars: 71
+}
+assert(
+  secondVersionReferenceProfile.singleSentenceParagraphs / secondVersionReferenceProfile.paragraphs > 0.99,
+  "second-version reference must remain calibrated as a single-sentence layout"
+)
+assert(secondVersionReferenceProfile.medianChars <= 45, "second-version median paragraph length is outside the target")
+assert(secondVersionReferenceProfile.p90Chars <= 45, "second-version p90 paragraph length is outside the target")
+assert(secondVersionReferenceProfile.maxChars <= 80, "second-version maximum paragraph length is outside the target")
+for (const rule of [
+  "# 十九、采用单句成段的轻阅读排版，避免阅读疲劳",
+  "正文默认采用“一句话一个自然段”的方式排版",
+  "通常控制在 10～40 个汉字",
+  "整体段落中位长度以 20～25 个汉字为目标",
+  "可以保留约一成 45～70 个汉字的完整解释段",
+  "原则上不要超过 70 个汉字",
+  "一句话只承担一个主要判断或一层因果推进",
+  "应改写成两个语义完整的句子，并分别成段",
+  "允许连续使用多个单句段落来推进论述",
+  "这种短段落是有意的移动端轻阅读布局",
+  "大多数正文段落是否只承担一个完整句子",
+  "每个小标题下的单句段落是否形成了功能不同、衔接自然的连续论述",
+  "正文采用单句成段的轻阅读排版"
+]) {
+  assert(articleRewriteTemplate.includes(rule), `article rewrite paragraph rule missing: ${rule}`)
+}
+for (const obsoleteRule of [
+  "# 十九、段落要完整，不要短句流",
+  "# 十九、段落既要完整，也要有呼吸感",
+  "通常由 2～4 句话组成，约 80～180 个汉字",
+  "不要把每句话都拆成一个自然段",
+  "不要连续出现多个一句话段落",
+  "是否存在大量短句和碎片化排版"
+]) {
+  assert(!articleRewriteTemplate.includes(obsoleteRule), `obsolete paragraph rule remains: ${obsoleteRule}`)
+}
 
 const legacy = loadLegacyApi()
 await verifyApi("legacy", legacy.api, legacy)
