@@ -204,6 +204,7 @@ function verifyMainWorldBridge() {
 
 const longApi = loadLongArticleApi()
 assert(longApi && typeof longApi.isArticleRewritePromptText === "function", "long-article API missing")
+assert(typeof longApi.replaceArticlePayloadTa === "function", "X draft TA replacement API missing")
 const prompt = [
   "选A并且按照提示词改写：",
   "# 通用「GPT-4.5 感」原始素材深度改写提示词",
@@ -293,6 +294,9 @@ assert(longActionSource.includes("ccsLongArticleState"), "long actions generatio
 assert(longActionSource.includes("'generating'"), "long actions generating state is missing")
 assert(longActionSource.includes("'settling'"), "long actions settling state is missing")
 assert(longActionSource.includes("extractArticle(current.block)"), "long actions must read the live article at click time")
+assert(longActionSource.includes("replaceArticlePayloadTa(article)"), "X draft action must apply TA replacement")
+assert(longActionSource.includes("replace(/他/g, 'TA')"), "X draft TA replacement rule missing")
+assert(longActionSource.includes("replaceHtmlTextNodes(template.content)"), "X draft HTML text-node replacement missing")
 assert(longActionSource.includes("ccs-long-article-action-spinner"), "long actions loading spinner is missing")
 
 const eventSource = fs.readFileSync(path.join(root, "background/events.js"), "utf8")

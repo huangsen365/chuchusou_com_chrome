@@ -78,8 +78,9 @@ async function main() {
   // 服务器。CI 上百度反爬重定向 / 网络抖动曾让路径 9/12/16 随机红 ——
   // "真开标签"类断言只关心扩展行为，不应依赖外部网站的可用性。
   const noSelectionTitleKeyword = "无选区标题回退冒烟标记"
-  const longArticleParagraphs = Array.from({ length: 12 }, (_, index) =>
-    `<p>这是用于验证长篇文章动作的第 ${index + 1} 段正文。它包含足够完整的论述、解释、现实背景与判断边界，确保系统依靠工作流来源和文章结构识别，而不是仅凭一个模糊的长度阈值。</p>`
+  const longArticleParagraphs = Array.from({ length: 12 }, (_, index) => index === 0
+    ? '<p><strong>他说</strong>，<a href="https://example.com/他">其他人</a>也会考虑他们的感受。这一段用于验证 X 草稿中的“他”会替换为“TA”，同时链接属性保持不变。</p>'
+    : `<p>这是用于验证长篇文章动作的第 ${index + 1} 段正文。它包含足够完整的论述、解释、现实背景与判断边界，确保系统依靠工作流来源和文章结构识别，而不是仅凭一个模糊的长度阈值。</p>`
   ).join("")
   const httpServer = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
@@ -138,7 +139,7 @@ async function main() {
             <div data-testid="writing-block-container" data-writing-block="true">
               <div role="toolbar"><button data-testid="writing-block-copy-button" aria-label="Copy" aria-disabled="true" disabled>Copy</button></div>
               <div id="long-article-editor" class="ProseMirror markdown prose" contenteditable="true">
-                <h1>真正成熟的判断，来自理解事情背后的结构</h1>
+                <h1>他的成熟判断，来自理解事情背后的结构</h1>
                 <h2>我们为什么容易停留在表面</h2>
                 <p>这是正在生成的开头，尚未形成完整文章。</p>
               </div>
@@ -146,7 +147,7 @@ async function main() {
           </div>
         </section>
         <template id="long-article-final-content">
-          <h1>真正成熟的判断，来自理解事情背后的结构</h1>
+          <h1>他的成熟判断，来自理解事情背后的结构</h1>
           <h2>我们为什么容易停留在表面</h2>
           ${longArticleParagraphs}
         </template>
@@ -1003,6 +1004,8 @@ async function main() {
     })
     await xDraftCdp.call("Runtime.enable")
     let xDraftState = null
+    const expectedXTitle = longArticleActions.title.replace(/他/g, "TA")
+    const expectedXBody = longArticleActions.body.replace(/他/g, "TA")
     for (let i = 0; i < 100; i++) {
       xDraftState = await evaluate(xDraftCdp, `(() => ({
         ready: window.__xDraftFixtureReady === true,
@@ -1012,14 +1015,14 @@ async function main() {
         save: document.getElementById('x-save-status')?.textContent || ''
       }))()`)
       const normalize = (value) => String(value || "").replace(/\r\n?/g, "\n").split("\n").map((line) => line.trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim()
-      if (xDraftState?.title === longArticleActions.title &&
-          normalize(xDraftState?.body) === normalize(longArticleActions.body) &&
+      if (xDraftState?.title === expectedXTitle &&
+          normalize(xDraftState?.body) === normalize(expectedXBody) &&
           /Last saved just now/i.test(xDraftState?.save || "")) break
       await wait(150)
     }
     const normalizeDraft = (value) => String(value || "").replace(/\r\n?/g, "\n").split("\n").map((line) => line.trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim()
-    if (!xDraftState?.ready || xDraftState.createClicks !== 1 || xDraftState.title !== longArticleActions.title ||
-        normalizeDraft(xDraftState.body) !== normalizeDraft(longArticleActions.body) ||
+    if (!xDraftState?.ready || xDraftState.createClicks !== 1 || xDraftState.title !== expectedXTitle ||
+        normalizeDraft(xDraftState.body) !== normalizeDraft(expectedXBody) ||
         !/Last saved just now/i.test(xDraftState.save || "") || xDraftExceptions.length > 0) {
       fail(`X Articles 草稿注入或保存校验异常: ${JSON.stringify({ xDraftState, exception: xDraftExceptions[0] })}`)
     }
@@ -1032,7 +1035,11 @@ async function main() {
       if (storedXTask?.status === "delivered") break
       await wait(150)
     }
-    if (storedXTask?.status !== "delivered" || storedXTask?.lastError || storedXTask?.title !== longArticleActions.title ||
+    if (storedXTask?.status !== "delivered" || storedXTask?.lastError || storedXTask?.title !== expectedXTitle ||
+        !storedXTask?.bodyText?.includes("TA说，其TA人也会考虑TA们的感受") ||
+        !storedXTask?.bodyHtml?.includes("<strong>TA说</strong>") ||
+        !storedXTask?.bodyHtml?.includes(">其TA人</a>") ||
+        !decodeURIComponent(storedXTask?.bodyHtml || "").includes('href="https://example.com/他"') ||
         !storedXTask?.bodyText?.includes("我们为什么容易停留在表面") ||
         !storedXTask?.bodyText?.includes("用于验证长篇文章动作的第 12 段正文")) {
       fail(`X Articles 本地任务状态/内容异常: ${JSON.stringify({
@@ -1062,6 +1069,7 @@ async function main() {
     })`)
     if (coverRecord?.taskId !== "cover" || coverRecord?.categoryId !== "minimal" ||
         coverRecord?.relayEngine !== "chatgpt" || !coverRecord?.prompt?.includes(longArticleActions.title) ||
+        !coverRecord?.prompt?.includes("他说，其他人也会考虑他们的感受") ||
         !coverRecord?.prompt?.includes("用于验证长篇文章动作的第 12 段正文")) {
       fail(`长篇封面提示词/完整正文中转异常: ${JSON.stringify(coverRecord)?.slice(0, 1400)}`)
     }

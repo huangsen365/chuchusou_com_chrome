@@ -213,6 +213,33 @@
     };
   }
 
+  function replaceAllTa(value) {
+    return String(value || '').replace(/他/g, 'TA');
+  }
+
+  function replaceHtmlTextNodes(root) {
+    for (const child of Array.from(root.childNodes)) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        child.textContent = replaceAllTa(child.textContent || '');
+      } else {
+        replaceHtmlTextNodes(child);
+      }
+    }
+  }
+
+  function replaceArticlePayloadTa(article) {
+    const template = document.createElement('template');
+    template.innerHTML = article.bodyHtml;
+    // 只处理可见文本节点，href 等 HTML 属性保持原值，避免破坏链接。
+    replaceHtmlTextNodes(template.content);
+    return {
+      ...article,
+      title: replaceAllTa(article.title),
+      bodyText: replaceAllTa(article.bodyText),
+      bodyHtml: template.innerHTML
+    };
+  }
+
   function workflowCandidateFor(assistant) {
     if (!(assistant instanceof HTMLElement) || !assistant.matches(ASSISTANT_SELECTOR)) return null;
     const blocks = Array.from(assistant.querySelectorAll(WRITING_BLOCK_SELECTOR));
@@ -317,7 +344,10 @@
     setButtonLabel(button, isX ? '正在注入…' : '正在生成…');
     setActionsState(button.closest(`[${ACTIONS_MARKER}]`), 'ready');
     try {
-      const response = await sendMessage({ action, sourceUrl: location.href, input: article });
+      // 与 DraftBridge 的 X 草稿规则一致：只在实际注入 X 时把所有“他”替换为“TA”。
+      // 页面原文以及“生成封面”使用的文章保持不变。
+      const outboundArticle = isX ? replaceArticlePayloadTa(article) : article;
+      const response = await sendMessage({ action, sourceUrl: location.href, input: outboundArticle });
       if (!response?.success) throw new Error(response?.error || '操作失败');
       setButtonLabel(button, '✓ 已完成');
       if (isX) {
@@ -520,6 +550,7 @@
     extractArticle,
     isArticleRewritePromptText,
     isSupportedPage,
+    replaceArticlePayloadTa,
     start
   };
   start();

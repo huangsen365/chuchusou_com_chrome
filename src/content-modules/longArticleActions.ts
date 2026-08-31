@@ -12,6 +12,7 @@ export interface LongArticleActionsApi {
   extractArticle: (block: HTMLElement) => LongArticlePayload | null
   isArticleRewritePromptText: (text: string) => boolean
   isSupportedPage: () => boolean
+  replaceArticlePayloadTa: (article: LongArticlePayload) => LongArticlePayload
   start: () => () => void
 }
 
