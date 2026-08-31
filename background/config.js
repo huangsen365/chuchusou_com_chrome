@@ -110,10 +110,14 @@ function buildTopQuestionsPrompt(inputText) {
   return globalThis.topQuestionsTemplate.split('${input}').join(safeInput);
 }
 
-function buildFastAnswersPrompt(inputText) {
+function buildFastAnswersPrompt(inputText, outputLanguage) {
   if (!globalThis.fastAnswersTemplate) return null;
   const safeInput = inputText || '';
-  return globalThis.fastAnswersTemplate.split('${input}').join(safeInput);
+  const prompt = globalThis.fastAnswersTemplate.split('${input}').join(safeInput);
+  // 当前默认简体中文；未来设置层可把用户选择的语言传给共享解析器。
+  return globalThis.CCSPromptLanguage?.apply
+    ? globalThis.CCSPromptLanguage.apply(prompt, outputLanguage)
+    : prompt.split('${outputLanguage}').join(outputLanguage || '简体中文');
 }
 
 // 统一菜单配置缓存
@@ -309,4 +313,3 @@ globalThis.getEngineUrlPattern = getEngineUrlPattern;
 globalThis.populateOptimizedMenuMap = populateOptimizedMenuMap;
 globalThis.populateCoverMenuMap = populateCoverMenuMap;
 globalThis.loadMenuIconConfig = loadMenuIconConfig;
-

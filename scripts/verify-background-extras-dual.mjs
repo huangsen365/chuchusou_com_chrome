@@ -322,7 +322,7 @@ function comparePromptBuilders(legacy, tsBuilders) {
   const optimizedTpl = "Please ${purpose}: ${input}"
   const coverTpl = "Cover style=${purpose} input=${input}"
   const top100Tpl = "Top: ${input}"
-  const fastTpl = "Fast: ${input}"
+  const fastTpl = "Fast: ${input}; language=${outputLanguage}"
 
   legacy.optimizedPromptTemplate = optimizedTpl
   legacy.coverPromptTemplate = coverTpl
@@ -341,6 +341,8 @@ function comparePromptBuilders(legacy, tsBuilders) {
 
   // buildFastAnswersPrompt
   assert(legacy.buildFastAnswersPrompt("how to") === tsBuilders.buildFastAnswersPrompt("how to", fastTpl), "buildFastAnswersPrompt")
+  assert(legacy.buildFastAnswersPrompt("how to").includes("language=简体中文"), "buildFastAnswersPrompt must default to Simplified Chinese")
+  assert(legacy.buildFastAnswersPrompt("how to", "日本語") === tsBuilders.buildFastAnswersPrompt("how to", fastTpl, "日本語"), "buildFastAnswersPrompt language override")
 
   // null template path
   legacy.optimizedPromptTemplate = null

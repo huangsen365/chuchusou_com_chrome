@@ -438,7 +438,13 @@ function compareAITaskRegistry(legacy, ported) {
     const prompt = ported.buildPromptFromTask(task, kw, opts)
     if (prompt == null) throw new Error(`TS buildPromptFromTask returned null on kw="${kw}"`)
     assert(prompt.includes(kw) || kw === "", `TS buildPromptFromTask must contain keyword`)
+    assert(prompt.includes("简体中文"), "TS fastqa prompt must default to Simplified Chinese")
+    assert(!prompt.includes("${outputLanguage}"), "TS fastqa prompt leaked output-language placeholder")
   }
+
+  const localizedPrompt = ported.buildPromptFromTask(task, "hello", { outputLanguage: "English" })
+  assert(localizedPrompt?.includes("English"), "TS fastqa prompt language override missing")
+  assert(!localizedPrompt?.includes("${outputLanguage}"), "TS fastqa language override leaked placeholder")
 }
 
 // ============================================================================

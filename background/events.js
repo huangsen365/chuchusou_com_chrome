@@ -672,6 +672,13 @@ const CCS_ARTICLE_REWRITE_TARGETS = Object.freeze({
 const CCS_GOOGLE_DOC_PATH_PATTERN = /^\/document\/(?:u\/\d+\/)?d\/([^/]+)(?:\/|$)/;
 let ccsArticleRewriteTemplatePromise = null;
 
+function ccsApplyPromptOutputLanguage(template, outputLanguage) {
+  // 当前默认简体中文；未来设置层读取用户偏好后把值作为第二个参数传入。
+  return globalThis.CCSPromptLanguage?.apply
+    ? globalThis.CCSPromptLanguage.apply(template, outputLanguage)
+    : String(template || '').split('${outputLanguage}').join(outputLanguage || '简体中文');
+}
+
 function ccsGoogleDocId(urlValue) {
   try {
     const url = new URL(String(urlValue || ''));
@@ -712,6 +719,9 @@ async function ccsLoadArticleRewriteTemplate() {
         if (template.split('${url}').length - 1 !== 1) {
           throw new Error('article-rewrite-template-url-placeholder-invalid');
         }
+        if (template.split('${outputLanguage}').length - 1 !== 1) {
+          throw new Error('article-rewrite-template-language-placeholder-invalid');
+        }
         return template;
       })
       .catch((error) => {
@@ -728,7 +738,7 @@ async function ccsOpenGoogleDocRewrite(sourceUrlValue, target) {
   if (!sourceUrl) throw new Error('unsupported-google-doc-url');
   if (!urlPattern) throw new Error('unsupported-rewrite-target');
   const template = await ccsLoadArticleRewriteTemplate();
-  const prompt = template.replace('${url}', sourceUrl);
+  const prompt = ccsApplyPromptOutputLanguage(template.replace('${url}', sourceUrl));
   await ccsOpenPromptUrlPattern(urlPattern, prompt, {
     source: 'google-doc-rewrite',
     taskId: 'article-rewrite',
@@ -859,7 +869,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     ccsLoadArticleRewriteTemplate()
       .then((template) => respond({
         success: true,
-        prompt: `选A并且按照提示词改写：\n${template.replace('${url}', '原始素材参考本次对话上下文。')}`
+        prompt: `选A并且按照提示词改写：\n${ccsApplyPromptOutputLanguage(
+          template.replace('${url}', '原始素材参考本次对话上下文。')
+        )}`
       }))
       .catch((error) => respond({ success: false, error: error?.message || String(error) }));
     return true;

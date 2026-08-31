@@ -634,6 +634,51 @@ async function main() {
     if (!newTab) fail(`executeMenuAction 后找不到 URL 含 ${expectedUrlPart} 的新标签 —— URLBuilder/tryOpenMenuUrl 链路断了`)
     console.log(`${TAG} ✓ executeMenuAction 真开新标签且 URL 正确（SSoT URLBuilder 链路通）`)
 
+    // 9.05 外语素材速答：生产模板必须把目标输出语言渲染为简体中文，且不能
+    //      把 ${outputLanguage} 原样泄漏给模型。长提示使用本地 relay，直接检查
+    //      storage 里的完整 prompt，避免 URL 编码或页面填入逻辑掩盖问题。
+    const foreignFastQaSource = "This English source explains why careful product validation matters before scaling."
+    const targetIdsBeforeFastQa = new Set(
+      (await fetch(`http://127.0.0.1:${port}/json/list`).then((r) => r.json())).map((target) => target.id)
+    )
+    const fastQaExec = await evaluate(pageCdp, `
+      new Promise((resolve) => {
+        const timer = setTimeout(() => resolve({ __timeout: true }), 8000);
+        chrome.runtime.sendMessage(
+          {
+            action: "executeMenuAction",
+            menuItemId: "ccs-fastqa-chatgpt-quick",
+            menuType: "fastqa-quick",
+            engineId: "chatgpt",
+            keyword: ${JSON.stringify(foreignFastQaSource)}
+          },
+          (resp) => { clearTimeout(timer); resolve({ success: resp?.success === true, raw: resp }); }
+        );
+      })
+    `)
+    if (fastQaExec?.__timeout || !fastQaExec?.success) {
+      fail(`外语素材速答 executeMenuAction 失败: ${JSON.stringify(fastQaExec?.raw || fastQaExec)}`)
+    }
+    const fastQaTarget = await findTarget(port, (target) =>
+      target.type === "page" && !targetIdsBeforeFastQa.has(target.id) && (target.url || "").includes("chatgpt.com/"),
+      8000
+    )
+    if (!fastQaTarget) fail("外语素材速答未打开 ChatGPT 标签页")
+    const fastQaUrl = new URL(fastQaTarget.url)
+    const fastQaRelayId = fastQaUrl.searchParams.get("ccs_pp") || new URLSearchParams(fastQaUrl.hash.slice(1)).get("ccs_pp")
+    if (!fastQaRelayId) fail(`外语素材速答未使用本地提示词 relay: ${fastQaTarget.url}`)
+    const fastQaRecord = await evaluate(swCdp, `new Promise((resolve) => {
+      const key = ${JSON.stringify("ccs_ai_pending_prompt_")} + ${JSON.stringify(fastQaRelayId)};
+      (chrome.storage.session || chrome.storage.local).get([key], (data) => resolve(data[key] || null));
+    })`)
+    if (!fastQaRecord?.prompt?.includes(foreignFastQaSource) ||
+        !fastQaRecord.prompt.includes("短篇回答、中篇回答以及后续 A/B 生成的全部正文") ||
+        !fastQaRecord.prompt.includes("以**简体中文**为主要输出语言") ||
+        fastQaRecord.prompt.includes("${outputLanguage}") || fastQaRecord.relayEngine !== "chatgpt") {
+      fail(`外语素材速答语言提示词异常: ${JSON.stringify(fastQaRecord)?.slice(0, 1200)}`)
+    }
+    console.log(`${TAG} ✓ 外语素材速答目标语言正常（默认简体中文 / 占位符已渲染 / 完整 relay）`)
+
     // 9.1 文心新入口专属契约：短提示也必须走 storage relay，最终标签只带
     //     ccs_pp（enter_type 已去除），不再带已失效的 q 参数。目标域名映射到
     //     本地 HTTPS 夹具，测试只验证扩展行为，不依赖真实文心站可用性。
@@ -814,7 +859,9 @@ async function main() {
     }
     if (!chatRewriteFill?.text?.startsWith("选A并且按照提示词改写：") ||
         !chatRewriteFill.text.includes("原始素材参考本次对话上下文。") ||
-        chatRewriteFill.text.includes("${url}") || chatRewriteFill.submitClicks !== 0) {
+        !chatRewriteFill.text.includes("以**简体中文**为主要输出语言") ||
+        chatRewriteFill.text.includes("${url}") || chatRewriteFill.text.includes("${outputLanguage}") ||
+        chatRewriteFill.submitClicks !== 0) {
       fail(`ChatGPT 选A提示词填充异常: ${JSON.stringify(chatRewriteFill)?.slice(0, 1200)}`)
     }
     for (let i = 0; i < 30; i++) {
@@ -1061,8 +1108,10 @@ async function main() {
       (chrome.storage.session || chrome.storage.local).get([key], (data) => resolve(data[key] || null));
     })`)
     if (!docsChatRecord?.prompt?.startsWith("# 通用「GPT-4.5 感」") ||
+        !docsChatRecord.prompt.includes("以**简体中文**为主要输出语言") ||
         !docsChatRecord.prompt.includes("https://docs.google.com/document/d/smoke-doc/edit?tab=t.0") ||
         docsChatRecord.prompt.includes("#heading") || docsChatRecord.prompt.includes("${url}") ||
+        docsChatRecord.prompt.includes("${outputLanguage}") ||
         docsChatRecord.relayEngine !== "chatgpt") {
       fail(`Google Docs → ChatGPT relay 记录异常: ${JSON.stringify(docsChatRecord)?.slice(0, 1200)}`)
     }
@@ -1084,8 +1133,10 @@ async function main() {
           (chrome.storage.session || chrome.storage.local).get([key], (data) => resolve(data[key] || null));
         })`)
       : null
-    if (!docsClaudeRelayId || !docsClaudeRecord?.prompt?.includes("https://docs.google.com/document/d/smoke-doc/edit?tab=t.0") ||
-        docsClaudeRecord.prompt.includes("${url}") || docsClaudeRecord.relayEngine !== "claude") {
+    if (!docsClaudeRelayId || !docsClaudeRecord?.prompt?.includes("以**简体中文**为主要输出语言") ||
+        !docsClaudeRecord.prompt.includes("https://docs.google.com/document/d/smoke-doc/edit?tab=t.0") ||
+        docsClaudeRecord.prompt.includes("${url}") || docsClaudeRecord.prompt.includes("${outputLanguage}") ||
+        docsClaudeRecord.relayEngine !== "claude") {
       fail(`Google Docs → Claude relay 记录异常: ${JSON.stringify(docsClaudeRecord)?.slice(0, 1200)}`)
     }
     if (docsFixture.exceptions.length > 0) fail(`Google Docs 改写未捕获异常: ${docsFixture.exceptions[0]}`)

@@ -11,6 +11,8 @@
  * 行为与 legacy 1:1 镜像，dual-run verifier 重点验证这几个。
  */
 
+import { applyPromptOutputLanguage } from "../../shared/promptLanguage"
+
 export interface TaskDefinitionBase {
   id: string
   label: string
@@ -215,6 +217,8 @@ export function clearTaskCache(): void {
 export interface BuildPromptOptions {
   categoryId?: string
   purposeOverride?: string
+  /** 未来由插件语言设置传入；未传时统一回退为简体中文。 */
+  outputLanguage?: string | null
   vars?: Record<string, string | number | null | undefined>
 }
 
@@ -249,7 +253,7 @@ export function buildPromptFromTask(
       prompt = prompt.split("${" + k + "}").join(v == null ? "" : String(v))
     }
   }
-  return prompt
+  return applyPromptOutputLanguage(prompt, options.outputLanguage)
 }
 
 export function getTaskEngineUrlFromTask(

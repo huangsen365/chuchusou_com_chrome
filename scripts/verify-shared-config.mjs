@@ -84,6 +84,9 @@ function main() {
     const promptTemplate = prompt.templateLines.join("\n")
     assert(promptTemplate.includes("${input}"), `${promptFile} template must include \${input}`)
     if (promptFile === "prompts/fastAnswersPrompts.json") {
+      assert(promptTemplate.split("${outputLanguage}").length - 1 === 1, "fast answers must contain one output-language placeholder")
+      assert(promptTemplate.includes("无论输入素材使用何种语言"), "fast answers must handle foreign-language source material")
+      assert(promptTemplate.includes("短篇回答、中篇回答以及后续 A/B 生成的全部正文"), "fast answers language rule must cover short, medium and follow-up output")
       assert(promptTemplate.includes("第一轮回复必须恰好包含两个彼此独立的 writing block"), "fast answers must require two independent writing blocks")
       assert(promptTemplate.includes("在 writing block 之外输出标题：【短篇回答】"), "short answer label must stay outside its writing block")
       assert(promptTemplate.includes("在 writing block 之外输出标题：【中篇回答】"), "medium answer label must stay outside its writing block")

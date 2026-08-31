@@ -206,7 +206,10 @@ async function buildTaskPrompt(taskId, keyword, options = {}) {
       prompt = prompt.split('${' + k + '}').join(v == null ? '' : String(v));
     }
   }
-  return prompt;
+  // 当前默认简体中文；未来由调用方把设置中的语言放进 options.outputLanguage。
+  return globalThis.CCSPromptLanguage?.apply
+    ? globalThis.CCSPromptLanguage.apply(prompt, options.outputLanguage)
+    : prompt.split('${outputLanguage}').join(options.outputLanguage || '简体中文');
 }
 
 /**

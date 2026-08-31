@@ -167,6 +167,9 @@
           if (template.split(URL_PLACEHOLDER).length - 1 !== 1) {
             throw new Error('文章改写提示词必须包含且只包含一个 ${url} 占位符。');
           }
+          if (template.split('${outputLanguage}').length - 1 !== 1) {
+            throw new Error('文章改写提示词必须包含且只包含一个 ${outputLanguage} 占位符。');
+          }
           return template;
         })
         .catch((error) => {
@@ -193,7 +196,11 @@
     });
     if (backgroundPrompt) return backgroundPrompt;
     const template = await loadPromptTemplate();
-    return `${SELECT_A_PREFIX}\n${template.replace(URL_PLACEHOLDER, CONVERSATION_SOURCE_NOTE)}`;
+    const prompt = template.replace(URL_PLACEHOLDER, CONVERSATION_SOURCE_NOTE);
+    const localizedPrompt = globalThis.CCSPromptLanguage?.apply
+      ? globalThis.CCSPromptLanguage.apply(prompt)
+      : prompt.split('${outputLanguage}').join('简体中文');
+    return `${SELECT_A_PREFIX}\n${localizedPrompt}`;
   }
 
   function fillCurrentComposer(prompt) {

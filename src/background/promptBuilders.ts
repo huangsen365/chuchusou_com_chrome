@@ -13,6 +13,8 @@
  * TS 版本通过参数注入解耦。
  */
 
+import { applyPromptOutputLanguage } from "../shared/promptLanguage"
+
 // ==================== Prompt 模板渲染 ====================
 
 export function buildOptimizedPrompt(
@@ -48,11 +50,12 @@ export function buildTopQuestionsPrompt(
 
 export function buildFastAnswersPrompt(
   inputText: string | null | undefined,
-  template: string | null | undefined
+  template: string | null | undefined,
+  outputLanguage?: string | null
 ): string | null {
   if (!template) return null
   const safeInput = inputText || ""
-  return template.split("${input}").join(safeInput)
+  return applyPromptOutputLanguage(template.split("${input}").join(safeInput), outputLanguage)
 }
 
 // ==================== 菜单启用查询 ====================

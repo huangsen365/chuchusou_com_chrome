@@ -52,6 +52,7 @@
         "modules/textSync.js",
         "modules/positioning.js",
         "modules/domMonitor.js",
+        "shared/promptLanguage.js",
         "modules/siteFastQaRuntime.js",
         "modules/xTweetFastQa.js",
         "modules/zhihuFastQa.js",

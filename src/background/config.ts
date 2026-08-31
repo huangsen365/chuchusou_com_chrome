@@ -11,6 +11,8 @@
  * 引擎标题 / 菜单 SSoT 依然走 config/engines.json / config/unifiedMenuConfig.json。
  */
 
+import { applyPromptOutputLanguage } from "../shared/promptLanguage"
+
 export interface PromptConfigShape {
   template?: string
   templateLines?: string[]
@@ -121,9 +123,10 @@ export class ConfigLoader {
     if (!this.topQuestions.template) return null
     return ConfigLoader._fillTemplate(this.topQuestions.template, { input: inputText || "" })
   }
-  buildFastAnswersPrompt(inputText: string): string | null {
+  buildFastAnswersPrompt(inputText: string, outputLanguage?: string | null): string | null {
     if (!this.fastAnswers.template) return null
-    return ConfigLoader._fillTemplate(this.fastAnswers.template, { input: inputText || "" })
+    const prompt = ConfigLoader._fillTemplate(this.fastAnswers.template, { input: inputText || "" })
+    return applyPromptOutputLanguage(prompt, outputLanguage)
   }
 
   async loadUnifiedMenuConfig(): Promise<UnifiedMenuConfigShape | null> {

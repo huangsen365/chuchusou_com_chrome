@@ -3,6 +3,7 @@ import {
   promptConfigAssets,
   unifiedMenuConfigAsset
 } from "./configAssets"
+import { applyPromptOutputLanguage } from "./promptLanguage"
 
 import type {
   EngineDefinition,
@@ -63,8 +64,9 @@ function replaceToken(source: string, token: string, value: string): string {
   return source.split(token).join(value)
 }
 
-export function buildPrompt(config: PromptConfig, input: string): string {
-  return replaceToken(config.templateLines.join("\n"), "${input}", input)
+export function buildPrompt(config: PromptConfig, input: string, outputLanguage?: string | null): string {
+  const prompt = replaceToken(config.templateLines.join("\n"), "${input}", input)
+  return applyPromptOutputLanguage(prompt, outputLanguage)
 }
 
 export function interpolateUrlPattern(
