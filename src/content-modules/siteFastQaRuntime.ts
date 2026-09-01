@@ -50,11 +50,34 @@ export interface SiteFastQaAdapter {
 interface FastQaResponse {
   success?: boolean
   error?: string
+  code?: string
 }
 
 interface ActiveAction {
   content: SiteFastQaContent
   state: SiteFastQaState
+}
+
+export const SITE_FAST_QA_RUNTIME_UNAVAILABLE_MESSAGE = "扩展刚完成升级，请刷新当前页面后再试"
+
+const SITE_FAST_QA_RUNTIME_ERROR_PATTERN =
+  /runtime-unavailable|Extension context invalidated|Receiving end does not exist|Could not establish connection|message port closed/i
+
+function currentRuntimeVersion(): string {
+  try {
+    return chrome.runtime?.id ? chrome.runtime.getManifest?.().version ?? "" : ""
+  } catch (_) {
+    return ""
+  }
+}
+
+const SITE_FAST_QA_RUNTIME_VERSION = currentRuntimeVersion()
+
+export function toUserFacingSiteFastQaError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error || "")
+  return SITE_FAST_QA_RUNTIME_ERROR_PATTERN.test(message)
+    ? SITE_FAST_QA_RUNTIME_UNAVAILABLE_MESSAGE
+    : message || "速答启动失败"
 }
 
 function createFastQaIcon(): SVGSVGElement {
@@ -102,7 +125,11 @@ export function sendSiteFastQaToChatGpt(keyword: string): Promise<FastQaResponse
   return new Promise((resolve) => {
     try {
       if (!chrome.runtime?.id) {
-        resolve({ success: false, error: "runtime-unavailable" })
+        resolve({
+          success: false,
+          code: "EXTENSION_CONTEXT_INVALIDATED",
+          error: SITE_FAST_QA_RUNTIME_UNAVAILABLE_MESSAGE
+        })
         return
       }
       chrome.runtime.sendMessage({
@@ -113,13 +140,16 @@ export function sendSiteFastQaToChatGpt(keyword: string): Promise<FastQaResponse
         keyword
       }, (response: FastQaResponse | undefined) => {
         if (chrome.runtime.lastError) {
-          resolve({ success: false, error: chrome.runtime.lastError.message || "runtime-error" })
+          resolve({
+            success: false,
+            error: toUserFacingSiteFastQaError(chrome.runtime.lastError.message || "runtime-error")
+          })
           return
         }
         resolve(response ?? { success: false, error: "empty-response" })
       })
     } catch (error) {
-      resolve({ success: false, error: error instanceof Error ? error.message : String(error) })
+      resolve({ success: false, error: toUserFacingSiteFastQaError(error) })
     }
   })
 }
@@ -160,6 +190,9 @@ export function startSiteFastQaIntegration(adapter: SiteFastQaAdapter): () => vo
   ): void => {
     const next = adapter.copy(state, content)
     button.dataset.ccsState = state
+    if (SITE_FAST_QA_RUNTIME_VERSION) {
+      button.dataset.ccsSiteFastqaVersion = SITE_FAST_QA_RUNTIME_VERSION
+    }
     if (content) {
       button.dataset.ccsSourceKey = content.sourceKey
       button.dataset.ccsContentKind = content.kind
@@ -225,7 +258,7 @@ export function startSiteFastQaIntegration(adapter: SiteFastQaAdapter): () => vo
       activeActions.set(sourceKey, failed)
       applyActiveState(sourceKey, failed)
       if (button.isConnected) setActionState(button, "error", latest)
-      Toast.error(error instanceof Error ? error.message : String(error))
+      Toast.error(toUserFacingSiteFastQaError(error))
     } finally {
       scheduleReset(sourceKey)
     }

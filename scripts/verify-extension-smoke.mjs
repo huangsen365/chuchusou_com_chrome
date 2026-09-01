@@ -1591,7 +1591,81 @@ async function main() {
     console.log(`${TAG} ✓ sidepanel 菜单项点按 → executeMenuAction → 新标签`)
     spPage.cdp.close()
 
-    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 15 条协议/端口/动作/存储/选区/菜单标题路径 + X/知乎站点速答 + 2 个 UI 页面启动 + 2 条 UI 点按实操全通`)
+    // 18. 扩展升级时，旧 content script 已失去 runtime，但按钮 DOM 仍留在页面。
+    //     新版 SW 必须接管旧按钮并给出可操作的中文刷新提示，不能再把
+    //     runtime-unavailable 暴露给用户。这里把按钮版本标成 previous-build，
+    //     再对同一路径执行 loadUnpacked（Chrome 将其视为 update）。
+    const updateFixture = await openSiteFixture("https://x.com/site-fastqa?upgrade-guard=1")
+    const updateBefore = await evaluate(updateFixture.cdp, `(() => {
+      const button = document.querySelector('[data-ccs-site-fastqa="x"]');
+      if (button) button.setAttribute('data-ccs-site-fastqa-version', 'previous-build');
+      return {
+        count: document.querySelectorAll('[data-ccs-site-fastqa="x"]').length,
+        version: button?.getAttribute('data-ccs-site-fastqa-version') || ''
+      };
+    })()`)
+    if (updateBefore?.count !== 1 || updateBefore.version !== "previous-build") {
+      fail(`扩展升级守卫夹具初始化失败: ${JSON.stringify(updateBefore)}`)
+    }
+
+    await browserCdp.call("Extensions.loadUnpacked", { path: buildDir })
+    let guarded = null
+    for (let i = 0; i < 40; i++) {
+      await wait(150)
+      guarded = await evaluate(updateFixture.cdp, `(() => {
+        const button = document.querySelector('[data-ccs-site-fastqa="x"]');
+        return {
+          count: document.querySelectorAll('[data-ccs-site-fastqa="x"]').length,
+          stale: button?.getAttribute('data-ccs-site-fastqa-stale-update') || '',
+          state: button?.dataset.ccsState || '',
+          disabled: !!button?.disabled
+        };
+      })()`)
+      if (guarded?.stale === "true") break
+    }
+    if (guarded?.count !== 1 || guarded.stale !== "true" || guarded.state !== "upgrade-required" || guarded.disabled) {
+      fail(`扩展升级后旧速答按钮未被接管: ${JSON.stringify(guarded)}`)
+    }
+
+    await evaluate(updateFixture.cdp, `document.querySelector('[data-ccs-site-fastqa="x"]')?.click()`)
+    await wait(250)
+    const upgradePrompt = await evaluate(updateFixture.cdp, `(() => ({
+      message: document.getElementById('ccs-site-fastqa-update-toast')?.textContent || '',
+      hasRefresh: !!document.querySelector('[data-ccs-site-fastqa-refresh]'),
+      leakedRuntimeError: Array.from(document.querySelectorAll('.ccs-toast')).some((toast) =>
+        /runtime-unavailable|Runtime Unavailable/i.test(toast.textContent || '')
+      )
+    }))()`)
+    if (!upgradePrompt?.message.includes("扩展已升级") || !upgradePrompt.hasRefresh || upgradePrompt.leakedRuntimeError) {
+      fail(`扩展升级刷新提示异常: ${JSON.stringify(upgradePrompt)}`)
+    }
+
+    await evaluate(updateFixture.cdp, `document.querySelector('[data-ccs-site-fastqa-refresh]')?.click()`)
+    let updateAfterRefresh = null
+    for (let i = 0; i < 50; i++) {
+      await wait(150)
+      updateAfterRefresh = await evaluate(updateFixture.cdp, `(() => {
+        const button = document.querySelector('[data-ccs-site-fastqa="x"]');
+        return {
+          count: document.querySelectorAll('[data-ccs-site-fastqa="x"]').length,
+          version: button?.getAttribute('data-ccs-site-fastqa-version') || '',
+          stale: button?.hasAttribute('data-ccs-site-fastqa-stale-update') || false,
+          promptExists: !!document.getElementById('ccs-site-fastqa-update-toast')
+        };
+      })()`)
+      if (updateAfterRefresh?.version === buildVersion) break
+    }
+    if (updateAfterRefresh?.count !== 1 || updateAfterRefresh.version !== buildVersion ||
+        updateAfterRefresh.stale || updateAfterRefresh.promptExists) {
+      fail(`刷新后新版速答按钮未恢复: ${JSON.stringify(updateAfterRefresh)}`)
+    }
+    if (updateFixture.exceptions.length > 0) {
+      fail(`扩展升级守卫未捕获异常: ${updateFixture.exceptions[0]}`)
+    }
+    console.log(`${TAG} ✓ 扩展升级守卫正常（旧按钮接管 / 中文刷新提示 / 不泄露 runtime-unavailable / 刷新恢复）`)
+    updateFixture.cdp.close()
+
+    console.log(`${TAG} 全部 OK — build 产物在真 Chrome 里 SW 启动 + 桥接 + 15 条协议/端口/动作/存储/选区/菜单标题路径 + X/知乎站点速答 + 扩展升级恢复 + 2 个 UI 页面启动 + 2 条 UI 点按实操全通`)
   } finally {
     clearTimeout(watchdog)
     try { httpServer?.close() } catch (_) { /* noop */ }

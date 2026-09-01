@@ -45,7 +45,10 @@ function loadLegacyApi() {
     context,
     { filename: "modules/xTweetFastQa.js" }
   )
-  return windowObject.CCSModules.XTweetFastQa
+  return {
+    adapter: windowObject.CCSModules.XTweetFastQa,
+    runtime: windowObject.CCSModules.SiteFastQaRuntime
+  }
 }
 
 function createTsLoader() {
@@ -201,17 +204,38 @@ function verifyApi(name, api) {
   assert(api.extractXArticleBody(articleCardTweet) === "", `${name}: embedded X article card must be excluded`)
 }
 
-const legacyApi = loadLegacyApi()
+const legacyModules = loadLegacyApi()
 const loadTs = createTsLoader()
 const tsApi = loadTs(path.join(root, "src/content-modules/xTweetFastQa.ts")).XTweetFastQa
+const tsRuntime = loadTs(path.join(root, "src/content-modules/siteFastQaRuntime.ts"))
 
-verifyApi("legacy", legacyApi)
+verifyApi("legacy", legacyModules.adapter)
 verifyApi("typescript", tsApi)
+
+const runtimeUnavailableMessage = "扩展刚完成升级，请刷新当前页面后再试"
+assert(
+  legacyModules.runtime.toUserFacingError("Extension context invalidated.") === runtimeUnavailableMessage,
+  "legacy runtime must localize an invalidated extension context"
+)
+assert(
+  legacyModules.runtime.toUserFacingError("runtime-unavailable") === runtimeUnavailableMessage,
+  "legacy runtime must not expose runtime-unavailable"
+)
+assert(
+  tsRuntime.toUserFacingSiteFastQaError("Could not establish connection") === runtimeUnavailableMessage,
+  "TypeScript runtime must localize a disconnected extension context"
+)
+assert(
+  tsRuntime.toUserFacingSiteFastQaError("正文提取失败") === "正文提取失败",
+  "unrelated fastqa errors must retain their original message"
+)
 
 const legacyRuntimeSource = fs.readFileSync(path.join(root, "modules/siteFastQaRuntime.js"), "utf8")
 const legacyAdapterSource = fs.readFileSync(path.join(root, "modules/xTweetFastQa.js"), "utf8")
 assert(legacyRuntimeSource.includes("adapter.findActionContainers?.(root)"), "shared runtime must support multiple action containers")
 assert(legacyRuntimeSource.includes("container.querySelectorAll(buttonSelector)"), "shared runtime must deduplicate buttons per container")
+assert(legacyRuntimeSource.includes("ccsSiteFastqaVersion"), "shared runtime must version every injected fastqa button")
+assert(!legacyRuntimeSource.includes("error: 'runtime-unavailable'"), "shared runtime must not return a raw runtime-unavailable error")
 assert(legacyAdapterSource.includes("findTweetActionGroups"), "X adapter must discover both long-article action groups")
 assert(legacyAdapterSource.includes("findActionContainers(root)"), "X adapter must expose multiple long-article action groups")
 

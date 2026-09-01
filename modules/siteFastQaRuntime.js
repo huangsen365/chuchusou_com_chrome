@@ -3,6 +3,28 @@
 
   window.CCSModules = window.CCSModules || {};
 
+  const RUNTIME_UNAVAILABLE_MESSAGE = '扩展刚完成升级，请刷新当前页面后再试';
+  const RUNTIME_ERROR_PATTERN =
+    /runtime-unavailable|Extension context invalidated|Receiving end does not exist|Could not establish connection|message port closed/i;
+
+  function currentRuntimeVersion() {
+    try {
+      const runtime = globalThis.chrome?.runtime;
+      return runtime?.id ? runtime.getManifest?.().version || '' : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  const runtimeVersion = currentRuntimeVersion();
+
+  function toUserFacingError(error) {
+    const message = error instanceof Error ? error.message : String(error || '');
+    return RUNTIME_ERROR_PATTERN.test(message)
+      ? RUNTIME_UNAVAILABLE_MESSAGE
+      : message || '速答启动失败';
+  }
+
   function createFastQaIcon() {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', '0 0 24 24');
@@ -49,7 +71,11 @@
       try {
         const runtime = globalThis.chrome?.runtime;
         if (!runtime?.id) {
-          resolve({ success: false, error: 'runtime-unavailable' });
+          resolve({
+            success: false,
+            code: 'EXTENSION_CONTEXT_INVALIDATED',
+            error: RUNTIME_UNAVAILABLE_MESSAGE
+          });
           return;
         }
         runtime.sendMessage({
@@ -60,13 +86,16 @@
           keyword
         }, (response) => {
           if (runtime.lastError) {
-            resolve({ success: false, error: runtime.lastError.message || 'runtime-error' });
+            resolve({
+              success: false,
+              error: toUserFacingError(runtime.lastError.message || 'runtime-error')
+            });
             return;
           }
           resolve(response || { success: false, error: 'empty-response' });
         });
       } catch (error) {
-        resolve({ success: false, error: error?.message || String(error) });
+        resolve({ success: false, error: toUserFacingError(error) });
       }
     });
   }
@@ -103,6 +132,9 @@
     const setActionState = (button, state, content) => {
       const next = adapter.copy(state, content);
       button.dataset.ccsState = state;
+      if (runtimeVersion) {
+        button.dataset.ccsSiteFastqaVersion = runtimeVersion;
+      }
       if (content) {
         button.dataset.ccsSourceKey = content.sourceKey;
         button.dataset.ccsContentKind = content.kind;
@@ -168,7 +200,7 @@
         activeActions.set(sourceKey, failed);
         applyActiveState(sourceKey, failed);
         if (button.isConnected) setActionState(button, 'error', latest);
-        window.CCSModules.Toast?.error?.(error?.message || String(error));
+        window.CCSModules.Toast?.error?.(toUserFacingError(error));
       } finally {
         scheduleReset(sourceKey);
       }
@@ -265,5 +297,10 @@
     };
   }
 
-  window.CCSModules.SiteFastQaRuntime = { sendToChatGpt, start };
+  window.CCSModules.SiteFastQaRuntime = {
+    sendToChatGpt,
+    start,
+    toUserFacingError,
+    runtimeUnavailableMessage: RUNTIME_UNAVAILABLE_MESSAGE
+  };
 })();
