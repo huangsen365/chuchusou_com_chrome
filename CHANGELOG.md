@@ -1,5 +1,20 @@
 # 更新日志
 
+## v1.12.1 (2026-09-02)
+
+**扩展升级后 X / 知乎页面上的速答按钮不再变成死按钮**。详细见 [releases/v1.12.1.md](./releases/v1.12.1.md)。
+
+### 🐛 修复
+
+- **扩展升级后已打开的 X / 知乎页面上的速答按钮不再点不动**：Chrome 后台静默升级扩展时不会刷新已打开的标签页，旧页面里的内容脚本上下文随即失效，但它插入的闪电按钮还留在页面上。此前点它只会报一句看不懂的 `runtime-unavailable`。现在新版本在升级时会给这些旧页面装一个轻量守卫，接管旧按钮的点击，弹出「扩展已升级，请刷新当前页面后继续使用速答」并提供「刷新页面 / 稍后」两个选择——**不会未经允许自动刷新**，页面上没提交的输入不会丢。刷新后按钮恢复正常。
+- **上下文失效类报错统一成人话**：`Extension context invalidated`、`Receiving end does not exist`、`Could not establish connection`、`message port closed` 等一律显示为「扩展刚完成升级，请刷新当前页面后再试」，不再把浏览器内部错误原文抛给用户。
+
+### 🛠 技术改动
+
+- 共享速答运行时给每个注入的按钮打上 `data-ccs-site-fastqa-version` 版本标记，并新增 `toUserFacingError()` 与 `runtimeUnavailableMessage` 导出；`runtime-unavailable` 分支改为返回 `code: 'EXTENSION_CONTEXT_INVALIDATED'` + 中文文案。TypeScript 与 legacy 生产脚本双轨同步。
+- `background/events.js` 在 `chrome.runtime.onInstalled` 的 `update` 分支调用新增的 `ccsInstallSiteFastQaUpdateGuards()`，用 `chrome.scripting.executeScript` 向 x.com / twitter.com / zhihu.com 的已开标签注入自包含守卫函数。守卫只拦截版本标记缺失或与当前版本不符的按钮，刷新后正常加载的新按钮不受影响；重复注入会复用同版本实例、并 dispose 掉旧版本实例。注入结果经 `Promise.allSettled` 汇总后写入 `logMenuEvent`，单个标签失败不影响其余。
+- 冒烟新增「扩展升级守卫」全链断言（夹具初始化 → 旧按钮被接管 → 中文刷新提示 → 不泄露 `runtime-unavailable` → 刷新后恢复 → 守卫自身零异常）；`verify:x-tweet-fastqa` 新增 6 条源码级断言，强制运行时必须给按钮打版本标记且不得返回裸 `runtime-unavailable`。
+
 ## v1.12.0 (2026-09-01)
 
 **注入 X 草稿自动把「他」改成「TA」+ 速答按钮位置不再乱跳**。详细见 [releases/v1.12.0.md](./releases/v1.12.0.md)。
