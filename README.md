@@ -8,6 +8,14 @@
 
 > 🧩 **安装**：[Chrome 应用商店一键安装](https://chromewebstore.google.com/detail/kipfgodiangoljcbecenccdoehgokodg) —— 打开后点「添加至 Chrome」即可。想跑最新源码见下方[安装方法](#安装方法)。
 
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=PEzAcg_frIA">
+    <img src="https://img.youtube.com/vi/PEzAcg_frIA/maxresdefault.jpg" alt="视频教程：使用触触搜，点几下就能轻松创作长篇文章和封面" width="640">
+  </a>
+  <br>
+  <sub>📺 <b>使用教程</b>：<a href="https://www.youtube.com/watch?v=PEzAcg_frIA">使用触触搜，点几下就能轻松创作长篇文章和封面</a>（点封面跳到 YouTube 观看）</sub>
+</p>
+
 > 🎨 **基于 ChatGPT Images 2.0 的封面生成器**：选中标题文本 → 一键调用 ChatGPT Images 2.0 渲染封面。内置「二次元可爱 / 小红书 / 椰树牌 / 极简留白」四种风格预设，覆盖小红书、公众号、视频号、抖音等多种比例。
 
 > 💡 **名称由来**：「触触」代表着用鼠标轻触并选中文本的动作，「搜」则是搜索和处理的含义。我们希望用户只需轻轻一触，所有功能就能触手可及。
@@ -96,6 +104,8 @@ npm run plasmo:build        # 产物在 build/chrome-mv3-prod/
 > 也可以直接选择项目根目录加载（走 legacy `background/index.js` 入口，功能可用），但商店发布的是 Plasmo 构建产物，排查问题请以 `build/chrome-mv3-prod/` 为准。
 
 ## 使用说明
+
+> 📺 先看视频更直观：[使用触触搜点几下轻松创作长篇文章和封面](https://www.youtube.com/watch?v=PEzAcg_frIA)
 
 1. **选中即取词**: 用鼠标选中网页文本，扩展后台立即捕获——右键菜单标题、popup、侧边栏的关键字徽章都会实时更新为选中内容
 2. **右键直达**: 选中后右键，菜单里搜索 / AI 对话 / 速答 / 百问 / 优化 / 封面生成一键直达
