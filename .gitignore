@@ -32,3 +32,6 @@ logs/
 
 # Generated assets
 assets/menu-icons/*.tmp
+
+# 冒烟测试自签证书（verify-extension-smoke 运行时用 openssl 现生成）
+scripts/fixtures/*.pem

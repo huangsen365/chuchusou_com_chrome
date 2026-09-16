@@ -21,7 +21,7 @@ import base64
 import subprocess
 from pathlib import Path
 
-REPO = Path('/Users/huangwin/Library/CloudStorage/OneDrive-个人/Projects/DAYS/20250826/chuchusou_com_chrome')
+REPO = Path(__file__).resolve().parents[2]  # 项目根目录
 OUT  = REPO / 'releases' / 'store-assets-v1.2.0'
 TMP  = Path('/tmp/store-tiles')
 CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'

@@ -30,7 +30,7 @@ import https from "node:https"
 import os from "node:os"
 import path from "node:path"
 import process from "node:process"
-import { spawn } from "node:child_process"
+import { execFileSync, spawn } from "node:child_process"
 import {
   hasWebSocket, findChrome, wait, waitForDevToolsPort, connectWebSocket, CdpClient, evaluate
 } from "./lib/cdp.mjs"
@@ -38,6 +38,29 @@ import {
 const root = process.cwd()
 const buildDir = path.join(root, "build/chrome-mv3-prod")
 const TAG = "[verify-extension-smoke]"
+
+/**
+ * 本地 HTTPS 夹具证书：首次运行时用 openssl 现生成自签证书（CN=ccs-smoke-fixture），
+ * 落在 scripts/fixtures/（已 gitignore），之后复用。Chrome 以 --ignore-certificate-errors
+ * 启动，证书内容无关紧要 —— 不进仓库是为了不触发各类 secret scanner 误报。
+ */
+function ensureSmokeTlsFixture(fixtureDir) {
+  const keyPath = path.join(fixtureDir, "ccs-test-key.pem")
+  const certPath = path.join(fixtureDir, "ccs-test-cert.pem")
+  if (fs.existsSync(keyPath) && fs.existsSync(certPath)) return { keyPath, certPath }
+  fs.mkdirSync(fixtureDir, { recursive: true })
+  try {
+    execFileSync("openssl", [
+      "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-sha256",
+      "-keyout", keyPath, "-out", certPath, "-days", "36500",
+      "-subj", "/CN=ccs-smoke-fixture"
+    ], { stdio: "ignore" })
+  } catch (err) {
+    throw new Error(`无法生成本地 HTTPS 夹具证书（需要 openssl 在 PATH 里）: ${err.message}`)
+  }
+  console.log(`${TAG} 已生成本地 HTTPS 夹具证书 → ${path.relative(process.cwd(), certPath)}`)
+  return { keyPath, certPath }
+}
 
 function fail(msg) {
   // 抛错而不是 process.exit —— exit 会跳过 finally，留下僵尸 headless Chrome
@@ -95,10 +118,10 @@ async function main() {
   await new Promise((res) => httpServer.listen(0, "127.0.0.1", res))
   const httpUrl = `http://127.0.0.1:${httpServer.address().port}/`
 
-  const fixtureDir = path.join(root, "scripts/fixtures")
+  const tls = ensureSmokeTlsFixture(path.join(root, "scripts/fixtures"))
   const httpsServer = https.createServer({
-    key: fs.readFileSync(path.join(fixtureDir, "ccs-test-key.pem")),
-    cert: fs.readFileSync(path.join(fixtureDir, "ccs-test-cert.pem"))
+    key: fs.readFileSync(tls.keyPath),
+    cert: fs.readFileSync(tls.certPath)
   }, (req, res) => {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
     const hostname = String(req.headers.host || "").split(":")[0]

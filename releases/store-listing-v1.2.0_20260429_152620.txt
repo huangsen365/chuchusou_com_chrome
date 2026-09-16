@@ -117,7 +117,7 @@ https://chuchusou.com
 [9] ★ 支持联系邮箱（Support Email）
 ---------------------------------------------------------
 （请填你愿意接收用户反馈的邮箱）
-huangsen365@gmail.com（默认建议，按需替换）
+<你的支持邮箱>（按需替换）
 
 ---------------------------------------------------------
 [10] ★ 截图（Screenshots）
@@ -212,7 +212,7 @@ ZIP 路径：../chuchusou_chrome_extension_v1.2.0.zip
 （位于项目所在的上一层目录）
 
 完整路径：
-/Users/huangwin/Library/CloudStorage/OneDrive-个人/Projects/DAYS/20250826/chuchusou_chrome_extension_v1.2.0.zip
+../chuchusou_chrome_extension_v1.2.0.zip（build.sh 输出到项目并列上层目录）
 
 文件大小：212 KB
 文件数量：92
