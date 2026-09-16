@@ -2,6 +2,12 @@
 
 **触触搜** —— 轻触即搜，一触即达。
 
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kipfgodiangoljcbecenccdoehgokodg?label=Chrome%20Web%20Store&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/kipfgodiangoljcbecenccdoehgokodg)
+[![Users](https://img.shields.io/chrome-web-store/users/kipfgodiangoljcbecenccdoehgokodg?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/kipfgodiangoljcbecenccdoehgokodg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
+
+> 🧩 **安装**：[Chrome 应用商店一键安装](https://chromewebstore.google.com/detail/kipfgodiangoljcbecenccdoehgokodg) —— 打开后点「添加至 Chrome」即可。想跑最新源码见下方[安装方法](#安装方法)。
+
 > 🎨 **基于 ChatGPT Images 2.0 的封面生成器**：选中标题文本 → 一键调用 ChatGPT Images 2.0 渲染封面。内置「二次元可爱 / 小红书 / 椰树牌 / 极简留白」四种风格预设，覆盖小红书、公众号、视频号、抖音等多种比例。
 
 > 💡 **名称由来**：「触触」代表着用鼠标轻触并选中文本的动作，「搜」则是搜索和处理的含义。我们希望用户只需轻轻一触，所有功能就能触手可及。
@@ -69,12 +75,25 @@
 
 ## 安装方法
 
-### 开发者模式安装
-1. 打开 Chrome 浏览器，访问 `chrome://extensions/`
-2. 开启右上角的"开发者模式"
-3. 点击"加载已解压的扩展程序"
-4. 选择本项目文件夹
-5. 插件安装完成！
+### 方式一：Chrome 应用商店（推荐）
+
+👉 **https://chromewebstore.google.com/detail/kipfgodiangoljcbecenccdoehgokodg**
+
+打开后点「添加至 Chrome」即可，之后随商店自动更新。
+
+### 方式二：从源码构建安装
+
+```bash
+npm install
+npm run plasmo:build        # 产物在 build/chrome-mv3-prod/
+```
+
+1. 打开 Chrome，访问 `chrome://extensions/`
+2. 开启右上角的「开发者模式」
+3. 点击「加载已解压的扩展程序」，选择 `build/chrome-mv3-prod/` 目录
+4. 安装完成。改代码后重新 `npm run plasmo:build`，回到扩展页点「重新加载」
+
+> 也可以直接选择项目根目录加载（走 legacy `background/index.js` 入口，功能可用），但商店发布的是 Plasmo 构建产物，排查问题请以 `build/chrome-mv3-prod/` 为准。
 
 ## 使用说明
 
