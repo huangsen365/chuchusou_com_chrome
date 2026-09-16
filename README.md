@@ -5,6 +5,8 @@
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/kipfgodiangoljcbecenccdoehgokodg?label=Chrome%20Web%20Store&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/kipfgodiangoljcbecenccdoehgokodg)
 [![Users](https://img.shields.io/chrome-web-store/users/kipfgodiangoljcbecenccdoehgokodg?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/kipfgodiangoljcbecenccdoehgokodg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
+[![X @yunbiyun](https://img.shields.io/badge/X-%40yunbiyun-000000?logo=x&logoColor=white)](https://x.com/yunbiyun)
+[![YouTube @yunbiyun](https://img.shields.io/badge/YouTube-%40yunbiyun-FF0000?logo=youtube&logoColor=white)](https://www.youtube.com/@yunbiyun)
 
 > 🧩 **安装**：[Chrome 应用商店一键安装](https://chromewebstore.google.com/detail/kipfgodiangoljcbecenccdoehgokodg) —— 打开后点「添加至 Chrome」即可。想跑最新源码见下方[安装方法](#安装方法)。
 
@@ -232,4 +234,7 @@ MIT License
 
 ## 联系方式
 
-更多功能 敬请期待...
+- <picture><source media="(prefers-color-scheme: dark)" srcset="https://cdn.simpleicons.org/x/white"><img src="https://cdn.simpleicons.org/x/000000" width="14" alt="X"></picture> **X（Twitter）**：[@yunbiyun](https://x.com/yunbiyun) —— 日常更新、用法分享、复盘
+- <img src="https://cdn.simpleicons.org/youtube/FF0000" width="14" alt="YouTube"> **YouTube**：[@yunbiyun](https://www.youtube.com/@yunbiyun) —— 视频教程
+- 🌐 **官网**：[chuchusou.com](https://chuchusou.com)
+- 🐛 **Bug / 建议**：[GitHub Issues](https://github.com/huangsen365/chuchusou_com_chrome/issues)
