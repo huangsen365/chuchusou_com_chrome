@@ -62,6 +62,7 @@ const MENU_DEFINITIONS = {
   'ccs-cover-xiaohongshu-chatgpt-images': { text: '小红书封面', icon: '🔴' },
   'ccs-cover-coconut-chatgpt-images': { text: '椰树牌风格', icon: '🥥' },
   'ccs-cover-minimal-chatgpt-images': { text: '极简的留白', icon: '⬜' },
+  'ccs-cover-zhumoqing-chatgpt-images': { text: '朱墨清风格', icon: '✒️' },
   'ccs-copy': { text: '复制文本', icon: '📋' },
   'ccs-base64': { text: 'Base64 编码', icon: '🔤' },
   'ccs-md5': { text: 'MD5 哈希', icon: '🔐' },
@@ -144,6 +145,7 @@ const COVER_CATEGORY_TITLES = {
   'xiaohongshu': '🔴 小红书封面',
   'coconut':     '🥥 椰树牌风格',
   'minimal':     '⬜ 极简的留白',
+  'zhumoqing':   '✒️ 朱墨清风格',
   'custom':      '🖌️ 自定义风格'
 };
 
