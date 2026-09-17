@@ -1,5 +1,22 @@
 # 更新日志
 
+## v1.13.1 (2026-09-17)
+
+**修复 ChatGPT 长文页「注入X草稿 / 生成封面」按钮一直灰着点不了；文案跟进 ChatGPT Images 2.5**。详细见 [releases/v1.13.1.md](./releases/v1.13.1.md)。
+
+### 🐛 修复
+
+- **「注入X草稿 / 生成封面」按钮出现了却一直禁用**：悬停提示「暂未读取到完整文章，当前操作不可用」，怎么等都不变。原因是 ChatGPT 的 writing block 把文章标题放在块头部，编辑器正文直接从二级标题开始，而触触搜只认编辑器里的一级标题，于是认为「没有标题」、整篇文章读取失败。现在没有一级标题时改从块头部取标题，按钮正常变为可点；注入 X 草稿与生成封面用的标题也是头部那一条。分享页（`chatgpt.com/share/…`）与普通对话页同样适用。
+
+### 🔧 改进
+
+- 对外文案里的「ChatGPT Images 2.0」全部更新为「ChatGPT Images 2.5」：扩展名称与描述、README、欢迎页、侧边栏帮助与「Google 搜提示词」按钮、封面引擎 label。历史 CHANGELOG / 发布说明不改。
+
+### 🛠 技术改动
+
+- `modules/longArticleActions.js` 新增 `headerTitleFrom(block)`：从 `writing-block-header-surface` / `writing-block-header-sticky-container` 克隆后剔除按钮、工具栏、自身动作条与 svg，取首行作标题；`extractArticleSnapshot` 在编辑器无 `<h1>` 时回退到它，有 `<h1>` 的旧结构行为不变。标题长度上限统一为 `MAX_TITLE_LENGTH`。
+- 冒烟「ChatGPT 长文双动作」新增 header 标题回退链路：去掉夹具 `<h1>` → `unavailable`；补 header surface 标题 → `ready`；再点「生成封面」在 SW 钩住 `runAITask` 断言文章以 header 标题开头。步骤前先激活夹具页（后台标签 `requestAnimationFrame` 不触发、内容脚本不扫描），并等待按钮离开 3 秒 busy 保护期再点击。
+
 ## v1.13.0 (2026-09-17)
 
 **新增「墨清风格」封面预设、长文「生成封面」跟随侧边栏置顶风格、速答 ChatGPT 默认开推理模式，项目正式开源（MIT）**。详细见 [releases/v1.13.0.md](./releases/v1.13.0.md)。
