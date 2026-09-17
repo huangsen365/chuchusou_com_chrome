@@ -697,6 +697,25 @@ body {
   flex: 1;
 }
 
+/* 风格作者署名 ⓘ：默认低调，hover 变蓝；title 里带链接 */
+.sp-pin-option-credit {
+  flex: none;
+  font-size: 13px;
+  line-height: 1;
+  color: #94a3b8;
+  text-decoration: none;
+  padding: 2px 5px;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s;
+}
+
+.sp-pin-option-credit:hover,
+.sp-pin-option-credit:focus-visible {
+  color: #0ea5e9;
+  background: #e0f2fe;
+  outline: none;
+}
+
 /* ==================== Pin Picker · Custom Style Input ==================== */
 .sp-pin-custom {
   margin-bottom: 12px;

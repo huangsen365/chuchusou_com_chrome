@@ -45,6 +45,7 @@ export interface CoverCategory {
   id: string
   label?: string
   purpose?: string
+  credit?: { name?: string; url?: string }
   engines?: Array<{ id: string; label?: string; urlPattern?: string }>
 }
 
@@ -288,6 +289,22 @@ export class PinnedAction {
         <input type="radio" name="pinStyle" id="${optId}" value="${cat.id}" ${checked}>
         <span class="sp-pin-option-label">${cat.id === "custom" ? "🖌️ " + (cat.label || cat.id) : (cat.label || cat.id)}</span>
       `
+      // 风格作者署名：coverPrompts.json 的 credit 字段 → 行尾 ⓘ，hover 看链接，点击新标签打开
+      const credit = cat.credit && typeof cat.credit.url === "string" && /^https:\/\//.test(cat.credit.url) ? cat.credit : null
+      if (credit) {
+        const link = document.createElement("a")
+        link.className = "sp-pin-option-credit"
+        link.href = credit.url as string
+        link.target = "_blank"
+        link.rel = "noopener"
+        const who = credit.name ? `由 ${credit.name} 设计` : "风格作者"
+        link.title = `${who} · ${credit.url}（点击打开）`
+        link.setAttribute("aria-label", `${who}，打开 ${credit.url}`)
+        link.textContent = "ⓘ"
+        // <a href> 是交互元素，点它不会触发 label 的单选切换；再拦一下冒泡防外层监听误判
+        link.addEventListener("click", (e) => e.stopPropagation())
+        label.appendChild(link)
+      }
       list.appendChild(label)
     })
     list.onchange = (e: Event) => {

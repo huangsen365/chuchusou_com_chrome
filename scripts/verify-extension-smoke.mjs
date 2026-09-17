@@ -1593,6 +1593,49 @@ async function main() {
     if (spPage.exceptions.length > 0) fail(`sidepanel 启动期未捕获异常: ${spPage.exceptions[0]}`)
     console.log(`${TAG} ✓ sidepanel UI 启动正常（${spUi.menuItems} 个菜单项，关键元素就位，零异常）`)
 
+    // 11b. 置顶 picker 里的风格作者署名：coverPrompts.json 的 credit → 该风格行尾 ⓘ 链接
+    //      （title 带 URL 供 hover、新标签打开、不带 credit 的风格没有该元素）。
+    //      PinnedAction.init 走 requestIdleCallback，后台标签里不触发 → 先把侧边栏页激活，
+    //      等 #spPin 就绪再点 ✏️；断言只查 DOM，不真点链接（会开新标签）。
+    const spTarget = await findTarget(port, (t) => t.type === "page" && (t.url || "").endsWith("/sidepanel/sidepanel.html"), 3000)
+    if (spTarget) await browserCdp.call("Target.activateTarget", { targetId: spTarget.id })
+    let pinReady = false
+    for (let i = 0; i < 40 && !pinReady; i++) {
+      pinReady = await evaluate(spPage.cdp, `document.getElementById("spPin")?.hidden === false`)
+      if (!pinReady) await wait(200)
+    }
+    if (!pinReady) fail("sidepanel 置顶区 8s 内未就绪（PinnedAction.init 未完成）")
+    const credit = await evaluate(spPage.cdp, `(() => {
+      document.getElementById("spPinEdit")?.click()
+      const pickerOpen = document.getElementById("spPinPicker")?.hidden === false
+      const row = document.querySelector('label[for="pin-opt-zhumoqing"]')
+      const link = row?.querySelector("a.sp-pin-option-credit")
+      const minimalRow = document.querySelector('label[for="pin-opt-minimal"]')
+      return {
+        pickerOpen,
+        rowExists: !!row,
+        href: link?.getAttribute("href") || "",
+        target: link?.getAttribute("target") || "",
+        rel: link?.getAttribute("rel") || "",
+        title: link?.getAttribute("title") || "",
+        text: link?.textContent || "",
+        minimalHasCredit: !!minimalRow?.querySelector("a.sp-pin-option-credit")
+      }
+    })()`)
+    if (!credit?.pickerOpen || !credit?.rowExists) fail(`sidepanel picker 未打开或缺墨清风格行: ${JSON.stringify(credit)}`)
+    if (credit?.href !== "https://x.com/zzqgz7326" || credit?.target !== "_blank" || !/noopener/.test(credit?.rel || "")) {
+      fail(`墨清风格署名链接异常: ${JSON.stringify(credit)}`)
+    }
+    if (!credit?.title.includes("https://x.com/zzqgz7326") || !credit?.title.includes("朱墨清") || credit?.text !== "ⓘ") {
+      fail(`墨清风格署名 hover 提示异常: ${JSON.stringify(credit)}`)
+    }
+    if (credit?.minimalHasCredit) fail("没有 credit 的风格也渲染了署名 ⓘ")
+    if (spPage.exceptions.length > 0) fail(`sidepanel 打开 picker 后出现未捕获异常: ${spPage.exceptions[0]}`)
+    console.log(`${TAG} ✓ sidepanel 置顶 picker 风格署名正常（墨清风格行尾 ⓘ / hover 带作者与链接 / 新标签打开 / 其它风格无）`)
+    // 还原活动标签：#17 依赖 #16 开出的百度页是活动标签
+    if (popupClickTab) await browserCdp.call("Target.activateTarget", { targetId: popupClickTab.id })
+    await wait(200)
+
     // 17. sidepanel 菜单项点按：点'Google'项。此刻活动标签是 #16 开出的百度页
     //     （真实网络下会重定向），sidepanel 拿到的关键字不可预期 ——
     //     只断言"出现了新的 google 搜索标签"，不锁关键字值。
