@@ -103,6 +103,8 @@ function loadBackgroundApi() {
     clearTimeout,
     runAITask: async (options) => {
       coverCalls.push(options)
+      // 模拟置顶了一个已被删除的风格：注册表打不开 → 失败
+      if (options.categoryId === "ghost-style") return { success: false, error: "engine-url-not-found" }
       return { success: true, opened: 1 }
     },
     console
@@ -260,11 +262,66 @@ assert(bg.sentMessages[0]?.message?.action === "ccsDeliverXArticleDraft", "X del
 assert(await bg.api.taskForTarget(delivery.taskId, delivery.targetTabId), "target-bound task not readable by its tab")
 assert(await bg.api.taskForTarget(delivery.taskId, delivery.targetTabId + 1) === null, "task leaked to another tab")
 
-const cover = await bg.api.createLongArticleCover(article, "https://chatgpt.com/c/abc", 9)
+// 封面风格跟随侧边栏置顶（storage key 必须与 src/shared/coverPinConstants.ts 逐字一致）
+const pinConstants = fs.readFileSync(path.join(root, "src/shared/coverPinConstants.ts"), "utf8")
+const articleActionsSource = fs.readFileSync(path.join(root, "background/articleActions.js"), "utf8")
+for (const [name, value] of [
+  ["PIN_STORAGE_KEY", "ccs_sidepanel_pinned_action"],
+  ["CUSTOM_PURPOSE_KEY", "ccs_cover_custom_purpose"],
+  ["CUSTOM_LINE_KEY", "ccs_cover_custom_selected_line"]
+]) {
+  assert(pinConstants.includes(`export const ${name} = "${value}"`), `coverPinConstants.ts ${name} drifted from "${value}"`)
+  assert(articleActionsSource.includes(`'${value}'`), `articleActions.js must read ${name} literal "${value}"`)
+}
+assert(/DEFAULT_PIN = \{ taskId: "cover", categoryId: "minimal" \}/.test(pinConstants), "DEFAULT_PIN drifted; sync COVER_DEFAULT_CATEGORY")
+
+const coverUrl = "https://chatgpt.com/c/abc"
+const lastCover = () => bg.coverCalls[bg.coverCalls.length - 1]
+
+// 1) 未置顶 → 极简留白，不注入 purposeOverride
+const cover = await bg.api.createLongArticleCover(article, coverUrl, 9)
 assert(cover.success === true, "cover action failed")
-assert(bg.coverCalls[0]?.taskId === "cover", "cover action did not reuse cover task")
-assert(bg.coverCalls[0]?.categoryId === "minimal", "long article cover must default to minimal style")
-assert(bg.coverCalls[0]?.keyword.startsWith("测试长文标题\n\n正文段落。"), "cover action did not include full article")
+assert(lastCover()?.taskId === "cover", "cover action did not reuse cover task")
+assert(lastCover()?.categoryId === "minimal", "no pin must fall back to minimal style")
+assert(lastCover()?.purposeOverride === undefined, "no pin must not inject purposeOverride")
+assert(lastCover()?.keyword.startsWith("测试长文标题\n\n正文段落。"), "cover action did not include full article")
+assert(cover.categoryId === "minimal" && typeof cover.styleLabel === "string", "cover response must report resolved style")
+
+// 2) 置顶内置风格 → 跟随
+bg.stored.ccs_sidepanel_pinned_action = { taskId: "cover", categoryId: "zhumoqing" }
+assert((await bg.api.createLongArticleCover(article, coverUrl, 9)).categoryId === "zhumoqing", "cover response must expose pinned style")
+assert(lastCover()?.categoryId === "zhumoqing" && lastCover()?.purposeOverride === undefined, "cover must follow the sidepanel pinned style")
+
+// 3) 置顶 custom + 已选中行 → purposeOverride = 该行
+bg.stored.ccs_sidepanel_pinned_action = { taskId: "cover", categoryId: "custom" }
+bg.stored.ccs_cover_custom_purpose = "水墨国风\n赛博霓虹"
+bg.stored.ccs_cover_custom_selected_line = "赛博霓虹"
+const custom = await bg.api.createLongArticleCover(article, coverUrl, 9)
+assert(lastCover()?.categoryId === "custom" && lastCover()?.purposeOverride === "赛博霓虹", "custom pin must inject the selected line as purposeOverride")
+assert(custom.styleLabel === "赛博霓虹", "custom style label must be the selected line")
+
+// 4) custom 没存过选中行 → 预设库全文首行（与 sidepanel 兼容逻辑一致）
+delete bg.stored.ccs_cover_custom_selected_line
+await bg.api.createLongArticleCover(article, coverUrl, 9)
+assert(lastCover()?.purposeOverride === "水墨国风", "custom pin without selected line must fall back to first preset line")
+
+// 5) custom 但没有任何文本 → 极简留白
+delete bg.stored.ccs_cover_custom_purpose
+await bg.api.createLongArticleCover(article, coverUrl, 9)
+assert(lastCover()?.categoryId === "minimal" && lastCover()?.purposeOverride === undefined, "custom pin without any purpose must fall back to minimal")
+
+// 6) 置顶的不是封面任务 → 极简留白
+bg.stored.ccs_sidepanel_pinned_action = { taskId: "optimize", categoryId: "deep-research" }
+await bg.api.createLongArticleCover(article, coverUrl, 9)
+assert(lastCover()?.categoryId === "minimal", "non-cover pin must fall back to minimal")
+
+// 7) 置顶的风格已不存在（运行时打不开）→ 退回极简留白重试，按钮不死
+bg.stored.ccs_sidepanel_pinned_action = { taskId: "cover", categoryId: "ghost-style" }
+const before = bg.coverCalls.length
+const ghost = await bg.api.createLongArticleCover(article, coverUrl, 9)
+assert(ghost.success === true && ghost.categoryId === "minimal", "stale pinned style must recover with minimal")
+assert(bg.coverCalls.length === before + 2 && bg.coverCalls[before].categoryId === "ghost-style" && lastCover()?.categoryId === "minimal", "stale pinned style must be retried exactly once with minimal")
+delete bg.stored.ccs_sidepanel_pinned_action
 
 verifyMainWorldBridge()
 
@@ -314,4 +371,4 @@ assert(
   "background must pass the current tab URL for ChatGPT SPA navigation"
 )
 
-console.log("[verify-long-article-actions] ✓ 长文来源识别、任务隔离、封面复用、MAIN-world Draft.js 写入及保存保护验证通过")
+console.log("[verify-long-article-actions] ✓ 长文来源识别、任务隔离、封面跟随侧边栏置顶风格（7 种场景）、MAIN-world Draft.js 写入及保存保护验证通过")

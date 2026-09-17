@@ -349,11 +349,14 @@
       const outboundArticle = isX ? replaceArticlePayloadTa(article) : article;
       const response = await sendMessage({ action, sourceUrl: location.href, input: outboundArticle });
       if (!response?.success) throw new Error(response?.error || '操作失败');
-      setButtonLabel(button, '✓ 已完成');
+      const styleLabel = !isX && typeof response.styleLabel === 'string' ? response.styleLabel.trim() : '';
+      setButtonLabel(button, styleLabel ? `✓ 已完成 · ${styleLabel}` : '✓ 已完成');
       if (isX) {
         toast(response.warning ? 'warning' : 'success', response.warning || '文章已注入 X 草稿并确认自动保存；不会自动发布');
       } else {
-        toast('success', '已打开封面生成页并填入完整文章；请检查后手动发送');
+        toast('success', styleLabel
+          ? `已打开封面生成页（${styleLabel}）并填入完整文章；请检查后手动发送`
+          : '已打开封面生成页并填入完整文章；请检查后手动发送');
       }
     } catch (error) {
       setButtonLabel(button, '⚠ 失败');
@@ -441,7 +444,7 @@
         createActionButton(
           COVER_MARKER,
           '生成封面',
-          '用完整文章生成极简留白封面；打开 ChatGPT 并填入提示词，不会自动发送',
+          '用完整文章生成封面，风格跟随侧边栏置顶的封面风格（未置顶时用极简留白）；打开 ChatGPT 并填入提示词，不会自动发送',
           'ccsCreateLongArticleCover',
           assistant,
           schedule

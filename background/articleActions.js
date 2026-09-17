@@ -12,6 +12,12 @@
   const X_TASK_TTL_MS = 24 * 60 * 60 * 1000;
   const X_DELIVERY_RETRIES = 18;
   const X_DELIVERY_TIMEOUT_MS = 50000;
+  // 与 src/shared/coverPinConstants.ts 逐字一致（legacy SW 无法 import，字面量由 verify-long-article-actions 锁定）
+  const COVER_PIN_STORAGE_KEY = 'ccs_sidepanel_pinned_action';
+  const COVER_CUSTOM_PURPOSE_KEY = 'ccs_cover_custom_purpose';
+  const COVER_CUSTOM_LINE_KEY = 'ccs_cover_custom_selected_line';
+  const COVER_DEFAULT_CATEGORY = 'minimal';
+  const COVER_LABEL_PREVIEW_MAX = 15;
 
   function errorMessage(error) {
     return error instanceof Error ? error.message : String(error);
@@ -356,6 +362,58 @@
     return true;
   }
 
+  function firstNonEmptyLine(text) {
+    return String(text || '')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find(Boolean) || '';
+  }
+
+  async function coverCategoryExists(categoryId) {
+    try {
+      const task = await globalThis.AITaskRegistry?.loadTask?.('cover');
+      const categories = Array.isArray(task?.categories) ? task.categories : null;
+      // 注册表不可用时不拦，交给 runAITask 失败后的 minimal 兜底
+      return categories ? categories.some((category) => category?.id === categoryId) : true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /**
+   * 长文「生成封面」跟随侧边栏置顶的封面风格（与侧边栏自己点置顶时的解析规则一致）：
+   * - 置顶是 cover 任务 → 用它的 categoryId
+   * - custom → 用「当前应用的那一行」；没存过行则退回预设库全文首行
+   * - 未置顶 / 置顶的不是 cover / custom 没有可用文本 / 风格已不存在 → 极简的留白
+   */
+  async function resolvePinnedCoverStyle() {
+    const fallback = { categoryId: COVER_DEFAULT_CATEGORY, purposeOverride: undefined };
+    const pin = await storageGet(COVER_PIN_STORAGE_KEY);
+    const pinnedCategory = pin && pin.taskId === 'cover' && typeof pin.categoryId === 'string'
+      ? pin.categoryId.trim()
+      : '';
+    if (!pinnedCategory) return fallback;
+    if (pinnedCategory === 'custom') {
+      const selectedLine = await storageGet(COVER_CUSTOM_LINE_KEY);
+      const purpose = (typeof selectedLine === 'string' && selectedLine.trim())
+        || firstNonEmptyLine(await storageGet(COVER_CUSTOM_PURPOSE_KEY));
+      return purpose ? { categoryId: 'custom', purposeOverride: purpose } : fallback;
+    }
+    return (await coverCategoryExists(pinnedCategory))
+      ? { categoryId: pinnedCategory, purposeOverride: undefined }
+      : fallback;
+  }
+
+  function coverStyleLabel(categoryId, purposeOverride) {
+    if (categoryId === 'custom' && purposeOverride) {
+      return purposeOverride.length > COVER_LABEL_PREVIEW_MAX
+        ? `${purposeOverride.slice(0, COVER_LABEL_PREVIEW_MAX)}…`
+        : purposeOverride;
+    }
+    const titled = globalThis.COVER_CATEGORY_TITLES?.[categoryId];
+    return typeof titled === 'string' && titled.trim() ? titled.trim() : categoryId;
+  }
+
   async function createLongArticleCover(inputValue, sourceUrl, tabId) {
     const input = normalizeArticleInput(inputValue);
     if (!input) return { success: false, error: 'invalid-article-payload' };
@@ -364,15 +422,28 @@
       return { success: false, error: 'cover-task-unavailable' };
     }
     const article = [input.title, input.bodyText].filter(Boolean).join('\n\n');
-    const result = await globalThis.runAITask({
+    const runCover = (style) => globalThis.runAITask({
       taskId: 'cover',
       keyword: article,
       engineId: 'chatgpt-images',
-      categoryId: 'minimal',
+      categoryId: style.categoryId,
+      purposeOverride: style.purposeOverride,
       tabId
     });
+    let style = await resolvePinnedCoverStyle();
+    let result = await runCover(style);
+    if (!result?.success && style.categoryId !== COVER_DEFAULT_CATEGORY) {
+      // 置顶的风格在运行时打不开（如配置已删除）→ 退回极简留白再试一次，不让按钮死掉
+      style = { categoryId: COVER_DEFAULT_CATEGORY, purposeOverride: undefined };
+      result = await runCover(style);
+    }
     return result?.success
-      ? { success: true, opened: result.opened || 1 }
+      ? {
+        success: true,
+        opened: result.opened || 1,
+        categoryId: style.categoryId,
+        styleLabel: coverStyleLabel(style.categoryId, style.purposeOverride)
+      }
       : { success: false, error: result?.error || 'cover-task-failed' };
   }
 
@@ -387,6 +458,7 @@
     normalizeUrl,
     pendingTaskForTab,
     pruneExpiredTasks,
+    resolvePinnedCoverStyle,
     taskChecksum,
     taskForTarget,
     completeTaskFromTarget,
