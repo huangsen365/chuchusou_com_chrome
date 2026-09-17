@@ -47,7 +47,7 @@
     {
       "id": "chatgpt",
       "label": "ChatGPT",
-      "urlPattern": "https://chatgpt.com/?q=${PROMPT}"
+      "urlPattern": "https://chatgpt.com/?hints=reason&q=${PROMPT}"
     },
     {
       "id": "claude",
