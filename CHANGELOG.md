@@ -1,5 +1,28 @@
 # 更新日志
 
+## v1.13.0 (2026-09-17)
+
+**新增「墨清风格」封面预设、长文「生成封面」跟随侧边栏置顶风格、速答 ChatGPT 默认开推理模式，项目正式开源（MIT）**。详细见 [releases/v1.13.0.md](./releases/v1.13.0.md)。
+
+### ✨ 新功能
+
+- **新增封面风格「✒️ 墨清风格」**：由 [朱墨清 @zzqgz7326](https://x.com/zzqgz7326) 设计——左上角大面积三行醒目主标题，右侧五分之一竖排副标题，底部五分之一横排另一条副标题，主副标题互不重复，副标题字号约为主标题一半，配色按文章内容自适配。右键菜单 / Popup / 侧边栏三处同步出现，「打开以下全部预设风格」也会带上它。
+- **长文「生成封面」跟随侧边栏置顶的风格**：此前 ChatGPT 长文页的「生成封面」按钮固定用极简留白，你在侧边栏选什么都不管（只有比例是跟着走的）。现在它读取侧边栏置顶：置顶内置风格就用该风格，置顶「自定义风格」就用你当前应用的那一行；没置顶或置顶的不是封面任务仍用极简留白。点完按钮会显示「✓ 已完成 · ✒️ 墨清风格」，toast 也带风格名，一眼确认用的是哪个。
+- **侧边栏风格选择器显示作者署名**：带署名的风格（目前是墨清风格）在行尾多一个 ⓘ，悬停显示作者与链接，点击新标签打开作者主页，不会误切换选中。
+- **速答壹拾佰的 ChatGPT 默认进入推理模式**：ChatGPT 引擎 URL 加 `hints=reason`，直连与后台中继两条路径都保留该参数；X / 知乎帖子旁的闪电按钮走同一引擎表，一并生效。触触搜百问与优化提示词的 ChatGPT 入口不变。
+
+### 🔧 改进
+
+- 项目以 **MIT 协议开源**：https://github.com/huangsen365/chuchusou_com_chrome 。README 顶部加了商店安装入口、版本 / 用户数徽章、视频教程封面卡片、X / YouTube 链接与「致谢」段；「安装方法」改为商店优先，源码构建改为 `npm run plasmo:build` → `build/chrome-mv3-prod/`。
+- 冒烟测试用的自签 HTTPS 证书不再进仓库，改为首次运行时 `openssl` 现生成（已 gitignore）；清理了 `prompts/` 下两个 `.bak` 快照与 `releases/` 里的本机路径 / 个人邮箱。
+
+### 🛠 技术改动
+
+- `background/articleActions.js` 新增 `resolvePinnedCoverStyle()`：读 `ccs_sidepanel_pinned_action` / `ccs_cover_custom_selected_line` / `ccs_cover_custom_purpose`，custom 无选中行退回预设库首行；置顶风格在注册表里不存在或运行时打不开时退回极简留白并重试一次。响应新增 `categoryId` / `styleLabel`。`verify:long-article-actions` 原「必须 minimal」断言换成 7 种置顶场景，并锁死三个 storage key 字面量与 `coverPinConstants.ts` 逐字一致。
+- `coverPrompts.json` 分类新增可选 `credit { name, url }` 字段（仅 `https://` 才渲染）；legacy `sidepanel.js` 与 TS `PinnedAction.ts` 的 picker 同步按该字段渲染 ⓘ。冒烟新增「激活侧边栏页等待置顶区就绪 → 打开 picker → 断言署名链接」一步（置顶区初始化走 `requestIdleCallback`，后台标签不触发，故先激活再断言、断言后还原活动标签）。
+- 墨清风格：`coverPrompts.json` 双轨新增 `zhumoqing` 分类，4 份标题表 + 4 份 `MENU_DEFINITIONS` 同步登记，`verify:cover-consistency` 报 6 个风格三入口一致；popup 菜单项 97 → 98。
+- `fastAnswersPrompts.json` 双轨 ChatGPT 引擎 `urlPattern` 改为 `https://chatgpt.com/?hints=reason&q=${PROMPT}`；中继只剥 `prompt / q / query / text`，`hints` 原样保留。
+
 ## v1.12.1 (2026-09-02)
 
 **扩展升级后 X / 知乎页面上的速答按钮不再变成死按钮**。详细见 [releases/v1.12.1.md](./releases/v1.12.1.md)。
