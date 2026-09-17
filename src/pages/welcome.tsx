@@ -167,7 +167,7 @@ function WelcomePage() {
         <main className="welcome-main">
           <h1 className="welcome-greeting">欢迎使用触触搜！</h1>
           <p className="welcome-tagline">
-            选中文本即用 AI 的 Chrome 扩展 —— 基于 ChatGPT Images 2.0 的封面生成器 / 多 AI 速答 / 提示词优化。
+            选中文本即用 AI 的 Chrome 扩展 —— 基于 ChatGPT Images 2.5 的封面生成器 / 多 AI 速答 / 提示词优化。
           </p>
 
           <section className="welcome-section">
@@ -218,7 +218,7 @@ function WelcomePage() {
             <h2 className="welcome-section-title">✨ 主打功能</h2>
             <ul className="feature-list">
               <li><span className="feature-icon">⚡</span><strong>AI 多端速答</strong> —— 一次问遍 ChatGPT / Claude / Grok / 文心一言 / Google AI</li>
-              <li><span className="feature-icon">🎨</span><strong>封面生成器</strong> —— 二次元可爱 / 小红书 / 椰树牌 / 极简留白 × ChatGPT Images 2.0</li>
+              <li><span className="feature-icon">🎨</span><strong>封面生成器</strong> —— 二次元可爱 / 小红书 / 椰树牌 / 极简留白 × ChatGPT Images 2.5</li>
               <li><span className="feature-icon">🧠</span><strong>提示词优化</strong> —— 八种场景模板一键升级</li>
               <li><span className="feature-icon">💯</span><strong>触触搜百问</strong> —— 同主题问遍五大 AI</li>
             </ul>

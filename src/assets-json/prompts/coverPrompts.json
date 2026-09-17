@@ -36,7 +36,7 @@
       "engines": [
         {
           "id": "chatgpt-images",
-          "label": "ChatGPT Images 2.0",
+          "label": "ChatGPT Images 2.5",
           "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}"
         }
       ]
@@ -48,7 +48,7 @@
       "engines": [
         {
           "id": "chatgpt-images",
-          "label": "ChatGPT Images 2.0",
+          "label": "ChatGPT Images 2.5",
           "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}"
         }
       ]
@@ -60,7 +60,7 @@
       "engines": [
         {
           "id": "chatgpt-images",
-          "label": "ChatGPT Images 2.0",
+          "label": "ChatGPT Images 2.5",
           "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}"
         }
       ]
@@ -72,7 +72,7 @@
       "engines": [
         {
           "id": "chatgpt-images",
-          "label": "ChatGPT Images 2.0",
+          "label": "ChatGPT Images 2.5",
           "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}"
         }
       ]
@@ -85,7 +85,7 @@
       "engines": [
         {
           "id": "chatgpt-images",
-          "label": "ChatGPT Images 2.0",
+          "label": "ChatGPT Images 2.5",
           "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}"
         }
       ]
@@ -97,7 +97,7 @@
       "engines": [
         {
           "id": "chatgpt-images",
-          "label": "ChatGPT Images 2.0",
+          "label": "ChatGPT Images 2.5",
           "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}"
         }
       ]

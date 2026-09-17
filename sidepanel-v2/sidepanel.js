@@ -46,7 +46,7 @@
   ];
   // 「💡 不知道填什么？」帮助链接 —— 跳 ChatGPT / Google 找风格灵感
   const COVER_HELP_URL_1 = 'https://chatgpt.com/?prompt=' + encodeURIComponent('为"封面图设计风格参考"生成 30 个风格，每行一个');
-  const COVER_HELP_URL_2 = 'https://www.google.com/search?q=' + encodeURIComponent('ChatGPT Images 2.0 提示词');
+  const COVER_HELP_URL_2 = 'https://www.google.com/search?q=' + encodeURIComponent('ChatGPT Images 2.5 提示词');
 
   function parseCustomLines(text) {
     if (typeof text !== 'string') return [];

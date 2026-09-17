@@ -104,7 +104,7 @@ function SidepanelApp() {
             <select id="spPinCustomSelect"></select>
             <div className="sp-pin-custom-help">
               <button type="button" id="spPinCustomHelp">💡 不知道填什么？(1) 让 ChatGPT 列 30 个</button>
-              <button type="button" id="spPinCustomHelp2">💡 不知道填什么？(2) Google 搜 "ChatGPT Images 2.0 提示词"</button>
+              <button type="button" id="spPinCustomHelp2">💡 不知道填什么？(2) Google 搜 "ChatGPT Images 2.5 提示词"</button>
             </div>
           </div>
 
