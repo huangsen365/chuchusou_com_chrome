@@ -7,6 +7,7 @@
   const ASSISTANT_SELECTOR = '[data-message-author-role="assistant"]';
   const WRITING_BLOCK_SELECTOR = '[data-testid="writing-block-container"], [data-writing-block="true"]';
   const EDITOR_SELECTOR = '.ProseMirror.markdown.prose, .ProseMirror.markdown, [contenteditable="true"].markdown';
+  const HEADER_SELECTOR = '[data-testid="writing-block-header-surface"], [data-testid="writing-block-header-sticky-container"]';
   const COPY_BUTTON_SELECTORS = [
     'button[data-testid="writing-block-copy-button"]',
     'button[data-testid*="copy"]',
@@ -24,6 +25,7 @@
   const SPINNER_CLASS = 'ccs-long-article-action-spinner';
   const STABLE_MS = 800;
   const MIN_BODY_LENGTH = 600;
+  const MAX_TITLE_LENGTH = 500;
   const GENERATION_SIGNAL_SELECTOR = [
     '[aria-busy="true"]',
     '[data-streaming="true"]',
@@ -187,11 +189,26 @@
     return { bodyHtml: output.innerHTML.trim(), bodyText: plainTextFrom(output), omittedMedia };
   }
 
+  function headerTitleFrom(block) {
+    // 真实 ChatGPT writing block 会把标题提到 header surface，编辑器正文直接从 H2 开始
+    // （分享页已实测），只有旧结构才把 <h1> 放在编辑器里。剔除按钮与我们自己的动作条后取首行。
+    const header = block.querySelector(HEADER_SELECTOR);
+    if (!header) return '';
+    const clone = header.cloneNode(true);
+    clone.querySelectorAll(`button, [role="toolbar"], [${ACTIONS_MARKER}], svg, style, script`)
+      .forEach((node) => node.remove());
+    const firstLine = normalizeText(clone.textContent || '')
+      .split('\n')
+      .map((line) => line.trim())
+      .find(Boolean) || '';
+    return firstLine.length > MAX_TITLE_LENGTH ? '' : firstLine;
+  }
+
   function extractArticleSnapshot(block) {
     const editor = block.querySelector(EDITOR_SELECTOR);
     if (!editor) return null;
     const titleElement = editor.querySelector('h1');
-    const title = normalizeText(titleElement?.textContent || '');
+    const title = titleElement ? normalizeText(titleElement.textContent || '') : headerTitleFrom(block);
     const body = sanitizeBody(editor, titleElement);
     return {
       title,
@@ -203,7 +220,7 @@
   function extractArticle(block) {
     const snapshot = extractArticleSnapshot(block);
     if (!snapshot) return null;
-    if (snapshot.title.length < 2 || snapshot.title.length > 500) return null;
+    if (snapshot.title.length < 2 || snapshot.title.length > MAX_TITLE_LENGTH) return null;
     if (snapshot.bodyText.length < MIN_BODY_LENGTH || !snapshot.bodyHtml) return null;
     return {
       title: snapshot.title,

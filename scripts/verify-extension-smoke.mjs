@@ -1096,11 +1096,85 @@ async function main() {
         !coverRecord?.prompt?.includes("用于验证长篇文章动作的第 12 段正文")) {
       fail(`长篇封面提示词/完整正文中转异常: ${JSON.stringify(coverRecord)?.slice(0, 1400)}`)
     }
+    // 长文标题回退：真实 ChatGPT writing block 会把标题提到 header surface、编辑器正文从 H2 开始
+    // （分享页实测）。去掉编辑器 <h1> 且无 header → unavailable；补 header surface 标题 → 重新 ready，
+    // 且封面提示词里用的是 header 标题。
+    const headerFallbackTitle = "从 header surface 回退提取的标题"
+    const readLongArticleState = () => evaluate(chatRewriteFixture.cdp,
+      `document.querySelector('[data-message-id="assistant-long-rewrite-1"] [data-ccs-long-article-actions]')?.dataset.ccsLongArticleState || null`)
+    const waitLongArticleState = async (expected, timeoutMs = 5000) => {
+      const startedAt = Date.now()
+      let state = null
+      while (Date.now() - startedAt < timeoutMs) {
+        state = await readLongArticleState()
+        if (state === expected) return state
+        await wait(120)
+      }
+      return state
+    }
+    // 上一步「生成封面」开出的新标签成了活动标签，夹具页转入后台后 rAF 不再触发（内容脚本扫描靠 rAF）；先激活回来
+    const rewriteFixtureTarget = await findTarget(port, (t) => t.type === "page" && (t.url || "").includes("/rewrite-fixture"), 3000)
+    if (rewriteFixtureTarget) await browserCdp.call("Target.activateTarget", { targetId: rewriteFixtureTarget.id })
+    await wait(200)
+    const removedH1 = await evaluate(chatRewriteFixture.cdp, `(() => {
+      const h1s = document.querySelectorAll('[data-message-id="assistant-long-rewrite-1"] [data-testid="writing-block-container"] h1')
+      h1s.forEach((node) => node.remove())
+      return h1s.length
+    })()`)
+    if (removedH1 < 1) fail(`夹具里找不到长文编辑器的 <h1>（removed=${removedH1}），无法验证标题回退`)
+    const noTitleState = await waitLongArticleState("unavailable")
+    if (noTitleState !== "unavailable") fail(`长文编辑器无 <h1> 且无 header 标题时应为 unavailable，实际 ${noTitleState}`)
+    await evaluate(chatRewriteFixture.cdp, `(() => {
+      const block = document.querySelector('[data-message-id="assistant-long-rewrite-1"] [data-testid="writing-block-container"]')
+      const header = document.createElement('div')
+      header.setAttribute('data-testid', 'writing-block-header-surface')
+      header.innerHTML = '<div class="flex"><div class="min-w-0 truncate">' + ${JSON.stringify(headerFallbackTitle)} + '</div></div>'
+      block.prepend(header)
+    })()`)
+    const headerTitleState = await waitLongArticleState("ready")
+    if (headerTitleState !== "ready") fail(`header surface 标题回退后应为 ready，实际 ${headerTitleState}`)
+    // 再点一次「生成封面」：relay 记录会被打开的页面秒消费，改为在 SW 里包一层 runAITask 记录入参，
+    // 断言这次用的是 header 标题而不是已删掉的 <h1>。
+    await evaluate(swCdp, `(() => {
+      if (!globalThis.__ccsSmokeOrigRunAITask) {
+        globalThis.__ccsSmokeOrigRunAITask = globalThis.runAITask;
+        globalThis.__ccsSmokeCoverCalls = [];
+        globalThis.runAITask = async (options) => {
+          globalThis.__ccsSmokeCoverCalls.push({ taskId: options?.taskId, keyword: String(options?.keyword || '') });
+          return globalThis.__ccsSmokeOrigRunAITask(options);
+        };
+      }
+      globalThis.__ccsSmokeCoverCalls.length = 0;
+      return true;
+    })()`)
+    // 上一次点击后按钮有 3s busy 保护期（disabled，.click() 是空操作），等它恢复可点
+    let coverButtonEnabled = false
+    for (let i = 0; i < 50 && !coverButtonEnabled; i++) {
+      coverButtonEnabled = await evaluate(chatRewriteFixture.cdp,
+        `(() => { const b = document.querySelector('[data-ccs-long-article-cover]'); return !!b && !b.disabled && b.dataset.ccsLongArticleBusy !== 'true'; })()`)
+      if (!coverButtonEnabled) await wait(120)
+    }
+    if (!coverButtonEnabled) fail("header 标题回退后「生成封面」按钮 6s 内未恢复可点")
+    await evaluate(chatRewriteFixture.cdp, `document.querySelector('[data-ccs-long-article-cover]')?.click()`)
+    let headerCoverCall = null
+    for (let i = 0; i < 60; i++) {
+      headerCoverCall = await evaluate(swCdp, `globalThis.__ccsSmokeCoverCalls.find((call) => call.taskId === 'cover') || null`)
+      if (headerCoverCall) break
+      await wait(150)
+    }
+    await evaluate(swCdp, `(() => {
+      if (globalThis.__ccsSmokeOrigRunAITask) { globalThis.runAITask = globalThis.__ccsSmokeOrigRunAITask; delete globalThis.__ccsSmokeOrigRunAITask; }
+      return true;
+    })()`)
+    if (!headerCoverCall) fail("header 标题回退后点「生成封面」没有触发 cover 任务")
+    if (!headerCoverCall?.keyword?.startsWith(headerFallbackTitle) || headerCoverCall?.keyword?.includes(longArticleActions.title)) {
+      fail(`header 标题回退未进入封面文章: ${JSON.stringify({ head: (headerCoverCall?.keyword || "").slice(0, 200) })}`)
+    }
     if (chatRewriteFixture.exceptions.length > 0) {
       fail(`ChatGPT 选A改写未捕获异常: ${chatRewriteFixture.exceptions[0]}`)
     }
     console.log(`${TAG} ✓ ChatGPT 选A改写正常（严格结构 / 单按钮 / 完整填入 / 不自动发送 / 草稿保护）`)
-    console.log(`${TAG} ✓ ChatGPT 长文双动作正常（工作流识别 / SPA 路由来源校验 / writing block 外工具栏 / X 草稿精确写入与保存 / 完整文章封面中转）`)
+    console.log(`${TAG} ✓ ChatGPT 长文双动作正常（工作流识别 / SPA 路由来源校验 / writing block 外工具栏 / X 草稿精确写入与保存 / 完整文章封面中转 / header 标题回退）`)
     chatRewriteFixture.cdp.close()
 
     const docsFixture = await openSiteFixture("https://docs.google.com/document/u/0/d/smoke-doc/edit?tab=t.0#heading=h.smoke")
