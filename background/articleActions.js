@@ -16,7 +16,7 @@
   const COVER_PIN_STORAGE_KEY = 'ccs_sidepanel_pinned_action';
   const COVER_CUSTOM_PURPOSE_KEY = 'ccs_cover_custom_purpose';
   const COVER_CUSTOM_LINE_KEY = 'ccs_cover_custom_selected_line';
-  const COVER_DEFAULT_CATEGORY = 'minimal';
+  const COVER_DEFAULT_CATEGORY = 'zhumoqing'; // 与 coverPinConstants.ts 的 DEFAULT_PIN.categoryId 一致
   const COVER_LABEL_PREVIEW_MAX = 15;
 
   function errorMessage(error) {
@@ -384,7 +384,7 @@
    * 长文「生成封面」跟随侧边栏置顶的封面风格（与侧边栏自己点置顶时的解析规则一致）：
    * - 置顶是 cover 任务 → 用它的 categoryId
    * - custom → 用「当前应用的那一行」；没存过行则退回预设库全文首行
-   * - 未置顶 / 置顶的不是 cover / custom 没有可用文本 / 风格已不存在 → 极简的留白
+   * - 未置顶 / 置顶的不是 cover / custom 没有可用文本 / 风格已不存在 → 默认风格（COVER_DEFAULT_CATEGORY）
    */
   async function resolvePinnedCoverStyle() {
     const fallback = { categoryId: COVER_DEFAULT_CATEGORY, purposeOverride: undefined };
@@ -433,7 +433,7 @@
     let style = await resolvePinnedCoverStyle();
     let result = await runCover(style);
     if (!result?.success && style.categoryId !== COVER_DEFAULT_CATEGORY) {
-      // 置顶的风格在运行时打不开（如配置已删除）→ 退回极简留白再试一次，不让按钮死掉
+      // 置顶的风格在运行时打不开（如配置已删除）→ 退回默认风格再试一次，不让按钮死掉
       style = { categoryId: COVER_DEFAULT_CATEGORY, purposeOverride: undefined };
       result = await runCover(style);
     }

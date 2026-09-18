@@ -1090,7 +1090,7 @@ async function main() {
       const key = ${JSON.stringify("ccs_ai_pending_prompt_")} + ${JSON.stringify(coverRelayId)};
       (chrome.storage.session || chrome.storage.local).get([key], (data) => resolve(data[key] || null));
     })`)
-    if (coverRecord?.taskId !== "cover" || coverRecord?.categoryId !== "minimal" ||
+    if (coverRecord?.taskId !== "cover" || coverRecord?.categoryId !== "zhumoqing" ||
         coverRecord?.relayEngine !== "chatgpt" || !coverRecord?.prompt?.includes(longArticleActions.title) ||
         !coverRecord?.prompt?.includes("他说，其他人也会考虑他们的感受") ||
         !coverRecord?.prompt?.includes("用于验证长篇文章动作的第 12 段正文")) {

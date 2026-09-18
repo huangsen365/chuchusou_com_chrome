@@ -461,7 +461,7 @@
         createActionButton(
           COVER_MARKER,
           '生成封面',
-          '用完整文章生成封面，风格跟随侧边栏置顶的封面风格（未置顶时用极简留白）；打开 ChatGPT 并填入提示词，不会自动发送',
+          '用完整文章生成封面，风格跟随侧边栏置顶的封面风格（未置顶时用默认的墨清风格）；打开 ChatGPT 并填入提示词，不会自动发送',
           'ccsCreateLongArticleCover',
           assistant,
           schedule

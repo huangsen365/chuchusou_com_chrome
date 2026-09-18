@@ -273,24 +273,24 @@ for (const [name, value] of [
   assert(pinConstants.includes(`export const ${name} = "${value}"`), `coverPinConstants.ts ${name} drifted from "${value}"`)
   assert(articleActionsSource.includes(`'${value}'`), `articleActions.js must read ${name} literal "${value}"`)
 }
-assert(/DEFAULT_PIN = \{ taskId: "cover", categoryId: "minimal" \}/.test(pinConstants), "DEFAULT_PIN drifted; sync COVER_DEFAULT_CATEGORY")
+assert(/DEFAULT_PIN = \{ taskId: "cover", categoryId: "zhumoqing" \}/.test(pinConstants), "DEFAULT_PIN drifted; sync COVER_DEFAULT_CATEGORY")
 
 const coverUrl = "https://chatgpt.com/c/abc"
 const lastCover = () => bg.coverCalls[bg.coverCalls.length - 1]
 
-// 1) 未置顶 → 极简留白，不注入 purposeOverride
+// 1) 未置顶 → 默认风格（zhumoqing），不注入 purposeOverride
 const cover = await bg.api.createLongArticleCover(article, coverUrl, 9)
 assert(cover.success === true, "cover action failed")
 assert(lastCover()?.taskId === "cover", "cover action did not reuse cover task")
-assert(lastCover()?.categoryId === "minimal", "no pin must fall back to minimal style")
+assert(lastCover()?.categoryId === "zhumoqing", "no pin must fall back to the default style")
 assert(lastCover()?.purposeOverride === undefined, "no pin must not inject purposeOverride")
 assert(lastCover()?.keyword.startsWith("测试长文标题\n\n正文段落。"), "cover action did not include full article")
-assert(cover.categoryId === "minimal" && typeof cover.styleLabel === "string", "cover response must report resolved style")
+assert(cover.categoryId === "zhumoqing" && typeof cover.styleLabel === "string", "cover response must report resolved style")
 
-// 2) 置顶内置风格 → 跟随
-bg.stored.ccs_sidepanel_pinned_action = { taskId: "cover", categoryId: "zhumoqing" }
-assert((await bg.api.createLongArticleCover(article, coverUrl, 9)).categoryId === "zhumoqing", "cover response must expose pinned style")
-assert(lastCover()?.categoryId === "zhumoqing" && lastCover()?.purposeOverride === undefined, "cover must follow the sidepanel pinned style")
+// 2) 置顶内置风格（非默认值）→ 跟随
+bg.stored.ccs_sidepanel_pinned_action = { taskId: "cover", categoryId: "xiaohongshu" }
+assert((await bg.api.createLongArticleCover(article, coverUrl, 9)).categoryId === "xiaohongshu", "cover response must expose pinned style")
+assert(lastCover()?.categoryId === "xiaohongshu" && lastCover()?.purposeOverride === undefined, "cover must follow the sidepanel pinned style")
 
 // 3) 置顶 custom + 已选中行 → purposeOverride = 该行
 bg.stored.ccs_sidepanel_pinned_action = { taskId: "cover", categoryId: "custom" }
@@ -305,22 +305,22 @@ delete bg.stored.ccs_cover_custom_selected_line
 await bg.api.createLongArticleCover(article, coverUrl, 9)
 assert(lastCover()?.purposeOverride === "水墨国风", "custom pin without selected line must fall back to first preset line")
 
-// 5) custom 但没有任何文本 → 极简留白
+// 5) custom 但没有任何文本 → 默认风格
 delete bg.stored.ccs_cover_custom_purpose
 await bg.api.createLongArticleCover(article, coverUrl, 9)
-assert(lastCover()?.categoryId === "minimal" && lastCover()?.purposeOverride === undefined, "custom pin without any purpose must fall back to minimal")
+assert(lastCover()?.categoryId === "zhumoqing" && lastCover()?.purposeOverride === undefined, "custom pin without any purpose must fall back to the default style")
 
-// 6) 置顶的不是封面任务 → 极简留白
+// 6) 置顶的不是封面任务 → 默认风格
 bg.stored.ccs_sidepanel_pinned_action = { taskId: "optimize", categoryId: "deep-research" }
 await bg.api.createLongArticleCover(article, coverUrl, 9)
-assert(lastCover()?.categoryId === "minimal", "non-cover pin must fall back to minimal")
+assert(lastCover()?.categoryId === "zhumoqing", "non-cover pin must fall back to the default style")
 
-// 7) 置顶的风格已不存在（运行时打不开）→ 退回极简留白重试，按钮不死
+// 7) 置顶的风格已不存在（运行时打不开）→ 退回默认风格重试，按钮不死
 bg.stored.ccs_sidepanel_pinned_action = { taskId: "cover", categoryId: "ghost-style" }
 const before = bg.coverCalls.length
 const ghost = await bg.api.createLongArticleCover(article, coverUrl, 9)
-assert(ghost.success === true && ghost.categoryId === "minimal", "stale pinned style must recover with minimal")
-assert(bg.coverCalls.length === before + 2 && bg.coverCalls[before].categoryId === "ghost-style" && lastCover()?.categoryId === "minimal", "stale pinned style must be retried exactly once with minimal")
+assert(ghost.success === true && ghost.categoryId === "zhumoqing", "stale pinned style must recover with the default style")
+assert(bg.coverCalls.length === before + 2 && bg.coverCalls[before].categoryId === "ghost-style" && lastCover()?.categoryId === "zhumoqing", "stale pinned style must be retried exactly once with the default style")
 delete bg.stored.ccs_sidepanel_pinned_action
 
 verifyMainWorldBridge()

@@ -27,7 +27,7 @@
   const CUSTOM_PURPOSE_MAX = 5000;
   const CUSTOM_LINE_PREVIEW_MAX = 15;
   const RATIO_CUSTOM_MAX = 5;
-  const DEFAULT_PIN = { taskId: 'cover', categoryId: 'minimal' };
+  const DEFAULT_PIN = { taskId: 'cover', categoryId: 'zhumoqing' };
   const DEFAULT_RATIO = '5:2';
   const RATIO_CUSTOM_TRIGGER = '__custom__';
   const RATIO_RE = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/;

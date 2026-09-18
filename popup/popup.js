@@ -397,7 +397,7 @@ class PopupMenuRenderer {
   static CUSTOM_LINE_KEY = 'ccs_cover_custom_selected_line';
   static CUSTOM_PURPOSE_KEY = 'ccs_cover_custom_purpose';
   static RATIO_KEY = 'ccs_cover_aspect_ratio';
-  static DEFAULT_PIN = { taskId: 'cover', categoryId: 'minimal' };
+  static DEFAULT_PIN = { taskId: 'cover', categoryId: 'zhumoqing' };
   static DEFAULT_RATIO = '5:2';
 
   async initPinnedCover() {
