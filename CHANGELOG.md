@@ -1,5 +1,22 @@
 # 更新日志
 
+## v1.14.0 (2026-09-18)
+
+**「墨清风格」成为封面生成器的默认置顶风格；提示词基调改为「明亮一点」**。详细见 [releases/v1.14.0.md](./releases/v1.14.0.md)。
+
+### ✨ 新功能
+
+- **封面生成器默认置顶风格改为「✒️ 墨清风格」**：新装用户、以及从没在侧边栏 ✏️ 里改过置顶的用户，打开侧边栏看到的置顶动作就是墨清风格；ChatGPT 长文页「生成封面」在没置顶时也用它兜底。**已经保存过置顶的老用户不受影响**，仍是自己选的风格。极简留白等其它风格都还在，随时可切回。
+
+### 🔧 改进
+
+- 「墨清风格」提示词基调从「原则上看到都是有好心情」改为「原则上明亮一点」，更直接地约束配色与氛围；版式规则不变。
+
+### 🛠 技术改动
+
+- 默认风格 SSoT `src/shared/coverPinConstants.ts` 的 `DEFAULT_PIN.categoryId` → `zhumoqing`；`popup/popup.js`、`sidepanel/sidepanel.js`、`sidepanel-v2` 三份 legacy 字面量同步，`verify:cover-consistency` 锁定一致（报「默认风格 zhumoqing」）。
+- `background/articleActions.js` 长文封面兜底 `COVER_DEFAULT_CATEGORY` 同步为 `zhumoqing`，按钮 tooltip 改为「未置顶时用默认的墨清风格」。`verify:long-article-actions` 7 场景默认值断言同步，「跟随置顶」场景改用 `xiaohongshu` 以与默认值区分；冒烟长文封面默认值断言同步。
+
 ## v1.13.2 (2026-09-18)
 
 **「墨清风格」封面提示词微调：整体气质定为「看到就有好心情」**。详细见 [releases/v1.13.2.md](./releases/v1.13.2.md)。
