@@ -168,8 +168,8 @@ const sourceJson = JSON.parse(fs.readFileSync(promptSourcePath, "utf8"))
 const mirrorJson = JSON.parse(fs.readFileSync(promptMirrorPath, "utf8"))
 assert(JSON.stringify(sourceJson) === JSON.stringify(mirrorJson), "TypeScript prompt asset must mirror the runtime prompt asset")
 assert(sourceJson.id === "article_rewrite" && sourceJson.status === "active", "article rewrite prompt metadata invalid")
-assert(sourceJson.version === 21, "article rewrite prompt version must be 21")
-assert(sourceJson.templateLines.length === 786, "article rewrite prompt line count drifted")
+assert(sourceJson.version === 22, "article rewrite prompt version must be 22")
+assert(sourceJson.templateLines.length === 770, "article rewrite prompt line count drifted")
 assert(sourceJson.templateLines.join("\n").split("${url}").length - 1 === 1, "article rewrite prompt must contain one URL placeholder")
 assert(sourceJson.templateLines.join("\n").split("${outputLanguage}").length - 1 === 1, "article rewrite prompt must contain one output-language placeholder")
 assert(sourceJson.templateLines.join("\n").includes("无论原始素材使用何种语言"), "article rewrite prompt must handle foreign-language source material")
@@ -222,7 +222,9 @@ for (const rule of [
   "整篇文章不出现任何“效应”“定律”“模型”式的命名也完全可以。",
   "全文最多挑出 **6 个**",
   "确实没有，就一个也不加粗。",
-  "- 全文“真正”是否不超过 1 次，且未出现在标题、首段和末段；"
+  "- 全文“真正”是否不超过 1 次，且未出现在标题、首段和末段；",
+  "知识跟着素材走：素材属于哪个领域，就优先用那个领域自己的概念和术语；",
+  "这些概念跟着素材走：素材属于哪个领域，就用那个领域自己的术语；"
 ]) {
   assert(articleRewriteTemplate.includes(rule), `article rewrite anti-template rule missing: ${rule}`)
 }
@@ -232,7 +234,11 @@ for (const obsoleteRule of [
   "# 二十一、标题要表达真正的核心矛盾",
   "理想情况下，读者能够感受到这样的认知过程：",
   "全文挑出 **3～6 个**",
-  "标题必须能够被正文真正支撑。"
+  "标题必须能够被正文真正支撑。",
+  "- 行为经济学；",
+  "可以自然适当引入以下领域的知识：",
+  "这些概念不限学科。",
+  "不必局限于行为经济学或统计学"
 ]) {
   assert(!articleRewriteTemplate.includes(obsoleteRule), `obsolete template-inducing rule remains: ${obsoleteRule}`)
 }
