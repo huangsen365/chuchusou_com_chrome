@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "触触搜 - ChatGPT Images 2.5 封面生成器 / 多 AI 速答 / 提示词优化",
-  "version": "1.14.0",
+  "version": "1.14.1",
   "description": "基于 ChatGPT Images 2.5 的封面生成器（极简留白 / 小红书 / 椰树牌 / 二次元可爱）+ 多 AI 速答 + 文本快速搜索处理",
   "homepage_url": "https://chuchusou.com",
   "permissions": [
