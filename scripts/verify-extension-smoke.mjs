@@ -885,9 +885,13 @@ async function main() {
         !chatRewriteFill.text.includes("原始素材参考本次对话上下文。") ||
         !chatRewriteFill.text.includes("以**简体中文**为主要输出语言") ||
         chatRewriteFill.text.includes("${url}") || chatRewriteFill.text.includes("${outputLanguage}") ||
+        chatRewriteFill.text.includes("${varietyPlan}") || !chatRewriteFill.text.includes("本篇的形式安排（由扩展按轮换计数生成") ||
         chatRewriteFill.submitClicks !== 0) {
       fail(`ChatGPT 选A提示词填充异常: ${JSON.stringify(chatRewriteFill)?.slice(0, 1200)}`)
     }
+    const varietyTitleLine = (text) => (String(text || "").match(/- 主标题采用「[^」]+」的形式；/) || [""])[0]
+    const chatRewriteTitleForm = varietyTitleLine(chatRewriteFill.text)
+    if (!chatRewriteTitleForm) fail(`ChatGPT 选A提示词缺少本篇形式安排: ${chatRewriteFill.text.slice(-600)}`)
     for (let i = 0; i < 30; i++) {
       const ready = await evaluate(chatRewriteFixture.cdp, `document.querySelector('[data-ccs-select-a-rewrite]')?.disabled === false`)
       if (ready) break
@@ -1217,8 +1221,14 @@ async function main() {
         !docsChatRecord.prompt.includes("https://docs.google.com/document/d/smoke-doc/edit?tab=t.0") ||
         docsChatRecord.prompt.includes("#heading") || docsChatRecord.prompt.includes("${url}") ||
         docsChatRecord.prompt.includes("${outputLanguage}") ||
+        docsChatRecord.prompt.includes("${varietyPlan}") || !docsChatRecord.prompt.includes("本篇的形式安排（由扩展按轮换计数生成") ||
         docsChatRecord.relayEngine !== "chatgpt") {
       fail(`Google Docs → ChatGPT relay 记录异常: ${JSON.stringify(docsChatRecord)?.slice(0, 1200)}`)
+    }
+    // 形式轮换：紧接着的第二篇改写，标题形式必须与上一篇（对话内选 A）不同
+    const docsChatTitleForm = varietyTitleLine(docsChatRecord.prompt)
+    if (!docsChatTitleForm || docsChatTitleForm === chatRewriteTitleForm) {
+      fail(`形式轮换未生效：上一篇「${chatRewriteTitleForm}」，本篇「${docsChatTitleForm}」`)
     }
 
     const targetIdsBeforeClaude = new Set(

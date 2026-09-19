@@ -55,11 +55,16 @@ function loadLegacyApi() {
   }
   vm.createContext(context)
   vm.runInContext(
+    fs.readFileSync(path.join(root, "shared/rewriteVariety.js"), "utf8"),
+    context,
+    { filename: "shared/rewriteVariety.js" }
+  )
+  vm.runInContext(
     fs.readFileSync(path.join(root, "modules/articleRewriteRuntime.js"), "utf8"),
     context,
     { filename: "modules/articleRewriteRuntime.js" }
   )
-  return { api: windowObject.CCSModules.ArticleRewriteRuntime, messages, fillCalls }
+  return { api: windowObject.CCSModules.ArticleRewriteRuntime, messages, fillCalls, variety: context.CCSRewriteVariety }
 }
 
 function createTsLoader(contextExtras = {}) {
@@ -152,6 +157,9 @@ async function verifyApi(name, api, hooks) {
   assert(!prompt.includes("不要把每句话都拆成一个自然段"), `${name}: obsolete medium-paragraph rule leaked into built prompt`)
   assert(!prompt.includes("${url}"), `${name}: literal URL placeholder leaked`)
   assert(!prompt.includes("${outputLanguage}"), `${name}: literal output-language placeholder leaked`)
+  assert(!prompt.includes("${varietyPlan}"), `${name}: literal variety-plan placeholder leaked`)
+  assert(prompt.includes("本篇的形式安排（由扩展按轮换计数生成"), `${name}: variety plan heading missing from built prompt`)
+  assert(/- 主标题采用「[^」]+」的形式；\n- 开头从「[^」]+」进入；\n- 结尾用「[^」]+」收束；/.test(prompt), `${name}: variety plan lines missing or malformed`)
 
   const fill = await api.fillCurrentComposer("改写提示词")
   assert(fill.ok === true, `${name}: current composer fill API failed`)
@@ -168,8 +176,8 @@ const sourceJson = JSON.parse(fs.readFileSync(promptSourcePath, "utf8"))
 const mirrorJson = JSON.parse(fs.readFileSync(promptMirrorPath, "utf8"))
 assert(JSON.stringify(sourceJson) === JSON.stringify(mirrorJson), "TypeScript prompt asset must mirror the runtime prompt asset")
 assert(sourceJson.id === "article_rewrite" && sourceJson.status === "active", "article rewrite prompt metadata invalid")
-assert(sourceJson.version === 22, "article rewrite prompt version must be 22")
-assert(sourceJson.templateLines.length === 770, "article rewrite prompt line count drifted")
+assert(sourceJson.version === 23, "article rewrite prompt version must be 23")
+assert(sourceJson.templateLines.length === 776, "article rewrite prompt line count drifted")
 assert(sourceJson.templateLines.join("\n").split("${url}").length - 1 === 1, "article rewrite prompt must contain one URL placeholder")
 assert(sourceJson.templateLines.join("\n").split("${outputLanguage}").length - 1 === 1, "article rewrite prompt must contain one output-language placeholder")
 assert(sourceJson.templateLines.join("\n").includes("无论原始素材使用何种语言"), "article rewrite prompt must handle foreign-language source material")
@@ -259,6 +267,28 @@ for (const obsoleteRule of [
 }
 
 const legacy = loadLegacyApi()
+
+// 形式轮换：表齐全、映射在范围内、相邻两篇每个轴都不同、渲染格式稳定、空计划有兜底文案
+const varietyConfig = sourceJson.varietyPlan
+assert(varietyConfig?.titleForms?.length === 6 && varietyConfig.openingForms?.length === 5 &&
+  varietyConfig.endingForms?.length === 5 && varietyConfig.secondLenses?.length === 12, "varietyPlan tables must be 6 / 5 / 5 / 12 entries")
+const varietyApi = legacy.variety
+assert(varietyApi && typeof varietyApi.resolvePlan === "function", "shared/rewriteVariety.js did not initialize")
+for (let n = 0; n < 200; n++) {
+  const a = varietyApi.resolvePlan(varietyConfig, n)
+  const b = varietyApi.resolvePlan(varietyConfig, n + 1)
+  assert(a.title && a.opening && a.ending && a.lens, `variety plan ${n} has an empty axis`)
+  assert(a.title !== b.title && a.opening !== b.opening && a.ending !== b.ending && a.lens !== b.lens,
+    `consecutive variety plans ${n}/${n + 1} share an axis`)
+}
+const rendered = varietyApi.renderPlan(varietyApi.resolvePlan(varietyConfig, 7))
+assert(rendered.startsWith("- 主标题采用「") && rendered.includes("\n- 开头从「") && rendered.includes("\n- 结尾用「") && rendered.includes("如果素材允许，可以从「"),
+  "variety plan rendering format drifted")
+assert(varietyApi.apply("x ${varietyPlan} y", "") === `x ${varietyApi.EMPTY_PLAN_TEXT} y`, "empty variety plan must fall back to the neutral note")
+assert(varietyApi.seedFromDate(new Date(Date.UTC(2026, 0, 1, 0))) === 0 && varietyApi.seedFromDate(new Date(Date.UTC(2026, 0, 2, 3))) === 27, "date seed drifted")
+assert(articleRewriteTemplate.includes("本篇的形式安排（由扩展按轮换计数生成"), "variety plan heading missing from template")
+assert(articleRewriteTemplate.split("${varietyPlan}").length - 1 === 1, "article rewrite prompt must contain one variety-plan placeholder")
+assert(articleRewriteTemplate.includes("如果被安排的标题形式和开头方式碰巧是同一种手法"), "same-kind title/opening fallback rule missing")
 await verifyApi("legacy", legacy.api, legacy)
 
 const tsMessages = []

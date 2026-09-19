@@ -848,6 +848,7 @@ const CCS_ARTICLE_REWRITE_TARGETS = Object.freeze({
 });
 const CCS_GOOGLE_DOC_PATH_PATTERN = /^\/document\/(?:u\/\d+\/)?d\/([^/]+)(?:\/|$)/;
 let ccsArticleRewriteTemplatePromise = null;
+let ccsArticleRewriteVarietyConfig = null;
 
 function ccsApplyPromptOutputLanguage(template, outputLanguage) {
   // 当前默认简体中文；未来设置层读取用户偏好后把值作为第二个参数传入。
@@ -899,6 +900,12 @@ async function ccsLoadArticleRewriteTemplate() {
         if (template.split('${outputLanguage}').length - 1 !== 1) {
           throw new Error('article-rewrite-template-language-placeholder-invalid');
         }
+        if (template.split('${varietyPlan}').length - 1 !== 1) {
+          throw new Error('article-rewrite-template-variety-placeholder-invalid');
+        }
+        ccsArticleRewriteVarietyConfig = config?.varietyPlan && typeof config.varietyPlan === 'object'
+          ? config.varietyPlan
+          : null;
         return template;
       })
       .catch((error) => {
@@ -909,13 +916,24 @@ async function ccsLoadArticleRewriteTemplate() {
   return ccsArticleRewriteTemplatePromise;
 }
 
+// 统一构造改写提示词：${url} → 来源；${varietyPlan} → 本篇形式安排（轮换计数器，每篇不同）；
+// ${outputLanguage} → 目标语言。对话内「选 A」与 Google Docs 两条路径共用。
+async function ccsBuildArticleRewritePrompt(sourceText) {
+  const template = await ccsLoadArticleRewriteTemplate();
+  const variety = globalThis.CCSRewriteVariety;
+  const planText = variety?.buildPlanText ? await variety.buildPlanText(ccsArticleRewriteVarietyConfig) : '';
+  const withPlan = variety?.apply
+    ? variety.apply(template, planText)
+    : template.split('${varietyPlan}').join(planText || '（本篇不做额外形式安排，按素材自行选择标题、开头与结尾的形式。）');
+  return ccsApplyPromptOutputLanguage(withPlan.replace('${url}', sourceText));
+}
+
 async function ccsOpenGoogleDocRewrite(sourceUrlValue, target) {
   const sourceUrl = ccsNormalizeGoogleDocUrl(sourceUrlValue);
   const urlPattern = CCS_ARTICLE_REWRITE_TARGETS[target];
   if (!sourceUrl) throw new Error('unsupported-google-doc-url');
   if (!urlPattern) throw new Error('unsupported-rewrite-target');
-  const template = await ccsLoadArticleRewriteTemplate();
-  const prompt = ccsApplyPromptOutputLanguage(template.replace('${url}', sourceUrl));
+  const prompt = await ccsBuildArticleRewritePrompt(sourceUrl);
   await ccsOpenPromptUrlPattern(urlPattern, prompt, {
     source: 'google-doc-rewrite',
     taskId: 'article-rewrite',
@@ -1043,12 +1061,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       respond({ success: false, error: 'sender-not-chatgpt' });
       return true;
     }
-    ccsLoadArticleRewriteTemplate()
-      .then((template) => respond({
+    ccsBuildArticleRewritePrompt('原始素材参考本次对话上下文。')
+      .then((prompt) => respond({
         success: true,
-        prompt: `选A并且按照提示词改写：\n${ccsApplyPromptOutputLanguage(
-          template.replace('${url}', '原始素材参考本次对话上下文。')
-        )}`
+        prompt: `选A并且按照提示词改写：\n${prompt}`
       }))
       .catch((error) => respond({ success: false, error: error?.message || String(error) }));
     return true;

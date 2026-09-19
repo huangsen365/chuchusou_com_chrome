@@ -170,7 +170,10 @@
           if (template.split('${outputLanguage}').length - 1 !== 1) {
             throw new Error('文章改写提示词必须包含且只包含一个 ${outputLanguage} 占位符。');
           }
-          return template;
+          if (template.split('${varietyPlan}').length - 1 !== 1) {
+            throw new Error('文章改写提示词必须包含且只包含一个 ${varietyPlan} 占位符。');
+          }
+          return { template, variety: config?.varietyPlan && typeof config.varietyPlan === 'object' ? config.varietyPlan : null };
         })
         .catch((error) => {
           promptTemplatePromise = null;
@@ -195,8 +198,14 @@
       }
     });
     if (backgroundPrompt) return backgroundPrompt;
-    const template = await loadPromptTemplate();
-    const prompt = template.replace(URL_PLACEHOLDER, CONVERSATION_SOURCE_NOTE);
+    const { template, variety } = await loadPromptTemplate();
+    // 后台不可用时的本地回退：同样按轮换计数器生成本篇形式安排
+    const varietyApi = globalThis.CCSRewriteVariety;
+    const planText = varietyApi?.buildPlanText ? await varietyApi.buildPlanText(variety) : '';
+    const withPlan = varietyApi?.apply
+      ? varietyApi.apply(template, planText)
+      : template.split('${varietyPlan}').join(planText || '（本篇不做额外形式安排，按素材自行选择标题、开头与结尾的形式。）');
+    const prompt = withPlan.replace(URL_PLACEHOLDER, CONVERSATION_SOURCE_NOTE);
     const localizedPrompt = globalThis.CCSPromptLanguage?.apply
       ? globalThis.CCSPromptLanguage.apply(prompt)
       : prompt.split('${outputLanguage}').join('简体中文');

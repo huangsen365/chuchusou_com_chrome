@@ -67,6 +67,7 @@ sw.importScripts(
   absoluteUrl("background/chatgptPromptRelay.js"),
   absoluteUrl("background/urlSafety.js"),
   absoluteUrl("shared/promptLanguage.js"),
+  absoluteUrl("shared/rewriteVariety.js"),
   // ↓ background/Logger.js 已被 baseBridge.ts 取代（logMenuEvent + buildLogPayload）↓
   absoluteUrl("shared/menuStructureBuilder.js"),
 

@@ -53,6 +53,7 @@
         "modules/positioning.js",
         "modules/domMonitor.js",
         "shared/promptLanguage.js",
+        "shared/rewriteVariety.js",
         "modules/siteFastQaRuntime.js",
         "modules/xTweetFastQa.js",
         "modules/zhihuFastQa.js",

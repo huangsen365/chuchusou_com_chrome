@@ -1,5 +1,6 @@
 import articleRewritePrompt from "../assets-json/prompts/articleRewritePrompts.json"
 import { applyPromptOutputLanguage, PROMPT_OUTPUT_LANGUAGE_PLACEHOLDER } from "../shared/promptLanguage"
+import { applyRewriteVarietyPlan, buildRewriteVarietyPlanText, REWRITE_VARIETY_PLACEHOLDER } from "../shared/rewriteVariety"
 
 const URL_PLACEHOLDER = "${url}"
 const SELECT_A_PREFIX = "选A并且按照提示词改写："
@@ -168,11 +169,16 @@ function activePromptTemplate(): string {
   if (template.split(PROMPT_OUTPUT_LANGUAGE_PLACEHOLDER).length - 1 !== 1) {
     throw new Error("文章改写提示词必须包含且只包含一个 ${outputLanguage} 占位符。")
   }
+  if (template.split(REWRITE_VARIETY_PLACEHOLDER).length - 1 !== 1) {
+    throw new Error("文章改写提示词必须包含且只包含一个 ${varietyPlan} 占位符。")
+  }
   return template
 }
 
 export async function buildSelectARewritePrompt(): Promise<string> {
-  const template = activePromptTemplate().replace(URL_PLACEHOLDER, CONVERSATION_SOURCE_NOTE)
+  // 与 legacy 回退路径一致：按轮换计数器生成本篇形式安排后再填来源与语言
+  const planText = await buildRewriteVarietyPlanText(articleRewritePrompt.varietyPlan)
+  const template = applyRewriteVarietyPlan(activePromptTemplate(), planText).replace(URL_PLACEHOLDER, CONVERSATION_SOURCE_NOTE)
   return `${SELECT_A_PREFIX}\n${applyPromptOutputLanguage(template)}`
 }
 
