@@ -1,5 +1,20 @@
 # 更新日志
 
+## v1.15.0 (2026-09-20)
+
+**长文改写按篇轮换标题 / 开头 / 结尾的形式，相邻两篇必不同**。详细见 [releases/v1.15.0.md](./releases/v1.15.0.md)。
+
+### ✨ 新功能
+
+- **改写稿的形式按篇轮换**：单次提示词没有跨文章记忆，模型每次都会退回自己最熟的那几种标题、开头和结尾，连续写几篇一眼就能看出模具。现在扩展在本地维护一个轮换计数器，每篇改写按计数查表，把「本篇采用哪种标题形式 / 从哪种方式开头 / 用哪种方式收束 / 可选从哪个第二视角补一个类比」写成具体指令注入提示词。相邻两篇在四个轴上全部不同；60 篇内标题与开头的组合不重复。计数器首次以当天日期和小时为起点，不同用户从轮换周期的不同位置开始。第二视角（历史 / 生物医学 / 工程 / 法律 / 经济 / 心理 / 社会 / 艺术 / 数学统计 / 地理 / 教育 / 体育 共 12 种）只是可选补充，素材不允许就放弃——概念仍然只能来自素材。
+
+### 🛠 技术改动
+
+- 新增 `shared/rewriteVariety.js`（TS 口径 `src/shared/rewriteVariety.ts`）：计数器 `ccs_rewrite_variety_counter` 存 `chrome.storage.local`；映射 标题 `n%6`、开头 `n%5`、结尾 `(n+⌊n/5⌋)%5`、第二视角 `(n×5+⌊n/12⌋)%12`（5 与 12 互质）；`${varietyPlan}` 占位符。已加入 SW `importScripts` 双份列表与 manifest 内容脚本。
+- 形式表放在 `articleRewritePrompts.json` 新字段 `varietyPlan`（6 / 5 / 5 / 12 条），改文案不用改代码；模板升到 `version: 23`（776 行），第二十二节末尾注入形式安排，并补一句「标题与开头被安排成同类手法时开头换相邻一种」（6 / 5 两轴每 30 篇必撞一次，代码层不可避）。
+- `background/events.js` 两条改写路径统一走 `ccsBuildArticleRewritePrompt()`（`${url}` → `${varietyPlan}` → `${outputLanguage}`）；`modules/articleRewriteRuntime.js` 本地回退与 `src/content-modules/articleRewriteRuntime.ts` 同步，模板加载时校验占位符恰好一个。
+- 测试：`verify:article-rewrite` 新增表规模 / 映射范围 / n=0..200 相邻互异 / 渲染格式 / 空计划兜底 / 日期种子断言；冒烟验证对话内选 A 与 Google Docs 两条真实路径都带形式安排、无占位符泄漏，且紧接着的第二篇标题形式与第一篇不同。修掉 `seedFromDate` 的跨 realm `instanceof` 与 `const` 自引用 TDZ 隐患。
+
 ## v1.14.3 (2026-09-20)
 
 **改写提示词去掉学科菜单，知识跟着素材走**。详细见 [releases/v1.14.3.md](./releases/v1.14.3.md)。
