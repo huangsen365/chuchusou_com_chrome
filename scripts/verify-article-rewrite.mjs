@@ -168,8 +168,8 @@ const sourceJson = JSON.parse(fs.readFileSync(promptSourcePath, "utf8"))
 const mirrorJson = JSON.parse(fs.readFileSync(promptMirrorPath, "utf8"))
 assert(JSON.stringify(sourceJson) === JSON.stringify(mirrorJson), "TypeScript prompt asset must mirror the runtime prompt asset")
 assert(sourceJson.id === "article_rewrite" && sourceJson.status === "active", "article rewrite prompt metadata invalid")
-assert(sourceJson.version === 20, "article rewrite prompt version must be 20")
-assert(sourceJson.templateLines.length === 754, "article rewrite prompt line count drifted")
+assert(sourceJson.version === 21, "article rewrite prompt version must be 21")
+assert(sourceJson.templateLines.length === 786, "article rewrite prompt line count drifted")
 assert(sourceJson.templateLines.join("\n").split("${url}").length - 1 === 1, "article rewrite prompt must contain one URL placeholder")
 assert(sourceJson.templateLines.join("\n").split("${outputLanguage}").length - 1 === 1, "article rewrite prompt must contain one output-language placeholder")
 assert(sourceJson.templateLines.join("\n").includes("无论原始素材使用何种语言"), "article rewrite prompt must handle foreign-language source material")
@@ -206,6 +206,41 @@ for (const rule of [
 ]) {
   assert(articleRewriteTemplate.includes(rule), `article rewrite paragraph rule missing: ${rule}`)
 }
+// v21 去模具化：提示词自身不再用「真正」当口头禅；标题 / 开头 / 结尾各给多种形式；概念与方法按需
+for (const rule of [
+  "- “真正”：全文最多出现 1 次，并且不得出现在主标题、小标题、第一段和最后一段；",
+  "- “不只是”“不仅仅是”“不是……而是……”：主标题和小标题里禁止使用，正文全文合计最多 2 处；",
+  "# 二十、开头直接进入问题，方式按素材选",
+  "# 二十一、标题要说出文章的核心，但形式不要固定",
+  "标题里禁止出现“真正”“不只是”“不仅仅”“别再”“你以为”。",
+  "先看素材决定用哪一种，不要默认选最后一种。",
+  "收束的方式同样按素材选，不要固定成一种：",
+  "标题、开头、结尾三处不要用同一种手法",
+  "但不要每篇都按这个顺序写。",
+  "# 十一、素材允许时，加入判断方法",
+  "一篇没有方法论的文章，同样可以是好文章。",
+  "整篇文章不出现任何“效应”“定律”“模型”式的命名也完全可以。",
+  "全文最多挑出 **6 个**",
+  "确实没有，就一个也不加粗。",
+  "- 全文“真正”是否不超过 1 次，且未出现在标题、首段和末段；"
+]) {
+  assert(articleRewriteTemplate.includes(rule), `article rewrite anti-template rule missing: ${rule}`)
+}
+for (const obsoleteRule of [
+  "# 二、找到真正值得写的主线",
+  "# 二十、开头直接进入真正的问题",
+  "# 二十一、标题要表达真正的核心矛盾",
+  "理想情况下，读者能够感受到这样的认知过程：",
+  "全文挑出 **3～6 个**",
+  "标题必须能够被正文真正支撑。"
+]) {
+  assert(!articleRewriteTemplate.includes(obsoleteRule), `obsolete template-inducing rule remains: ${obsoleteRule}`)
+}
+// 「真正」只允许作为引号内的禁用词说明 / 反例出现（当前 5 处），提示词自身语气里不得再用
+const zhenzhengTotal = (articleRewriteTemplate.match(/真正/g) || []).length
+const zhenzhengQuoted = (articleRewriteTemplate.match(/“真正”|真正厉害的人都|真正重要的不是/g) || []).length
+assert(zhenzhengTotal <= 5 && zhenzhengTotal === zhenzhengQuoted,
+  `article rewrite prompt uses 「真正」 in its own voice (${zhenzhengTotal} total, ${zhenzhengQuoted} quoted) — this is what made every title contain it`)
 for (const obsoleteRule of [
   "# 十九、段落要完整，不要短句流",
   "# 十九、段落既要完整，也要有呼吸感",
