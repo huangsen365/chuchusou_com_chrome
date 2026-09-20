@@ -193,8 +193,8 @@ const sourceJson = JSON.parse(fs.readFileSync(promptSourcePath, "utf8"))
 const mirrorJson = JSON.parse(fs.readFileSync(promptMirrorPath, "utf8"))
 assert(JSON.stringify(sourceJson) === JSON.stringify(mirrorJson), "TypeScript prompt asset must mirror the runtime prompt asset")
 assert(sourceJson.id === "article_rewrite" && sourceJson.status === "active", "article rewrite prompt metadata invalid")
-assert(sourceJson.version === 28, "article rewrite prompt version must be 28")
-assert(sourceJson.templateLines.length === 802, "article rewrite prompt line count drifted")
+assert(sourceJson.version === 29, "article rewrite prompt version must be 29")
+assert(sourceJson.templateLines.length === 809, "article rewrite prompt line count drifted")
 assert(sourceJson.templateLines.join("\n").split("${url}").length - 1 === 1, "article rewrite prompt must contain one URL placeholder")
 assert(sourceJson.templateLines.join("\n").split("${outputLanguage}").length - 1 === 1, "article rewrite prompt must contain one output-language placeholder")
 assert(sourceJson.templateLines.join("\n").includes("无论原始素材使用何种语言"), "article rewrite prompt must handle foreign-language source material")
@@ -337,17 +337,23 @@ for (const rule of [
   "加粗的概念必须对应素材里的某个具体机制：或是素材自己的词、领域术语，或是从本篇形式安排允许借用的学科里通过联想、融合、拓展借来的概念；最近几篇已经用过的概念不加粗也不使用。",
   "概念以素材为准，需要外部概念解释机制时，只能从本篇允许借用的学科里借",
   "- 每个被命名、被加粗的概念是否都能对应素材里的某个具体机制（而不只是听起来相关）；",
-  "最近几篇改写里已经用过的概念（本文默认不用，也不要换个说法暗示它们；只有当某个词正是素材所属领域的基本术语、不用就说不清楚时可以用，但不再加粗、不算本篇的新概念；素材原文本身就包含的词除外）："
+  "最近几篇改写里已经用过的概念（本文默认不用，也不要换个说法暗示它们；只有当某个词正是素材所属领域的基本术语、不用就说不清楚时可以用，但不再加粗、不算本篇的新概念；素材原文本身就包含的词除外）：",
+  "# 二十三、允许对原始材料进行必要纠偏，但成品必须独立成文",
+  "修正要静默完成：直接写出修正后的判断，作为文章自己的观点陈述；不要在正文里写“原文说 X，但 X 过于绝对”这类批改过程。",
+  "成品必须独立成文。读者手里没有素材，正文里不得出现“原文”“素材”“原始材料”“这段话”“这句话”“上文”“作者说”“题主”“楼主”这类指向来源的表述",
+  "**独立成文。** 通篇没有任何一处让读者意识到它是从另一段文字改写来的。",
+  "- 正文是否出现了“原文”“素材”“这句话”“作者说”等指向来源的表述，或把纠偏过程写了出来。"
 ]) {
   assert(articleRewriteTemplate.includes(rule), `source-driven concept rule missing: ${rule}`)
 }
-for (const obsoleteRule of ["“原来这就是某种效应。”", "“这不是能力问题，而是结构问题。”", "对不上素材关键词表的概念，不命名", "都必须能对应到这张表：", "只用素材自己出现过的词来命名概念，不引入任何外部术语"]) {
+for (const obsoleteRule of ["“原来这就是某种效应。”", "“这不是能力问题，而是结构问题。”", "对不上素材关键词表的概念，不命名", "都必须能对应到这张表：", "只用素材自己出现过的词来命名概念，不引入任何外部术语", "# 二十三、允许对原始材料进行必要纠偏\n"]) {
   assert(!articleRewriteTemplate.includes(obsoleteRule), `concept-priming example remains: ${obsoleteRule}`)
 }
 assert(articleRewriteTemplate.split("${recentConcepts}").length - 1 === 1, "article rewrite prompt must contain one recent-concepts placeholder")
 for (const keyword of ["直接命名", "联想", "融合", "拓展"]) {
   assert(varietyConfig.conceptModes.some((mode) => mode.includes(keyword)), `conceptModes must include a 「${keyword}」 mode`)
 }
+assert(varietyConfig.openingForms[1].includes("不加「原文说」"), "source-quote opening form must tell the model not to attribute to 原文")
 const memoryApi = legacy.memory
 assert(memoryApi && typeof memoryApi.extractConceptsFromHtml === "function", "shared/rewriteConceptMemory.js did not initialize")
 const extracted = memoryApi.extractConceptsFromHtml('<p><strong>沉没成本</strong>，<b> 锚定效应 </b>和<strong>沉没成本</strong>；<strong>「路径依赖」</strong><strong></strong></p>')
@@ -369,6 +375,8 @@ assert(capped.length === 80 && capped[0].term === "新概念" && !capped.some((i
 const fastAnswersTemplate = JSON.parse(fs.readFileSync(path.join(root, "prompts/fastAnswersPrompts.json"), "utf8")).templateLines.join("\n")
 assert(fastAnswersTemplate.includes("概念只从素材里来：素材自己用到的词") && fastAnswersTemplate.includes("互联网上常见的通用心理学、经济学效应类词汇默认不用"),
   "fast answers prompt must carry the same source-driven concept rule")
+assert(fastAnswersTemplate.includes("“真正”全文不用") && fastAnswersTemplate.includes("三种回答都必须独立成文") && fastAnswersTemplate.includes("不得出现“原文”“素材”"),
+  "fast answers prompt must ban 「真正」 and require standalone answers")
 await verifyApi("legacy", legacy.api, legacy)
 
 const tsMessages = []
