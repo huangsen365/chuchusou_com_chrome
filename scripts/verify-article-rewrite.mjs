@@ -165,7 +165,7 @@ async function verifyApi(name, api, hooks) {
   assert(!prompt.includes("${varietyPlan}"), `${name}: literal variety-plan placeholder leaked`)
   assert(prompt.includes("本篇的形式安排（由扩展按轮换计数生成"), `${name}: variety plan heading missing from built prompt`)
   assert(/- 主标题采用「[^」]+」的形式；\n- 开头从「[^」]+」进入；\n- 结尾用「[^」]+」收束；/.test(prompt), `${name}: variety plan lines missing or malformed`)
-  assert(/- 概念处理：[^\n]+；加粗上限仍是最多 6 个。/.test(prompt), `${name}: concept-mode line missing from variety plan`)
+  assert(/- 概念处理：[^\n]+；加粗目标 4～6 个，最多 8 个。/.test(prompt), `${name}: concept-mode line missing from variety plan`)
   assert(/- 本篇可借用的学科（[^\n]+）：[^、\n]+、[^、\n]+、[^、\n]+；\n- 上一篇借用过的学科，本篇不借：[^\n]+；/.test(prompt), `${name}: discipline slice lines missing from variety plan`)
   assert(!prompt.includes("${recentConcepts}"), `${name}: literal recent-concepts placeholder leaked`)
   assert(prompt.includes("最近几篇改写里已经用过的概念（本文不要再用"), `${name}: recent-concepts block missing from built prompt`)
@@ -186,7 +186,7 @@ const sourceJson = JSON.parse(fs.readFileSync(promptSourcePath, "utf8"))
 const mirrorJson = JSON.parse(fs.readFileSync(promptMirrorPath, "utf8"))
 assert(JSON.stringify(sourceJson) === JSON.stringify(mirrorJson), "TypeScript prompt asset must mirror the runtime prompt asset")
 assert(sourceJson.id === "article_rewrite" && sourceJson.status === "active", "article rewrite prompt metadata invalid")
-assert(sourceJson.version === 26, "article rewrite prompt version must be 26")
+assert(sourceJson.version === 27, "article rewrite prompt version must be 27")
 assert(sourceJson.templateLines.length === 802, "article rewrite prompt line count drifted")
 assert(sourceJson.templateLines.join("\n").split("${url}").length - 1 === 1, "article rewrite prompt must contain one URL placeholder")
 assert(sourceJson.templateLines.join("\n").split("${outputLanguage}").length - 1 === 1, "article rewrite prompt must contain one output-language placeholder")
@@ -238,7 +238,8 @@ for (const rule of [
   "# 十一、素材允许时，加入判断方法",
   "一篇没有方法论的文章，同样可以是好文章。",
   "整篇文章不出现任何“效应”“定律”“模型”式的命名也完全可以。",
-  "全文最多挑出 **6 个**",
+  "全文挑出**目标 4～6 个、最多 8 个**",
+  "素材确实撑不住时可以更少，但不要为了凑数硬贴。",
   "确实没有，就一个也不加粗。",
   "- 全文“真正”是否不超过 1 次，且未出现在标题、首段和末段；",
   "知识跟着素材走：素材属于哪个领域，就优先用那个领域自己的概念和术语；",
@@ -252,6 +253,8 @@ for (const obsoleteRule of [
   "# 二十一、标题要表达真正的核心矛盾",
   "理想情况下，读者能够感受到这样的认知过程：",
   "全文挑出 **3～6 个**",
+  "全文最多挑出 **6 个**",
+  "其中两三个概念刚好解释了",
   "标题必须能够被正文真正支撑。",
   "- 行为经济学；",
   "可以自然适当引入以下领域的知识：",
@@ -298,6 +301,7 @@ for (let n = 0; n < 200; n++) {
   assert(new Set(groups).size === 3, `discipline slice ${n} must span three categories: ${a.disciplines.join("、")}`)
 }
 const rendered = varietyApi.renderPlan(varietyApi.resolvePlan(varietyConfig, 7))
+assert(varietyConfig.conceptModes.every((mode) => /[2-4]～[3-4] 个/.test(mode)), "conceptModes borrowing ranges must be 2～3 / 2～4")
 assert(rendered.startsWith("- 主标题采用「") && rendered.includes("\n- 开头从「") && rendered.includes("\n- 结尾用「") &&
   rendered.includes("\n- 本篇可借用的学科（") && rendered.includes("\n- 上一篇借用过的学科，本篇不借：") && rendered.includes("\n- 概念处理："),
   "variety plan rendering format drifted")

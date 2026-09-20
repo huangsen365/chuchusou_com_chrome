@@ -89,7 +89,7 @@ export function renderRewriteVarietyPlan(plan: RewriteVarietyPlan | null | undef
     lines.push(`- 上一篇借用过的学科，本篇不借：${plan.excludedDisciplines.join("、")}；`)
   }
   if (plan.mode) {
-    lines.push(`- 概念处理：${plan.mode}；加粗上限仍是最多 6 个。`)
+    lines.push(`- 概念处理：${plan.mode}；加粗目标 4～6 个，最多 8 个。`)
   }
   return lines.join("\n")
 }

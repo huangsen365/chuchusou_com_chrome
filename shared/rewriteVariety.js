@@ -15,7 +15,7 @@
    *   结尾   = endingForms[(n + floor(n / 5)) % 5]     相邻两篇必不同，且与开头的配对每 5 篇漂移一次
    *   可借学科 = disciplinePool[((3n + i) * 7) % 60]，i = 0..2  7 与 60 互质：相邻两篇切片不重叠，20 篇轮完全池；
    *              上一篇（n-1）的切片本篇自动排除，无需存储
-   *   概念处理 = conceptModes[(n + floor(n / 4)) % 4]          步长 1 或 2，相邻两篇必不同（加粗上限固定 6，不轮换）
+   *   概念处理 = conceptModes[(n + floor(n / 4)) % 4]          步长 1 或 2，相邻两篇必不同（加粗目标 4～6、上限 8，固定不轮换）
    */
   const PLACEHOLDER = '${varietyPlan}';
   const COUNTER_KEY = 'ccs_rewrite_variety_counter';
@@ -84,7 +84,7 @@
       lines.push(`- 上一篇借用过的学科，本篇不借：${plan.excludedDisciplines.join('、')}；`);
     }
     if (plan.mode) {
-      lines.push(`- 概念处理：${plan.mode}；加粗上限仍是最多 6 个。`);
+      lines.push(`- 概念处理：${plan.mode}；加粗目标 4～6 个，最多 8 个。`);
     }
     return lines.join('\n');
   }
