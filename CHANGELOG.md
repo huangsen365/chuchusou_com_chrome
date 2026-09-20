@@ -1,5 +1,21 @@
 # 更新日志
 
+## v1.16.0 (2026-09-20)
+
+**改写稿的概念不再千篇一律：概念只从素材来、处理方式按篇轮换、最近用过的不再用**。详细见 [releases/v1.16.0.md](./releases/v1.16.0.md)。
+
+### ✨ 新功能
+
+- **概念只从素材里来**：改写前先在内部列一份「素材关键词表」（素材自己反复出现的词、自带的术语和专名、描述的具体机制），所有要命名的概念必须能对应到表上；来源只有两条路——用素材自己的词，或素材所属领域专门描述这个机制的术语；对不上就不命名、用白话讲机制。加一条「特异性检验」：原样搬到另外一百篇也能用的概念不够特异，不用名字；互联网常见的通用心理学、经济学效应类词汇默认不用（只描述类型，不写死任何词表）。速答的短篇、中篇和后续 A/B 同步适用这套规则，堵住上游。
+- **概念处理方式按篇轮换**：形式轮换器新增第五个轴——只用素材原词 / 用领域术语 / 机制优先命名从严 / 允许一个来自第二视角，相邻两篇必不同。加粗上限固定「最多 6 个」，不轮换。
+- **近期概念记忆**：长文改写成品就绪时，扩展从正文里抽出加粗的概念名称，本地保留最近 40 个；下一次改写时把它们写进提示词，要求本文不再使用、也不换个说法暗示（素材原文自带的词除外）。没有记录时显示「（无）」。全部本地，不上传。
+
+### 🛠 技术改动
+
+- 新增 `shared/rewriteConceptMemory.js`（TS 口径 `src/shared/rewriteConceptMemory.ts`）：`extractConceptsFromHtml` / `mergeRecent` / `renderRecent` / `recordConcepts` / `buildRecentText`，存储键 `ccs_rewrite_recent_concepts`；`modules/longArticleActions.js` 在成品就绪时记录（同一篇只记一次，不影响按钮）；`${recentConcepts}` 占位符由后台 `ccsBuildArticleRewritePrompt()`、内容脚本回退与 TS 口径三处填充。SW `importScripts` 双份与 manifest 内容脚本已登记。
+- `articleRewritePrompts.json` 双轨升到 `version: 24`（796 行）：一 / 五 / 十二 / 二十六 / 二十八节改动，`varietyPlan` 新增 `conceptModes`（4 条），索引 `(n+⌊n/4⌋)%4`；`fastAnswersPrompts.json` 双轨新增「概念使用要求」段。
+- `verify:article-rewrite` 新增 8 条来源规则断言、2 条「效应」示例反向断言、5 轴相邻互异、概念抽取 / 合并 / 渲染 / 空兜底断言，并校验速答模板同规则；冒烟在真 Chrome 里验证速答提示词带规则、选 A 时记忆为空显示「（无）」、长文就绪后 storage 记录「他说」、紧接着的 Docs 改写提示词注入「他说」。
+
 ## v1.15.0 (2026-09-20)
 
 **长文改写按篇轮换标题 / 开头 / 结尾的形式，相邻两篇必不同**。详细见 [releases/v1.15.0.md](./releases/v1.15.0.md)。
