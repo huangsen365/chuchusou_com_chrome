@@ -41,6 +41,13 @@ function loadLegacyApi() {
           messages.push(message)
           callback({ success: true })
         }
+      },
+      // 固定轮换计数器：形式安排不随运行日期漂移；近期概念记忆为空
+      storage: {
+        local: {
+          get(keys, callback) { callback(Object.fromEntries((Array.isArray(keys) ? keys : [keys]).filter((k) => k === "ccs_rewrite_variety_counter").map((k) => [k, 4]))) },
+          set(values, callback) { callback?.() }
+        }
       }
     },
     fetch: async () => ({ ok: true, json: async () => promptConfig }),
@@ -164,11 +171,11 @@ async function verifyApi(name, api, hooks) {
   assert(!prompt.includes("${outputLanguage}"), `${name}: literal output-language placeholder leaked`)
   assert(!prompt.includes("${varietyPlan}"), `${name}: literal variety-plan placeholder leaked`)
   assert(prompt.includes("本篇的形式安排（由扩展按轮换计数生成"), `${name}: variety plan heading missing from built prompt`)
-  assert(/- 主标题采用「[^」]+」的形式；\n- 开头从「[^」]+」进入；\n- 结尾用「[^」]+」收束；/.test(prompt), `${name}: variety plan lines missing or malformed`)
+  assert(/- 主标题采用「.+?」的形式；\n- 开头从「.+?」进入；\n- 结尾用「.+?」收束；/.test(prompt), `${name}: variety plan lines missing or malformed`)
   assert(/- 概念处理：[^\n]+；加粗目标 4～6 个，最多 8 个。/.test(prompt), `${name}: concept-mode line missing from variety plan`)
   assert(/- 本篇可借用的学科（[^\n]+）：[^、\n]+、[^、\n]+、[^、\n]+；\n- 上一篇借用过的学科，本篇不借：[^\n]+；/.test(prompt), `${name}: discipline slice lines missing from variety plan`)
   assert(!prompt.includes("${recentConcepts}"), `${name}: literal recent-concepts placeholder leaked`)
-  assert(prompt.includes("最近几篇改写里已经用过的概念（本文不要再用"), `${name}: recent-concepts block missing from built prompt`)
+  assert(prompt.includes("最近几篇改写里已经用过的概念（本文默认不用"), `${name}: recent-concepts block missing from built prompt`)
   assert(prompt.includes("\n（无）"), `${name}: empty recent-concepts must render as （无） without storage`)
 
   const fill = await api.fillCurrentComposer("改写提示词")
@@ -186,7 +193,7 @@ const sourceJson = JSON.parse(fs.readFileSync(promptSourcePath, "utf8"))
 const mirrorJson = JSON.parse(fs.readFileSync(promptMirrorPath, "utf8"))
 assert(JSON.stringify(sourceJson) === JSON.stringify(mirrorJson), "TypeScript prompt asset must mirror the runtime prompt asset")
 assert(sourceJson.id === "article_rewrite" && sourceJson.status === "active", "article rewrite prompt metadata invalid")
-assert(sourceJson.version === 27, "article rewrite prompt version must be 27")
+assert(sourceJson.version === 28, "article rewrite prompt version must be 28")
 assert(sourceJson.templateLines.length === 802, "article rewrite prompt line count drifted")
 assert(sourceJson.templateLines.join("\n").split("${url}").length - 1 === 1, "article rewrite prompt must contain one URL placeholder")
 assert(sourceJson.templateLines.join("\n").split("${outputLanguage}").length - 1 === 1, "article rewrite prompt must contain one output-language placeholder")
@@ -330,7 +337,7 @@ for (const rule of [
   "加粗的概念必须对应素材里的某个具体机制：或是素材自己的词、领域术语，或是从本篇形式安排允许借用的学科里通过联想、融合、拓展借来的概念；最近几篇已经用过的概念不加粗也不使用。",
   "概念以素材为准，需要外部概念解释机制时，只能从本篇允许借用的学科里借",
   "- 每个被命名、被加粗的概念是否都能对应素材里的某个具体机制（而不只是听起来相关）；",
-  "最近几篇改写里已经用过的概念（本文不要再用，也不要换个说法暗示它们；素材原文本身就包含的词除外）："
+  "最近几篇改写里已经用过的概念（本文默认不用，也不要换个说法暗示它们；只有当某个词正是素材所属领域的基本术语、不用就说不清楚时可以用，但不再加粗、不算本篇的新概念；素材原文本身就包含的词除外）："
 ]) {
   assert(articleRewriteTemplate.includes(rule), `source-driven concept rule missing: ${rule}`)
 }
@@ -349,6 +356,16 @@ const mergedRecent = memoryApi.mergeRecent([{ term: "A", ts: 1 }, { term: "b", t
 assert(JSON.stringify(mergedRecent.map((item) => item.term)) === JSON.stringify(["c", "B", "A"]), `recent merge order/dedupe/cap drifted: ${JSON.stringify(mergedRecent)}`)
 assert(memoryApi.renderRecent([]) === "（无）" && memoryApi.renderRecent(mergedRecent) === "c、B、A", "recent rendering drifted")
 assert(memoryApi.apply("x ${recentConcepts} y", "") === "x （无） y", "empty recent list must fall back to （无）")
+assert(memoryApi.MAX_RECENT === 80, "recent-concept memory must keep the latest 80 terms")
+assert(memoryApi.dedupeKey("锚定效应") === memoryApi.dedupeKey(" 锚定 ") && memoryApi.dedupeKey("「路径依赖」") === memoryApi.dedupeKey("路径依赖") &&
+  memoryApi.dedupeKey("Anchoring") === memoryApi.dedupeKey("anchoring") && memoryApi.dedupeKey("效应") === "效应",
+  "fuzzy dedupe key drifted")
+const fuzzyExtracted = memoryApi.extractConceptsFromHtml('<p><strong>锚定效应</strong>…<strong>锚定</strong>…<strong>幸存者偏差</strong></p>')
+assert(JSON.stringify(fuzzyExtracted) === JSON.stringify(["锚定效应", "幸存者偏差"]), `fuzzy extraction dedupe drifted: ${JSON.stringify(fuzzyExtracted)}`)
+const fuzzyMerged = memoryApi.mergeRecent([{ term: "锚定效应", ts: 1 }], ["锚定"], 2, 80)
+assert(fuzzyMerged.length === 1 && fuzzyMerged[0].term === "锚定" && fuzzyMerged[0].ts === 2, `fuzzy merge must collapse suffix variants keeping the newest: ${JSON.stringify(fuzzyMerged)}`)
+const capped = memoryApi.mergeRecent(Array.from({ length: 80 }, (_, i) => ({ term: `概念${i}`, ts: 1 })), ["新概念"], 2)
+assert(capped.length === 80 && capped[0].term === "新概念" && !capped.some((item) => item.term === "概念79"), "cap must evict the oldest entry")
 const fastAnswersTemplate = JSON.parse(fs.readFileSync(path.join(root, "prompts/fastAnswersPrompts.json"), "utf8")).templateLines.join("\n")
 assert(fastAnswersTemplate.includes("概念只从素材里来：素材自己用到的词") && fastAnswersTemplate.includes("互联网上常见的通用心理学、经济学效应类词汇默认不用"),
   "fast answers prompt must carry the same source-driven concept rule")

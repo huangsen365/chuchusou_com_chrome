@@ -11,13 +11,22 @@
    */
   const PLACEHOLDER = '${recentConcepts}';
   const STORAGE_KEY = 'ccs_rewrite_recent_concepts';
-  const MAX_RECENT = 40;
+  const MAX_RECENT = 80;
   const MAX_TERM_LENGTH = 30;
   const EMPTY_TEXT = '（无）';
   const TRIM_EDGES = /^[\s*_“”"'「」『』()（）[\]【】]+|[\s*_“”"'「」『』()（）[\]【】，。、；：:,.;!?！？]+$/g;
 
   function normalizeTerm(value) {
     return String(value || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').replace(TRIM_EDGES, '').trim();
+  }
+
+  // 模糊去重键：不分大小写、去内部空白与引号、剥掉「效应 / 定律 / 法则 / 模型 / 理论 / 原理 / 思维 / 陷阱 / 现象 / 机制」
+  // 这类后缀——「锚定效应」「锚定」记成一条；剥完不足 2 字则保留原词（避免“效应”本身被剥空）
+  const KEY_SUFFIX = /(效应|定律|法则|模型|理论|原理|思维|陷阱|现象|机制)$/;
+  function dedupeKey(term) {
+    const base = normalizeTerm(term).toLowerCase().replace(/[\s“”"'「」『』]/g, '');
+    const stripped = base.replace(KEY_SUFFIX, '');
+    return stripped.length >= 2 ? stripped : base;
   }
 
   // 从改写成品 HTML 里抽 <strong> / <b> 包住的概念名称，按出现顺序去重
@@ -29,7 +38,7 @@
     while ((match = pattern.exec(String(html || '')))) {
       const term = normalizeTerm(match[2]);
       if (!term || term.length > MAX_TERM_LENGTH) continue;
-      const key = term.toLowerCase();
+      const key = dedupeKey(term);
       if (seen.has(key)) continue;
       seen.add(key);
       out.push(term);
@@ -54,7 +63,7 @@
     const merged = [];
     const seen = new Set();
     for (const item of [...incoming, ...normalizeList(existing)]) {
-      const key = item.term.toLowerCase();
+      const key = dedupeKey(item.term);
       if (seen.has(key)) continue;
       seen.add(key);
       merged.push(item);
@@ -131,6 +140,7 @@
     MAX_RECENT,
     EMPTY_TEXT,
     normalizeTerm,
+    dedupeKey,
     extractConceptsFromHtml,
     mergeRecent,
     renderRecent,

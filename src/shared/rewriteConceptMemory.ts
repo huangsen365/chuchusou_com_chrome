@@ -6,7 +6,7 @@
  */
 export const RECENT_CONCEPTS_PLACEHOLDER = "${recentConcepts}"
 export const RECENT_CONCEPTS_STORAGE_KEY = "ccs_rewrite_recent_concepts"
-export const RECENT_CONCEPTS_MAX = 40
+export const RECENT_CONCEPTS_MAX = 80
 export const RECENT_CONCEPTS_MAX_TERM_LENGTH = 30
 export const RECENT_CONCEPTS_EMPTY_TEXT = "（无）"
 
@@ -21,6 +21,15 @@ export function normalizeConceptTerm(value: unknown): string {
   return String(value ?? "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").replace(TRIM_EDGES, "").trim()
 }
 
+// 模糊去重键：不分大小写、去内部空白与引号、剥掉「效应 / 定律 / 法则 / 模型 / 理论 / 原理 / 思维 / 陷阱 / 现象 / 机制」
+// 这类后缀——「锚定效应」「锚定」记成一条；剥完不足 2 字则保留原词
+const KEY_SUFFIX = /(效应|定律|法则|模型|理论|原理|思维|陷阱|现象|机制)$/
+export function conceptDedupeKey(term: unknown): string {
+  const base = normalizeConceptTerm(term).toLowerCase().replace(/[\s“”"'「」『』]/g, "")
+  const stripped = base.replace(KEY_SUFFIX, "")
+  return stripped.length >= 2 ? stripped : base
+}
+
 export function extractConceptsFromHtml(html: unknown): string[] {
   const out: string[] = []
   const seen = new Set<string>()
@@ -30,7 +39,7 @@ export function extractConceptsFromHtml(html: unknown): string[] {
   while ((match = pattern.exec(source))) {
     const term = normalizeConceptTerm(match[2])
     if (!term || term.length > RECENT_CONCEPTS_MAX_TERM_LENGTH) continue
-    const key = term.toLowerCase()
+    const key = conceptDedupeKey(term)
     if (seen.has(key)) continue
     seen.add(key)
     out.push(term)
@@ -54,7 +63,7 @@ export function mergeRecentConcepts(existing: unknown, concepts: unknown, now?: 
   const merged: RecentConcept[] = []
   const seen = new Set<string>()
   for (const item of [...incoming, ...normalizeList(existing)]) {
-    const key = item.term.toLowerCase()
+    const key = conceptDedupeKey(item.term)
     if (seen.has(key)) continue
     seen.add(key)
     merged.push(item)
