@@ -15,6 +15,7 @@ export interface RewriteVarietyConfig {
   openingForms?: string[]
   endingForms?: string[]
   secondLenses?: string[]
+  conceptModes?: string[]
 }
 
 export interface RewriteVarietyPlan {
@@ -23,6 +24,7 @@ export interface RewriteVarietyPlan {
   opening: string
   ending: string
   lens: string
+  mode: string
 }
 
 function pick(list: string[] | undefined, index: number): string {
@@ -52,7 +54,8 @@ export function resolveRewriteVarietyPlan(config: RewriteVarietyConfig | undefin
     title: pick(config?.titleForms, n),
     opening: pick(config?.openingForms, n),
     ending: pick(config?.endingForms, n + Math.floor(n / 5)),
-    lens: pick(config?.secondLenses, n * 5 + Math.floor(n / 12))
+    lens: pick(config?.secondLenses, n * 5 + Math.floor(n / 12)),
+    mode: pick(config?.conceptModes, n + Math.floor(n / 4))
   }
 }
 
@@ -65,6 +68,9 @@ export function renderRewriteVarietyPlan(plan: RewriteVarietyPlan | null | undef
   ]
   if (plan.lens) {
     lines.push(`- 如果素材允许，可以从「${plan.lens}」的角度补一个类比或解释；素材不允许就不补，不要为了用它而扭曲素材。`)
+  }
+  if (plan.mode) {
+    lines.push(`- 概念处理：${plan.mode}；加粗上限仍是最多 6 个。`)
   }
   return lines.join("\n")
 }

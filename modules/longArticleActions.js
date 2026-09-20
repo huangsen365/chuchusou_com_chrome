@@ -515,7 +515,22 @@
       return;
     }
     record.timer = 0;
-    setActionsState(actions, extractArticle(candidate.block) ? 'ready' : 'unavailable');
+    const article = extractArticle(candidate.block);
+    if (article && record.conceptsSignature !== signature) {
+      // 成品就绪即记录加粗概念（近期概念记忆），与按钮状态无关；同一篇只记一次
+      record.conceptsSignature = signature;
+      rememberConcepts(article.bodyHtml);
+    }
+    setActionsState(actions, article ? 'ready' : 'unavailable');
+  }
+
+  function rememberConcepts(bodyHtml) {
+    try {
+      const memory = globalThis.CCSRewriteConceptMemory;
+      if (!memory?.extractConceptsFromHtml || !memory.recordConcepts) return;
+      const concepts = memory.extractConceptsFromHtml(bodyHtml);
+      if (concepts.length) void memory.recordConcepts(concepts);
+    } catch (_) { /* 记忆失败不影响主流程 */ }
   }
 
   function start() {

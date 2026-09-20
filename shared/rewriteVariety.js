@@ -14,6 +14,7 @@
    *   开头   = openingForms[n % 5]
    *   结尾   = endingForms[(n + floor(n / 5)) % 5]     相邻两篇必不同，且与开头的配对每 5 篇漂移一次
    *   第二视角 = secondLenses[(n * 5 + floor(n / 12)) % 12]  5 与 12 互质，相邻两篇必不同
+   *   概念处理 = conceptModes[(n + floor(n / 4)) % 4]          步长 1 或 2，相邻两篇必不同（加粗上限固定 6，不轮换）
    */
   const PLACEHOLDER = '${varietyPlan}';
   const COUNTER_KEY = 'ccs_rewrite_variety_counter';
@@ -48,7 +49,8 @@
       title: pick(config?.titleForms, n),
       opening: pick(config?.openingForms, n),
       ending: pick(config?.endingForms, n + Math.floor(n / 5)),
-      lens: pick(config?.secondLenses, n * 5 + Math.floor(n / 12))
+      lens: pick(config?.secondLenses, n * 5 + Math.floor(n / 12)),
+      mode: pick(config?.conceptModes, n + Math.floor(n / 4))
     };
   }
 
@@ -61,6 +63,9 @@
     ];
     if (plan.lens) {
       lines.push(`- 如果素材允许，可以从「${plan.lens}」的角度补一个类比或解释；素材不允许就不补，不要为了用它而扭曲素材。`);
+    }
+    if (plan.mode) {
+      lines.push(`- 概念处理：${plan.mode}；加粗上限仍是最多 6 个。`);
     }
     return lines.join('\n');
   }

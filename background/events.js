@@ -903,6 +903,9 @@ async function ccsLoadArticleRewriteTemplate() {
         if (template.split('${varietyPlan}').length - 1 !== 1) {
           throw new Error('article-rewrite-template-variety-placeholder-invalid');
         }
+        if (template.split('${recentConcepts}').length - 1 !== 1) {
+          throw new Error('article-rewrite-template-recent-concepts-placeholder-invalid');
+        }
         ccsArticleRewriteVarietyConfig = config?.varietyPlan && typeof config.varietyPlan === 'object'
           ? config.varietyPlan
           : null;
@@ -925,7 +928,13 @@ async function ccsBuildArticleRewritePrompt(sourceText) {
   const withPlan = variety?.apply
     ? variety.apply(template, planText)
     : template.split('${varietyPlan}').join(planText || '（本篇不做额外形式安排，按素材自行选择标题、开头与结尾的形式。）');
-  return ccsApplyPromptOutputLanguage(withPlan.replace('${url}', sourceText));
+  // 近期概念记忆：最近几篇成品里加粗过的概念，本文不要再用
+  const memory = globalThis.CCSRewriteConceptMemory;
+  const recentText = memory?.buildRecentText ? await memory.buildRecentText() : '';
+  const withRecent = memory?.apply
+    ? memory.apply(withPlan, recentText)
+    : withPlan.split('${recentConcepts}').join(recentText || '（无）');
+  return ccsApplyPromptOutputLanguage(withRecent.replace('${url}', sourceText));
 }
 
 async function ccsOpenGoogleDocRewrite(sourceUrlValue, target) {

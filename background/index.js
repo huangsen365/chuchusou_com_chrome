@@ -7,6 +7,7 @@ importScripts(
   './urlSafety.js',
   '../shared/promptLanguage.js',
   '../shared/rewriteVariety.js',
+  '../shared/rewriteConceptMemory.js',
   // ↓ Logger.js 已被 src/background/Logger.ts (via baseBridge) 取代 ↓
   '../shared/menuStructureBuilder.js',
 

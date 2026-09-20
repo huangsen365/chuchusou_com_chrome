@@ -60,11 +60,16 @@ function loadLegacyApi() {
     { filename: "shared/rewriteVariety.js" }
   )
   vm.runInContext(
+    fs.readFileSync(path.join(root, "shared/rewriteConceptMemory.js"), "utf8"),
+    context,
+    { filename: "shared/rewriteConceptMemory.js" }
+  )
+  vm.runInContext(
     fs.readFileSync(path.join(root, "modules/articleRewriteRuntime.js"), "utf8"),
     context,
     { filename: "modules/articleRewriteRuntime.js" }
   )
-  return { api: windowObject.CCSModules.ArticleRewriteRuntime, messages, fillCalls, variety: context.CCSRewriteVariety }
+  return { api: windowObject.CCSModules.ArticleRewriteRuntime, messages, fillCalls, variety: context.CCSRewriteVariety, memory: context.CCSRewriteConceptMemory }
 }
 
 function createTsLoader(contextExtras = {}) {
@@ -160,6 +165,10 @@ async function verifyApi(name, api, hooks) {
   assert(!prompt.includes("${varietyPlan}"), `${name}: literal variety-plan placeholder leaked`)
   assert(prompt.includes("本篇的形式安排（由扩展按轮换计数生成"), `${name}: variety plan heading missing from built prompt`)
   assert(/- 主标题采用「[^」]+」的形式；\n- 开头从「[^」]+」进入；\n- 结尾用「[^」]+」收束；/.test(prompt), `${name}: variety plan lines missing or malformed`)
+  assert(/- 概念处理：[^\n]+；加粗上限仍是最多 6 个。/.test(prompt), `${name}: concept-mode line missing from variety plan`)
+  assert(!prompt.includes("${recentConcepts}"), `${name}: literal recent-concepts placeholder leaked`)
+  assert(prompt.includes("最近几篇改写里已经用过的概念（本文不要再用"), `${name}: recent-concepts block missing from built prompt`)
+  assert(prompt.includes("\n（无）"), `${name}: empty recent-concepts must render as （无） without storage`)
 
   const fill = await api.fillCurrentComposer("改写提示词")
   assert(fill.ok === true, `${name}: current composer fill API failed`)
@@ -176,8 +185,8 @@ const sourceJson = JSON.parse(fs.readFileSync(promptSourcePath, "utf8"))
 const mirrorJson = JSON.parse(fs.readFileSync(promptMirrorPath, "utf8"))
 assert(JSON.stringify(sourceJson) === JSON.stringify(mirrorJson), "TypeScript prompt asset must mirror the runtime prompt asset")
 assert(sourceJson.id === "article_rewrite" && sourceJson.status === "active", "article rewrite prompt metadata invalid")
-assert(sourceJson.version === 23, "article rewrite prompt version must be 23")
-assert(sourceJson.templateLines.length === 776, "article rewrite prompt line count drifted")
+assert(sourceJson.version === 24, "article rewrite prompt version must be 24")
+assert(sourceJson.templateLines.length === 796, "article rewrite prompt line count drifted")
 assert(sourceJson.templateLines.join("\n").split("${url}").length - 1 === 1, "article rewrite prompt must contain one URL placeholder")
 assert(sourceJson.templateLines.join("\n").split("${outputLanguage}").length - 1 === 1, "article rewrite prompt must contain one output-language placeholder")
 assert(sourceJson.templateLines.join("\n").includes("无论原始素材使用何种语言"), "article rewrite prompt must handle foreign-language source material")
@@ -271,14 +280,15 @@ const legacy = loadLegacyApi()
 // 形式轮换：表齐全、映射在范围内、相邻两篇每个轴都不同、渲染格式稳定、空计划有兜底文案
 const varietyConfig = sourceJson.varietyPlan
 assert(varietyConfig?.titleForms?.length === 6 && varietyConfig.openingForms?.length === 5 &&
-  varietyConfig.endingForms?.length === 5 && varietyConfig.secondLenses?.length === 12, "varietyPlan tables must be 6 / 5 / 5 / 12 entries")
+  varietyConfig.endingForms?.length === 5 && varietyConfig.secondLenses?.length === 12 && varietyConfig.conceptModes?.length === 4,
+  "varietyPlan tables must be 6 / 5 / 5 / 12 / 4 entries")
 const varietyApi = legacy.variety
 assert(varietyApi && typeof varietyApi.resolvePlan === "function", "shared/rewriteVariety.js did not initialize")
 for (let n = 0; n < 200; n++) {
   const a = varietyApi.resolvePlan(varietyConfig, n)
   const b = varietyApi.resolvePlan(varietyConfig, n + 1)
-  assert(a.title && a.opening && a.ending && a.lens, `variety plan ${n} has an empty axis`)
-  assert(a.title !== b.title && a.opening !== b.opening && a.ending !== b.ending && a.lens !== b.lens,
+  assert(a.title && a.opening && a.ending && a.lens && a.mode, `variety plan ${n} has an empty axis`)
+  assert(a.title !== b.title && a.opening !== b.opening && a.ending !== b.ending && a.lens !== b.lens && a.mode !== b.mode,
     `consecutive variety plans ${n}/${n + 1} share an axis`)
 }
 const rendered = varietyApi.renderPlan(varietyApi.resolvePlan(varietyConfig, 7))
@@ -289,6 +299,35 @@ assert(varietyApi.seedFromDate(new Date(Date.UTC(2026, 0, 1, 0))) === 0 && varie
 assert(articleRewriteTemplate.includes("本篇的形式安排（由扩展按轮换计数生成"), "variety plan heading missing from template")
 assert(articleRewriteTemplate.split("${varietyPlan}").length - 1 === 1, "article rewrite prompt must contain one variety-plan placeholder")
 assert(articleRewriteTemplate.includes("如果被安排的标题形式和开头方式碰巧是同一种手法"), "same-kind title/opening fallback rule missing")
+
+// 概念只从素材来（第一 / 五 / 十二 / 二十八节）+ 近期概念记忆
+for (const rule of [
+  "同时在内部列一份「素材关键词表」（不输出），后面所有要命名的概念都必须能对应到这张表：",
+  "概念从哪里来，只有两条路：直接用素材自己的词",
+  "对不上素材关键词表的概念，不命名，用白话把机制讲清楚",
+  "特异性检验：一个概念如果原样搬到另外一百篇不同题材的文章里也能用，它就不够特异，不要用名字。",
+  "互联网上常见的通用心理学、经济学效应类词汇默认不用",
+  "加粗的概念必须来自素材关键词表，或本篇形式安排允许的第二视角类比；最近几篇已经用过的概念不加粗也不使用。",
+  "- 每个被命名、被加粗的概念是否都能对应素材关键词表；",
+  "最近几篇改写里已经用过的概念（本文不要再用，也不要换个说法暗示它们；素材原文本身就包含的词除外）："
+]) {
+  assert(articleRewriteTemplate.includes(rule), `source-driven concept rule missing: ${rule}`)
+}
+for (const obsoleteRule of ["“原来这就是某种效应。”", "“这不是能力问题，而是结构问题。”"]) {
+  assert(!articleRewriteTemplate.includes(obsoleteRule), `concept-priming example remains: ${obsoleteRule}`)
+}
+assert(articleRewriteTemplate.split("${recentConcepts}").length - 1 === 1, "article rewrite prompt must contain one recent-concepts placeholder")
+const memoryApi = legacy.memory
+assert(memoryApi && typeof memoryApi.extractConceptsFromHtml === "function", "shared/rewriteConceptMemory.js did not initialize")
+const extracted = memoryApi.extractConceptsFromHtml('<p><strong>沉没成本</strong>，<b> 锚定效应 </b>和<strong>沉没成本</strong>；<strong>「路径依赖」</strong><strong></strong></p>')
+assert(JSON.stringify(extracted) === JSON.stringify(["沉没成本", "锚定效应", "路径依赖"]), `concept extraction drifted: ${JSON.stringify(extracted)}`)
+const mergedRecent = memoryApi.mergeRecent([{ term: "A", ts: 1 }, { term: "b", ts: 1 }], ["c", "B"], 2, 3)
+assert(JSON.stringify(mergedRecent.map((item) => item.term)) === JSON.stringify(["c", "B", "A"]), `recent merge order/dedupe/cap drifted: ${JSON.stringify(mergedRecent)}`)
+assert(memoryApi.renderRecent([]) === "（无）" && memoryApi.renderRecent(mergedRecent) === "c、B、A", "recent rendering drifted")
+assert(memoryApi.apply("x ${recentConcepts} y", "") === "x （无） y", "empty recent list must fall back to （无）")
+const fastAnswersTemplate = JSON.parse(fs.readFileSync(path.join(root, "prompts/fastAnswersPrompts.json"), "utf8")).templateLines.join("\n")
+assert(fastAnswersTemplate.includes("概念只从素材里来：素材自己用到的词") && fastAnswersTemplate.includes("互联网上常见的通用心理学、经济学效应类词汇默认不用"),
+  "fast answers prompt must carry the same source-driven concept rule")
 await verifyApi("legacy", legacy.api, legacy)
 
 const tsMessages = []

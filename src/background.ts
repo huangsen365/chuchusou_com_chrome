@@ -68,6 +68,7 @@ sw.importScripts(
   absoluteUrl("background/urlSafety.js"),
   absoluteUrl("shared/promptLanguage.js"),
   absoluteUrl("shared/rewriteVariety.js"),
+  absoluteUrl("shared/rewriteConceptMemory.js"),
   // ↓ background/Logger.js 已被 baseBridge.ts 取代（logMenuEvent + buildLogPayload）↓
   absoluteUrl("shared/menuStructureBuilder.js"),
 

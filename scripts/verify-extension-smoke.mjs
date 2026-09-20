@@ -698,6 +698,7 @@ async function main() {
     if (!fastQaRecord?.prompt?.includes(foreignFastQaSource) ||
         !fastQaRecord.prompt.includes("短篇回答、中篇回答以及后续 A/B 生成的全部正文") ||
         !fastQaRecord.prompt.includes("以**简体中文**为主要输出语言") ||
+        !fastQaRecord.prompt.includes("概念只从素材里来：素材自己用到的词") ||
         fastQaRecord.prompt.includes("${outputLanguage}") || fastQaRecord.relayEngine !== "chatgpt") {
       fail(`外语素材速答语言提示词异常: ${JSON.stringify(fastQaRecord)?.slice(0, 1200)}`)
     }
@@ -886,6 +887,8 @@ async function main() {
         !chatRewriteFill.text.includes("以**简体中文**为主要输出语言") ||
         chatRewriteFill.text.includes("${url}") || chatRewriteFill.text.includes("${outputLanguage}") ||
         chatRewriteFill.text.includes("${varietyPlan}") || !chatRewriteFill.text.includes("本篇的形式安排（由扩展按轮换计数生成") ||
+        chatRewriteFill.text.includes("${recentConcepts}") || !chatRewriteFill.text.includes("最近几篇改写里已经用过的概念") ||
+        !chatRewriteFill.text.includes("\n（无）") ||
         chatRewriteFill.submitClicks !== 0) {
       fail(`ChatGPT 选A提示词填充异常: ${JSON.stringify(chatRewriteFill)?.slice(0, 1200)}`)
     }
@@ -977,6 +980,16 @@ async function main() {
         longArticleReady.disabled.some((value) => value !== false) ||
         longArticleReady.spinners.some((value) => value !== "none")) {
       fail(`ChatGPT 长文完整后按钮可用态异常: ${JSON.stringify(longArticleReady)}`)
+    }
+    // 近期概念记忆：成品就绪即把加粗概念写进 storage（夹具正文里唯一的 <strong> 是「他说」）
+    let recentConcepts = null
+    for (let i = 0; i < 30; i++) {
+      recentConcepts = await evaluate(swCdp, `new Promise((resolve) => chrome.storage.local.get(['ccs_rewrite_recent_concepts'], (data) => resolve(data.ccs_rewrite_recent_concepts || null)))`)
+      if (Array.isArray(recentConcepts) && recentConcepts.some((item) => item?.term === "他说")) break
+      await wait(100)
+    }
+    if (!Array.isArray(recentConcepts) || !recentConcepts.some((item) => item?.term === "他说")) {
+      fail(`长文成品就绪后未把加粗概念记入近期概念记忆: ${JSON.stringify(recentConcepts)}`)
     }
 
     const longArticleActions = await evaluate(chatRewriteFixture.cdp, `(() => {
@@ -1222,6 +1235,8 @@ async function main() {
         docsChatRecord.prompt.includes("#heading") || docsChatRecord.prompt.includes("${url}") ||
         docsChatRecord.prompt.includes("${outputLanguage}") ||
         docsChatRecord.prompt.includes("${varietyPlan}") || !docsChatRecord.prompt.includes("本篇的形式安排（由扩展按轮换计数生成") ||
+        docsChatRecord.prompt.includes("${recentConcepts}") ||
+        !/最近几篇改写里已经用过的概念[^\n]*\n\n[^\n]*他说/.test(docsChatRecord.prompt) ||
         docsChatRecord.relayEngine !== "chatgpt") {
       fail(`Google Docs → ChatGPT relay 记录异常: ${JSON.stringify(docsChatRecord)?.slice(0, 1200)}`)
     }
@@ -1255,7 +1270,7 @@ async function main() {
       fail(`Google Docs → Claude relay 记录异常: ${JSON.stringify(docsClaudeRecord)?.slice(0, 1200)}`)
     }
     if (docsFixture.exceptions.length > 0) fail(`Google Docs 改写未捕获异常: ${docsFixture.exceptions[0]}`)
-    console.log(`${TAG} ✓ Google Docs 双目标改写正常（顶部双按钮 / URL 规范化 / 本地 relay / ChatGPT + Claude）`)
+    console.log(`${TAG} ✓ Google Docs 双目标改写正常（顶部双按钮 / URL 规范化 / 本地 relay / ChatGPT + Claude / 近期概念已注入）`)
     docsFixture.cdp.close()
 
     const xFixture = await openSiteFixture("https://x.com/site-fastqa")

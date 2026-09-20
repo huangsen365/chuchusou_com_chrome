@@ -173,6 +173,9 @@
           if (template.split('${varietyPlan}').length - 1 !== 1) {
             throw new Error('文章改写提示词必须包含且只包含一个 ${varietyPlan} 占位符。');
           }
+          if (template.split('${recentConcepts}').length - 1 !== 1) {
+            throw new Error('文章改写提示词必须包含且只包含一个 ${recentConcepts} 占位符。');
+          }
           return { template, variety: config?.varietyPlan && typeof config.varietyPlan === 'object' ? config.varietyPlan : null };
         })
         .catch((error) => {
@@ -205,7 +208,12 @@
     const withPlan = varietyApi?.apply
       ? varietyApi.apply(template, planText)
       : template.split('${varietyPlan}').join(planText || '（本篇不做额外形式安排，按素材自行选择标题、开头与结尾的形式。）');
-    const prompt = withPlan.replace(URL_PLACEHOLDER, CONVERSATION_SOURCE_NOTE);
+    const memoryApi = globalThis.CCSRewriteConceptMemory;
+    const recentText = memoryApi?.buildRecentText ? await memoryApi.buildRecentText() : '';
+    const withRecent = memoryApi?.apply
+      ? memoryApi.apply(withPlan, recentText)
+      : withPlan.split('${recentConcepts}').join(recentText || '（无）');
+    const prompt = withRecent.replace(URL_PLACEHOLDER, CONVERSATION_SOURCE_NOTE);
     const localizedPrompt = globalThis.CCSPromptLanguage?.apply
       ? globalThis.CCSPromptLanguage.apply(prompt)
       : prompt.split('${outputLanguage}').join('简体中文');
