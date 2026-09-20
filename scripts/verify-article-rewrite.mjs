@@ -186,8 +186,8 @@ const sourceJson = JSON.parse(fs.readFileSync(promptSourcePath, "utf8"))
 const mirrorJson = JSON.parse(fs.readFileSync(promptMirrorPath, "utf8"))
 assert(JSON.stringify(sourceJson) === JSON.stringify(mirrorJson), "TypeScript prompt asset must mirror the runtime prompt asset")
 assert(sourceJson.id === "article_rewrite" && sourceJson.status === "active", "article rewrite prompt metadata invalid")
-assert(sourceJson.version === 25, "article rewrite prompt version must be 25")
-assert(sourceJson.templateLines.length === 796, "article rewrite prompt line count drifted")
+assert(sourceJson.version === 26, "article rewrite prompt version must be 26")
+assert(sourceJson.templateLines.length === 802, "article rewrite prompt line count drifted")
 assert(sourceJson.templateLines.join("\n").split("${url}").length - 1 === 1, "article rewrite prompt must contain one URL placeholder")
 assert(sourceJson.templateLines.join("\n").split("${outputLanguage}").length - 1 === 1, "article rewrite prompt must contain one output-language placeholder")
 assert(sourceJson.templateLines.join("\n").includes("无论原始素材使用何种语言"), "article rewrite prompt must handle foreign-language source material")
@@ -312,22 +312,31 @@ assert(articleRewriteTemplate.includes("如果被安排的标题形式和开头�
 
 // 概念只从素材来（第一 / 五 / 十二 / 二十八节）+ 近期概念记忆
 for (const rule of [
-  "同时在内部列一份「素材关键词表」（不输出），后面所有要命名的概念都必须能对应到这张表：",
-  "概念从哪里来，只有两条路：直接用素材自己的词",
-  "对不上素材关键词表的概念，不命名，用白话把机制讲清楚",
+  "同时在内部列一份「素材关键词表」（不输出）。后面所有要命名的概念，都必须能对应到表里的某个具体机制、现象或矛盾——对应的是机制，不要求素材里出现过那个词：",
+  "概念从哪里来，有三条路：直接用素材自己的词",
+  "通过联想、融合、拓展找到一个能精准解释素材里某个机制的概念。",
+  "对不上素材里任何具体机制的概念，不命名，用白话把机制讲清楚",
+  "可以推断素材没说出口的机制，但不能虚构事实",
+  "不要因为素材没提供现成的词就放弃概念。",
+  "- 联想：从素材里的一个具体机制出发，在允许的学科里找一个能解释它的概念",
+  "- 融合：把素材自己的说法和一个借来的概念并置，用后者解释前者",
+  "- 拓展：把素材里的一个具体现象上升为可迁移的模式",
   "特异性检验：一个概念如果原样搬到另外一百篇不同题材的文章里也能用，它就不够特异，不要用名字。",
   "互联网上常见的通用心理学、经济学效应类词汇默认不用",
-  "加粗的概念必须来自素材关键词表，或从本篇形式安排允许借用的学科里借来、并对应关键词表里某个具体机制；最近几篇已经用过的概念不加粗也不使用。",
+  "加粗的概念必须对应素材里的某个具体机制：或是素材自己的词、领域术语，或是从本篇形式安排允许借用的学科里通过联想、融合、拓展借来的概念；最近几篇已经用过的概念不加粗也不使用。",
   "概念以素材为准，需要外部概念解释机制时，只能从本篇允许借用的学科里借",
-  "- 每个被命名、被加粗的概念是否都能对应素材关键词表；",
+  "- 每个被命名、被加粗的概念是否都能对应素材里的某个具体机制（而不只是听起来相关）；",
   "最近几篇改写里已经用过的概念（本文不要再用，也不要换个说法暗示它们；素材原文本身就包含的词除外）："
 ]) {
   assert(articleRewriteTemplate.includes(rule), `source-driven concept rule missing: ${rule}`)
 }
-for (const obsoleteRule of ["“原来这就是某种效应。”", "“这不是能力问题，而是结构问题。”"]) {
+for (const obsoleteRule of ["“原来这就是某种效应。”", "“这不是能力问题，而是结构问题。”", "对不上素材关键词表的概念，不命名", "都必须能对应到这张表：", "只用素材自己出现过的词来命名概念，不引入任何外部术语"]) {
   assert(!articleRewriteTemplate.includes(obsoleteRule), `concept-priming example remains: ${obsoleteRule}`)
 }
 assert(articleRewriteTemplate.split("${recentConcepts}").length - 1 === 1, "article rewrite prompt must contain one recent-concepts placeholder")
+for (const keyword of ["直接命名", "联想", "融合", "拓展"]) {
+  assert(varietyConfig.conceptModes.some((mode) => mode.includes(keyword)), `conceptModes must include a 「${keyword}」 mode`)
+}
 const memoryApi = legacy.memory
 assert(memoryApi && typeof memoryApi.extractConceptsFromHtml === "function", "shared/rewriteConceptMemory.js did not initialize")
 const extracted = memoryApi.extractConceptsFromHtml('<p><strong>沉没成本</strong>，<b> 锚定效应 </b>和<strong>沉没成本</strong>；<strong>「路径依赖」</strong><strong></strong></p>')
