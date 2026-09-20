@@ -14,8 +14,8 @@ export interface RewriteVarietyConfig {
   titleForms?: string[]
   openingForms?: string[]
   endingForms?: string[]
-  secondLenses?: string[]
   conceptModes?: string[]
+  disciplinePool?: string[]
 }
 
 export interface RewriteVarietyPlan {
@@ -23,8 +23,9 @@ export interface RewriteVarietyPlan {
   title: string
   opening: string
   ending: string
-  lens: string
   mode: string
+  disciplines: string[]
+  excludedDisciplines: string[]
 }
 
 function pick(list: string[] | undefined, index: number): string {
@@ -47,6 +48,20 @@ export function seedFromDate(date?: Date): number {
   return (((dayOfYear * 24 + d.getUTCHours()) % REWRITE_VARIETY_CYCLE) + REWRITE_VARIETY_CYCLE) % REWRITE_VARIETY_CYCLE
 }
 
+export const REWRITE_VARIETY_SLICE_SIZE = 3
+export const REWRITE_VARIETY_SLICE_STRIDE = 7
+
+// 第 n 篇可借用的学科切片：池按类分组时，步长 7 让三个学科落在不同类
+export function disciplineSlice(pool: string[] | undefined, n: number): string[] {
+  if (!Array.isArray(pool) || pool.length === 0) return []
+  const out: string[] = []
+  for (let i = 0; i < REWRITE_VARIETY_SLICE_SIZE; i++) {
+    const term = pick(pool, (REWRITE_VARIETY_SLICE_SIZE * n + i) * REWRITE_VARIETY_SLICE_STRIDE)
+    if (term && !out.includes(term)) out.push(term)
+  }
+  return out
+}
+
 export function resolveRewriteVarietyPlan(config: RewriteVarietyConfig | undefined, counter: unknown): RewriteVarietyPlan {
   const n = normalizeCounter(counter) ?? 0
   return {
@@ -54,8 +69,9 @@ export function resolveRewriteVarietyPlan(config: RewriteVarietyConfig | undefin
     title: pick(config?.titleForms, n),
     opening: pick(config?.openingForms, n),
     ending: pick(config?.endingForms, n + Math.floor(n / 5)),
-    lens: pick(config?.secondLenses, n * 5 + Math.floor(n / 12)),
-    mode: pick(config?.conceptModes, n + Math.floor(n / 4))
+    mode: pick(config?.conceptModes, n + Math.floor(n / 4)),
+    disciplines: disciplineSlice(config?.disciplinePool, n),
+    excludedDisciplines: disciplineSlice(config?.disciplinePool, n - 1)
   }
 }
 
@@ -66,8 +82,11 @@ export function renderRewriteVarietyPlan(plan: RewriteVarietyPlan | null | undef
     `- 开头从「${plan.opening}」进入；`,
     `- 结尾用「${plan.ending}」收束；`
   ]
-  if (plan.lens) {
-    lines.push(`- 如果素材允许，可以从「${plan.lens}」的角度补一个类比或解释；素材不允许就不补，不要为了用它而扭曲素材。`)
+  if (Array.isArray(plan.disciplines) && plan.disciplines.length) {
+    lines.push(`- 本篇可借用的学科（只在需要外部概念解释素材里的具体机制时借，每个借来的概念都要对应素材关键词表；其余学科的概念本篇不用）：${plan.disciplines.join("、")}；`)
+  }
+  if (Array.isArray(plan.excludedDisciplines) && plan.excludedDisciplines.length) {
+    lines.push(`- 上一篇借用过的学科，本篇不借：${plan.excludedDisciplines.join("、")}；`)
   }
   if (plan.mode) {
     lines.push(`- 概念处理：${plan.mode}；加粗上限仍是最多 6 个。`)

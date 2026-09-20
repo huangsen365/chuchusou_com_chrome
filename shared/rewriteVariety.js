@@ -13,7 +13,8 @@
    *   标题   = titleForms[n % 6]
    *   开头   = openingForms[n % 5]
    *   结尾   = endingForms[(n + floor(n / 5)) % 5]     相邻两篇必不同，且与开头的配对每 5 篇漂移一次
-   *   第二视角 = secondLenses[(n * 5 + floor(n / 12)) % 12]  5 与 12 互质，相邻两篇必不同
+   *   可借学科 = disciplinePool[((3n + i) * 7) % 60]，i = 0..2  7 与 60 互质：相邻两篇切片不重叠，20 篇轮完全池；
+   *              上一篇（n-1）的切片本篇自动排除，无需存储
    *   概念处理 = conceptModes[(n + floor(n / 4)) % 4]          步长 1 或 2，相邻两篇必不同（加粗上限固定 6，不轮换）
    */
   const PLACEHOLDER = '${varietyPlan}';
@@ -42,6 +43,20 @@
     return ((dayOfYear * 24 + d.getUTCHours()) % CYCLE + CYCLE) % CYCLE;
   }
 
+  const SLICE_SIZE = 3;
+  const SLICE_STRIDE = 7;
+
+  // 第 n 篇可借用的学科切片：池按类分组时，步长 7 让三个学科落在不同类
+  function disciplineSlice(pool, n) {
+    if (!Array.isArray(pool) || pool.length === 0) return [];
+    const out = [];
+    for (let i = 0; i < SLICE_SIZE; i++) {
+      const term = pick(pool, (SLICE_SIZE * n + i) * SLICE_STRIDE);
+      if (term && !out.includes(term)) out.push(term);
+    }
+    return out;
+  }
+
   function resolvePlan(config, counter) {
     const n = normalizeCounter(counter) ?? 0;
     return {
@@ -49,8 +64,9 @@
       title: pick(config?.titleForms, n),
       opening: pick(config?.openingForms, n),
       ending: pick(config?.endingForms, n + Math.floor(n / 5)),
-      lens: pick(config?.secondLenses, n * 5 + Math.floor(n / 12)),
-      mode: pick(config?.conceptModes, n + Math.floor(n / 4))
+      mode: pick(config?.conceptModes, n + Math.floor(n / 4)),
+      disciplines: disciplineSlice(config?.disciplinePool, n),
+      excludedDisciplines: disciplineSlice(config?.disciplinePool, n - 1)
     };
   }
 
@@ -61,8 +77,11 @@
       `- 开头从「${plan.opening}」进入；`,
       `- 结尾用「${plan.ending}」收束；`
     ];
-    if (plan.lens) {
-      lines.push(`- 如果素材允许，可以从「${plan.lens}」的角度补一个类比或解释；素材不允许就不补，不要为了用它而扭曲素材。`);
+    if (Array.isArray(plan.disciplines) && plan.disciplines.length) {
+      lines.push(`- 本篇可借用的学科（只在需要外部概念解释素材里的具体机制时借，每个借来的概念都要对应素材关键词表；其余学科的概念本篇不用）：${plan.disciplines.join('、')}；`);
+    }
+    if (Array.isArray(plan.excludedDisciplines) && plan.excludedDisciplines.length) {
+      lines.push(`- 上一篇借用过的学科，本篇不借：${plan.excludedDisciplines.join('、')}；`);
     }
     if (plan.mode) {
       lines.push(`- 概念处理：${plan.mode}；加粗上限仍是最多 6 个。`);
@@ -117,7 +136,10 @@
     COUNTER_KEY,
     EMPTY_PLAN_TEXT,
     CYCLE,
+    SLICE_SIZE,
+    SLICE_STRIDE,
     seedFromDate,
+    disciplineSlice,
     resolvePlan,
     renderPlan,
     apply,
