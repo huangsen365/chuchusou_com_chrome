@@ -111,6 +111,34 @@ export async function verifyPlainArticleActions(cdp) {
     reset()
     await waitFor(ready, '边界场景后未恢复正常文章')
 
+    // 同轮先截断、再重新起稿：保留残稿直到后续真实点击，验证投递不会混入残稿。
+    const partial = message.cloneNode(true)
+    partial.setAttribute('data-message-id', 'assistant-long-partial-draft')
+    const partialBody = partial.querySelector('.markdown')
+    partialBody.querySelector('h1').textContent = '不应投递的早期残稿标题'
+    partialBody.querySelectorAll('p').forEach((node) => { node.textContent = '不应投递的早期残稿内容'.repeat(10) })
+    message.before(partial)
+    await waitFor(ready, '同轮残稿加成稿没有恢复按钮')
+    assert(turn.querySelectorAll(actionsSelector).length === 1, '残稿与成稿重复注入按钮')
+    partialBody.lastElementChild.textContent += '。'
+    await waitFor(() => !actions(), '两篇完整文章错误自动选择末篇')
+    partialBody.lastElementChild.textContent = '不应投递的早期残稿内容'
+    await waitFor(ready, '恢复前文截断状态后未识别成稿')
+    message.setAttribute('data-is-streaming', 'true')
+    await waitFor(() => actions()?.dataset.ccsLongArticleState === 'generating', '重新起稿尚在生成时未禁用动作')
+    assert([...actions().querySelectorAll('button')].every((button) => button.disabled), '重新起稿生成中仍能投递')
+    message.removeAttribute('data-is-streaming')
+    await waitFor(ready, '重新起稿完成后按钮未恢复')
+    const ending = article.lastElementChild.textContent
+    article.lastElementChild.textContent = '末篇也在此处中断'
+    await waitFor(() => !actions(), '两篇残稿错误显示可投递动作')
+    article.lastElementChild.textContent = ending
+    await waitFor(ready, '恢复成稿结尾后按钮未恢复')
+    message.after(partial)
+    await waitFor(() => !actions(), '末篇是残稿时错误回退前篇')
+    message.before(partial)
+    await waitFor(ready, '残稿回到前方后未恢复最终成稿动作')
+
     // 副标题、加粗、链接继续交给后面的 X 精确写入断言；混入的控件必须排除。
     const ignoredControls = document.createElement('div')
     ignoredControls.setAttribute('role', 'toolbar')
@@ -120,9 +148,10 @@ export async function verifyPlainArticleActions(cdp) {
     assert(turn.querySelectorAll(actionsSelector).length === 1, '普通长文重复注入动作栏')
 
     window.__restoreLongWritingBlock = () => {
+      partial.remove()
       message.replaceChildren(writingBlock)
       footer.remove()
     }
     return { title: article.querySelector('h1').textContent, actions: actions().querySelectorAll('button').length }
-  }).toString()})()`, { timeoutMs: 30_000 })
+  }).toString()})()`, { timeoutMs: 45_000 })
 }

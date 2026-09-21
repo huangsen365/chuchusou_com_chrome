@@ -266,27 +266,50 @@
     };
   }
 
-  function workflowCandidateFor(assistant) {
-    if (!(assistant instanceof HTMLElement) || !assistant.matches(ASSISTANT_SELECTOR)) return null;
+  function singleArticleBlock(assistant) {
     const blocks = Array.from(assistant.querySelectorAll(WRITING_BLOCK_SELECTOR));
     if (blocks.length > 1) return null;
+    if (blocks.length === 1) return blocks[0];
+    const articles = Array.from(assistant.querySelectorAll('.markdown')).filter((node) => node.querySelector('h1'));
+    return articles.length === 1 && articles[0].querySelectorAll('h1').length === 1 ? articles[0] : null;
+  }
+
+  function articleEnding(block) {
+    const snapshot = extractArticleSnapshot(block);
+    if (!snapshot?.bodyHtml || !snapshot.title) return null;
+    const template = document.createElement('template');
+    template.innerHTML = snapshot.bodyHtml;
+    const last = template.content.lastElementChild;
+    // 只把正文段落中的断句作为重起稿线索；列表、标题、图片等结尾不据此判为残稿。
+    if (!last?.matches('p') || !last.textContent.trim()) return null;
+    return /[。！？.!?…][”’"'）)\]】]*$/u.test(last.textContent.trim()) ? 'sentence' : 'fragment';
+  }
+
+  function workflowCandidateFor(assistant) {
+    if (!(assistant instanceof HTMLElement) || !assistant.matches(ASSISTANT_SELECTOR)) return null;
+    const block = singleArticleBlock(assistant);
+    if (!block) return null;
     const turn = assistant.closest(TURN_SELECTOR);
     if (turn) {
       const articleMessages = Array.from(turn.querySelectorAll(ASSISTANT_SELECTOR))
         .filter((message) => message.querySelector(WRITING_BLOCK_SELECTOR) || message.querySelector('.markdown h1'));
-      // 空消息不影响识别；同轮出现多篇文章时不替用户选择投递哪一篇。
-      if (articleMessages.length !== 1 || articleMessages[0] !== assistant) return null;
+      if (articleMessages.at(-1) !== assistant) return null;
+      if (articleMessages.length > 1) {
+        // Work 同轮可能保留中途截断的稿件，再输出完整成稿。只接受末篇，
+        // 且前稿必须明确断在正文句中；两篇完整文章仍不自动代选，也不拼接。
+        if (!extractArticle(block) || articleEnding(block) !== 'sentence') return null;
+        if (!articleMessages.slice(0, -1).every((message) => {
+          const earlier = singleArticleBlock(message);
+          return earlier && articleEnding(earlier) === 'fragment';
+        })) return null;
+      }
     }
-    let block = blocks[0];
     let copyButton;
     let toolbar;
-    if (block) {
+    if (block.matches(WRITING_BLOCK_SELECTOR)) {
       copyButton = findCopyButton(block);
       toolbar = copyButton?.closest('[role="toolbar"]') || block.querySelector('[role="toolbar"]');
     } else {
-      const articles = Array.from(assistant.querySelectorAll('.markdown')).filter((node) => node.querySelector('h1'));
-      if (articles.length !== 1 || articles[0].querySelectorAll('h1').length !== 1) return null;
-      block = articles[0];
       if (!turn) return null;
       copyButton = turn.querySelector(RESPONSE_COPY_SELECTOR);
       if (!copyButton || block.contains(copyButton)) return null;
