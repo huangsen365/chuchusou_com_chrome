@@ -90,9 +90,11 @@
 
   function previousUserMessage(assistant) {
     const messages = Array.from(document.querySelectorAll(ROLE_SELECTOR));
-    const index = messages.indexOf(assistant);
-    if (index <= 0) return null;
-    const previous = messages[index - 1];
+    let index = messages.indexOf(assistant) - 1;
+    const turn = assistant.closest(TURN_SELECTOR);
+    // 来源属于整轮回复；跳过同轮消息，但不能越过其他轮去借用更早的提示词。
+    while (index >= 0 && turn && messages[index].closest(TURN_SELECTOR) === turn) index -= 1;
+    const previous = messages[index];
     return previous?.getAttribute('data-message-author-role') === 'user' ? previous : null;
   }
 
@@ -268,6 +270,13 @@
     if (!(assistant instanceof HTMLElement) || !assistant.matches(ASSISTANT_SELECTOR)) return null;
     const blocks = Array.from(assistant.querySelectorAll(WRITING_BLOCK_SELECTOR));
     if (blocks.length > 1) return null;
+    const turn = assistant.closest(TURN_SELECTOR);
+    if (turn) {
+      const articleMessages = Array.from(turn.querySelectorAll(ASSISTANT_SELECTOR))
+        .filter((message) => message.querySelector(WRITING_BLOCK_SELECTOR) || message.querySelector('.markdown h1'));
+      // 空消息不影响识别；同轮出现多篇文章时不替用户选择投递哪一篇。
+      if (articleMessages.length !== 1 || articleMessages[0] !== assistant) return null;
+    }
     let block = blocks[0];
     let copyButton;
     let toolbar;
@@ -278,8 +287,7 @@
       const articles = Array.from(assistant.querySelectorAll('.markdown')).filter((node) => node.querySelector('h1'));
       if (articles.length !== 1 || articles[0].querySelectorAll('h1').length !== 1) return null;
       block = articles[0];
-      const turn = assistant.closest(TURN_SELECTOR);
-      if (!turn || turn.querySelectorAll(ASSISTANT_SELECTOR).length !== 1) return null;
+      if (!turn) return null;
       copyButton = turn.querySelector(RESPONSE_COPY_SELECTOR);
       if (!copyButton || block.contains(copyButton)) return null;
       toolbar = copyButton.closest('[role="toolbar"], [role="group"]');
@@ -291,7 +299,7 @@
       block,
       copyButton,
       toolbar,
-      streaming: isStreaming(assistant, block, copyButton),
+      streaming: isStreaming(turn || assistant, block, copyButton),
       snapshot: extractArticleSnapshot(block)
     };
   }

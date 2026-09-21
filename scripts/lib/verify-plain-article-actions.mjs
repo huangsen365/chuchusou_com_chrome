@@ -45,6 +45,33 @@ export async function verifyPlainArticleActions(cdp) {
     assert(actions().querySelectorAll('button').length === 2, '普通长文按钮数量不符')
     assert([...actions().querySelectorAll('button')].every((button) => !button.disabled), '完整普通长文按钮不可点击')
 
+    // 同轮空消息可在正文前后移动；只要该轮仍在生成，就继续禁用动作。
+    const empty = turn.querySelector('[data-message-id="assistant-long-empty-before"]')
+    empty.setAttribute('data-is-streaming', 'true')
+    await waitFor(() => actions()?.dataset.ccsLongArticleState === 'generating', '同轮空消息仍在生成时未禁用长文按钮')
+    assert([...actions().querySelectorAll('button')].every((button) => button.disabled), '同轮生成状态未保护长文投递')
+    empty.removeAttribute('data-is-streaming')
+    message.after(empty)
+    await waitFor(ready, '空消息移到正文后未恢复长文按钮')
+    message.before(empty)
+    await delay(100)
+    assert(ready() && turn.querySelectorAll(actionsSelector).length === 1, '空消息移到正文前破坏长文识别')
+
+    const secondArticle = message.cloneNode(true)
+    turn.append(secondArticle)
+    await waitFor(() => !actions(), '同轮两篇文章仍允许投递不明确的正文')
+    secondArticle.remove()
+    await waitFor(ready, '同轮恢复唯一文章后按钮没有恢复')
+
+    // 空节点只在同轮内跳过，不能把其他轮的旧改写提示词当作来源。
+    const unrelatedTurn = document.createElement('section')
+    unrelatedTurn.setAttribute('data-testid', 'conversation-turn-unrelated')
+    unrelatedTurn.innerHTML = '<div data-message-author-role="assistant"></div>'
+    turn.before(unrelatedTurn)
+    await waitFor(() => !actions(), '错误越过另一轮回复使用旧提示词')
+    unrelatedTurn.remove()
+    await waitFor(ready, '恢复相邻提示词后长文按钮没有恢复')
+
     // DOM 重渲染复制按钮、消息节点，以及 writing block / 普通回复互转。
     footer.firstElementChild.replaceWith(footer.firstElementChild.cloneNode(true))
     await waitFor(() => actions()?.previousElementSibling === footer.firstElementChild, '底栏重渲染后按钮未重新定位')

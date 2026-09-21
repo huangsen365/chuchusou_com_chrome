@@ -86,16 +86,22 @@
     }
   }
 
-  function inject(assistantMessage) {
-    const turn = assistantMessage.closest(TURN_SELECTOR);
-    const copyButton = turn?.querySelector(COPY_RESPONSE_SELECTOR);
-    if (!turn || !copyButton) return;
+  function inject(root) {
+    const turn = root.closest(TURN_SELECTOR);
+    if (!turn) return;
+    const copyButton = turn.querySelector(COPY_RESPONSE_SELECTOR);
     const current = turn.querySelector(`[${BUTTON_MARKER}]`);
-    if (!Runtime.matchesSelectARewriteResponse(assistantMessage)) {
+    // 同一轮可能包含正文和空占位消息，统一判断，避免后面的空节点删掉按钮。
+    const matches = Array.from(turn.querySelectorAll(ASSISTANT_MESSAGE_SELECTOR))
+      .some((message) => Runtime.matchesSelectARewriteResponse(message));
+    if (!copyButton || !matches) {
       current?.remove();
       return;
     }
-    if (current) return;
+    if (current) {
+      if (current.previousElementSibling !== copyButton) copyButton.insertAdjacentElement('afterend', current);
+      return;
+    }
     const button = document.createElement('button');
     button.type = 'button';
     button.className = BUTTON_CLASS;
@@ -120,7 +126,7 @@
       scheduled = true;
       requestAnimationFrame(() => {
         scheduled = false;
-        document.querySelectorAll(ASSISTANT_MESSAGE_SELECTOR).forEach(inject);
+        document.querySelectorAll(TURN_SELECTOR).forEach(inject);
       });
     };
     const observer = new MutationObserver(schedule);

@@ -71,16 +71,22 @@ async function fillRewritePrompt(button: HTMLButtonElement): Promise<void> {
   }
 }
 
-export function injectChatGptSelectARewrite(assistantMessage: HTMLElement): void {
-  const turn = assistantMessage.closest<HTMLElement>(TURN_SELECTOR)
-  const copyButton = turn?.querySelector<HTMLButtonElement>(COPY_RESPONSE_SELECTOR)
-  if (!turn || !copyButton) return
+export function injectChatGptSelectARewrite(root: HTMLElement): void {
+  const turn = root.closest<HTMLElement>(TURN_SELECTOR)
+  if (!turn) return
+  const copyButton = turn.querySelector<HTMLButtonElement>(COPY_RESPONSE_SELECTOR)
   const current = turn.querySelector<HTMLButtonElement>(`[${BUTTON_MARKER}]`)
-  if (!matchesSelectARewriteResponse(assistantMessage)) {
+  // 同一轮可能包含正文和空占位消息，统一判断，避免后面的空节点删掉按钮。
+  const matches = Array.from(turn.querySelectorAll<HTMLElement>(ASSISTANT_MESSAGE_SELECTOR))
+    .some(matchesSelectARewriteResponse)
+  if (!copyButton || !matches) {
     current?.remove()
     return
   }
-  if (current) return
+  if (current) {
+    if (current.previousElementSibling !== copyButton) copyButton.insertAdjacentElement("afterend", current)
+    return
+  }
   const button = document.createElement("button")
   button.type = "button"
   button.className = BUTTON_CLASS
@@ -105,7 +111,7 @@ export function startChatGptSelectARewriteIntegration(): () => void {
     scheduled = true
     requestAnimationFrame(() => {
       scheduled = false
-      document.querySelectorAll<HTMLElement>(ASSISTANT_MESSAGE_SELECTOR).forEach(injectChatGptSelectARewrite)
+      document.querySelectorAll<HTMLElement>(TURN_SELECTOR).forEach(injectChatGptSelectARewrite)
     })
   }
   const observer = new MutationObserver(schedule)

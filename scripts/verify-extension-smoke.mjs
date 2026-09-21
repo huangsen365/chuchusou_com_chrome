@@ -133,6 +133,7 @@ async function main() {
           #prompt-textarea { width: 720px; min-height: 160px; border: 1px solid #999; white-space: pre-wrap; }
         </style>
         <section data-testid="conversation-turn-2">
+          <div data-message-author-role="assistant" data-message-id="assistant-rewrite-empty-before"></div>
           <div data-message-author-role="assistant" data-message-id="assistant-rewrite-1">
             <div class="markdown">
               <p>【短篇回答】</p>
@@ -148,6 +149,7 @@ async function main() {
               <p>A：是否继续生成详细内容？<br>B：是否需要将【短篇回答】和【中篇回答】改得更口语、更有活人感？</p>
             </div>
           </div>
+          <div data-message-author-role="assistant" data-message-id="assistant-rewrite-empty-after"></div>
           <div role="group"><button data-testid="copy-turn-action-button" aria-label="Copy response">Copy</button></div>
         </section>
         <section data-testid="conversation-turn-3">
@@ -159,6 +161,7 @@ async function main() {
 原始素材参考本次对话上下文。</div>
         </section>
         <section data-testid="conversation-turn-4">
+          <div data-message-author-role="assistant" data-message-id="assistant-long-empty-before"></div>
           <div data-message-author-role="assistant" data-message-id="assistant-long-rewrite-1" data-is-streaming="true">
             <div data-testid="writing-block-container" data-writing-block="true">
               <div role="toolbar"><button data-testid="writing-block-copy-button" aria-label="Copy" aria-disabled="true" disabled>Copy</button></div>
@@ -169,6 +172,7 @@ async function main() {
               </div>
             </div>
           </div>
+          <div data-message-author-role="assistant" data-message-id="assistant-long-empty-after"></div>
         </section>
         <template id="long-article-final-content">
           <h1>他的成熟判断，来自理解事情背后的结构</h1>
@@ -868,6 +872,48 @@ async function main() {
     if (chatRewriteAction?.count !== 1 || !chatRewriteAction.label.includes("选A并优化改写") || !chatRewriteAction.afterCopy) {
       fail(`ChatGPT 选A改写按钮注入异常: ${JSON.stringify(chatRewriteAction)}`)
     }
+    await evaluate(chatRewriteFixture.cdp, `(${(async function () {
+      const message = document.querySelector('[data-message-id="assistant-rewrite-1"]')
+      const turn = message.closest('[data-testid^="conversation-turn-"]')
+      const marker = '[data-ccs-select-a-rewrite]'
+      const waitFor = async (predicate, label) => {
+        const deadline = Date.now() + 4000
+        while (Date.now() < deadline) {
+          if (predicate()) return
+          await new Promise((resolve) => setTimeout(resolve, 50))
+        }
+        throw new Error(label)
+      }
+      // 删除唯一匹配的消息后必须清理按钮；只剩空节点时不能保留旧入口。
+      const placeholder = document.createElement('div')
+      message.replaceWith(placeholder)
+      await waitFor(() => !turn.querySelector(marker), '真实内容移除后遗留选A按钮')
+      placeholder.replaceWith(message)
+      await waitFor(() => turn.querySelectorAll(marker).length === 1, '空节点共存时选A按钮没有恢复')
+      const button = turn.querySelector(marker)
+      const copy = turn.querySelector('[data-testid="copy-turn-action-button"]')
+      copy.replaceWith(copy.cloneNode(true))
+      await waitFor(() => button.previousElementSibling === turn.querySelector('[data-testid="copy-turn-action-button"]'), '回复底栏重绘后选A按钮位置失效')
+      // 重排同轮空节点不能再造成每帧新增、删除按钮。
+      let buttonMutations = 0
+      const observer = new MutationObserver((records) => {
+        for (const record of records) {
+          for (const node of [...record.addedNodes, ...record.removedNodes]) {
+            if (node.nodeType === 1 && (node.matches(marker) || node.querySelector(marker))) buttonMutations += 1
+          }
+        }
+      })
+      observer.observe(turn, { childList: true, subtree: true })
+      const empty = turn.querySelector('[data-message-id="assistant-rewrite-empty-after"]')
+      message.before(empty)
+      await new Promise((resolve) => setTimeout(resolve, 150))
+      message.after(empty)
+      await new Promise((resolve) => setTimeout(resolve, 150))
+      observer.disconnect()
+      if (buttonMutations !== 0 || turn.querySelectorAll(marker).length !== 1) {
+        throw new Error('空节点重排导致选A按钮反复增删或重复')
+      }
+    }).toString()})()`)
     await evaluate(chatRewriteFixture.cdp, `document.querySelector('[data-ccs-select-a-rewrite]')?.click()`)
     let chatRewriteFill = null
     for (let i = 0; i < 40; i++) {
