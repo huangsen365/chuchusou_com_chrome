@@ -1,5 +1,19 @@
 # 更新日志
 
+## v1.17.5 (2026-09-21)
+
+**「注入X草稿 / 生成封面」支持没有 writing block 的普通 ChatGPT 回复；同轮空消息不再吃掉按钮**。详细见 [releases/v1.17.5.md](./releases/v1.17.5.md)。
+
+### 🐛 修复
+
+- **ChatGPT 把长文以普通回复（不带 writing block）输出时按钮不出现**：此前只认 writing block。现在同轮只有一篇文章、正文是含唯一主标题的 `.markdown` 时，也会识别为长文成品，按钮挂在该轮回复的「复制」按钮旁；标题取正文里的 H1。同轮出现多篇文章时不替用户选择，按钮不出现。
+- **同一轮里出现空的 assistant 占位节点时按钮被误删 / 来源识别错乱**：ChatGPT 有时在一轮回复里附带空消息节点。现在「选 A 改写」按钮和长文动作按钮都按整轮判断：空节点不影响识别，也不会触发清理；来源（上一条用户提示词）跳过同轮消息定位，但不会越过别的轮去借用更早的提示词；生成中判断按整轮看。
+
+### 🛠 技术改动
+
+- `modules/longArticleActions.js`：新增 `TURN_SELECTOR` / `RESPONSE_COPY_SELECTOR`，动作栏改为按 assistant 节点用 `Map` 持有（普通回复的动作栏在 assistant 节点外，需按消息去重、迁移、清理）；`extractArticleSnapshot` 接受非 writing block 的 `.markdown` 正文；`previousUserMessage` 跳过同轮；`isStreaming` 按整轮。`modules/chatGptSelectARewrite.js` 与 TS 口径同步按轮注入，按钮被挪位时自动归位。
+- 新增 `scripts/lib/verify-plain-article-actions.mjs`；冒烟新增普通回复注入与空占位节点两组断言。
+
 ## v1.17.4 (2026-09-21)
 
 **改写成品必须独立成文：不再出现「原文说……」，纠偏静默完成；速答不再用「真正」**。详细见 [releases/v1.17.4.md](./releases/v1.17.4.md)。
