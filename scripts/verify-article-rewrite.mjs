@@ -172,10 +172,10 @@ async function verifyApi(name, api, hooks) {
   assert(!prompt.includes("${varietyPlan}"), `${name}: literal variety-plan placeholder leaked`)
   assert(prompt.includes("本篇的形式安排（由扩展按轮换计数生成"), `${name}: variety plan heading missing from built prompt`)
   assert(/- 主标题采用「.+?」的形式；\n- 开头从「.+?」进入；\n- 结尾用「.+?」收束；/.test(prompt), `${name}: variety plan lines missing or malformed`)
-  assert(/- 概念处理：[^\n]+；加粗目标 4～6 个，最多 8 个。/.test(prompt), `${name}: concept-mode line missing from variety plan`)
-  assert(/- 本篇可借用的学科（[^\n]+）：[^、\n]+、[^、\n]+、[^、\n]+；\n- 上一篇借用过的学科，本篇不借：[^\n]+；/.test(prompt), `${name}: discipline slice lines missing from variety plan`)
+  assert(/- 概念处理：[^\n]+；目标 4～6 个有解释价值的概念，最多 8 个，其中争取 2～3 个来自指定学科；首次出现时加粗，不用普通词凑数。/.test(prompt), `${name}: concept-mode line missing from variety plan`)
+  assert(/- 本篇先探索的学科（[^\n]+）：[^、\n]+、[^、\n]+、[^、\n]+；\n- 上一轮安排的学科（本轮优先探索新学科，不禁用相关知识）：[^\n]+；/.test(prompt), `${name}: discipline slice lines missing from variety plan`)
   assert(!prompt.includes("${recentConcepts}"), `${name}: literal recent-concepts placeholder leaked`)
-  assert(prompt.includes("最近几篇改写里已经用过的概念（本文默认不用"), `${name}: recent-concepts block missing from built prompt`)
+  assert(prompt.includes("最近几篇改写里已经用过的概念（用于提醒避免重复用法"), `${name}: recent-concepts block missing from built prompt`)
   assert(prompt.includes("\n（无）"), `${name}: empty recent-concepts must render as （无） without storage`)
 
   const fill = await api.fillCurrentComposer("改写提示词")
@@ -193,8 +193,8 @@ const sourceJson = JSON.parse(fs.readFileSync(promptSourcePath, "utf8"))
 const mirrorJson = JSON.parse(fs.readFileSync(promptMirrorPath, "utf8"))
 assert(JSON.stringify(sourceJson) === JSON.stringify(mirrorJson), "TypeScript prompt asset must mirror the runtime prompt asset")
 assert(sourceJson.id === "article_rewrite" && sourceJson.status === "active", "article rewrite prompt metadata invalid")
-assert(sourceJson.version === 29, "article rewrite prompt version must be 29")
-assert(sourceJson.templateLines.length === 809, "article rewrite prompt line count drifted")
+assert(sourceJson.version === 30, "article rewrite prompt version must be 30")
+assert(sourceJson.templateLines.filter((line) => /^# [一二三四五六七八九十]+、/.test(line)).length === 28, "article rewrite prompt must retain its 28 writing sections")
 assert(sourceJson.templateLines.join("\n").split("${url}").length - 1 === 1, "article rewrite prompt must contain one URL placeholder")
 assert(sourceJson.templateLines.join("\n").split("${outputLanguage}").length - 1 === 1, "article rewrite prompt must contain one output-language placeholder")
 assert(sourceJson.templateLines.join("\n").includes("无论原始素材使用何种语言"), "article rewrite prompt must handle foreign-language source material")
@@ -244,13 +244,8 @@ for (const rule of [
   "但不要每篇都按这个顺序写。",
   "# 十一、素材允许时，加入判断方法",
   "一篇没有方法论的文章，同样可以是好文章。",
-  "整篇文章不出现任何“效应”“定律”“模型”式的命名也完全可以。",
   "全文挑出**目标 4～6 个、最多 8 个**",
-  "素材确实撑不住时可以更少，但不要为了凑数硬贴。",
-  "确实没有，就一个也不加粗。",
   "- 全文“真正”是否不超过 1 次，且未出现在标题、首段和末段；",
-  "知识跟着素材走：素材属于哪个领域，就优先用那个领域自己的概念和术语；",
-  "这些概念跟着素材走：素材属于哪个领域，就用那个领域自己的术语；"
 ]) {
   assert(articleRewriteTemplate.includes(rule), `article rewrite anti-template rule missing: ${rule}`)
 }
@@ -308,9 +303,8 @@ for (let n = 0; n < 200; n++) {
   assert(new Set(groups).size === 3, `discipline slice ${n} must span three categories: ${a.disciplines.join("、")}`)
 }
 const rendered = varietyApi.renderPlan(varietyApi.resolvePlan(varietyConfig, 7))
-assert(varietyConfig.conceptModes.every((mode) => /[2-4]～[3-4] 个/.test(mode)), "conceptModes borrowing ranges must be 2～3 / 2～4")
 assert(rendered.startsWith("- 主标题采用「") && rendered.includes("\n- 开头从「") && rendered.includes("\n- 结尾用「") &&
-  rendered.includes("\n- 本篇可借用的学科（") && rendered.includes("\n- 上一篇借用过的学科，本篇不借：") && rendered.includes("\n- 概念处理："),
+  rendered.includes("\n- 本篇先探索的学科（") && rendered.includes("\n- 上一轮安排的学科（本轮优先探索新学科，不禁用相关知识）：") && rendered.includes("\n- 概念处理："),
   "variety plan rendering format drifted")
 const covered = new Set()
 for (let n = 0; n < 20; n++) varietyApi.resolvePlan(varietyConfig, n).disciplines.forEach((d) => covered.add(d))
@@ -321,30 +315,36 @@ assert(articleRewriteTemplate.includes("本篇的形式安排（由扩展按轮�
 assert(articleRewriteTemplate.split("${varietyPlan}").length - 1 === 1, "article rewrite prompt must contain one variety-plan placeholder")
 assert(articleRewriteTemplate.includes("如果被安排的标题形式和开头方式碰巧是同一种手法"), "same-kind title/opening fallback rule missing")
 
-// 概念只从素材来（第一 / 五 / 十二 / 二十八节）+ 近期概念记忆
+// 先探索再筛选：统一概念规则，保留跨学科类比边界与解释增量要求。
 for (const rule of [
-  "同时在内部列一份「素材关键词表」（不输出）。后面所有要命名的概念，都必须能对应到表里的某个具体机制、现象或矛盾——对应的是机制，不要求素材里出现过那个词：",
-  "概念从哪里来，有三条路：直接用素材自己的词",
-  "通过联想、融合、拓展找到一个能精准解释素材里某个机制的概念。",
-  "对不上素材里任何具体机制的概念，不命名，用白话把机制讲清楚",
+  "素材问题表",
+  "不限制概念的学科或原文用词",
+  "素材决定要解释的问题，学科提供解释问题的工具",
+  "# 五、主动探索跨学科概念，再检验解释价值",
+  "对本篇指定的每个学科，先寻找至少 2 个候选概念",
+  "候选清单和筛选过程不输出",
+  "对应在哪些条件下成立、在哪些地方失效",
   "可以推断素材没说出口的机制，但不能虚构事实",
-  "不要因为素材没提供现成的词就放弃概念。",
-  "- 联想：从素材里的一个具体机制出发，在允许的学科里找一个能解释它的概念",
-  "- 融合：把素材自己的说法和一个借来的概念并置，用后者解释前者",
-  "- 拓展：把素材里的一个具体现象上升为可迁移的模式",
-  "特异性检验：一个概念如果原样搬到另外一百篇不同题材的文章里也能用，它就不够特异，不要用名字。",
-  "互联网上常见的通用心理学、经济学效应类词汇默认不用",
-  "加粗的概念必须对应素材里的某个具体机制：或是素材自己的词、领域术语，或是从本篇形式安排允许借用的学科里通过联想、融合、拓展借来的概念；最近几篇已经用过的概念不加粗也不使用。",
-  "概念以素材为准，需要外部概念解释机制时，只能从本篇允许借用的学科里借",
-  "- 每个被命名、被加粗的概念是否都能对应素材里的某个具体机制（而不只是听起来相关）；",
-  "最近几篇改写里已经用过的概念（本文默认不用，也不要换个说法暗示它们；只有当某个词正是素材所属领域的基本术语、不用就说不清楚时可以用，但不再加粗、不算本篇的新概念；素材原文本身就包含的词除外）：",
+  "跨领域类比可以启发理解，不能直接证明现实结论",
+  "概念可以通用，应用必须具体",
+  "不要求每个学科都入选，也不平均分配",
+  "不要用普通词加粗来补足名额",
+  "“合作就是共同做事”这种同义解释不计入目标",
+  "示例只展示对应关系和解释增量",
+  "只写“友谊像桥梁，需要维护”没有增加判断",
+  "只写“团队像一道菜，要搭配好”没有说清机制",
+  "指定学科完成探索后仍不足，可以补充其他学科",
+  "用于提醒避免重复用法，不是禁用词表",
+  "列表只记录名称，不代表你知道此前的具体讲法",
+  "- 跨领域类比是否被误当成现实因果证据，术语是否保留了原意；",
+  "- 复用近期概念时，是否提供了针对当前问题的具体解释，而不是只换措辞；",
   "# 二十三、允许对原始材料进行必要纠偏，但成品必须独立成文",
   "修正要静默完成：直接写出修正后的判断，作为文章自己的观点陈述；不要在正文里写“原文说 X，但 X 过于绝对”这类批改过程。",
   "成品必须独立成文。读者手里没有素材，正文里不得出现“原文”“素材”“原始材料”“这段话”“这句话”“上文”“作者说”“题主”“楼主”这类指向来源的表述",
   "**独立成文。** 通篇没有任何一处让读者意识到它是从另一段文字改写来的。",
   "- 正文是否出现了“原文”“素材”“这句话”“作者说”等指向来源的表述，或把纠偏过程写了出来。"
 ]) {
-  assert(articleRewriteTemplate.includes(rule), `source-driven concept rule missing: ${rule}`)
+  assert(articleRewriteTemplate.includes(rule), `cross-disciplinary concept rule missing: ${rule}`)
 }
 for (const obsoleteRule of ["“原来这就是某种效应。”", "“这不是能力问题，而是结构问题。”", "对不上素材关键词表的概念，不命名", "都必须能对应到这张表：", "只用素材自己出现过的词来命名概念，不引入任何外部术语", "# 二十三、允许对原始材料进行必要纠偏\n"]) {
   assert(!articleRewriteTemplate.includes(obsoleteRule), `concept-priming example remains: ${obsoleteRule}`)
@@ -372,9 +372,32 @@ const fuzzyMerged = memoryApi.mergeRecent([{ term: "锚定效应", ts: 1 }], ["�
 assert(fuzzyMerged.length === 1 && fuzzyMerged[0].term === "锚定" && fuzzyMerged[0].ts === 2, `fuzzy merge must collapse suffix variants keeping the newest: ${JSON.stringify(fuzzyMerged)}`)
 const capped = memoryApi.mergeRecent(Array.from({ length: 80 }, (_, i) => ({ term: `概念${i}`, ts: 1 })), ["新概念"], 2)
 assert(capped.length === 80 && capped[0].term === "新概念" && !capped.some((item) => item.term === "概念79"), "cap must evict the oldest entry")
-const fastAnswersTemplate = JSON.parse(fs.readFileSync(path.join(root, "prompts/fastAnswersPrompts.json"), "utf8")).templateLines.join("\n")
-assert(fastAnswersTemplate.includes("概念只从素材里来：素材自己用到的词") && fastAnswersTemplate.includes("互联网上常见的通用心理学、经济学效应类词汇默认不用"),
-  "fast answers prompt must carry the same source-driven concept rule")
+const fastAnswersJson = JSON.parse(fs.readFileSync(path.join(root, "prompts/fastAnswersPrompts.json"), "utf8"))
+const fastAnswersMirror = JSON.parse(fs.readFileSync(path.join(root, "src/assets-json/prompts/fastAnswersPrompts.json"), "utf8"))
+assert(JSON.stringify(fastAnswersJson) === JSON.stringify(fastAnswersMirror), "fast answers prompt assets must match")
+const fastAnswersTemplate = fastAnswersJson.templateLines.join("\n")
+for (const rule of [
+  "素材决定要解释的问题，学科提供解释问题的工具",
+  "概念可以通用，应用必须具体",
+  "跨领域类比不能直接证明现实结论",
+  "短篇和中篇按篇幅选用能增加理解的概念，不强求数量或加粗",
+  "对每个学科先寻找至少 2 个候选",
+  "完成探索后有效候选不足可以减少",
+  "不是禁用词表",
+  "后续 A/B 如附有更具体的改写要求，以该轮要求为准"
+]) {
+  assert(fastAnswersTemplate.includes(rule), `fast answers concept rule missing: ${rule}`)
+}
+// 检查两轮完整提示词和动态安排，避免上游或末尾残留的禁令抵消新策略。
+for (const obsoleteRule of [
+  "概念只从素材里来", "素材关键词表", "其余学科的概念本篇不用",
+  "只能从本篇允许借用的学科里借", "一百篇不同题材", "通用心理学、经济学效应类词汇默认不用",
+  "也不要换个说法暗示它们", "本文默认不用", "本篇不借", "最近几篇已经用过的概念不加粗也不使用"
+]) {
+  for (const [name, text] of [["article", articleRewriteTemplate], ["fast answers", fastAnswersTemplate], ["variety", rendered]]) {
+    assert(!text.includes(obsoleteRule), `${name}: conflicting concept restriction remains: ${obsoleteRule}`)
+  }
+}
 assert(fastAnswersTemplate.includes("“真正”全文不用") && fastAnswersTemplate.includes("三种回答都必须独立成文") && fastAnswersTemplate.includes("不得出现“原文”“素材”"),
   "fast answers prompt must ban 「真正」 and require standalone answers")
 await verifyApi("legacy", legacy.api, legacy)

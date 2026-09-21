@@ -703,7 +703,9 @@ async function main() {
     if (!fastQaRecord?.prompt?.includes(foreignFastQaSource) ||
         !fastQaRecord.prompt.includes("短篇回答、中篇回答以及后续 A/B 生成的全部正文") ||
         !fastQaRecord.prompt.includes("以**简体中文**为主要输出语言") ||
-        !fastQaRecord.prompt.includes("概念只从素材里来：素材自己用到的词") ||
+        !fastQaRecord.prompt.includes("素材决定要解释的问题，学科提供解释问题的工具") ||
+        !fastQaRecord.prompt.includes("后续 A/B 如附有更具体的改写要求，以该轮要求为准") ||
+        fastQaRecord.prompt.includes("概念只从素材里来") ||
         fastQaRecord.prompt.includes("${outputLanguage}") || fastQaRecord.relayEngine !== "chatgpt") {
       fail(`外语素材速答语言提示词异常: ${JSON.stringify(fastQaRecord)?.slice(0, 1200)}`)
     }

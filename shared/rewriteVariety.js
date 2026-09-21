@@ -6,15 +6,15 @@
    *
    * 单次提示词没有跨文章记忆，模型每次都会退回自己最熟的那几种标题 / 开头 / 结尾。
    * 这里用一个本地轮换计数器 n 查表，把「本篇采用哪种形式」写成具体指令注入
-   * ${varietyPlan}。它只安排形式和一个可选的第二视角，概念仍然只能来自素材
-   * （见 articleRewritePrompts.json 第四节「知识跟着素材走」）。
+   * ${varietyPlan}。除写作形式外，也指定本篇须先探索的学科；入选概念仍须通过
+   * 对应关系与解释价值检验（见 articleRewritePrompts.json 第五节）。
    *
    * 映射（表在 articleRewritePrompts.json 的 varietyPlan 字段里，可直接改）：
    *   标题   = titleForms[n % 6]
    *   开头   = openingForms[n % 5]
    *   结尾   = endingForms[(n + floor(n / 5)) % 5]     相邻两篇必不同，且与开头的配对每 5 篇漂移一次
-   *   可借学科 = disciplinePool[((3n + i) * 7) % 60]，i = 0..2  7 与 60 互质：相邻两篇切片不重叠，20 篇轮完全池；
-   *              上一篇（n-1）的切片本篇自动排除，无需存储
+   *   探索学科 = disciplinePool[((3n + i) * 7) % 60]，i = 0..2  7 与 60 互质：相邻两篇切片不重叠，20 篇轮完全池；
+   *              上一篇（n-1）的切片只作轮换提示，不禁用相关知识，无需存储
    *   概念处理 = conceptModes[(n + floor(n / 4)) % 4]          步长 1 或 2，相邻两篇必不同（加粗目标 4～6、上限 8，固定不轮换）
    */
   const PLACEHOLDER = '${varietyPlan}';
@@ -46,7 +46,7 @@
   const SLICE_SIZE = 3;
   const SLICE_STRIDE = 7;
 
-  // 第 n 篇可借用的学科切片：池按类分组时，步长 7 让三个学科落在不同类
+  // 第 n 篇先探索的学科切片：池按类分组时，步长 7 让三个学科落在不同类
   function disciplineSlice(pool, n) {
     if (!Array.isArray(pool) || pool.length === 0) return [];
     const out = [];
@@ -78,13 +78,13 @@
       `- 结尾用「${plan.ending}」收束；`
     ];
     if (Array.isArray(plan.disciplines) && plan.disciplines.length) {
-      lines.push(`- 本篇可借用的学科（只在需要外部概念解释素材里的具体机制时借，每个借来的概念都要对应素材关键词表；其余学科的概念本篇不用）：${plan.disciplines.join('、')}；`);
+      lines.push(`- 本篇先探索的学科（每个学科先寻找至少 2 个候选，再检验对应关系和解释增量；不要求每个学科都入选）：${plan.disciplines.join('、')}；`);
     }
     if (Array.isArray(plan.excludedDisciplines) && plan.excludedDisciplines.length) {
-      lines.push(`- 上一篇借用过的学科，本篇不借：${plan.excludedDisciplines.join('、')}；`);
+      lines.push(`- 上一轮安排的学科（本轮优先探索新学科，不禁用相关知识）：${plan.excludedDisciplines.join('、')}；`);
     }
     if (plan.mode) {
-      lines.push(`- 概念处理：${plan.mode}；加粗目标 4～6 个，最多 8 个。`);
+      lines.push(`- 概念处理：${plan.mode}；目标 4～6 个有解释价值的概念，最多 8 个，其中争取 2～3 个来自指定学科；首次出现时加粗，不用普通词凑数。`);
     }
     return lines.join('\n');
   }

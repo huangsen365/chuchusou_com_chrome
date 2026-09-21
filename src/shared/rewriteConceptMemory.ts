@@ -2,7 +2,8 @@
  * 长文改写「近期概念记忆」单一来源（TypeScript 口径，与 shared/rewriteConceptMemory.js 1:1 对等）。
  *
  * 改写成品就绪时抽出加粗的概念名称，存 chrome.storage.local 保留最近 MAX_RECENT 个；
- * 下次构造改写提示词时注入 ${recentConcepts}，要求本文不要再用。全部本地。
+ * 下次构造改写提示词时注入 ${recentConcepts}，提醒避免重复用法，允许有新解释的复用。
+ * 只保存名称，无法据此核验历史讲法。全部本地。
  */
 export const RECENT_CONCEPTS_PLACEHOLDER = "${recentConcepts}"
 export const RECENT_CONCEPTS_STORAGE_KEY = "ccs_rewrite_recent_concepts"

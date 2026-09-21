@@ -2,8 +2,8 @@
  * 长文改写「形式轮换」单一来源（TypeScript 口径，与 shared/rewriteVariety.js 1:1 对等）。
  *
  * 用本地轮换计数器 n 查表生成「本篇的形式安排」，注入 ${varietyPlan}；只安排标题 / 开头 /
- * 结尾的形式和一个可选的第二视角，概念仍然只能来自素材。表在 articleRewritePrompts.json
- * 的 varietyPlan 字段里。
+ * 结尾的形式与本篇须先探索的学科，入选概念须通过对应关系与解释价值检验。
+ * 表在 articleRewritePrompts.json 的 varietyPlan 字段里。
  */
 export const REWRITE_VARIETY_PLACEHOLDER = "${varietyPlan}"
 export const REWRITE_VARIETY_COUNTER_KEY = "ccs_rewrite_variety_counter"
@@ -51,7 +51,7 @@ export function seedFromDate(date?: Date): number {
 export const REWRITE_VARIETY_SLICE_SIZE = 3
 export const REWRITE_VARIETY_SLICE_STRIDE = 7
 
-// 第 n 篇可借用的学科切片：池按类分组时，步长 7 让三个学科落在不同类
+// 第 n 篇先探索的学科切片：池按类分组时，步长 7 让三个学科落在不同类
 export function disciplineSlice(pool: string[] | undefined, n: number): string[] {
   if (!Array.isArray(pool) || pool.length === 0) return []
   const out: string[] = []
@@ -83,13 +83,13 @@ export function renderRewriteVarietyPlan(plan: RewriteVarietyPlan | null | undef
     `- 结尾用「${plan.ending}」收束；`
   ]
   if (Array.isArray(plan.disciplines) && plan.disciplines.length) {
-    lines.push(`- 本篇可借用的学科（只在需要外部概念解释素材里的具体机制时借，每个借来的概念都要对应素材关键词表；其余学科的概念本篇不用）：${plan.disciplines.join("、")}；`)
+    lines.push(`- 本篇先探索的学科（每个学科先寻找至少 2 个候选，再检验对应关系和解释增量；不要求每个学科都入选）：${plan.disciplines.join("、")}；`)
   }
   if (Array.isArray(plan.excludedDisciplines) && plan.excludedDisciplines.length) {
-    lines.push(`- 上一篇借用过的学科，本篇不借：${plan.excludedDisciplines.join("、")}；`)
+    lines.push(`- 上一轮安排的学科（本轮优先探索新学科，不禁用相关知识）：${plan.excludedDisciplines.join("、")}；`)
   }
   if (plan.mode) {
-    lines.push(`- 概念处理：${plan.mode}；加粗目标 4～6 个，最多 8 个。`)
+    lines.push(`- 概念处理：${plan.mode}；目标 4～6 个有解释价值的概念，最多 8 个，其中争取 2～3 个来自指定学科；首次出现时加粗，不用普通词凑数。`)
   }
   return lines.join("\n")
 }
