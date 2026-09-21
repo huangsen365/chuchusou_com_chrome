@@ -34,6 +34,7 @@ import { execFileSync, spawn } from "node:child_process"
 import {
   hasWebSocket, findChrome, wait, waitForDevToolsPort, connectWebSocket, CdpClient, evaluate
 } from "./lib/cdp.mjs"
+import { verifyPlainArticleActions } from "./lib/verify-plain-article-actions.mjs"
 
 const root = process.cwd()
 const buildDir = path.join(root, "build/chrome-mv3-prod")
@@ -1021,6 +1022,9 @@ async function main() {
       fail(`ChatGPT 长篇 writing block 双按钮识别异常: ${JSON.stringify(longArticleActions)}`)
     }
 
+    await verifyPlainArticleActions(chatRewriteFixture.cdp)
+    console.log(`${TAG} ✓ 普通长文动作正常（底栏定位 / 生成等待 / 容器切换 / 重渲染去重 / 来源与文章完整性限制）`)
+
     const beforeXTargets = new Set(
       (await fetch(`http://127.0.0.1:${port}/json/list`).then((r) => r.json())).map((target) => target.id)
     )
@@ -1133,6 +1137,8 @@ async function main() {
     const rewriteFixtureTarget = await findTarget(port, (t) => t.type === "page" && (t.url || "").includes("/rewrite-fixture"), 3000)
     if (rewriteFixtureTarget) await browserCdp.call("Target.activateTarget", { targetId: rewriteFixtureTarget.id })
     await wait(200)
+    await evaluate(chatRewriteFixture.cdp, `window.__restoreLongWritingBlock()`)
+    if (await waitLongArticleState("ready") !== "ready") fail("普通回复恢复为 writing block 后按钮未恢复")
     const removedH1 = await evaluate(chatRewriteFixture.cdp, `(() => {
       const h1s = document.querySelectorAll('[data-message-id="assistant-long-rewrite-1"] [data-testid="writing-block-container"] h1')
       h1s.forEach((node) => node.remove())
@@ -1191,7 +1197,7 @@ async function main() {
       fail(`ChatGPT 选A改写未捕获异常: ${chatRewriteFixture.exceptions[0]}`)
     }
     console.log(`${TAG} ✓ ChatGPT 选A改写正常（严格结构 / 单按钮 / 完整填入 / 不自动发送 / 草稿保护）`)
-    console.log(`${TAG} ✓ ChatGPT 长文双动作正常（工作流识别 / SPA 路由来源校验 / writing block 外工具栏 / X 草稿精确写入与保存 / 完整文章封面中转 / header 标题回退）`)
+    console.log(`${TAG} ✓ ChatGPT 长文双动作正常（工作流识别 / SPA 路由来源校验 / 普通回复 X 草稿精确写入与保存 / 完整文章封面中转 / writing block header 标题回退）`)
     chatRewriteFixture.cdp.close()
 
     const docsFixture = await openSiteFixture("https://docs.google.com/document/u/0/d/smoke-doc/edit?tab=t.0#heading=h.smoke")

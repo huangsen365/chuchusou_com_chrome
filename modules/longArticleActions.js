@@ -5,6 +5,8 @@
 
   const ROLE_SELECTOR = '[data-message-author-role]';
   const ASSISTANT_SELECTOR = '[data-message-author-role="assistant"]';
+  const TURN_SELECTOR = '[data-testid^="conversation-turn-"]';
+  const RESPONSE_COPY_SELECTOR = 'button[data-testid="copy-turn-action-button"]';
   const WRITING_BLOCK_SELECTOR = '[data-testid="writing-block-container"], [data-writing-block="true"]';
   const EDITOR_SELECTOR = '.ProseMirror.markdown.prose, .ProseMirror.markdown, [contenteditable="true"].markdown';
   const HEADER_SELECTOR = '[data-testid="writing-block-header-surface"], [data-testid="writing-block-header-sticky-container"]';
@@ -45,6 +47,8 @@
     unavailable: '暂未读取到完整文章，当前操作不可用。'
   };
   const stability = new WeakMap();
+  // 普通回复的动作栏在 assistant 节点外，按消息持有才能正确去重、迁移和清理。
+  const actionGroups = new Map();
 
   function isSupportedPage() {
     const host = location.hostname.toLowerCase();
@@ -162,7 +166,7 @@
           continue;
         }
         if (!(child instanceof Element)) continue;
-        if (child.matches('button, [role="toolbar"], style, script, img, picture, video, audio, iframe, canvas, svg')) continue;
+        if (child.matches(`button, [role="toolbar"], [${ACTIONS_MARKER}], style, script, img, picture, video, audio, iframe, canvas, svg`)) continue;
         if (!allowed.has(child.tagName)) {
           appendSanitized(child, target);
           continue;
@@ -205,8 +209,11 @@
   }
 
   function extractArticleSnapshot(block) {
-    const editor = block.querySelector(EDITOR_SELECTOR);
+    const isWritingBlock = block.matches(WRITING_BLOCK_SELECTOR);
+    const editor = isWritingBlock ? block.querySelector(EDITOR_SELECTOR) : block;
     if (!editor) return null;
+    // 普通回复没有 writing block 的标题栏，只接收包含唯一主标题的文章正文。
+    if (!isWritingBlock && (!editor.matches('.markdown') || editor.querySelectorAll('h1').length !== 1)) return null;
     const titleElement = editor.querySelector('h1');
     const title = titleElement ? normalizeText(titleElement.textContent || '') : headerTitleFrom(block);
     const body = sanitizeBody(editor, titleElement);
@@ -260,13 +267,26 @@
   function workflowCandidateFor(assistant) {
     if (!(assistant instanceof HTMLElement) || !assistant.matches(ASSISTANT_SELECTOR)) return null;
     const blocks = Array.from(assistant.querySelectorAll(WRITING_BLOCK_SELECTOR));
-    if (blocks.length !== 1) return null;
+    if (blocks.length > 1) return null;
+    let block = blocks[0];
+    let copyButton;
+    let toolbar;
+    if (block) {
+      copyButton = findCopyButton(block);
+      toolbar = copyButton?.closest('[role="toolbar"]') || block.querySelector('[role="toolbar"]');
+    } else {
+      const articles = Array.from(assistant.querySelectorAll('.markdown')).filter((node) => node.querySelector('h1'));
+      if (articles.length !== 1 || articles[0].querySelectorAll('h1').length !== 1) return null;
+      block = articles[0];
+      const turn = assistant.closest(TURN_SELECTOR);
+      if (!turn || turn.querySelectorAll(ASSISTANT_SELECTOR).length !== 1) return null;
+      copyButton = turn.querySelector(RESPONSE_COPY_SELECTOR);
+      if (!copyButton || block.contains(copyButton)) return null;
+      toolbar = copyButton.closest('[role="toolbar"], [role="group"]');
+    }
+    if (!copyButton && !toolbar) return null;
     const previous = previousUserMessage(assistant);
     if (!previous || !isArticleRewritePromptText(messageText(previous))) return null;
-    const block = blocks[0];
-    const copyButton = findCopyButton(block);
-    const toolbar = copyButton?.closest('[role="toolbar"]') || block.querySelector('[role="toolbar"]');
-    if (!copyButton && !toolbar) return null;
     return {
       block,
       copyButton,
@@ -438,12 +458,16 @@
   }
 
   function removeActions(assistant) {
-    assistant.querySelectorAll(`[${ACTIONS_MARKER}]`).forEach((node) => node.remove());
+    const prior = stability.get(assistant);
+    if (prior?.timer) window.clearTimeout(prior.timer);
+    stability.delete(assistant);
+    actionGroups.get(assistant)?.remove();
+    actionGroups.delete(assistant);
   }
 
   function ensureActions(assistant, candidate, schedule) {
-    const { block, copyButton, toolbar } = candidate;
-    let actions = block.querySelector(`[${ACTIONS_MARKER}]`);
+    const { copyButton, toolbar } = candidate;
+    let actions = actionGroups.get(assistant);
     if (!actions) {
       actions = document.createElement('span');
       actions.setAttribute(ACTIONS_MARKER, 'true');
@@ -467,6 +491,7 @@
           schedule
         )
       );
+      actionGroups.set(assistant, actions);
     }
     if (copyButton && actions.previousElementSibling !== copyButton) {
       copyButton.insertAdjacentElement('afterend', actions);
@@ -479,9 +504,6 @@
   function consider(assistant, schedule) {
     const candidate = workflowCandidateFor(assistant);
     if (!candidate) {
-      const prior = stability.get(assistant);
-      if (prior?.timer) window.clearTimeout(prior.timer);
-      stability.delete(assistant);
       removeActions(assistant);
       return;
     }
@@ -546,6 +568,9 @@
       scheduled = true;
       requestAnimationFrame(() => {
         scheduled = false;
+        for (const assistant of actionGroups.keys()) {
+          if (!assistant.isConnected) removeActions(assistant);
+        }
         document.querySelectorAll(ASSISTANT_SELECTOR).forEach((assistant) => consider(assistant, schedule));
       });
     };
@@ -577,6 +602,7 @@
     return () => {
       observer.disconnect();
       window.removeEventListener('popstate', schedule);
+      for (const assistant of actionGroups.keys()) removeActions(assistant);
     };
   }
 
