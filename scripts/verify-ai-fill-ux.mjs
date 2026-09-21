@@ -91,7 +91,10 @@ async function main() {
         send.id = 'send';
         send.textContent = '发送';
         send.style.cssText = 'position:fixed;right:24px;bottom:24px;width:56px;height:40px;';
-        document.body.append(editor, send);
+        const form = document.createElement('form');
+        form.addEventListener('submit', (event) => event.preventDefault());
+        form.append(editor, send);
+        document.body.append(form);
 
         // 受控编辑器模型：只有真正的 input 事件才同步（模拟 React/Lexical controlled state）
         window.__model = '';
@@ -186,7 +189,10 @@ async function main() {
         const send2 = document.createElement('button');
         send2.textContent = '发送';
         send2.style.cssText = 'position:fixed;right:24px;bottom:24px;width:56px;height:40px;';
-        document.body.append(ed2, send2);
+        const form2 = document.createElement('form');
+        form2.addEventListener('submit', (event) => event.preventDefault());
+        form2.append(ed2, send2);
+        document.body.append(form2);
         let model2 = '';
         let compCount = 0;
         ed2.addEventListener('compositionend', () => { compCount++; if (compCount >= 2) model2 = ed2.textContent || ''; });
@@ -220,7 +226,10 @@ async function main() {
         const send3 = document.createElement('button');
         send3.textContent = '发送';
         send3.style.cssText = 'position:fixed;right:24px;bottom:24px;width:56px;height:40px;';
-        document.body.append(ed3, send3);
+        const form3 = document.createElement('form');
+        form3.addEventListener('submit', (event) => event.preventDefault());
+        form3.append(ed3, send3);
+        document.body.append(form3);
         let model3 = '';
         let compCount3 = 0;
         ed3.addEventListener('compositionend', () => { compCount3++; if (compCount3 >= 3) model3 = ed3.textContent || ''; });
@@ -239,6 +248,32 @@ async function main() {
         R.f_filled = (ed3.textContent || '').includes(MARK4);
         R.f_modelDesyncedAtFirst = !model3;
 
+        // 非发送控件、其他表单的发送、中文选词 Enter 都不应触发再同步或诊断。
+        const diagCount = () => window.__storageWrites.filter((w) => Array.isArray(w.ccs_aifill_diag)).length;
+        const beforeIgnored = diagCount();
+        for (const label of ['选择模型', '添加附件', '复制', '分享']) {
+          const control = document.createElement('button');
+          control.type = 'button';
+          control.textContent = label;
+          form3.append(control);
+          control.click();
+          control.remove();
+        }
+        const otherForm = document.createElement('form');
+        otherForm.innerHTML = '<button type="button" aria-label="Send message">Send message</button>';
+        document.body.append(otherForm);
+        otherForm.firstChild.click();
+        ed3.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true }));
+        ed3.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 229, bubbles: true }));
+        ed3.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true }));
+        ed3.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true }));
+        send3.setAttribute('aria-disabled', 'true');
+        send3.click();
+        send3.removeAttribute('aria-disabled');
+        await wait(1800);
+        R.f_ignoredGestures = diagCount() === beforeIgnored && !model3 && compCount3 === 2;
+        if (!R.f_ignoredGestures) throw new Error('非发送操作触发了驻留诊断或编辑器再同步');
+
         send3.click();
         await wait(80);
         R.f_firstClickNoSend = window.__sent3.length === 0;
@@ -246,15 +281,47 @@ async function main() {
 
         R.f_modelAfterResync = (model3 || '').includes(MARK4);
         const retryToast = Array.from(document.querySelectorAll('body > div, body > .ccs-toast'))
-          .find((el) => (el.textContent || '').includes('请再点一次发送'));
+          .find((el) => (el.textContent || '').includes('请先确认是否已发送'));
         R.f_retryToastShown = !!retryToast;
         R.f_diagWritten = window.__storageWrites.some((w) =>
-          Array.isArray(w.ccs_aifill_diag) && w.ccs_aifill_diag.some((d) => d.kind === 'residue-after-send' && d.fillMethod));
+          Array.isArray(w.ccs_aifill_diag) && w.ccs_aifill_diag.some((d) => d.kind === 'residue-after-send' && d.fillMethod && d.gesture === 'send-button'));
 
         send3.click(); // 用户第二次点发送 —— 应成功
         await wait(80);
         R.f_sentFinally = window.__sent3.length === 1 && window.__sent3[0].includes(MARK4);
         R.f_editorClearedFinally = (ed3.textContent || '') === '';
+
+        // 发送后站点仍在处理、输入框被替换，或用户正在编辑，都不能触发旧任务补救。
+        for (const scenario of ['processing', 'replaced', 'edited', 'enter']) {
+          document.body.innerHTML = '';
+          const currentForm = document.createElement('form');
+          currentForm.addEventListener('submit', (event) => event.preventDefault());
+          currentForm.innerHTML = '<div contenteditable="true" role="textbox" style="min-height:40px"></div><button type="button" data-testid="send-button" aria-label="Send prompt"><span>↑</span></button>';
+          document.body.append(currentForm);
+          const currentEditor = currentForm.firstElementChild;
+          const currentSend = currentForm.lastElementChild;
+          const scenarioPrompt = '发送诊断回归：' + scenario + '。正文。'.repeat(30);
+          await window.CCSModules.AIPromptFill.fill(scenarioPrompt);
+          let resyncs = 0;
+          currentEditor.addEventListener('input', () => { resyncs++; });
+          const before = diagCount();
+          if (scenario === 'enter' || scenario === 'processing') {
+            currentEditor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+          } else {
+            currentSend.firstElementChild.click();
+          }
+          if (scenario === 'processing') currentSend.disabled = true;
+          if (scenario === 'replaced') {
+            const replacement = currentEditor.cloneNode(true);
+            replacement.addEventListener('input', () => { resyncs++; });
+            currentEditor.replaceWith(replacement);
+          }
+          if (scenario === 'edited') currentEditor.append(document.createTextNode('用户新补充的要求'));
+          await wait(1800);
+          R['residue_' + scenario] = scenario === 'enter'
+            ? diagCount() === before + 1 && resyncs === 1 && window.__storageWrites.at(-1).ccs_aifill_diag[0].gesture === 'composer-enter'
+            : diagCount() === before && resyncs === 0;
+        }
 
         return R;
       })()
@@ -278,11 +345,15 @@ async function main() {
     expect(r.e_filled && r.e_modelSyncedBeforeFirstSend, "E1: Yiyan 类编辑器填充后 model 未预同步")
     expect(r.e_firstClickSent && r.e_editorClearedAfterFirst, "E1: Yiyan 类编辑器首次发送未成功")
     expect(r.f_filled && r.f_modelDesyncedAtFirst, "E2: 超顽固编辑器前置条件不成立（填充/脱钩模拟失败）")
+    expect(r.f_ignoredGestures, "非发送按钮、输入法选词和换行不应触发驻留诊断")
     expect(r.f_firstClickNoSend, "E2: 脱钩状态下首次发送本应无效")
     expect(r.f_modelAfterResync, "E2: 驻留侦测器未完成内部状态再同步")
-    expect(r.f_retryToastShown, "E2: 未提示用户'请再点一次发送'")
+    expect(r.f_retryToastShown, "E2: 未提示用户先确认发送结果")
     expect(r.f_diagWritten, "E2: 诊断记录（含 fillMethod）未写入 storage")
     expect(r.f_sentFinally && r.f_editorClearedFinally, "E2: 再同步后的第二次发送未成功")
+    for (const scenario of ['processing', 'replaced', 'edited', 'enter']) {
+      expect(r['residue_' + scenario], '发送驻留诊断场景失败: ' + scenario)
+    }
 
     console.log(`${TAG} OK — toast 顶部可穿透 / 发送可达 / model 同步 / 发送真出 / 新草稿不被写回 / revert 巩固恢复 / Yiyan 预同步首发成功 / 顽固编辑器驻留自愈`)
   } finally {

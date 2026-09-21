@@ -1004,12 +1004,35 @@
 
   // ============================================================
   // 发送驻留侦测：填充成功后盯一次"发送手势 → 1.6s 后输入框原封不动"。
-  // 那意味着站点根本没消费这次发送（典型机理：编辑器内部 state 与 DOM 脱钩，
-  // 站点发送时读 state 拿到空 —— Yiyan 历史上的"提交后提示词驻留"）。
-  // 处置：重新派发一轮输入事件做 state 再同步 + 留诊断 + 提示用户再点一次。
+  // 驻留只是异常线索，不能据此断言内部 state 脱钩，也不能把任意按钮当作发送。
+  // 仅在同一输入框、内容未变且没有提交进展时尝试再同步，提示用户确认发送结果。
   // ============================================================
   let lastAIFillMethod = '';
   let residueWatcher = null;
+
+  function isAIPromptSendButton(button, composer) {
+    if (!button || button.matches(':disabled, [aria-disabled="true"], [aria-busy="true"]')) return false;
+    const composerForm = composer.closest('form');
+    const buttonForm = button.form || button.closest('form');
+    if (composerForm || buttonForm) {
+      if (!composerForm || composerForm !== buttonForm) return false;
+    } else {
+      // 无 form 的富文本编辑器仍须共享局部容器，不能把页面其他位置的按钮算进来。
+      let container = composer.parentElement;
+      while (container && container !== document.body && !container.contains(button)) container = container.parentElement;
+      if (!container || container === document.body || container === document.documentElement) return false;
+    }
+    if (button.matches('[data-testid="send-button"], [data-testid="fruitjuice-send-button"]')) return true;
+    const label = normalizeFilledText(button.getAttribute('aria-label') || button.getAttribute('title') || button.textContent || button.value);
+    if (/^(?:send(?:\s+(?:message|prompt))?|submit(?:\s+(?:message|prompt))?|发送(?:消息|信息|提示词)?|提交)(?:\s*[（(].*[）)])?$/iu.test(label)) return true;
+    return Boolean(composerForm && button.getAttribute('type') === 'submit');
+  }
+
+  function hasAIPromptSendProgress(composer, button) {
+    if (button && (!button.isConnected || !isAIPromptSendButton(button, composer))) return true;
+    const scope = composer.closest('form') || composer.parentElement;
+    return Boolean(scope?.querySelector('[data-testid="stop-button"], button[aria-label="Stop generating" i], button[aria-label="停止生成"]'));
+  }
 
   function armPostSendResidueWatcher(text) {
     // VM 类校验环境（verify-ai-prompt-fill-dedupe）的 document stub 没有事件 API
@@ -1023,10 +1046,12 @@
       const composer = findChatGptComposerTarget();
       if (!composer) return;
 
-      const isComposerEnter = event.type === 'keydown' && event.key === 'Enter' && !event.shiftKey &&
+      const isComposerEnter = event.type === 'keydown' && event.key === 'Enter' && !event.shiftKey && !event.altKey &&
+        !event.isComposing && event.keyCode !== 229 && !event.repeat &&
         (event.target === composer || composer.contains(event.target));
-      const isButtonClick = event.type === 'click' &&
-        !!(event.target instanceof Element && event.target.closest('button, [role="button"], [type="submit"]'));
+      const button = event.type === 'click' && event.target instanceof Element
+        ? event.target.closest('button, [role="button"], input[type="submit"]') : null;
+      const isButtonClick = event.type === 'click' && isAIPromptSendButton(button, composer);
       if (!isComposerEnter && !isButtonClick) return;
       // 用与填充校验同一把模糊尺子（<p> 段落的 innerText 换行数可能与原文不同，
       // 严格相等会漏判），内容已不是本 prompt 时与本手势无关
@@ -1034,22 +1059,30 @@
 
       residueWatcher.checking = true;
       const watcherRef = residueWatcher; // 1.6s 间隔内可能被新填充重新 arm/disarm
+      const textAtGesture = readEditableText(composer);
+      const urlAtGesture = location.href;
+      const sendScope = composer.closest('form') || composer.parentElement;
+      const sendButton = button || Array.from(sendScope?.querySelectorAll('button, [role="button"], input[type="submit"]') || [])
+        .find((control) => isAIPromptSendButton(control, composer));
       setTimeout(() => {
         if (residueWatcher !== watcherRef) return;
         const target = findChatGptComposerTarget();
-        if (target && editableAcceptsFilledText(target, watcherRef.rawText)) {
+        if (target === composer && composer.isConnected && location.href === urlAtGesture &&
+            readEditableText(target) === textAtGesture && !hasAIPromptSendProgress(target, sendButton) &&
+            editableAcceptsFilledText(target, watcherRef.rawText)) {
           try { dispatchEditableEvents(target); } catch (_) { /* best effort */ }
           recordAIFillDiagnostic({
             kind: 'residue-after-send',
             host: location.hostname,
             fillMethod: lastAIFillMethod,
+            gesture: isButtonClick ? 'send-button' : 'composer-enter',
             promptLength: expected.length
           });
-          showAIFillToast('似乎未发送成功：已重新同步输入框，请再点一次发送');
+          showAIFillToast('已尝试重新同步输入框；请先确认是否已发送，未发送再重试');
           disarmResidueWatcher();
           return;
         }
-        // 内容已被站点消费/清空 —— 正常发送，解除侦测
+        // 已消费、开始处理、切换页面或用户已接管草稿，不再介入。
         disarmResidueWatcher();
       }, 1600);
     };
@@ -1075,7 +1108,7 @@
     const record = { ...entry, ts: Date.now() };
     try {
       // warn 级别：chrome://extensions 的错误列表也能看到，便于用户零成本回报
-      console.warn('[触触搜][AIFill] 发送后提示词驻留 —— 输入框内部状态疑似未同步', record);
+      console.warn('[触触搜][AIFill] 检测到发送后提示词仍在输入框，已尝试重新同步', record);
     } catch (_) { /* ignore */ }
     try {
       chrome.storage?.local?.get?.(['ccs_aifill_diag'], (data) => {
