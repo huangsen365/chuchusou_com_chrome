@@ -95,165 +95,165 @@
       "palettes": [
         {
           "name": "晴空·朱红",
-          "bg": "#E9F4F9",
-          "title": "#172C36",
-          "accent": "#E03A3A"
+          "bg": "#DAEFF9",
+          "title": "#0E252F",
+          "accent": "#F91F1F"
         },
         {
           "name": "粉·青绿",
-          "bg": "#F9E9EE",
-          "title": "#361721",
-          "accent": "#1F9E9A"
+          "bg": "#F9DAE3",
+          "title": "#2F0E19",
+          "accent": "#038782"
         },
         {
           "name": "薄荷·品红",
-          "bg": "#E9F9ED",
-          "title": "#17361F",
-          "accent": "#C23BAE"
+          "bg": "#DAF9E2",
+          "title": "#0E2F16",
+          "accent": "#F206CF"
         },
         {
           "name": "丁香·嫩黄绿",
-          "bg": "#F0E9F9",
-          "title": "#251736",
-          "accent": "#8DB600"
+          "bg": "#E7DAF9",
+          "title": "#1D0E2F",
+          "accent": "#87AC04"
         },
         {
           "name": "米·靛蓝",
-          "bg": "#F9F5E9",
-          "title": "#362E17",
-          "accent": "#3D5A98"
+          "bg": "#F9F1DA",
+          "title": "#2F270E",
+          "accent": "#064CE4"
         },
         {
           "name": "雾蓝·橙",
-          "bg": "#E9EFF9",
-          "title": "#172236",
-          "accent": "#F28C28"
+          "bg": "#DAE5F9",
+          "title": "#0E1A2F",
+          "accent": "#DB6F06"
         },
         {
           "name": "樱·天蓝",
-          "bg": "#F9E9E9",
-          "title": "#361717",
-          "accent": "#1E9BD7"
+          "bg": "#F9DADA",
+          "title": "#2F0E0E",
+          "accent": "#0581BD"
         },
         {
           "name": "青瓷·玫红",
-          "bg": "#E9F9F7",
-          "title": "#173633",
-          "accent": "#EF476F"
+          "bg": "#DAF9F5",
+          "title": "#0E2F2C",
+          "accent": "#F91F53"
         },
         {
           "name": "晴空·金",
-          "bg": "#E9F1F9",
-          "title": "#172636",
-          "accent": "#C9A227"
+          "bg": "#DAE9F9",
+          "title": "#0E1E2F",
+          "accent": "#D1A005"
         },
         {
           "name": "藕荷·翠绿",
-          "bg": "#F9E9F7",
-          "title": "#361733",
-          "accent": "#2B9348"
+          "bg": "#F9DAF5",
+          "title": "#2F0E2C",
+          "accent": "#048C2A"
         },
         {
           "name": "芽·紫罗兰",
-          "bg": "#F5F9E9",
-          "title": "#2E3617",
-          "accent": "#8E5BD8"
+          "bg": "#F1F9DA",
+          "title": "#272F0E",
+          "accent": "#781FF9"
         },
         {
           "name": "冰靛·暖黄",
-          "bg": "#E9EAF9",
-          "title": "#171836",
-          "accent": "#F2C14E"
+          "bg": "#DADCF9",
+          "title": "#0E0F2F",
+          "accent": "#D19405"
         },
         {
           "name": "杏·宝蓝",
-          "bg": "#F9F0E9",
-          "title": "#362517",
-          "accent": "#2E6FD8"
+          "bg": "#F9E7DA",
+          "title": "#2F1D0E",
+          "accent": "#0F4FD6"
         },
         {
           "name": "薄荷·砖红",
-          "bg": "#E9F9ED",
-          "title": "#17361F",
-          "accent": "#C8553D"
+          "bg": "#DAF9E2",
+          "title": "#0E2F16",
+          "accent": "#F9411A"
         },
         {
           "name": "丁香·孔雀蓝",
-          "bg": "#F0E9F9",
-          "title": "#251736",
-          "accent": "#0F7B8A"
+          "bg": "#E7DAF9",
+          "title": "#1D0E2F",
+          "accent": "#048395"
         },
         {
           "name": "米·洋红",
-          "bg": "#F9F5E9",
-          "title": "#362E17",
-          "accent": "#D14FA0"
+          "bg": "#F9F1DA",
+          "title": "#2F270E",
+          "accent": "#F91FA7"
         },
         {
           "name": "雾蓝·橄榄绿",
-          "bg": "#E9EFF9",
-          "title": "#172236",
-          "accent": "#7FA82E"
+          "bg": "#DAE5F9",
+          "title": "#0E1A2F",
+          "accent": "#7CB805"
         },
         {
           "name": "暖米·青铜",
-          "bg": "#F9F1E9",
-          "title": "#362617",
-          "accent": "#A0673A"
+          "bg": "#F9E9DA",
+          "title": "#2F1E0E",
+          "accent": "#E86A06"
         },
         {
           "name": "樱·群青",
-          "bg": "#F9E9E9",
-          "title": "#361717",
-          "accent": "#4B4FB8"
+          "bg": "#F9DADA",
+          "title": "#2F0E0E",
+          "accent": "#1E26F9"
         },
         {
           "name": "青瓷·活力橙",
-          "bg": "#E9F9F7",
-          "title": "#173633",
-          "accent": "#FF7F11"
+          "bg": "#DAF9F5",
+          "title": "#0E2F2C",
+          "accent": "#EF7206"
         },
         {
           "name": "藕荷·湖蓝",
-          "bg": "#F9E9F7",
-          "title": "#361733",
-          "accent": "#3AA0C8"
+          "bg": "#F9DAF5",
+          "title": "#2F0E2C",
+          "accent": "#0584B6"
         },
         {
           "name": "芽·莓红",
-          "bg": "#F5F9E9",
-          "title": "#2E3617",
-          "accent": "#D1495B"
+          "bg": "#F1F9DA",
+          "title": "#272F0E",
+          "accent": "#F91F3C"
         },
         {
           "name": "冰靛·松绿",
-          "bg": "#E9EAF9",
-          "title": "#171836",
-          "accent": "#2A7F62"
+          "bg": "#DADCF9",
+          "title": "#0E0F2F",
+          "accent": "#03875A"
         },
         {
           "name": "杏·丁香紫",
-          "bg": "#F9F0E9",
-          "title": "#362517",
-          "accent": "#9B5DE5"
+          "bg": "#F9E7DA",
+          "title": "#2F1D0E",
+          "accent": "#831FF9"
         },
         {
           "name": "晴空·明黄",
-          "bg": "#E9F4F9",
-          "title": "#172C36",
-          "accent": "#FFB400"
+          "bg": "#DAEFF9",
+          "title": "#0E252F",
+          "accent": "#E0A006"
         },
         {
           "name": "粉·亮蓝",
-          "bg": "#F9E9EE",
-          "title": "#361721",
-          "accent": "#3A86FF"
+          "bg": "#F9DAE3",
+          "title": "#2F0E19",
+          "accent": "#1F73F9"
         },
         {
           "name": "薄荷·石墨",
-          "bg": "#E9F9F1",
-          "title": "#173626",
-          "accent": "#4A5A6A"
+          "bg": "#DAF9E9",
+          "title": "#0E2F1E",
+          "accent": "#2B3D50"
         }
       ]
     },
