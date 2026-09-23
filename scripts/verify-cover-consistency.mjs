@@ -49,6 +49,21 @@ for (const c of categories) {
 if (!ids.includes("custom")) fail(`coverPrompts.json 缺 custom 分类 —— sidepanel 自定义风格失效`)
 ok()
 
+// ---- 1b. 墨清配色轮换表：27 组合法十六进制色，purpose 恰好一个 ${coverPalette} ----
+{
+  const mq = categories.find((c) => c.id === "zhumoqing")
+  const pal = Array.isArray(mq?.palettes) ? mq.palettes : []
+  if (pal.length !== 27) fail(`墨清 palettes 应为 27 组，实际 ${pal.length}`)
+  const HEX = /^#[0-9A-F]{6}$/
+  pal.forEach((p, i) => {
+    if (!p?.name || !HEX.test(p.bg) || !HEX.test(p.title) || !HEX.test(p.accent)) fail(`墨清 palettes[${i}] 字段非法: ${JSON.stringify(p)}`)
+  })
+  if (new Set(pal.map((p) => p.accent)).size !== pal.length) fail("墨清 palettes 点缀色有重复")
+  if ((mq?.purpose || "").split("${coverPalette}").length - 1 !== 1) fail("墨清 purpose 必须恰好包含一个 ${coverPalette}")
+  for (const c of categories) if (c.id !== "zhumoqing" && (c.purpose || "").includes("${coverPalette}")) fail(`${c.id} 不应含 \${coverPalette}`)
+}
+ok()
+
 // ---- 2. 标题表 4 份：键集合 == SSoT id 集合，值 4 处逐字一致，且以 label 结尾 ----
 function extractTitleTable(file, marker) {
   const src = read(file)

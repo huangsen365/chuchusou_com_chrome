@@ -64,6 +64,8 @@ export interface AITaskHandlerDeps {
   openTab?: (url: string, active?: boolean) => void
   /** Get a per-task storage var. Default: chrome.storage.local */
   getStorageItem?: (key: string) => Promise<unknown>
+  /** Set a per-task storage var. Default: chrome.storage.local */
+  setStorageItem?: (key: string, value: unknown) => Promise<void>
   /** Prepare prompt URL, with ChatGPT long-prompt relay when available. */
   preparePromptUrl?: PromptUrlPreparer
   /** Open a prepared prompt URL, binding ChatGPT relay payloads to the new tab when available. */
@@ -81,6 +83,26 @@ function defaultGetStorageItem(key: string): Promise<unknown> {
     if (!ch?.storage?.local?.get) { resolve(undefined); return }
     ch.storage.local.get([key], (data) => resolve(data?.[key]))
   })
+}
+
+function defaultSetStorageItem(key: string, value: unknown): Promise<void> {
+  return new Promise((resolve) => {
+    const ch = (globalThis as unknown as { chrome?: { storage?: { local?: { set: (v: Record<string, unknown>, cb: () => void) => void } } } }).chrome
+    if (!ch?.storage?.local?.set) { resolve(); return }
+    ch.storage.local.set({ [key]: value }, () => resolve())
+  })
+}
+
+export const COVER_PALETTE_COUNTER_KEY = "ccs_cover_palette_counter"
+export const COVER_PALETTE_FALLBACK = "点缀色例如暖黄或橙。"
+
+export interface CoverPalette { name?: string; bg: string; title: string; accent: string }
+
+// 封面配色轮换：带 palettes 的风格（当前仅墨清）每次生成按计数器取下一组，写成具体配色指令
+export function renderCoverPalette(p: CoverPalette): string {
+  const [bgName, accentName] = String(p.name || "").split("·")
+  return `本篇配色：背景以浅色 ${p.bg}${bgName ? `（${bgName}）` : ""}为基调，主标题用深色 ${p.title}，` +
+    `点缀色用 ${p.accent}${accentName ? `（${accentName}）` : ""}，只点亮一两个关键字；背景插画与整体氛围也沿用这组配色。`
 }
 
 function defaultPreparePromptUrl(urlPattern: string, prompt: string, meta: Record<string, unknown> = {}): string | Promise<string> {
@@ -119,10 +141,22 @@ async function defaultOpenPromptUrl(url: string, options: { active?: boolean } =
  */
 export async function collectTaskVars(
   taskId: string,
-  getStorageItem: (key: string) => Promise<unknown> = defaultGetStorageItem
+  getStorageItem: (key: string) => Promise<unknown> = defaultGetStorageItem,
+  options: { task?: { categories?: Array<{ id: string; palettes?: CoverPalette[] }> }; categoryId?: string; openAll?: boolean; setStorageItem?: (key: string, value: unknown) => Promise<void> } = {}
 ): Promise<Record<string, string>> {
   const vars: Record<string, string> = {}
   if (taskId === "cover") {
+    vars.coverPalette = COVER_PALETTE_FALLBACK
+    try {
+      const cat = (options.task?.categories || []).find((c) => Array.isArray(c.palettes) && c.palettes.length > 0 &&
+        (options.openAll || c.id === options.categoryId))
+      if (cat?.palettes) {
+        const stored = Number(await getStorageItem(COVER_PALETTE_COUNTER_KEY))
+        const n = Number.isFinite(stored) && stored >= 0 ? Math.floor(stored) : 0
+        await (options.setStorageItem || defaultSetStorageItem)(COVER_PALETTE_COUNTER_KEY, (n + 1) % cat.palettes.length)
+        vars.coverPalette = renderCoverPalette(cat.palettes[n % cat.palettes.length])
+      }
+    } catch (_) { /* 失败保持兜底，不影响生成 */ }
     try {
       const r = await getStorageItem("ccs_cover_aspect_ratio")
       vars.ratio = typeof r === "string" && r.trim() ? r.trim() : "5:2"
@@ -143,6 +177,7 @@ export async function runAITask(
     textLimits,
     openTab = defaultOpenTab,
     getStorageItem = defaultGetStorageItem,
+    setStorageItem = defaultSetStorageItem,
     preparePromptUrl = defaultPreparePromptUrl
   } = deps
   const openPromptUrl: PromptUrlOpener = deps.openPromptUrl || (async (url, opts = {}) => {
@@ -193,7 +228,9 @@ export async function runAITask(
     effectiveKeyword = limited.text
   }
 
-  const vars = await collectTaskVars(taskId, getStorageItem)
+  const vars = await collectTaskVars(taskId, getStorageItem, {
+    task: task as unknown as { categories?: Array<{ id: string; palettes?: CoverPalette[] }> }, categoryId, openAll, setStorageItem
+  })
 
   // ---- openAll along category axis (cover) ----
   if (openAll && openAllAxis === "category") {

@@ -145,7 +145,8 @@ function _normalize(def, raw) {
         label: cat.label,
         purpose: cat.purpose || cat.label || '',
         template: catTemplate,
-        engines: Array.isArray(cat.engines) ? cat.engines.map(_normEngine) : []
+        engines: Array.isArray(cat.engines) ? cat.engines.map(_normEngine) : [],
+        palettes: Array.isArray(cat.palettes) ? cat.palettes : []
       };
     });
   }

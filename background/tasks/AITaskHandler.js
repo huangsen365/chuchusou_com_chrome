@@ -98,7 +98,7 @@ async function runAITask(options = {}) {
 
   // 任务级运行时变量（如 cover 的比例）—— 单一数据源 = chrome.storage.local
   // 这样 sidepanel/events/menuHandlers 三处调用方都不用关心 ratio 透传
-  const vars = await collectTaskVars(taskId);
+  const vars = await collectTaskVars(taskId, { task, categoryId, openAll });
 
   // 分支：openAll 沿 category 轴（cover）vs openAll 沿 engine 轴 vs 单一引擎
   if (openAll && openAllAxis === 'category') {
@@ -211,9 +211,34 @@ async function runAITaskByMenuId(menuItemId, keyword, options = {}) {
  * 当前只有 cover 任务用：从 chrome.storage.local 读用户选的比例。
  * 未来加任何 task-scoped 模板变量直接在这里扩展。
  */
-async function collectTaskVars(taskId) {
+const COVER_PALETTE_COUNTER_KEY = 'ccs_cover_palette_counter';
+const COVER_PALETTE_FALLBACK = '点缀色例如暖黄或橙。';
+
+// 封面配色轮换：带 palettes 的风格（当前仅墨清）每次生成按计数器取下一组，写成具体配色指令
+function renderCoverPalette(p) {
+  const [bgName, accentName] = String(p.name || '').split('·');
+  return `本篇配色：背景以浅色 ${p.bg}${bgName ? `（${bgName}）` : ''}为基调，主标题用深色 ${p.title}，` +
+    `点缀色用 ${p.accent}${accentName ? `（${accentName}）` : ''}，只点亮一两个关键字；背景插画与整体氛围也沿用这组配色。`;
+}
+
+async function nextCoverPalette(palettes) {
+  const data = await new Promise((resolve) => chrome.storage.local.get([COVER_PALETTE_COUNTER_KEY], resolve));
+  const stored = Number(data && data[COVER_PALETTE_COUNTER_KEY]);
+  const n = Number.isFinite(stored) && stored >= 0 ? Math.floor(stored) : 0;
+  await new Promise((resolve) => chrome.storage.local.set({ [COVER_PALETTE_COUNTER_KEY]: (n + 1) % palettes.length }, resolve));
+  return palettes[n % palettes.length];
+}
+
+async function collectTaskVars(taskId, options = {}) {
   const vars = {};
   if (taskId === 'cover') {
+    vars.coverPalette = COVER_PALETTE_FALLBACK;
+    try {
+      const cats = (options.task && options.task.categories) || [];
+      const cat = cats.find((c) => Array.isArray(c.palettes) && c.palettes.length &&
+        (options.openAll || c.id === options.categoryId));
+      if (cat) vars.coverPalette = renderCoverPalette(await nextCoverPalette(cat.palettes));
+    } catch (_) { /* 失败保持兜底，不影响生成 */ }
     try {
       const data = await new Promise((resolve) => {
         chrome.storage.local.get(['ccs_cover_aspect_ratio'], resolve);

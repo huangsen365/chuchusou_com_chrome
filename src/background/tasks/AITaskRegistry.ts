@@ -94,6 +94,15 @@ export interface CategorySpec {
   purpose?: string
   template?: string
   engines: EngineSpec[]
+  /** 封面配色轮换表（当前仅墨清风格） */
+  palettes?: CategoryPalette[]
+}
+
+export interface CategoryPalette {
+  name?: string
+  bg: string
+  title: string
+  accent: string
 }
 
 export interface NormalizedTask extends TaskDefinitionBase {
@@ -117,6 +126,7 @@ interface RawPromptCategory {
   template?: string
   templateLines?: string[]
   engines?: RawPromptEngine[]
+  palettes?: CategoryPalette[]
 }
 
 interface RawPromptConfig {
@@ -166,7 +176,8 @@ export function normalizeTask(def: TaskDefinitionBase, raw: RawPromptConfig): No
         label: cat.label,
         purpose: cat.purpose || cat.label || "",
         template: catTemplate,
-        engines: Array.isArray(cat.engines) ? cat.engines.map(_normEngine) : []
+        engines: Array.isArray(cat.engines) ? cat.engines.map(_normEngine) : [],
+        palettes: Array.isArray(cat.palettes) ? cat.palettes : []
       }
     })
   }

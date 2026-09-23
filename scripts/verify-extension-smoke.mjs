@@ -1165,6 +1165,12 @@ async function main() {
         !coverRecord?.prompt?.includes("用于验证长篇文章动作的第 12 段正文")) {
       fail(`长篇封面提示词/完整正文中转异常: ${JSON.stringify(coverRecord)?.slice(0, 1400)}`)
     }
+    // 墨清配色轮换：提示词带具体配色（无占位符泄漏），计数器已前进
+    const paletteState = await evaluate(swCdp, `new Promise((resolve) => chrome.storage.local.get(['ccs_cover_palette_counter'], (d) => resolve(d.ccs_cover_palette_counter)))`)
+    if (!/本篇配色：背景以浅色 #[0-9A-F]{6}（[^）]+）为基调，主标题用深色 #[0-9A-F]{6}，点缀色用 #[0-9A-F]{6}/.test(coverRecord?.prompt || "") ||
+        coverRecord?.prompt?.includes("${coverPalette}") || typeof paletteState !== "number" || paletteState < 1) {
+      fail(`墨清配色轮换未注入或计数器未前进: ${JSON.stringify({ paletteState, tail: (coverRecord?.prompt || "").slice(-400) })}`)
+    }
     // 长文标题回退：真实 ChatGPT writing block 会把标题提到 header surface、编辑器正文从 H2 开始
     // （分享页实测）。去掉编辑器 <h1> 且无 header → unavailable；补 header surface 标题 → 重新 ready，
     // 且封面提示词里用的是 header 标题。
