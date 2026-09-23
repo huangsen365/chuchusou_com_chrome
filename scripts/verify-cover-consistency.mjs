@@ -58,7 +58,9 @@ ok()
   pal.forEach((p, i) => {
     if (!p?.name || !HEX.test(p.bg) || !HEX.test(p.title) || !HEX.test(p.accent)) fail(`墨清 palettes[${i}] 字段非法: ${JSON.stringify(p)}`)
   })
-  if (new Set(pal.map((p) => p.accent)).size !== pal.length) fail("墨清 palettes 点缀色有重复")
+  if (new Set(pal.map((p) => `${p.bg}|${p.accent}`)).size !== pal.length) fail("墨清 palettes 有重复的背景+点缀组合")
+  if (new Set(pal.map((p) => p.name)).size !== pal.length) fail("墨清 palettes 名称重复")
+  pal.forEach((p, i) => { if (p.accent === pal[(i + 1) % pal.length].accent) fail(`墨清 palettes[${i}] 与下一组点缀色相同，轮换时会连续撞色`) })
   if ((mq?.purpose || "").split("${coverPalette}").length - 1 !== 1) fail("墨清 purpose 必须恰好包含一个 ${coverPalette}")
   for (const c of categories) if (c.id !== "zhumoqing" && (c.purpose || "").includes("${coverPalette}")) fail(`${c.id} 不应含 \${coverPalette}`)
 }
