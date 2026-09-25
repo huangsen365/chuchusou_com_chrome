@@ -341,10 +341,6 @@ export default [
         ccs_domMonitor: "writable",
         ccs_dockbar: "writable",
 
-        // Popup globals
-        ToastHelper: "writable",
-        MenuRenderer: "writable",
-        SettingsManager: "writable",
       }
     },
     rules: {

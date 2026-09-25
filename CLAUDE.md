@@ -104,7 +104,7 @@ chuchusou_com_chrome/
 ├── content.css                # 悬浮面板样式
 ├── dockbar.js                 # 底部 dock 栏内容脚本
 ├── popup/                     # Popup 菜单（生产，action.default_popup）
-│   └── modules/              # MenuRenderer / SettingsManager / ToastHelper / PromptLibraryManager
+│   └── modules/              # PromptLibraryManager（点「提示词库」时由 popup.js 懒加载）
 ├── sidepanel/                 # Side Panel（生产，side_panel.default_path）
 ├── offscreen/                 # 语音识别 offscreen 文档
 ├── voice-permission/          # 麦克风授权引导页
@@ -272,17 +272,11 @@ attachInit()              // ← 必须在 importScripts 之后：依赖 g.MenuS
   - `pseudoMD5()`: 伪 MD5
   - `runCommand()`: 执行命令
 
-#### Popup 模块
+#### Popup
 
-- **MenuRenderer.js**: 菜单渲染
-  - `render()`: 渲染菜单
-  - `_createMenuItem()`: 创建菜单项
-  - `_toggleSubmenu()`: 切换子菜单
-
-- **SettingsManager.js**: 设置管理
-  - `toggleExtension()`: 切换扩展状态
-  - `toggleDebug()`: 切换调试模式
-  - `loadBlacklist()`: 加载黑名单
+- **popup.js**（打进 popup.bundle.js）：`PopupMenuRenderer` 负责菜单渲染、设置、封面置顶；
+  首屏由 `popup.boot.js` 先画，完整 bundle 随后加载。
+- **modules/PromptLibraryManager.js**：提示词库，用户点「📚 提示词库」时才懒加载。
 
 ### 消息通信
 
