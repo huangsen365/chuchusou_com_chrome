@@ -23,9 +23,13 @@
   - `menuBuilder.js` (718) → src/background/menuBuilderAttach.ts (+ menuBuilderHelpers.ts，createContextMenus orchestrator)
   - `voiceOffscreenBridge.js` (100) → src/background/voiceOffscreenBridge.ts (autoRegisterVoiceBridge)
   - `init.js` (448) → src/background/{init,initAttach,initPrewarming}.ts
-- **剩余 1 个 listener 主体仍在 legacy**：`background/events.js`
-  包含 chrome.tabs.onUpdated / chrome.runtime.onConnect / chrome.runtime.onMessage /
-  chrome.contextMenus.onShown。port 这部分需要回归 ≥ 20 路径——其中 **19 条已被
+- **SW 事件层**（2026-09 按领域拆分）：`background/events.js` 只做接线——按原顺序注册
+  onInstalled / onStartup / onConnect / onMessage / tabs.* / contextMenus.onShown；handler 在
+  `background/events/*.js`（messaging 分发表 / menu / keyword / aiRelay / articleRewrite / longArticle /
+  urlRecovery / sidePanel / diagnostics / menuState / tabs / contextMenuShown / siteFastQaUpdateGuard）。
+  **新增 runtime 消息**：在对应领域文件写 handler，文件末尾 `ccsRegisterMessageHandlers({ action: fn })`
+  登记（同一 action 重复登记会在 SW 启动时直接抛错）；handler 返回值原样交给 Chrome（true = 异步回包）。
+  改这层要跑真机冒烟：回归 ≥ 20 路径——其中 **19 条已被
   `npm run verify:extension-smoke` 自动化**（SW 启动 / 桥接符号 / getMenuStructure /
   getKeyword / ccsDiagPing / getMenuDebugInfo / sidepanel-alive port / selectionChanged
   选区回路 / executeMenuAction search 开标签 / URL 关键字提取 / ccs_kw_ 缓存写入契约 /
@@ -48,7 +52,7 @@
 - **添加新菜单**：改 `unifiedMenuConfig.json`；**添加新 AI 任务**：改 `TASK_DEFINITIONS` + 对应 prompts json。
 - **字数保护总闸关闭**：`background/utils/TextLimits.js` 的 `TEXT_LIMITS_ENABLED = false`，两个主函数都 early return。所有截断/smartTruncate/toast/URL 硬上限代码保留作兜底，改一行即可恢复。
 - **Smart Post / Smart Reply 已彻底删除**：popup 和 sidepanel 里都不存在。
-- **老 switch-case fallback 要保留**：两处入口（`src/background/menuHandlersAttach.ts` / `background/events.js`）都在 SSoT 快速通道后加了 switch-case 作安全网，**不要擅自删**。
+- **老 switch-case fallback 要保留**：两处入口（`src/background/menuHandlersAttach.ts` / `background/events/menu.js`）都在 SSoT 快速通道后加了 switch-case 作安全网，**不要擅自删**。
 - **发版必走 `/release` skill**：版本号 bump（manifest / package / package-lock 三处必须同步）、CHANGELOG / releases/vX.Y.Z.md、`./build.sh`、commit / tag / push 都已编排在 `.claude/skills/release/SKILL.md`。**不要凭记忆手动发版**——历史上 `package.json` 长期停留 1.0.0、CI 红 5 个 commit 才发现都是手动流程漏步骤导致。
 
 ## 核心架构
@@ -80,7 +84,8 @@ chuchusou_com_chrome/
 │   ├── KeywordService.js     # 关键字服务
 │   ├── chatgptPromptRelay.js # AI prompt relay（长 prompt 不走 URL 直开）
 │   ├── urlSafety.js          # URL 安全（截断 / 431/404 恢复）
-│   ├── events.js             # 事件监听（生产主流，最后一个未 port 的 listener 主体）
+│   ├── events.js             # 事件接线（全部 chrome.* 监听注册，importScripts 最后一个）
+│   ├── events/               # 事件 handler（按领域拆分；messaging.js 是 onMessage 分发表）
 │   ├── config.js             # 配置加载 + getEngineTitle() SSoT
 │   └── keywordResolver.js    # 关键字解析
 ├── shared/                    # 前后台共用 JS（keywordClient / runtimeClient / logger /
@@ -140,7 +145,9 @@ importScripts(
   // 第3.5层：AI 任务统一抽象
   'background/tasks/AITaskRegistry.js', 'background/tasks/AITaskHandler.js',
   'background/articleActions.js',
-  // 第4层：事件（最后一个 legacy listener 主体）
+  // 第4层：事件 handler（messaging.js 在最前）
+  'background/events/messaging.js', /* …其余 background/events/*.js，见 src/background.ts… */
+  // 第5层：事件接线（所有 chrome.* 监听注册，必须最后）
   'background/events.js'
 )
 
@@ -242,8 +249,9 @@ attachInit()              // ← 必须在 importScripts 之后：依赖 g.MenuS
 - **menuHandlersAttach.ts**：`chrome.contextMenus.onClicked` 监听 + search/tool/top100/fastqa/optimize 分支
 - **menuStateOrchestrator.ts / menuActions.ts / popupMenuStructure.ts**：菜单状态、动作执行、popup 菜单结构
 
-标签页事件 / runtime 消息（onUpdated / onConnect / onMessage / onShown）仍在
-`background/events.js`（最后一个未 port 的 legacy 主体，改它要 Chrome 真机回归）。
+标签页事件 / runtime 消息（onUpdated / onConnect / onMessage / onShown）的 handler 在
+`background/events/*.js`（普通脚本，importScripts 加载），监听统一在 `background/events.js` 注册；
+改它们要跑 `npm run verify:extension-smoke`（真 Chrome 回归）。
 
 #### Content 模块
 
@@ -317,7 +325,7 @@ Popup 菜单和右键菜单必须保持一致：
 推荐路径（SSoT）：只需改 1 处——
 1. 在 `config/unifiedMenuConfig.json` 对应分组 `items` 里新增一项（含 `id` / `type` / `title` / `icon` / `urlPattern` / `enabled`）。
    - 启动时 `URLBuilder.loadFromConfig()` 会自动注册 URL 模板
-   - 运行时各入口（`src/background/menuHandlersAttach.ts` / `background/events.js`）已接入 `tryOpenMenuUrl()` 快速通道，命中后跳过硬编码
+   - 运行时各入口（`src/background/menuHandlersAttach.ts` / `background/events/menu.js`）已接入 `tryOpenMenuUrl()` 快速通道，命中后跳过硬编码
 
 老路径（渐进移除中）：在 `utils/Constants.js` 的 `MENU_DEFINITIONS` 加 `{ text, icon }`、在 `src/background/menuBuilderAttach.ts` 的分组数组里登记 id、在 `src/background/popupMenuStructure.ts` 的 `getPopupMenuStructure()` 相应 `searchItems` / `toolItems` 里加。工具/复制/编码类（非 URL）菜单仍走老 switch-case。
 
@@ -326,7 +334,7 @@ Popup 菜单和右键菜单必须保持一致：
 这类没有 URL 模板，仍需走老路径：
 1. `utils/Constants.js` `MENU_DEFINITIONS` 登记 title/icon
 2. `src/background/menuBuilderAttach.ts` 加入分组
-3. `src/background/menuHandlersAttach.ts` / `background/events.js` switch-case 里加处理分支
+3. `src/background/menuHandlersAttach.ts` / `background/events/menu.js` switch-case 里加处理分支
 4. `config/unifiedMenuConfig.json` 登记（用于 popup/sidepanel 展示）
 
 ### 字数保护（TextLimits）
@@ -345,7 +353,7 @@ Popup 菜单和右键菜单必须保持一致：
 - `tryOpenMenuUrl()` - SSoT 快速通道
 - `handleExecuteMenuAction()` - popup/sidepanel 主路径
 - `src/background/menuHandlersAttach.ts` 的 top100 / fastqa / optimize 分支
-- `events.js` 的 executeMenuAction 老消息路径
+- `background/events/menu.js` 的 executeMenuAction 老消息路径
 
 ### 调试
 
@@ -425,6 +433,10 @@ const MY_VAR = 'value';  // 第一次声明
 // events.js
 const MY_VAR = 'value';  // ❌ 错误：Identifier 'MY_VAR' has already been declared
 ```
+
+`npm run verify:sw-bridge` 会扫描全部 importScripts 脚本的顶层 const / let / class / function，
+跨文件重名直接报错（function 重名虽不报 SyntaxError，但后加载的会静默覆盖前者，同样禁止）。
+ESLint 对 `background/**` 的全局变量表也是从这份加载列表自动收集的，新增顶层名字不用手改 eslint 配置。
 
 解决方案：
 1. 将变量集中到 `Constants.js` 中定义

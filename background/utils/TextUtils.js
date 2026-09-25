@@ -5,18 +5,7 @@
 
 // ==================== 文本格式化 ====================
 
-/**
- * 格式化菜单标题 - 截断过长的文本
- * @param {string} text - 原始文本
- * @param {number} maxLength - 最大长度（默认 20）
- * @returns {string|null} - 格式化后的文本，空文本返回 null
- */
-function formatMenuTitle(text, maxLength = 20) {
-  if (!text) return null;
-  const compact = text.replace(/\s+/g, ' ').trim();
-  if (!compact) return null;
-  return compact.substring(0, maxLength) + (compact.length > maxLength ? '...' : '');
-}
+// formatMenuTitle 在 background/menuSystem.js（SW 全局唯一实现）。
 
 /**
  * 规范化搜索文本 - 处理空白字符和 URL 编码
@@ -261,7 +250,6 @@ function pickFirstMeaningfulText(candidates) {
 
 // ==================== 导出到全局 ====================
 
-globalThis.formatMenuTitle = formatMenuTitle;
 globalThis.normalizeSearchText = normalizeSearchText;
 globalThis.cleanupTitleKeyword = cleanupTitleKeyword;
 globalThis.extractKeywordFromTitle = extractKeywordFromTitle;
@@ -275,7 +263,6 @@ globalThis.pickFirstMeaningfulText = pickFirstMeaningfulText;
 
 // TextUtils 对象
 globalThis.TextUtils = {
-  formatMenuTitle,
   normalizeSearchText,
   cleanupTitleKeyword,
   extractKeywordFromTitle,

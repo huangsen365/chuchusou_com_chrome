@@ -12,7 +12,7 @@
  * 强制不变量：src/background/menuBuilderAttach.ts 的 MENU_GROUPS 里每个静态
  * 菜单 id 必须——
  *  1. 在 src/background/menuHandlersAttach.ts 有 `case "<id>"` 兜底分支（全部组）
- *  2. URL 型组（search/ai/general）还必须在 background/events.js 有 `case '<id>'`
+ *  2. URL 型组（search/ai/general）还必须在 background/events/menu.js 有 `case '<id>'`
  *     兜底分支（popup/sidepanel 老消息路径的最后防线）
  *  3. URL 型组每个 id 必须在 config/unifiedMenuConfig.json 顶层 items 里
  *     登记 urlPattern（SSoT 主通道本身不缺位）
@@ -62,12 +62,12 @@ for (const id of allStaticIds) {
   }
 }
 
-// ---- 3. events.js：URL 型 id 都要有 case ----
-const eventsSrc = read("background/events.js")
+// ---- 3. events/menu.js（popup/sidepanel executeMenuAction）：URL 型 id 都要有 case ----
+const eventsSrc = read("background/events/menu.js")
 const jsCases = new Set([...eventsSrc.matchAll(/case '([^']+)'/g)].map((m) => m[1]))
 for (const id of urlIds) {
   if (!jsCases.has(id)) {
-    fail(`events.js 缺 case '${id}' —— popup/sidepanel 老消息路径没有该项的最后防线`)
+    fail(`events/menu.js 缺 case '${id}' —— popup/sidepanel 老消息路径没有该项的最后防线`)
   }
 }
 
@@ -96,7 +96,7 @@ const ENCODING_SURFACES = [
     "config/unifiedMenuConfig.json",
     "src/shared/menuStructureBuilder.ts",
     "src/background/menuHandlersAttach.ts",
-    "background/events.js",
+    "background/events/menu.js",
     "modules/buttons.js",
     "modules/buttonDefinitions.js",
     "modules/commands.js",
@@ -106,7 +106,7 @@ const ENCODING_SURFACES = [
     "config/engines.json",
     "src/shared/menuStructureBuilder.ts",
     "src/background/menuHandlersAttach.ts",
-    "background/events.js",
+    "background/events/menu.js",
     "prompts/fastAnswersPrompts.json",
     "prompts/topQuestionsPrompts.json",
     "prompts/optimizedPrompts.json",
@@ -126,7 +126,7 @@ for (const [canon, barePattern, files] of ENCODING_SURFACES) {
 
 if (process.exitCode) {
   console.error(`${TAG} 修复指引：新增 URL 型菜单项需同时登记 ①unifiedMenuConfig.json（SSoT）`
-    + ` ②menuHandlersAttach.ts switch-case ③events.js switch-case，缺一不可；`
+    + ` ②menuHandlersAttach.ts switch-case ③events/menu.js switch-case，缺一不可；`
     + `百度/Google 模板必须逐字使用带 ie/oe 的规范形式（见本脚本 ENCODING_SURFACES）`)
   process.exit(1)
 }

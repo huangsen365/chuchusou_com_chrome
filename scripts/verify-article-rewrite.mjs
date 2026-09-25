@@ -4,6 +4,7 @@ import fs from "node:fs"
 import path from "node:path"
 import process from "node:process"
 import vm from "node:vm"
+import { readEventSources } from "./lib/swSources.mjs"
 
 const root = process.cwd()
 const promptSourcePath = path.join(root, "prompts/articleRewritePrompts.json")
@@ -373,7 +374,7 @@ assert(
 )
 
 const contentSource = fs.readFileSync(path.join(root, "content.js"), "utf8")
-const backgroundSource = fs.readFileSync(path.join(root, "background/events.js"), "utf8")
+const backgroundSource = readEventSources(root)
 assert(contentSource.includes("preserveExistingDraft: true"), "AI fill relay must preserve existing drafts")
 assert(contentSource.includes("stage: 'existing_draft'"), "AI fill relay must expose existing-draft failures")
 assert(backgroundSource.includes("ccsCreateGoogleDocRewrite"), "background Google Docs rewrite route missing")

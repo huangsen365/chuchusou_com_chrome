@@ -58,6 +58,23 @@ for (const target of imports) {
 }
 console.log("[verify-sw-bridge] ✓ importScripts 模块没有 TS 孪生实现")
 
+// 3.5 共享作用域重名：importScripts 的脚本共用一个全局作用域。顶层 const/let/class 重名会让 SW
+// 加载时直接 SyntaxError（Identifier has already been declared）；function 重名则后者静默覆盖前者。
+{
+  const owners = new Map()
+  const duplicates = []
+  for (const target of imports) {
+    const source = fs.readFileSync(path.join(root, target), "utf8")
+    for (const m of source.matchAll(/^(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)|^(?:const|let|var|class)\s+([A-Za-z_$][\w$]*)/gm)) {
+      const name = m[1] || m[2]
+      if (owners.has(name) && owners.get(name) !== target) duplicates.push(`${name}（${owners.get(name)} 与 ${target}）`)
+      else owners.set(name, target)
+    }
+  }
+  assert(duplicates.length === 0, `importScripts 脚本顶层重名: ${duplicates.join("；")}`)
+  console.log(`[verify-sw-bridge] ✓ ${owners.size} 个 SW 共享作用域顶层名字无重名`)
+}
+
 // 4. 退役文件不回流
 const retiredDir = path.join(root, "legacy/background-retired")
 if (fs.existsSync(retiredDir)) {
@@ -72,14 +89,19 @@ if (fs.existsSync(retiredDir)) {
   console.log(`[verify-sw-bridge] ✓ ${retired.length} 个退役文件未混入 importScripts / background/ / build/`)
 }
 
-// 5. background/ 根目录白名单：每个根级 .js 都必须在 importScripts 列表里。抓两类污染：
+// 5. background/ 白名单：目录下（含子目录）每个 .js 都必须在 importScripts 列表里。抓两类污染：
 // 误入的僵尸文件、OneDrive 同步冲突副本（实测出现过 events-<机器名>.js —— postbuild 会把它整目录打进商店 zip）。
 {
-  const rootJs = fs.readdirSync(path.join(root, "background")).filter((f) => f.endsWith(".js"))
-  const allowed = new Set(imports.filter((t) => t.startsWith("background/") && !t.slice("background/".length).includes("/")).map((t) => t.slice("background/".length)))
-  const strays = rootJs.filter((f) => !allowed.has(f))
-  assert(strays.length === 0, `background/ 根目录有不明 .js 文件: ${strays.join(", ")}（僵尸或同步冲突副本，会被打进商店 zip）`)
-  console.log(`[verify-sw-bridge] ✓ background/ 根目录 ${rootJs.length} 个 .js 全部在 importScripts 列表内`)
+  const listJs = (dir) => fs.readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap((entry) => {
+    const rel = `${dir}/${entry.name}`
+    if (entry.isDirectory()) return listJs(rel)
+    return entry.name.endsWith(".js") ? [rel] : []
+  })
+  const backgroundJs = listJs("background")
+  const allowed = new Set(imports)
+  const strays = backgroundJs.filter((f) => !allowed.has(f))
+  assert(strays.length === 0, `background/ 下有不在 importScripts 列表里的 .js: ${strays.join(", ")}（僵尸或同步冲突副本，会被打进商店 zip）`)
+  console.log(`[verify-sw-bridge] ✓ background/ 下 ${backgroundJs.length} 个 .js 全部在 importScripts 列表内`)
 }
 
 // 6. build 产物

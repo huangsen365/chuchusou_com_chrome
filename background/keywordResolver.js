@@ -94,16 +94,7 @@ function isGenericQuickHostKeyword(hostname, keyword) {
   return false;
 }
 
-function pickFirstMeaningfulText(candidates) {
-  for (const candidate of candidates) {
-    if (typeof candidate !== 'string') continue;
-    const trimmed = candidate.trim();
-    if (trimmed.length > 0) {
-      return { raw: candidate, trimmed };
-    }
-  }
-  return { raw: '', trimmed: '' };
-}
+// pickFirstMeaningfulText 在 background/utils/TextUtils.js。
 
 async function computeSearchTextForTab({
   tabId,

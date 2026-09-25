@@ -56,18 +56,6 @@ function checkConstants(golden, legacy) {
 }
 
 function checkTextUtils(golden, legacy) {
-  const formatCases = [
-    [null, undefined],
-    ["", undefined],
-    ["   ", undefined],
-    ["Hello", undefined],
-    ["A very long sentence that exceeds the limit", undefined],
-    ["A very long sentence that exceeds the limit", 5],
-    ["  multi   space\ttab", undefined]
-  ]
-  golden.check("formatMenuTitle", formatCases.map(([input, max]) =>
-    max === undefined ? legacy.formatMenuTitle(input) : legacy.formatMenuTitle(input, max)))
-
   const normalizeCases = ["", "  hello  world  ", "%E4%B8%AD%E6%96%87", "raw text", null, "not%encoded%abc"]
   golden.check("normalizeSearchText", normalizeCases.map((input) => legacy.normalizeSearchText(input)))
 

@@ -3,6 +3,7 @@ import fs from "node:fs"
 import http from "node:http"
 import path from "node:path"
 import vm from "node:vm"
+import { readEventSources } from "./lib/swSources.mjs"
 
 const root = process.cwd()
 
@@ -385,7 +386,7 @@ async function verifyConfiguredPatterns(runtime) {
 }
 
 function verifyPromptHandlersDoNotBypassRelay() {
-  const eventsSource = fs.readFileSync(path.join(root, "background/events.js"), "utf8")
+  const eventsSource = readEventSources(root)
   assert.equal(
     eventsSource.includes("const encodedPrompt = encodeURIComponent(prompt);"),
     false,

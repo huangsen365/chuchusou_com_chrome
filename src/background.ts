@@ -57,7 +57,7 @@ attachMenuBuilder()
 attachMenuHandlers()
 autoRegisterVoiceBridge()
 
-// 顺序：第 1 层工具 → 2 层核心管理器 → 3 层业务 → 3.5 AI → 4 层菜单/事件（events.js 必须最后）
+// 顺序：第 1 层工具 → 2 层核心管理器 → 3 层业务 → 3.5 AI → 4 层事件 handler → 5 层事件接线（events.js 必须最后）
 sw.importScripts(
   // 第 1 层：基础工具
   absoluteUrl("background/utils/Constants.js"),
@@ -92,12 +92,27 @@ sw.importScripts(
   absoluteUrl("background/tasks/AITaskHandler.js"),
   absoluteUrl("background/articleActions.js"),
 
-  // 第 4 层：菜单 + 事件
+  // 第 4 层：事件 handler（按领域拆分；messaging.js 提供分发表，必须在其它 events/* 之前）
   // ↓ background/menuBuilder.js 已被 src/background/menuBuilderAttach.ts 取代 ↓
   // ↓ background/menuHandlers.js 已被 src/background/menuHandlersAttach.ts 取代 ↓
   // ↓ background/voiceOffscreenBridge.js 已被 src/background/voiceOffscreenBridge.ts 取代 ↓
+  absoluteUrl("background/events/messaging.js"),
+  absoluteUrl("background/events/siteFastQaUpdateGuard.js"),
+  absoluteUrl("background/events/menuState.js"),
+  absoluteUrl("background/events/aiRelay.js"),
+  absoluteUrl("background/events/articleRewrite.js"),
+  absoluteUrl("background/events/longArticle.js"),
+  absoluteUrl("background/events/urlRecovery.js"),
+  absoluteUrl("background/events/sidePanel.js"),
+  absoluteUrl("background/events/keyword.js"),
+  absoluteUrl("background/events/menu.js"),
+  absoluteUrl("background/events/diagnostics.js"),
+  absoluteUrl("background/events/tabs.js"),
+  absoluteUrl("background/events/contextMenuShown.js"),
+
+  // 第 5 层：事件接线（所有 chrome.* 监听注册，必须最后）
   absoluteUrl("background/events.js")
-  // 第 5 层：初始化 ↓ background/init.js 已被 src/background/initAttach.ts 取代 ↓
+  // 初始化 ↓ background/init.js 已被 src/background/initAttach.ts 取代（下面 attachInit()）↓
 )
 
 // 必须在 importScripts 之后调用：依赖 g.MenuSystem (menuSystem.js) /

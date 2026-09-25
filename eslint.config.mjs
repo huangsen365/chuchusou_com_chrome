@@ -1,3 +1,25 @@
+import fs from "node:fs"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
+
+const projectRoot = path.dirname(fileURLToPath(import.meta.url))
+
+// SW 共享作用域：src/background.ts importScripts 的普通脚本共用一个全局作用域，
+// 彼此的顶层 function / const / let / class 直接可见。这里从真实加载列表收集这些顶层名字，
+// 只给 background/** 用（content / popup / sidepanel 仍用下面手写的 globals）。
+function collectServiceWorkerGlobals() {
+  const entry = fs.readFileSync(path.join(projectRoot, "src/background.ts"), "utf8")
+  const files = [...entry.matchAll(/absoluteUrl\("([^"]+)"\)/g)].map((m) => m[1])
+  const globals = {}
+  for (const file of files) {
+    const source = fs.readFileSync(path.join(projectRoot, file), "utf8")
+    for (const m of source.matchAll(/^(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)|^(?:const|let|var|class)\s+([A-Za-z_$][\w$]*)/gm)) {
+      globals[m[1] || m[2]] = "writable"
+    }
+  }
+  return globals
+}
+
 export default [
   {
     ignores: [
@@ -350,6 +372,12 @@ export default [
       "no-import-assign": "error",
       "no-self-assign": "error",
       "use-isnan": "error",
+    }
+  },
+  {
+    files: ["background/**/*.js"],
+    languageOptions: {
+      globals: collectServiceWorkerGlobals()
     }
   },
   {

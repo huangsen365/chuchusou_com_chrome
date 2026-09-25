@@ -1,25 +1,4 @@
-function isGenericHostKeyword(hostname, keyword) {
-  if (!keyword) return false;
-  const value = keyword.trim().toLowerCase();
-  if (!value) return true;
-  if (hostname.includes('chatgpt.com')) {
-    if (value === 'chatgpt' || value === 'chatgpt.com' || value.startsWith('chatgpt.com/')) {
-      return true;
-    }
-    if (value === 'www.chatgpt.com') {
-      return true;
-    }
-  }
-  if (hostname.includes('claude.ai')) {
-    if (value === 'claude' || value === 'claude.ai' || value.startsWith('claude.ai/')) {
-      return true;
-    }
-    if (value === 'www.claude.ai') {
-      return true;
-    }
-  }
-  return false;
-}
+// isGenericHostKeyword 在 background/utils/TextUtils.js。
 
 function safeDecodeParam(value) {
   if (typeof value !== 'string' || !value) return value;

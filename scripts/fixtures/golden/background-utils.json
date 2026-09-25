@@ -290,15 +290,6 @@
       "www.claude.ai"
     ]
   },
-  "formatMenuTitle": [
-    null,
-    null,
-    null,
-    "Hello",
-    "A very long sentence...",
-    "A ver...",
-    "multi space tab"
-  ],
   "normalizeSearchText": [
     "",
     "hello world",

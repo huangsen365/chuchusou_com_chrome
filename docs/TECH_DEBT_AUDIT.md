@@ -6,6 +6,9 @@
 > `shared/menuStructureBuilder.js` 删除（popup 预渲染改用 `src/shared/menuStructureBuilder.ts`）。
 > 原 dual 脚本对 legacy 模块的行为覆盖改成 golden 快照（`scripts/fixtures/golden/`），录制时
 > legacy 与 TS 两边逐项 deep-equal；构建产物除去掉的死文件外与 v1.18.5 逐字节一致。
+> 随后 `background/events.js`（2774 行）按领域拆成 `background/events/*.js` 13 个文件 + 接线文件，
+> onMessage 的 27 个 `if (action === …)` 分支原样搬进分发表 handler（逐行核对只有包装层变化）。
+> 新增的共享作用域重名守卫顺带揪出 3 处跨文件同名函数（后加载的静默覆盖前者），已删掉被覆盖的死副本。
 >
 > **2026-06 增补**：TS 移植完成后又退役了 6 个 legacy SW 文件（base.js / Logger.js /
 > menuHandlers.js / menuBuilder.js / voiceOffscreenBridge.js / init.js，~3200 行），

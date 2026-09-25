@@ -4,6 +4,7 @@ import fs from "node:fs"
 import path from "node:path"
 import process from "node:process"
 import vm from "node:vm"
+import { readEventSources, registeredMessageActions } from "./lib/swSources.mjs"
 
 const root = process.cwd()
 
@@ -361,7 +362,8 @@ assert(longActionSource.includes("replace(/他/g, 'TA')"), "X draft TA replaceme
 assert(longActionSource.includes("replaceHtmlTextNodes(template.content)"), "X draft HTML text-node replacement missing")
 assert(longActionSource.includes("ccs-long-article-action-spinner"), "long actions loading spinner is missing")
 
-const eventSource = fs.readFileSync(path.join(root, "background/events.js"), "utf8")
+const eventSource = readEventSources(root)
+const registeredActions = registeredMessageActions(root)
 for (const action of [
   "ccsCreateXArticleDraft",
   "ccsCreateLongArticleCover",
@@ -369,7 +371,7 @@ for (const action of [
   "ccsGetXArticleDraftTask",
   "ccsCompleteXArticleDraft"
 ]) {
-  assert(eventSource.includes(action), `background route ${action} missing`)
+  assert(registeredActions.includes(action), `background route ${action} missing`)
 }
 assert(
   eventSource.includes("trustedChatGptSource(senderUrl, sourceUrl, senderTabUrl)"),

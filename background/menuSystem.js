@@ -185,7 +185,7 @@ function setMenuState(rawText, normalizedText, meta = {}) {
 }
 
 /**
- * 兼容旧 API：格式化菜单标题
+ * 格式化菜单标题（SW 全局唯一实现：KeywordSyncManager / events / baseBridge 都用它）
  *
  * @param {string} text - 文本
  * @returns {string}
