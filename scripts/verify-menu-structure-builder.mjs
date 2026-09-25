@@ -35,8 +35,10 @@ function loadSwConstants() {
   const context = { chrome: { storage: { local: { get: (_keys, cb) => cb({}) } } }, console: { log() {}, warn() {} } }
   context.globalThis = context
   vm.createContext(context)
-  const abs = path.join(root, "background/utils/Constants.js")
-  vm.runInContext(fs.readFileSync(abs, "utf8"), context, { filename: abs })
+  for (const rel of ["shared/storageKeys.js", "background/utils/Constants.js"]) {
+    const abs = path.join(root, rel)
+    vm.runInContext(fs.readFileSync(abs, "utf8"), context, { filename: abs })
+  }
   return context
 }
 

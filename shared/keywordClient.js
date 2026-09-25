@@ -27,7 +27,7 @@
     SIDEPANEL_REFRESH: 'sidepanel-refresh'
   };
 
-  const STORAGE_PREFIX = 'ccs_kw_';
+  const STORAGE_PREFIX = globalThis.CCSStorageKeys.PREFIX.KEYWORD;
   const STORAGE_TTL_MS = 5 * 60 * 1000; // 必须和 background/KeywordService.js 的 KEYWORD_STORAGE_TTL_MS 一致
   const REQUEST_TIMEOUT_MS = 1500;
 

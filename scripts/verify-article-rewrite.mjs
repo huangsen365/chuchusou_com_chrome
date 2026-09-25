@@ -70,6 +70,11 @@ function loadLegacyApi() {
     { filename: "modules/chatGptDom.js" }
   )
   vm.runInContext(
+    fs.readFileSync(path.join(root, "shared/storageKeys.js"), "utf8"),
+    context,
+    { filename: "shared/storageKeys.js" }
+  )
+  vm.runInContext(
     fs.readFileSync(path.join(root, "shared/rewriteVariety.js"), "utf8"),
     context,
     { filename: "shared/rewriteVariety.js" }

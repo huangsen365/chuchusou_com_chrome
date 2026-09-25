@@ -7,9 +7,9 @@
  * complete prompt into the composer after the page is ready.
  */
 (() => {
-  const RELAY_QUERY_KEY = 'ccs_pp';
-  const STORAGE_PREFIX = 'ccs_ai_pending_prompt_';
-  const TAB_STORAGE_PREFIX = 'ccs_ai_pending_tab_';
+  const RELAY_QUERY_KEY = globalThis.CCSStorageKeys.URL_PARAM.RELAY_ID;
+  const STORAGE_PREFIX = globalThis.CCSStorageKeys.PREFIX.AI_PENDING_PROMPT;
+  const TAB_STORAGE_PREFIX = globalThis.CCSStorageKeys.PREFIX.AI_PENDING_TAB;
   const DIRECT_URL_LIMIT = 1800;
   const RELAY_TTL_MS = 30 * 60 * 1000;
   const AI_QUERY_PARAM_KEYS = ['prompt', 'q', 'query', 'text'];

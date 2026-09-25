@@ -7,7 +7,7 @@
   },
   "scripts": {
     "lint": "eslint .",
-    "test": "npm run lint && npm run typecheck && npm run verify:shared-config && npm run verify:menu-fallback && npm run verify:cover-consistency && npm run verify:menu-structure-builder && npm run verify:background-utils && npm run verify:background-pure-modules && npm run verify:background-extras && npm run verify:content-modules && npm run verify:site-adapters && npm run verify:x-tweet-fastqa && npm run verify:zhihu-fastqa && npm run verify:article-rewrite && npm run verify:long-article-actions && npm run verify:ai-prompt-fill && npm run verify:url-safety && npm run verify:select-all-protection && npm run verify:ai-fill-ux && npm run plasmo:build && npm run verify:perf-budget && npm run verify:sw-bridge && npm run verify:extension-smoke",
+    "test": "npm run lint && npm run typecheck && npm run verify:shared-config && npm run verify:menu-fallback && npm run verify:cover-consistency && npm run verify:menu-structure-builder && npm run verify:background-utils && npm run verify:background-pure-modules && npm run verify:background-extras && npm run verify:content-modules && npm run verify:site-adapters && npm run verify:storage-keys && npm run verify:x-tweet-fastqa && npm run verify:zhihu-fastqa && npm run verify:article-rewrite && npm run verify:long-article-actions && npm run verify:ai-prompt-fill && npm run verify:url-safety && npm run verify:select-all-protection && npm run verify:ai-fill-ux && npm run plasmo:build && npm run verify:perf-budget && npm run verify:sw-bridge && npm run verify:extension-smoke",
     "plasmo:dev": "plasmo dev --target=chrome-mv3 --src-path=src",
     "plasmo:build": "plasmo build --target=chrome-mv3 --src-path=src && node scripts/plasmo-compat-postbuild.mjs && node scripts/prebuild-popup-menu.mjs && node scripts/bundle-shared-deps.mjs && npm run plasmo:verify",
     "plasmo:package": "npm run plasmo:build && plasmo package --target=chrome-mv3 --src-path=src && npm run plasmo:verify-package",
@@ -23,6 +23,7 @@
     "verify:background-extras": "node scripts/verify-background-extras.mjs",
     "verify:content-modules": "node scripts/verify-content-modules.mjs",
     "verify:site-adapters": "node scripts/verify-site-adapters.mjs",
+    "verify:storage-keys": "node scripts/verify-storage-keys.mjs",
     "verify:x-tweet-fastqa": "node scripts/verify-x-tweet-fastqa.mjs",
     "verify:zhihu-fastqa": "node scripts/verify-zhihu-fastqa.mjs",
     "verify:article-rewrite": "node scripts/verify-article-rewrite.mjs",

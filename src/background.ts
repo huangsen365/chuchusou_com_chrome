@@ -59,7 +59,8 @@ autoRegisterVoiceBridge()
 
 // 顺序：第 1 层工具 → 2 层核心管理器 → 3 层业务 → 3.5 AI → 4 层事件 handler → 5 层事件接线（events.js 必须最后）
 sw.importScripts(
-  // 第 1 层：基础工具
+  // 第 1 层：基础工具（storageKeys.js 必须第一个：其它脚本加载时就读 CCSStorageKeys）
+  absoluteUrl("shared/storageKeys.js"),
   absoluteUrl("background/utils/Constants.js"),
   absoluteUrl("background/utils/TextUtils.js"),
   absoluteUrl("background/utils/TextLimits.js"),

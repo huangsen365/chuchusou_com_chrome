@@ -128,8 +128,8 @@
   // ==========================================================================
   // 常量与小工具
   // ==========================================================================
-  const VOICE_HISTORY_KEY = 'ccs_voice_history';
-  const VOICE_INTRO_SEEN_KEY = 'ccs_voice_intro_seen';
+  const VOICE_HISTORY_KEY = globalThis.CCSStorageKeys.VOICE_HISTORY;
+  const VOICE_INTRO_SEEN_KEY = globalThis.CCSStorageKeys.VOICE_INTRO_SEEN;
 
   function getVoicePermissionUrl() {
     return chrome.runtime.getURL('voice-permission/permission.html');

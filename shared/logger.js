@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const TRACE_KEY = 'ccs_trace_buffer';
+  const TRACE_KEY = globalThis.CCSStorageKeys.TRACE_BUFFER;
   const TRACE_LIMIT = 200;
   const EXTENSION_LABEL = 'extension';
   const LEVELS = { debug: 10, info: 20, warn: 30, error: 40 };

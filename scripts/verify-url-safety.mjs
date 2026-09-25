@@ -81,7 +81,7 @@ function loadRuntime() {
   context.globalThis = context
   context.self = context
 
-  for (const rel of ["background/chatgptPromptRelay.js", "background/urlSafety.js"]) {
+  for (const rel of ["shared/storageKeys.js", "background/chatgptPromptRelay.js", "background/urlSafety.js"]) {
     const code = fs.readFileSync(path.join(root, rel), "utf8")
     vm.runInNewContext(code, context, { filename: rel })
   }

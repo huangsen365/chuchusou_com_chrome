@@ -32,6 +32,7 @@ const root = process.cwd()
 const buildDir = path.resolve(root, process.argv[2] || "build/chrome-mv3-prod")
 
 const POPUP_DEPS = [
+  "shared/storageKeys.js",
   "shared/logger.js",
   "shared/runtimeClient.js",
   "shared/storageDefaults.js",
@@ -40,6 +41,7 @@ const POPUP_DEPS = [
 ]
 
 const SIDEPANEL_DEPS = [
+  "shared/storageKeys.js",
   "shared/logger.js",
   "shared/runtimeClient.js",
   "shared/storageDefaults.js",

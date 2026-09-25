@@ -205,7 +205,7 @@ class PopupMenuRenderer {
           this.applyKeyword(cached);
         }
         // SW 后续写入 ccs_kw_<tabId>（例如内容脚本上报新选区）→ 自动刷新徽章
-        const storageKey = `ccs_kw_${tab.id}`;
+        const storageKey = `${globalThis.CCSStorageKeys.PREFIX.KEYWORD}${tab.id}`;
         this._kwStorageListener = (changes, areaName) => {
           if (areaName !== 'local') return;
           const change = changes[storageKey];
@@ -392,11 +392,11 @@ class PopupMenuRenderer {
   }
 
   // === Pinned cover quick-launch（与 sidepanel pin 共享 chrome.storage.local 状态） ===
-  // 这些 storage key 必须与 sidepanel/sidepanel.js 顶部声明保持一致；那边是 SSoT，这里只读。
-  static PIN_STORAGE_KEY = 'ccs_sidepanel_pinned_action';
-  static CUSTOM_LINE_KEY = 'ccs_cover_custom_selected_line';
-  static CUSTOM_PURPOSE_KEY = 'ccs_cover_custom_purpose';
-  static RATIO_KEY = 'ccs_cover_aspect_ratio';
+  // storage key 登记在 shared/storageKeys.js（与 sidepanel / SW 共用）
+  static PIN_STORAGE_KEY = globalThis.CCSStorageKeys.COVER_PIN;
+  static CUSTOM_LINE_KEY = globalThis.CCSStorageKeys.COVER_CUSTOM_LINE;
+  static CUSTOM_PURPOSE_KEY = globalThis.CCSStorageKeys.COVER_CUSTOM_PURPOSE;
+  static RATIO_KEY = globalThis.CCSStorageKeys.COVER_RATIO;
   static DEFAULT_PIN = { taskId: 'cover', categoryId: 'zhumoqing' };
   static DEFAULT_RATIO = '5:2';
 

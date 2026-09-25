@@ -11,7 +11,7 @@
    * 只保存名称，无法据此核验历史讲法。全部本地，不上传。
    */
   const PLACEHOLDER = '${recentConcepts}';
-  const STORAGE_KEY = 'ccs_rewrite_recent_concepts';
+  const STORAGE_KEY = globalThis.CCSStorageKeys.REWRITE_RECENT_CONCEPTS;
   const MAX_RECENT = 80;
   const MAX_TERM_LENGTH = 30;
   const EMPTY_TEXT = '（无）';

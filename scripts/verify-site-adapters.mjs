@@ -87,7 +87,7 @@ for (const consumer of ["modules/articleRewriteRuntime.js", "modules/chatGptSele
 }
 // content.js 单独补注入时也要带上 chatGptDom.js
 const reinject = fs.readFileSync(path.join(root, "background/events/menuState.js"), "utf8")
-if (!reinject.includes("files: ['modules/chatGptDom.js', 'content.js']")) {
+if (!reinject.includes("'modules/chatGptDom.js', 'content.js']")) {
   violations.push("background/events/menuState.js 补注入 content.js 时必须先注入 modules/chatGptDom.js")
 }
 

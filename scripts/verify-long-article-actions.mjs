@@ -117,6 +117,8 @@ function loadBackgroundApi() {
   }
   context.globalThis = context
   vm.createContext(context)
+  // 与 SW 一致：键名注册表先于 articleActions.js 加载
+  vm.runInContext(fs.readFileSync(path.join(root, "shared/storageKeys.js"), "utf8"), context, { filename: "shared/storageKeys.js" })
   vm.runInContext(
     fs.readFileSync(path.join(root, "background/articleActions.js"), "utf8"),
     context,
@@ -268,16 +270,18 @@ assert(bg.sentMessages[0]?.message?.action === "ccsDeliverXArticleDraft", "X del
 assert(await bg.api.taskForTarget(delivery.taskId, delivery.targetTabId), "target-bound task not readable by its tab")
 assert(await bg.api.taskForTarget(delivery.taskId, delivery.targetTabId + 1) === null, "task leaked to another tab")
 
-// 封面风格跟随侧边栏置顶（storage key 必须与 src/shared/coverPinConstants.ts 逐字一致）
+// 封面风格跟随侧边栏置顶（storage key：coverPinConstants.ts 与 shared/storageKeys.js 必须一致，SW 从后者取）
 const pinConstants = fs.readFileSync(path.join(root, "src/shared/coverPinConstants.ts"), "utf8")
 const articleActionsSource = fs.readFileSync(path.join(root, "background/articleActions.js"), "utf8")
-for (const [name, value] of [
-  ["PIN_STORAGE_KEY", "ccs_sidepanel_pinned_action"],
-  ["CUSTOM_PURPOSE_KEY", "ccs_cover_custom_purpose"],
-  ["CUSTOM_LINE_KEY", "ccs_cover_custom_selected_line"]
+const storageKeysSource = fs.readFileSync(path.join(root, "shared/storageKeys.js"), "utf8")
+for (const [name, registryName, value] of [
+  ["PIN_STORAGE_KEY", "COVER_PIN", "ccs_sidepanel_pinned_action"],
+  ["CUSTOM_PURPOSE_KEY", "COVER_CUSTOM_PURPOSE", "ccs_cover_custom_purpose"],
+  ["CUSTOM_LINE_KEY", "COVER_CUSTOM_LINE", "ccs_cover_custom_selected_line"]
 ]) {
   assert(pinConstants.includes(`export const ${name} = "${value}"`), `coverPinConstants.ts ${name} drifted from "${value}"`)
-  assert(articleActionsSource.includes(`'${value}'`), `articleActions.js must read ${name} literal "${value}"`)
+  assert(storageKeysSource.includes(`${registryName}: '${value}'`), `shared/storageKeys.js ${registryName} drifted from "${value}"`)
+  assert(articleActionsSource.includes(`globalThis.CCSStorageKeys.${registryName}`), `articleActions.js must read ${registryName} from CCSStorageKeys`)
 }
 assert(/DEFAULT_PIN = \{ taskId: "cover", categoryId: "zhumoqing" \}/.test(pinConstants), "DEFAULT_PIN drifted; sync COVER_DEFAULT_CATEGORY")
 

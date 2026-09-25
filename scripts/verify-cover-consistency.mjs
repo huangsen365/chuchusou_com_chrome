@@ -20,6 +20,7 @@
 import fs from "node:fs"
 import path from "node:path"
 import process from "node:process"
+import vm from "node:vm"
 
 const root = process.cwd()
 const TAG = "[verify-cover-consistency]"
@@ -139,7 +140,30 @@ if (ssotRatioValues[0] !== SSOT.DEFAULT_RATIO) {
 }
 ok()
 
-// ---- 4. 生产 legacy popup / sidepanel（无法 import，字面量必须逐字对齐 SSoT）----
+// ---- 4. storage key：JS 侧注册表 shared/storageKeys.js 与 TS 侧 coverPinConstants.ts 逐字一致，
+//         popup / sidepanel / SW 的键常量必须取自注册表；默认值（比例 / 置顶风格）仍是字面量，逐字对齐 SSoT ----
+const registryCtx = {}
+registryCtx.globalThis = registryCtx
+vm.createContext(registryCtx)
+vm.runInContext(read("shared/storageKeys.js"), registryCtx)
+const REGISTRY = registryCtx.CCSStorageKeys
+const KEY_PAIRS = [
+  ["COVER_PIN", "PIN_STORAGE_KEY"],
+  ["COVER_CUSTOM_PURPOSE", "CUSTOM_PURPOSE_KEY"],
+  ["COVER_CUSTOM_LINE", "CUSTOM_LINE_KEY"],
+  ["COVER_RATIO", "RATIO_KEY"],
+  ["COVER_CUSTOM_RATIOS", "RATIO_CUSTOM_LIST_KEY"]
+]
+for (const [registryName, ssotName] of KEY_PAIRS) {
+  if (REGISTRY?.[registryName] !== SSOT[ssotName]) {
+    fail(`shared/storageKeys.js ${registryName} = "${REGISTRY?.[registryName]}" 与 coverPinConstants.ts ${ssotName} = "${SSOT[ssotName]}" 漂移`)
+  }
+}
+function assertFromRegistry(file, src, name, registryName) {
+  if (!new RegExp(`${name}\\s*=\\s*globalThis\\.CCSStorageKeys\\.${registryName}\\b`).test(src)) {
+    fail(`${file} 的 ${name} 必须取自 globalThis.CCSStorageKeys.${registryName}`)
+  }
+}
 function assertLiteral(file, src, name, expected) {
   if (expected == null) return
   const m = src.match(new RegExp(`${name}\\s*=\\s*'([^']+)'`))
@@ -150,10 +174,10 @@ function assertLiteral(file, src, name, expected) {
 }
 for (const file of ["popup/popup.js", "sidepanel/sidepanel.js"]) {
   const src = read(file)
-  assertLiteral(file, src, "PIN_STORAGE_KEY", SSOT.PIN_STORAGE_KEY)
-  assertLiteral(file, src, "CUSTOM_PURPOSE_KEY", SSOT.CUSTOM_PURPOSE_KEY)
-  assertLiteral(file, src, "CUSTOM_LINE_KEY", SSOT.CUSTOM_LINE_KEY)
-  assertLiteral(file, src, "RATIO_KEY", SSOT.RATIO_KEY)
+  assertFromRegistry(file, src, "PIN_STORAGE_KEY", "COVER_PIN")
+  assertFromRegistry(file, src, "CUSTOM_PURPOSE_KEY", "COVER_CUSTOM_PURPOSE")
+  assertFromRegistry(file, src, "CUSTOM_LINE_KEY", "COVER_CUSTOM_LINE")
+  assertFromRegistry(file, src, "RATIO_KEY", "COVER_RATIO")
   assertLiteral(file, src, "DEFAULT_RATIO", SSOT.DEFAULT_RATIO)
   const pinM = src.match(/DEFAULT_PIN\s*=\s*\{\s*taskId:\s*'cover',\s*categoryId:\s*'([^']+)'\s*\}/)
   if (!pinM) fail(`${file} 找不到 DEFAULT_PIN 字面量（形态变了请同步本脚本）`)
@@ -163,7 +187,11 @@ for (const file of ["popup/popup.js", "sidepanel/sidepanel.js"]) {
 }
 // sidepanel 的比例预设清单（值 + 顺序）必须与 SSoT 完全一致
 const spSrc = read("sidepanel/sidepanel.js")
-assertLiteral("sidepanel/sidepanel.js", spSrc, "RATIO_CUSTOM_LIST_KEY", SSOT.RATIO_CUSTOM_LIST_KEY)
+assertFromRegistry("sidepanel/sidepanel.js", spSrc, "RATIO_CUSTOM_LIST_KEY", "COVER_CUSTOM_RATIOS")
+const actionsSrc = read("background/articleActions.js")
+assertFromRegistry("background/articleActions.js", actionsSrc, "COVER_PIN_STORAGE_KEY", "COVER_PIN")
+assertFromRegistry("background/articleActions.js", actionsSrc, "COVER_CUSTOM_PURPOSE_KEY", "COVER_CUSTOM_PURPOSE")
+assertFromRegistry("background/articleActions.js", actionsSrc, "COVER_CUSTOM_LINE_KEY", "COVER_CUSTOM_LINE")
 const spRatioValues = [...spSrc.matchAll(/\{ value: '([^']+)',/g)].map((m) => m[1])
 if (JSON.stringify(spRatioValues) !== JSON.stringify(ssotRatioValues)) {
   fail(`sidepanel/sidepanel.js RATIO_PRESETS [${spRatioValues.join(" ")}] 与 coverPinConstants.ts [${ssotRatioValues.join(" ")}] 漂移`)

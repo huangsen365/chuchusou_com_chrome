@@ -81,6 +81,7 @@ function loadLegacy() {
 
   // 顺序：Constants + TextUtils + TextLimits 提供 cleanupTitleKeyword 等依赖；然后业务
   const files = [
+    { p: "shared/storageKeys.js", a: "" },
     { p: "background/utils/Constants.js", a: "" },
     { p: "background/utils/TextUtils.js", a: "" },
     { p: "background/utils/TextLimits.js", a: "" },

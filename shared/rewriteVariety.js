@@ -18,7 +18,7 @@
    *   概念处理 = conceptModes[(n + floor(n / 4)) % 4]          步长 1 或 2，相邻两篇必不同（加粗目标 4～6、上限 8，固定不轮换）
    */
   const PLACEHOLDER = '${varietyPlan}';
-  const COUNTER_KEY = 'ccs_rewrite_variety_counter';
+  const COUNTER_KEY = globalThis.CCSStorageKeys.REWRITE_VARIETY_COUNTER;
   const EMPTY_PLAN_TEXT = '（本篇不做额外形式安排，按素材自行选择标题、开头与结尾的形式。）';
   const CYCLE = 1800;
 

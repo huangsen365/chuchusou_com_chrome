@@ -28,6 +28,7 @@
         "<all_urls>"
       ],
       "js": [
+        "shared/storageKeys.js",
         "content/SelectionManager.js",
         "content/TextEncoder.js",
         "content/ToastUI.js",

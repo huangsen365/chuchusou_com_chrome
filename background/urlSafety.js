@@ -9,8 +9,8 @@
   const REGULAR_URL_HARD_CAP = 1800;
   const REGULAR_URL_WARN_CAP = 1500;
   const RECOVERY_TTL_MS = 30 * 60 * 1000;
-  const RECOVERY_STORAGE_PREFIX = 'ccs_url_recovery_';
-  const RECOVERY_TAB_STORAGE_PREFIX = 'ccs_url_recovery_tab_';
+  const RECOVERY_STORAGE_PREFIX = globalThis.CCSStorageKeys.PREFIX.URL_RECOVERY;
+  const RECOVERY_TAB_STORAGE_PREFIX = globalThis.CCSStorageKeys.PREFIX.URL_RECOVERY_TAB;
   const COMMON_TEXT_PARAM_KEYS = ['q', 'wd', 'query', 'keyword', 'text', 'prompt'];
 
   const recoveryStore = new Map();

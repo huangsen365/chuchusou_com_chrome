@@ -16,6 +16,10 @@
 - **站点 DOM 适配器**：ChatGPT 选择器只在 `modules/chatGptDom.js`（content.js / longArticleActions 等经
   `window.CCSModules.ChatGptDom` 取用），X / 知乎 / Google Docs 各在自己的适配器里；`verify:site-adapters` 守卫。
   ChatGPT 改版时先改 chatGptDom.js。
+- **存储键名唯一登记处 `shared/storageKeys.js`**（`globalThis.CCSStorageKeys`）：SW importScripts、内容脚本 manifest、
+  popup / sidepanel bundle 里都是第一个加载。键常量一律 `globalThis.CCSStorageKeys.X` / `.PREFIX.X`；新增键先登记。
+  `verify:storage-keys` 会拦下任何未登记的 `ccs_` 名字（字符串 / 属性 / 对象键）和抄成字面量的键常量；
+  boot 脚本与 `src/**/*.ts` 加载早于注册表，只能写字面量，由守卫逐个对照注册表。
 - **行为回归用 golden 快照**：`verify-background-{utils,pure-modules,extras}` 把 SW 模块的输出对照
   `scripts/fixtures/golden/*.json`；有意改行为后 `UPDATE_GOLDEN=1 node scripts/verify-xxx.mjs` 刷新并审 diff。
 - **已退役的 6 个 legacy SW 文件**（~3200 行）已被 TS 取代并删除（原文件见 git 历史；`verify-sw-bridge` 防回流）：

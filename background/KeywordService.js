@@ -55,7 +55,7 @@ const INTENT_POLICIES = {
   'legacy-getSearchText': { forceFetchSelection: true, skipCurrentMenuFallback: true, cacheToStorage: false, source: 'legacy' }
 };
 
-const KEYWORD_STORAGE_PREFIX = 'ccs_kw_';
+const KEYWORD_STORAGE_PREFIX = globalThis.CCSStorageKeys.PREFIX.KEYWORD;
 const KEYWORD_STORAGE_TTL_MS = 5 * 60 * 1000; // 5 分钟
 
 class KeywordService {

@@ -8,7 +8,7 @@
 class PromptLibraryManager {
   constructor(options = {}) {
     this.onToast = options.onToast || ((msg) => console.log(msg));
-    this.storageKey = 'ccs_prompt_library';
+    this.storageKey = globalThis.CCSStorageKeys.PROMPT_LIBRARY;
     this.maxPrompts = 100;
     this.maxNameLength = 50;
     this.maxContentLength = 2000;

@@ -211,7 +211,7 @@ async function runAITaskByMenuId(menuItemId, keyword, options = {}) {
  * 当前只有 cover 任务用：从 chrome.storage.local 读用户选的比例。
  * 未来加任何 task-scoped 模板变量直接在这里扩展。
  */
-const COVER_PALETTE_COUNTER_KEY = 'ccs_cover_palette_counter';
+const COVER_PALETTE_COUNTER_KEY = globalThis.CCSStorageKeys.COVER_PALETTE_COUNTER;
 const COVER_PALETTE_FALLBACK = '点缀色例如暖黄或橙。';
 
 // 封面配色轮换：带 palettes 的风格（当前仅墨清）每次生成按计数器取下一组，写成具体配色指令

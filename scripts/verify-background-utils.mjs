@@ -34,7 +34,7 @@ function loadLegacyGlobals() {
   context.window = context.globalThis
   context.self = context.globalThis
   vm.createContext(context)
-  for (const rel of ["background/utils/Constants.js", "background/utils/TextUtils.js", "background/utils/TextLimits.js"]) {
+  for (const rel of ["shared/storageKeys.js", "background/utils/Constants.js", "background/utils/TextUtils.js", "background/utils/TextLimits.js"]) {
     const abs = path.join(root, rel)
     vm.runInContext(fs.readFileSync(abs, "utf8"), context, { filename: abs })
   }

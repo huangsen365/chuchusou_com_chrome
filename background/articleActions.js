@@ -8,14 +8,14 @@
  */
 (() => {
   const X_ARTICLE_COMPOSER_URL = 'https://x.com/compose/articles';
-  const X_TASK_STORAGE_PREFIX = 'ccs_x_article_draft_';
+  const X_TASK_STORAGE_PREFIX = globalThis.CCSStorageKeys.PREFIX.X_ARTICLE_DRAFT;
   const X_TASK_TTL_MS = 24 * 60 * 60 * 1000;
   const X_DELIVERY_RETRIES = 18;
   const X_DELIVERY_TIMEOUT_MS = 50000;
-  // 与 src/shared/coverPinConstants.ts 逐字一致（legacy SW 无法 import，字面量由 verify-long-article-actions 锁定）
-  const COVER_PIN_STORAGE_KEY = 'ccs_sidepanel_pinned_action';
-  const COVER_CUSTOM_PURPOSE_KEY = 'ccs_cover_custom_purpose';
-  const COVER_CUSTOM_LINE_KEY = 'ccs_cover_custom_selected_line';
+  // 与 src/shared/coverPinConstants.ts 一致（值由 verify-storage-keys / verify-long-article-actions 对照）
+  const COVER_PIN_STORAGE_KEY = globalThis.CCSStorageKeys.COVER_PIN;
+  const COVER_CUSTOM_PURPOSE_KEY = globalThis.CCSStorageKeys.COVER_CUSTOM_PURPOSE;
+  const COVER_CUSTOM_LINE_KEY = globalThis.CCSStorageKeys.COVER_CUSTOM_LINE;
   const COVER_DEFAULT_CATEGORY = 'zhumoqing'; // 与 coverPinConstants.ts 的 DEFAULT_PIN.categoryId 一致
   const COVER_LABEL_PREVIEW_MAX = 15;
 

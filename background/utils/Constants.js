@@ -14,10 +14,10 @@ const LOG_PREFIX = '[触触搜][MENU]';
  * 存储键名
  */
 const STORAGE_KEYS = {
-  DEBUG: 'ccs_debug',
-  MENU_ICON_SUPPORT: 'ccs_menu_icon_supported',
-  BLACKLIST: 'ccs_blacklist',
-  SHORTCUT_KEY: 'ccs_shortcut_key'
+  DEBUG: globalThis.CCSStorageKeys.DEBUG,
+  MENU_ICON_SUPPORT: globalThis.CCSStorageKeys.MENU_ICON_SUPPORT,
+  BLACKLIST: globalThis.CCSStorageKeys.BLACKLIST,
+  SHORTCUT_KEY: globalThis.CCSStorageKeys.SHORTCUT_KEY
 };
 
 // ==================== 快速结果页面 ====================

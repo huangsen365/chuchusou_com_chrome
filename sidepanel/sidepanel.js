@@ -3,16 +3,16 @@
  * 只显示置顶操作 + 一级菜单项（无子菜单）
  */
 
-const PIN_STORAGE_KEY = 'ccs_sidepanel_pinned_action';
-const CUSTOM_PURPOSE_KEY = 'ccs_cover_custom_purpose';        // textarea 全文（用户预设库）
-const CUSTOM_LINE_KEY = 'ccs_cover_custom_selected_line';      // 当前应用的那一行
+const PIN_STORAGE_KEY = globalThis.CCSStorageKeys.COVER_PIN;
+const CUSTOM_PURPOSE_KEY = globalThis.CCSStorageKeys.COVER_CUSTOM_PURPOSE;           // textarea 全文（用户预设库）
+const CUSTOM_LINE_KEY = globalThis.CCSStorageKeys.COVER_CUSTOM_LINE;                 // 当前应用的那一行
 const CUSTOM_PURPOSE_MAX = 5000;
 const CUSTOM_LINE_PREVIEW_MAX = 15;                            // dropdown 选项 / 卡片副标题截断长度（中文 15 字内，避免挤爆容器）
 const DEFAULT_PIN = { taskId: 'cover', categoryId: 'zhumoqing' };
 
 // 比例（适用所有封面调用 · 全局生效）
-const RATIO_KEY = 'ccs_cover_aspect_ratio';                    // 当前选中比例（如 "5:2"）
-const RATIO_CUSTOM_LIST_KEY = 'ccs_cover_custom_ratios';        // 用户保存的自定义比例数组
+const RATIO_KEY = globalThis.CCSStorageKeys.COVER_RATIO;                             // 当前选中比例（如 "5:2"）
+const RATIO_CUSTOM_LIST_KEY = globalThis.CCSStorageKeys.COVER_CUSTOM_RATIOS;          // 用户保存的自定义比例数组
 const RATIO_CUSTOM_MAX = 5;                                     // 最多保留 5 个，溢出剔除最旧
 const DEFAULT_RATIO = '5:2';
 const RATIO_RE = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/;
@@ -809,7 +809,7 @@ class SidePanelRenderer {
           this.renderKeyword();
         }
         // 2. 监听 SW 后续写 ccs_kw_<tabId>
-        const storageKey = `ccs_kw_${tabInfo.id}`;
+        const storageKey = `${globalThis.CCSStorageKeys.PREFIX.KEYWORD}${tabInfo.id}`;
         if (!this._kwStorageListener) {
           this._kwStorageListener = (changes, areaName) => {
             if (areaName !== 'local') return;
@@ -1083,7 +1083,7 @@ class SidePanelRenderer {
   // 首屏永远不 import voice 代码（即使用户开了开关），等用户真的点 🎤 才注入脚本 + 构造 VoicePanel。
   // 这样关掉语音的用户首屏 0 voice 代码，开了语音但当前进 sidepanel 还没点 🎤 的用户首屏也 0 voice 代码。
   initVoiceModule() {
-    const VOICE_ENABLED_KEY = 'ccs_voice_enabled';
+    const VOICE_ENABLED_KEY = globalThis.CCSStorageKeys.VOICE_ENABLED;
 
     // 廉价：浏览器是否支持 Web Speech API（不需要 voice.js 代码就能判断）
     const hasWebSpeech = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
