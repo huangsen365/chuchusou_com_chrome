@@ -197,14 +197,10 @@ async function main() {
   row("  Plasmo demo sendMessage 调用", "0", "popup 完全 self-contained")
   row("  Plasmo demo fetch 调用", "0", "所有 config 都 import 进 bundle 了")
 
-  // ---- shared/menuStructureBuilder 异步调用（被同步加载） ----
-  const builderAsync = scanAsyncCalls("shared/menuStructureBuilder.js")
+  // ---- shared/ 同步脚本里的异步调用 ----
   const keywordClientAsync = scanAsyncCalls("shared/keywordClient.js")
 
   section("3. shared/ 同步脚本里的异步调用（同步加载，但启动后会发起的）")
-  row("menuStructureBuilder storage/send/fetch",
-      `${builderAsync.storageLocalGet}/${builderAsync.sendMessage}/${builderAsync.fetch}`,
-      "纯函数 builder，理想应为 0/0/0")
   row("keywordClient storage/send/fetch",
       `${keywordClientAsync.storageLocalGet}/${keywordClientAsync.sendMessage}/${keywordClientAsync.fetch}`,
       "popup 拿 keyword 用的，sendMessage 走 SW")

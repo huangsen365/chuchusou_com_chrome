@@ -307,7 +307,7 @@ function readJson(rel) {
 }
 
 function collectUnifiedMenuPatterns() {
-  const config = readJson("src/assets-json/config/unifiedMenuConfig.json")
+  const config = readJson("config/unifiedMenuConfig.json")
   const out = []
   const visit = (item) => {
     if (item?.urlPattern) out.push({ id: item.id || "unknown", pattern: item.urlPattern, source: "unified" })
@@ -327,18 +327,18 @@ function collectPromptPatterns() {
     }
   }
 
-  const fastAnswers = readJson("src/assets-json/prompts/fastAnswersPrompts.json")
+  const fastAnswers = readJson("prompts/fastAnswersPrompts.json")
   for (const engine of fastAnswers.engines || []) addEngine("fastqa", "fastqa", engine)
 
-  const topQuestions = readJson("src/assets-json/prompts/topQuestionsPrompts.json")
+  const topQuestions = readJson("prompts/topQuestionsPrompts.json")
   for (const engine of topQuestions.engines || []) addEngine("top100", "top100", engine)
 
-  const optimized = readJson("src/assets-json/prompts/optimizedPrompts.json")
+  const optimized = readJson("prompts/optimizedPrompts.json")
   for (const category of optimized.categories || []) {
     for (const engine of category.engines || []) addEngine("optimize", category.id || "category", engine)
   }
 
-  const cover = readJson("src/assets-json/prompts/coverPrompts.json")
+  const cover = readJson("prompts/coverPrompts.json")
   for (const category of cover.categories || []) {
     for (const engine of category.engines || []) addEngine("cover", category.id || "category", engine)
   }

@@ -2,18 +2,17 @@
  * Plasmo Service Worker 入口
  *
  * 生产 SW 的唯一入口，由 Plasmo 在 `static/background/index.js` 生成。
- * 运行时通过 importScripts() 拉取 legacy SW 模块（在 `background/*.js`），
- * 加载顺序与原 background/index.js 完全一致 —— 行为零差异。
+ * TS 模块（src/background/*.ts）直接 import 打包；其余 SW 逻辑仍是
+ * `background/*.js` / `shared/*.js` 普通脚本，运行时通过 importScripts() 拉取。
  *
  * 关键路径：
  * - Plasmo bundle SW 路径：`/static/background/index.js`
- * - Legacy SW 模块路径：`/background/*.js`（postbuild 复制）
- * - 用 chrome.runtime.getURL() 把相对 import 转成扩展绝对 URL，
- *   否则 legacy index.js 里的 `./utils/Constants.js` 会从 `/static/background/utils/` 找而失败
+ * - importScripts 模块路径：`/background/*.js`、`/shared/*.js`（postbuild 复制）
+ * - 用 chrome.runtime.getURL() 转成扩展绝对 URL，
+ *   否则相对路径会从 `/static/background/` 下找而失败
  *
- * 这是"管道归 Plasmo，逻辑暂留 legacy"的过渡形态。
- * 后续把 base.js / events.js / menuBuilder.js / menuHandlers.js 等剩余 legacy
- * 全部 port 成 TS 之后，可以把 importScripts 列表逐个换成 import。
+ * 把某个 importScripts 模块改写成 TS 时：在这里 import 它、从列表里删掉原文件，
+ * 不要留两份实现（scripts/verify-sw-bridge.mjs 守着这份列表）。
  */
 
 import { attachBaseBridge } from "./background/baseBridge"
@@ -58,7 +57,7 @@ attachMenuBuilder()
 attachMenuHandlers()
 autoRegisterVoiceBridge()
 
-// 与 legacy background/index.js 1:1 顺序：第 1 层工具 → 2 层核心管理器 → 3 层业务 → 3.5 AI → 4 层菜单/事件
+// 顺序：第 1 层工具 → 2 层核心管理器 → 3 层业务 → 3.5 AI → 4 层菜单/事件（events.js 必须最后）
 sw.importScripts(
   // 第 1 层：基础工具
   absoluteUrl("background/utils/Constants.js"),
@@ -70,7 +69,7 @@ sw.importScripts(
   absoluteUrl("shared/rewriteVariety.js"),
   absoluteUrl("shared/rewriteConceptMemory.js"),
   // ↓ background/Logger.js 已被 baseBridge.ts 取代（logMenuEvent + buildLogPayload）↓
-  absoluteUrl("shared/menuStructureBuilder.js"),
+  // ↓ shared/menuStructureBuilder.js 已由 src/shared/menuStructureBuilder.ts 取代（popupMenuStructure.ts import）↓
 
   // 第 2 层：核心管理器
   absoluteUrl("background/MenuRegistry.js"),

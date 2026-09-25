@@ -94,10 +94,9 @@ node -e "JSON.parse(require('fs').readFileSync('package-lock.json'))"
 **与旧脚本的关键差异**：旧 build.sh 直接 rsync 源目录，完全绕过 Plasmo；新版完全走 Plasmo build。这意味着任何 src/ 改动通过 npm run plasmo:build 编译后都会进入 zip，跟测试链一致。
 
 **验收检查**（眼看输出）：
-- 文件数 ~130 个（v1.6.18+ 含 Plasmo bundle 比 v1.6.17 多 40 个）
-- ZIP 大小 ~450K（v1.6.18+ 含 Plasmo bundle 比 v1.6.17 大约多 250K）
+- 文件数、ZIP 大小与上一版同量级（突然暴增多半是误带了 `node_modules` / `.git` / `legacy/` / `src/`）
 - 顶层目录齐全：`background/ config/ content/ icons/ modules/ popup/ prompts/ sidepanel/ assets/ static/`
-- Plasmo 物证：根 `popup.html` / `sidepanel.html` / `content.{hash}.js` / `static/background/index.js`
+- SW 入口：`static/background/index.js`（Plasmo 编译的 src/background.ts）
 - 关键 legacy 根文件：`manifest.json content.js content.css dockbar.js privacy.html`
 
 如果 verify-plasmo-compat-build 失败（33 个 manifest-referenced 文件缺一）→ build.sh 会立刻退出。

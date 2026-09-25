@@ -1,0 +1,448 @@
+{
+  "MENU_IDS": {
+    "BAIDU": "ccs-baidu",
+    "BASE64": "ccs-base64",
+    "CHATGPT": "ccs-chatgpt",
+    "CHUCHUSOU": "ccs-chuchusou",
+    "CLAUDE": "ccs-claude",
+    "COPY": "ccs-copy",
+    "FASTQA_CHATGPT_QUICK": "ccs-fastqa-chatgpt-quick",
+    "FASTQA_CLAUDE_QUICK": "ccs-fastqa-claude-quick",
+    "FASTQA_GROK_QUICK": "ccs-fastqa-grok-quick",
+    "FASTQA_OPEN_ALL": "ccs-fastqa-open-all",
+    "FASTQA_ROOT": "ccs-fastqa-root",
+    "GOOGLE": "ccs-google",
+    "GOOGLE_AI_CHAT": "ccs-google-ai-chat",
+    "GOOGLE_TRANSLATE": "ccs-google-translate",
+    "GROK": "ccs-grok",
+    "JD": "ccs-jd",
+    "LOWER": "ccs-lower",
+    "MD5": "ccs-md5",
+    "OPTIMIZE_ROOT": "ccs-optimize-root",
+    "ROOT": "ccs-main",
+    "SHOW_POPOVER": "ccs-show-popover",
+    "SOV2EX": "ccs-sov2ex",
+    "TAOBAO": "ccs-taobao",
+    "TOP100_OPEN_ALL": "ccs-top100-open-all",
+    "TOP100_ROOT": "ccs-top100-root",
+    "UPPER": "ccs-upper",
+    "URL_ENCODE": "ccs-url-encode",
+    "WEIXIN": "ccs-weixin",
+    "YIYAN": "ccs-yiyan",
+    "ZHIHU": "ccs-zhihu"
+  },
+  "MENU_ID_GROUPS": {
+    "ADVANCED": [
+      "ccs-top100-root",
+      "ccs-fastqa-root",
+      "ccs-optimize-root"
+    ],
+    "AI_CHAT": [
+      "ccs-chatgpt",
+      "ccs-claude",
+      "ccs-grok"
+    ],
+    "DYNAMIC_TITLE": [
+      "ccs-main",
+      "ccs-chatgpt",
+      "ccs-claude",
+      "ccs-grok",
+      "ccs-chuchusou",
+      "ccs-fastqa-chatgpt-quick",
+      "ccs-fastqa-claude-quick",
+      "ccs-fastqa-grok-quick",
+      "ccs-fastqa-root",
+      "ccs-fastqa-open-all"
+    ],
+    "FAST_QA_QUICK": [
+      "ccs-fastqa-chatgpt-quick",
+      "ccs-fastqa-claude-quick",
+      "ccs-fastqa-grok-quick"
+    ],
+    "GENERAL_SEARCH": [
+      "ccs-zhihu",
+      "ccs-weixin",
+      "ccs-taobao",
+      "ccs-jd",
+      "ccs-sov2ex",
+      "ccs-google-translate",
+      "ccs-chuchusou"
+    ],
+    "SEARCH_ENGINES": [
+      "ccs-baidu",
+      "ccs-google",
+      {
+        "$undefined": true
+      },
+      "ccs-yiyan"
+    ],
+    "TOOLS": [
+      "ccs-copy",
+      "ccs-base64",
+      "ccs-md5",
+      "ccs-url-encode"
+    ],
+    "TRANSFORMS": [
+      "ccs-upper",
+      "ccs-lower"
+    ]
+  },
+  "MENU_ID_PREFIXES": {
+    "CCS": "ccs-",
+    "FASTQA": "ccs-fastqa-",
+    "OPTIMIZE": "ccs-optimize-",
+    "TOP100": "ccs-top100-"
+  },
+  "menuIdPredicates": [
+    {
+      "id": "ccs-top100-chatgpt",
+      "isFastQAMenu": false,
+      "isOptimizeMenu": false,
+      "isTop100Menu": true,
+      "isValidMenuId": false,
+      "needsDynamicTitle": false
+    },
+    {
+      "id": "ccs-fastqa-claude",
+      "isFastQAMenu": true,
+      "isOptimizeMenu": false,
+      "isTop100Menu": false,
+      "isValidMenuId": false,
+      "needsDynamicTitle": false
+    },
+    {
+      "id": "ccs-optimize-x",
+      "isFastQAMenu": false,
+      "isOptimizeMenu": true,
+      "isTop100Menu": false,
+      "isValidMenuId": false,
+      "needsDynamicTitle": false
+    },
+    {
+      "id": "ccs-google",
+      "isFastQAMenu": false,
+      "isOptimizeMenu": false,
+      "isTop100Menu": false,
+      "isValidMenuId": true,
+      "needsDynamicTitle": false
+    },
+    {
+      "id": "",
+      "isFastQAMenu": false,
+      "isOptimizeMenu": false,
+      "isTop100Menu": false,
+      "isValidMenuId": false,
+      "needsDynamicTitle": false
+    },
+    {
+      "id": null,
+      "isFastQAMenu": false,
+      "isOptimizeMenu": false,
+      "isTop100Menu": false,
+      "isValidMenuId": false,
+      "needsDynamicTitle": false
+    }
+  ],
+  "getMenuIdByConstant": [
+    "ccs-main",
+    "ccs-chatgpt",
+    null,
+    null
+  ],
+  "getConstantByMenuId": [
+    "ROOT",
+    "CHATGPT",
+    null
+  ],
+  "getAllMenuIds": [
+    "ccs-baidu",
+    "ccs-base64",
+    "ccs-chatgpt",
+    "ccs-chuchusou",
+    "ccs-claude",
+    "ccs-copy",
+    "ccs-fastqa-chatgpt-quick",
+    "ccs-fastqa-claude-quick",
+    "ccs-fastqa-grok-quick",
+    "ccs-fastqa-open-all",
+    "ccs-fastqa-root",
+    "ccs-google",
+    "ccs-google-ai-chat",
+    "ccs-google-translate",
+    "ccs-grok",
+    "ccs-jd",
+    "ccs-lower",
+    "ccs-main",
+    "ccs-md5",
+    "ccs-optimize-root",
+    "ccs-show-popover",
+    "ccs-sov2ex",
+    "ccs-taobao",
+    "ccs-top100-open-all",
+    "ccs-top100-root",
+    "ccs-upper",
+    "ccs-url-encode",
+    "ccs-weixin",
+    "ccs-yiyan",
+    "ccs-zhihu"
+  ],
+  "URLBuilder.isValidUrl": [
+    false,
+    false,
+    false,
+    false
+  ],
+  "URLBuilder.buildSimple": [
+    "https://x.com/?q=hello",
+    "https://x.com/path?a=1&q=hello%20world",
+    "https://x.com/?q=%E4%B8%AD%E6%96%87"
+  ],
+  "URLBuilder.build": [
+    "https://www.baidu.com/s?wd=hello%20world",
+    "https://chatgpt.com/?q=explain%20this",
+    "https://x.com/?raw=hello%20world&enc=hello%2520world&norm=hello%20world",
+    "https://x.com/?u="
+  ],
+  "URLBuilder.build.edges": {
+    "emptyParams": "https://www.baidu.com/s?wd=",
+    "missingTemplate": null
+  },
+  "URLBuilder.lookup": [
+    {
+      "has": true,
+      "id": "ccs-baidu",
+      "template": "https://www.baidu.com/s?wd=${KEYWORD}"
+    },
+    {
+      "has": false,
+      "id": "ccs-nonexistent",
+      "template": null
+    }
+  ],
+  "URLBuilder.getAllMenuIds": [
+    "ccs-baidu",
+    "ccs-chatgpt",
+    "ccs-mixed",
+    "ccs-unknown-var"
+  ],
+  "URLBuilder.loadFromConfig": 2,
+  "MenuRegistry.syncableItems": [
+    "force-yes",
+    "g-grouped",
+    "x-label",
+    "z-tpl"
+  ],
+  "MenuRegistry.lookup": [
+    {
+      "found": true,
+      "has": true,
+      "id": "x-label"
+    },
+    {
+      "found": true,
+      "has": true,
+      "id": "force-no"
+    },
+    {
+      "found": false,
+      "has": false,
+      "id": "not-exist"
+    }
+  ],
+  "MenuRegistry.renderTitle": [
+    "X: \"test\"",
+    "Y: \"test\"",
+    "Z test",
+    "G: \"test\"",
+    "F: \"test\"",
+    "X test"
+  ],
+  "MenuRegistry.renderTitle.emptyCtx": [
+    "X",
+    "Y",
+    "Z ",
+    "G",
+    "F",
+    "X "
+  ],
+  "MenuRegistry.getStats": {
+    "groupDetails": [
+      {
+        "count": 1,
+        "name": "main"
+      }
+    ],
+    "groups": 1,
+    "syncableItems": 4,
+    "totalItems": 6
+  },
+  "TASK_DEFINITIONS": {
+    "cover": {
+      "categoryTitlesKey": "COVER_CATEGORY_TITLES",
+      "categoryVariable": "purpose",
+      "hasCategories": true,
+      "icon": "🎨",
+      "id": "cover",
+      "label": "封面生成器",
+      "menuIdPrefix": "ccs-cover",
+      "menuRootId": "ccs-cover-root",
+      "openAllAxis": "category",
+      "openAllSkipCategoryIds": [
+        "custom"
+      ],
+      "promptsFile": "prompts/coverPrompts.json",
+      "showOpenAll": true,
+      "templateVariable": "input"
+    },
+    "fastqa": {
+      "hasCategories": false,
+      "icon": "⚡",
+      "id": "fastqa",
+      "label": "速答壹拾佰",
+      "menuIdPrefix": "ccs-fastqa",
+      "menuRootId": "ccs-fastqa-root",
+      "promptsFile": "prompts/fastAnswersPrompts.json",
+      "showOpenAll": true,
+      "templateVariable": "input"
+    },
+    "optimize": {
+      "categoryTitlesKey": "OPTIMIZE_CATEGORY_TITLES",
+      "categoryVariable": "purpose",
+      "hasCategories": true,
+      "icon": "🧠",
+      "id": "optimize",
+      "label": "优化提示词",
+      "menuIdPrefix": "ccs-optimize",
+      "menuRootId": "ccs-optimize-root",
+      "promptsFile": "prompts/optimizedPrompts.json",
+      "showOpenAll": true,
+      "templateVariable": "input"
+    },
+    "top100": {
+      "hasCategories": false,
+      "icon": "💯",
+      "id": "top100",
+      "label": "触触搜百问",
+      "menuIdPrefix": "ccs-top100",
+      "menuRootId": "ccs-top100-root",
+      "promptsFile": "prompts/topQuestionsPrompts.json",
+      "showOpenAll": true,
+      "templateVariable": "input"
+    }
+  },
+  "listTaskDefinitions": [
+    {
+      "hasCategories": false,
+      "icon": "⚡",
+      "id": "fastqa",
+      "label": "速答壹拾佰",
+      "menuIdPrefix": "ccs-fastqa",
+      "menuRootId": "ccs-fastqa-root",
+      "promptsFile": "prompts/fastAnswersPrompts.json",
+      "showOpenAll": true,
+      "templateVariable": "input"
+    },
+    {
+      "hasCategories": false,
+      "icon": "💯",
+      "id": "top100",
+      "label": "触触搜百问",
+      "menuIdPrefix": "ccs-top100",
+      "menuRootId": "ccs-top100-root",
+      "promptsFile": "prompts/topQuestionsPrompts.json",
+      "showOpenAll": true,
+      "templateVariable": "input"
+    },
+    {
+      "categoryTitlesKey": "OPTIMIZE_CATEGORY_TITLES",
+      "categoryVariable": "purpose",
+      "hasCategories": true,
+      "icon": "🧠",
+      "id": "optimize",
+      "label": "优化提示词",
+      "menuIdPrefix": "ccs-optimize",
+      "menuRootId": "ccs-optimize-root",
+      "promptsFile": "prompts/optimizedPrompts.json",
+      "showOpenAll": true,
+      "templateVariable": "input"
+    },
+    {
+      "categoryTitlesKey": "COVER_CATEGORY_TITLES",
+      "categoryVariable": "purpose",
+      "hasCategories": true,
+      "icon": "🎨",
+      "id": "cover",
+      "label": "封面生成器",
+      "menuIdPrefix": "ccs-cover",
+      "menuRootId": "ccs-cover-root",
+      "openAllAxis": "category",
+      "openAllSkipCategoryIds": [
+        "custom"
+      ],
+      "promptsFile": "prompts/coverPrompts.json",
+      "showOpenAll": true,
+      "templateVariable": "input"
+    }
+  ],
+  "resolveMenuId": [
+    {
+      "root": true,
+      "taskId": "fastqa"
+    },
+    {
+      "engineId": "chatgpt",
+      "taskId": "fastqa"
+    },
+    {
+      "engineId": "google-ai",
+      "taskId": "fastqa"
+    },
+    {
+      "all": true,
+      "openAll": true,
+      "taskId": "fastqa"
+    },
+    {
+      "engineId": "claude",
+      "taskId": "top100"
+    },
+    {
+      "root": true,
+      "taskId": "optimize"
+    },
+    {
+      "categoryId": "deep-research",
+      "engineId": "chatgpt",
+      "taskId": "optimize"
+    },
+    {
+      "categoryId": "content-creation",
+      "engineId": "grok",
+      "taskId": "optimize"
+    },
+    {
+      "categoryId": "content-creation",
+      "openAll": true,
+      "taskId": "optimize"
+    },
+    {
+      "categoryId": "content-creation",
+      "taskId": "optimize"
+    },
+    null,
+    {
+      "categoryId": "anime-cute",
+      "engineId": "chatgpt-images",
+      "taskId": "cover"
+    },
+    {
+      "all": true,
+      "openAll": true,
+      "taskId": "cover"
+    },
+    null,
+    null,
+    null,
+    null
+  ]
+}

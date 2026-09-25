@@ -63,7 +63,6 @@
     };
   }
 
-  // ⚠ 与 src/shared/keywordClient.ts 的 isReceivingEndError 保持同一正则（双向同步改）
   function isReceivingEndError(message) {
     return /Receiving end does not exist|Could not establish connection|message port closed|Extension context invalidated/i.test(message || '');
   }

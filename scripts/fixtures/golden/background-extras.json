@@ -1,0 +1,220 @@
+{
+  "StateManager": {
+    "afterSetCurrentState": {
+      "display": "test",
+      "normalized": "test",
+      "raw": "test",
+      "tabId": 1,
+      "timestamp": 0,
+      "url": "https://x.com"
+    },
+    "canPreserveCurrentState": [
+      true,
+      true,
+      false
+    ],
+    "cleanupExpiredStates": 1,
+    "fallback": {
+      "normalized": "norm",
+      "raw": "raw",
+      "timestamp": 0,
+      "url": "https://y.com"
+    },
+    "initial": {
+      "display": "",
+      "normalized": "",
+      "raw": "",
+      "tabId": null,
+      "timestamp": null,
+      "url": ""
+    },
+    "selection": {
+      "text": "hello",
+      "timestamp": 0,
+      "url": "https://x.com"
+    },
+    "shouldPreserveMenuStateForUrl": [
+      true,
+      false,
+      true,
+      false,
+      false
+    ],
+    "stats": {
+      "currentState": {
+        "hasContent": true,
+        "tabId": 1,
+        "timestamp": 0
+      },
+      "tabStates": {
+        "tabIds": [
+          1,
+          2,
+          3
+        ],
+        "total": 3
+      }
+    },
+    "title": {
+      "keyword": "Hello",
+      "text": "Hello - 知乎",
+      "timestamp": 0,
+      "url": "https://zhihu.com"
+    }
+  },
+  "safeDecodeParam": [
+    "plain",
+    "中文",
+    "",
+    "%FF%FF%FF%FF",
+    null
+  ],
+  "heuristicExtractFromParams": [
+    {
+      "key": "q",
+      "score": 10.5,
+      "value": "hello"
+    },
+    {
+      "key": "q",
+      "score": 10.1,
+      "value": "d"
+    },
+    {
+      "key": "q",
+      "score": 13.1,
+      "value": "中"
+    },
+    {
+      "key": "title",
+      "score": 1.1,
+      "value": "hello world"
+    },
+    null
+  ],
+  "extractSearchKeywords": [
+    "hello",
+    "test query",
+    "real query",
+    "chatgpt",
+    "foo",
+    "bar",
+    "标题",
+    "Awesome Video Title",
+    "Never Gonna Give You Up",
+    "d",
+    "中",
+    "hello world",
+    "网飞标题",
+    "某人 在 X 上：「今天天气不错」",
+    "hello"
+  ],
+  "buildPrompts": {
+    "cover": "Cover style=anime input=girl",
+    "fastAnswers": "Fast: how to; language=简体中文",
+    "fastAnswersJapanese": "Fast: how to; language=日本語",
+    "optimized": "Please analyze: hello",
+    "optimizedEmptyPurpose": "Please : x",
+    "topQuestions": "Top: AI"
+  },
+  "populateOptimizedMenuMap": {
+    "$map": [
+      [
+        "ccs-optimize-deep-research-chatgpt",
+        {
+          "purpose": "research deeply",
+          "urlPattern": "https://chatgpt.com/?q=${PROMPT}"
+        }
+      ],
+      [
+        "ccs-optimize-deep-research-claude",
+        {
+          "purpose": "research deeply",
+          "urlPattern": "https://claude.ai/?q=${PROMPT}"
+        }
+      ]
+    ]
+  },
+  "populateCoverMenuMap": {
+    "$map": [
+      [
+        "ccs-cover-anime-cute-chatgpt-images",
+        {
+          "purpose": "anime cute style",
+          "urlPattern": "https://chatgpt.com/?cover=${PROMPT}"
+        }
+      ]
+    ]
+  },
+  "KEYWORD_INTENTS": {
+    "CONTEXT_MENU_CLICK": "contextmenu-click",
+    "LEGACY": "legacy-getSearchText",
+    "MENU_PREVIEW": "menu-preview",
+    "PAGE_CHANGED": "page-changed",
+    "POPUP_OPEN": "popup-open",
+    "SIDEPANEL_INIT": "sidepanel-init",
+    "SIDEPANEL_REFRESH": "sidepanel-refresh"
+  },
+  "INTENT_POLICIES": {
+    "contextmenu-click": {
+      "cacheToStorage": false,
+      "forceFetchSelection": true,
+      "skipCurrentMenuFallback": true,
+      "source": "context-menu"
+    },
+    "legacy-getSearchText": {
+      "cacheToStorage": false,
+      "forceFetchSelection": true,
+      "skipCurrentMenuFallback": true,
+      "source": "legacy"
+    },
+    "menu-preview": {
+      "cacheToStorage": false,
+      "forceFetchSelection": false,
+      "skipCurrentMenuFallback": false,
+      "source": "menu-preview"
+    },
+    "page-changed": {
+      "cacheToStorage": false,
+      "forceFetchSelection": false,
+      "skipCurrentMenuFallback": false,
+      "source": "tab-event"
+    },
+    "popup-open": {
+      "cacheToStorage": true,
+      "forceFetchSelection": true,
+      "skipCurrentMenuFallback": true,
+      "source": "popup"
+    },
+    "sidepanel-init": {
+      "cacheToStorage": false,
+      "forceFetchSelection": true,
+      "skipCurrentMenuFallback": true,
+      "source": "sidepanel-init"
+    },
+    "sidepanel-refresh": {
+      "cacheToStorage": false,
+      "forceFetchSelection": true,
+      "skipCurrentMenuFallback": true,
+      "source": "sidepanel-refresh"
+    }
+  },
+  "MenuSystem.keys": [
+    "buildMenuUrl",
+    "formatMenuTitle",
+    "getStateManager",
+    "getSystemConfig",
+    "getURLBuilder",
+    "init",
+    "rebuildMenus",
+    "setMenuState"
+  ],
+  "MenuSystem.formatMenuTitle": [
+    "",
+    "短标题",
+    "xxxxxxxxxxxxxxxxxxx",
+    "yyyyyyyyyyyyyyyyyyyy",
+    "zzzzzzzzzzzzzzzzzzzz...",
+    "周杰伦周杰伦周杰伦周杰伦周杰伦周杰伦周杰..."
+  ]
+}

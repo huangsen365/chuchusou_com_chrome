@@ -4,11 +4,9 @@ import fs from "node:fs"
 import path from "node:path"
 import process from "node:process"
 import vm from "node:vm"
-import ts from "typescript"
 
 const root = process.cwd()
 const promptSourcePath = path.join(root, "prompts/articleRewritePrompts.json")
-const promptMirrorPath = path.join(root, "src/assets-json/prompts/articleRewritePrompts.json")
 const promptConfig = JSON.parse(fs.readFileSync(promptSourcePath, "utf8"))
 
 function assert(condition, message) {
@@ -84,52 +82,6 @@ function loadLegacyApi() {
   return { api: windowObject.CCSModules.ArticleRewriteRuntime, messages, fillCalls, variety: context.CCSRewriteVariety, memory: context.CCSRewriteConceptMemory }
 }
 
-function createTsLoader(contextExtras = {}) {
-  const cache = new Map()
-  const load = (absolutePath) => {
-    if (absolutePath.endsWith(".json")) return JSON.parse(fs.readFileSync(absolutePath, "utf8"))
-    if (cache.has(absolutePath)) return cache.get(absolutePath).exports
-    const source = fs.readFileSync(absolutePath, "utf8")
-    const compiled = ts.transpileModule(source, {
-      compilerOptions: {
-        module: ts.ModuleKind.CommonJS,
-        target: ts.ScriptTarget.ES2021,
-        esModuleInterop: true,
-        resolveJsonModule: true,
-        isolatedModules: true
-      },
-      fileName: absolutePath
-    })
-    const moduleObject = { exports: {} }
-    cache.set(absolutePath, moduleObject)
-    const customRequire = (specifier) => {
-      const base = path.resolve(path.dirname(absolutePath), specifier)
-      for (const candidate of [base, `${base}.ts`, `${base}.tsx`, `${base}.json`, path.join(base, "index.ts")]) {
-        if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return load(candidate)
-      }
-      throw new Error(`Cannot resolve ${specifier} from ${absolutePath}`)
-    }
-    const context = {
-      module: moduleObject,
-      exports: moduleObject.exports,
-      require: customRequire,
-      URL,
-      Set,
-      RegExp,
-      String,
-      Array,
-      Promise,
-      Error,
-      console,
-      ...contextExtras
-    }
-    vm.createContext(context)
-    vm.runInContext(compiled.outputText, context, { filename: absolutePath })
-    return moduleObject.exports
-  }
-  return load
-}
-
 const FULL_RESPONSE = [
   "【短篇回答】",
   "这是一句完整的短篇回答。",
@@ -195,8 +147,6 @@ async function verifyApi(name, api, hooks) {
 }
 
 const sourceJson = JSON.parse(fs.readFileSync(promptSourcePath, "utf8"))
-const mirrorJson = JSON.parse(fs.readFileSync(promptMirrorPath, "utf8"))
-assert(JSON.stringify(sourceJson) === JSON.stringify(mirrorJson), "TypeScript prompt asset must mirror the runtime prompt asset")
 assert(sourceJson.id === "article_rewrite" && sourceJson.status === "active", "article rewrite prompt metadata invalid")
 assert(sourceJson.version === 30, "article rewrite prompt version must be 30")
 assert(sourceJson.templateLines.filter((line) => /^# [一二三四五六七八九十]+、/.test(line)).length === 28, "article rewrite prompt must retain its 28 writing sections")
@@ -378,8 +328,6 @@ assert(fuzzyMerged.length === 1 && fuzzyMerged[0].term === "锚定" && fuzzyMerg
 const capped = memoryApi.mergeRecent(Array.from({ length: 80 }, (_, i) => ({ term: `概念${i}`, ts: 1 })), ["新概念"], 2)
 assert(capped.length === 80 && capped[0].term === "新概念" && !capped.some((item) => item.term === "概念79"), "cap must evict the oldest entry")
 const fastAnswersJson = JSON.parse(fs.readFileSync(path.join(root, "prompts/fastAnswersPrompts.json"), "utf8"))
-const fastAnswersMirror = JSON.parse(fs.readFileSync(path.join(root, "src/assets-json/prompts/fastAnswersPrompts.json"), "utf8"))
-assert(JSON.stringify(fastAnswersJson) === JSON.stringify(fastAnswersMirror), "fast answers prompt assets must match")
 const fastAnswersTemplate = fastAnswersJson.templateLines.join("\n")
 for (const rule of [
   "素材决定要解释的问题，学科提供解释问题的工具",
@@ -405,32 +353,7 @@ for (const obsoleteRule of [
 }
 assert(fastAnswersTemplate.includes("“真正”全文不用") && fastAnswersTemplate.includes("三种回答都必须独立成文") && fastAnswersTemplate.includes("不得出现“原文”“素材”"),
   "fast answers prompt must ban 「真正」 and require standalone answers")
-await verifyApi("legacy", legacy.api, legacy)
-
-const tsMessages = []
-const tsFillCalls = []
-const tsWindow = {
-  CCSModules: {
-    AIPromptFill: {
-      fill(prompt, options) {
-        tsFillCalls.push({ prompt, options })
-        return Promise.resolve({ ok: true })
-      }
-    }
-  }
-}
-const tsChrome = {
-  runtime: {
-    lastError: null,
-    sendMessage(message, callback) {
-      tsMessages.push(message)
-      callback({ success: true })
-    }
-  }
-}
-const loadTs = createTsLoader({ window: tsWindow, chrome: tsChrome })
-const tsApi = loadTs(path.join(root, "src/content-modules/articleRewriteRuntime.ts"))
-await verifyApi("typescript", tsApi, { messages: tsMessages, fillCalls: tsFillCalls })
+await verifyApi("modules/articleRewriteRuntime.js", legacy.api, legacy)
 
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"))
 const contentScripts = manifest.content_scripts?.flatMap((entry) => entry.js || []) || []
@@ -456,4 +379,4 @@ assert(contentSource.includes("stage: 'existing_draft'"), "AI fill relay must ex
 assert(backgroundSource.includes("ccsCreateGoogleDocRewrite"), "background Google Docs rewrite route missing")
 assert(backgroundSource.includes("pending-prompt-target-mismatch"), "relay target binding check missing")
 
-console.log("[verify-article-rewrite] ✓ 提示词镜像、严格 A/B 匹配、Docs URL、草稿保护与双目标消息协议验证通过")
+console.log("[verify-article-rewrite] ✓ 提示词、严格 A/B 匹配、Docs URL、草稿保护与双目标消息协议验证通过")

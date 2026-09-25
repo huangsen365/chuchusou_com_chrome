@@ -48,32 +48,16 @@ function main() {
   assert(buildManifest.version === packageJson.version, `Build version ${buildManifest.version} != package version ${packageJson.version}`)
   assert(buildManifest.name === legacyManifest.name, "Build manifest name drifted from legacy manifest")
   assert(buildManifest.description === legacyManifest.description, "Build manifest description drifted from legacy manifest")
-  // SW 入口允许两种合法值：
-  //   1. legacy `background/index.js`（manifest 未切到 Plasmo 时）
-  //   2. Plasmo 的 `static/background/index.js`（src/background.ts 已接管 SW）
-  // 不允许其它路径漂移。无论哪种，SW 文件必须真实存在于 build dir。
+  // 入口固定：SW = Plasmo 编译的 src/background.ts；popup / sidepanel = 普通 HTML 页
   const sw = buildManifest.background?.service_worker
-  const allowedSw = new Set([
-    legacyManifest.background?.service_worker,
-    "static/background/index.js"
-  ])
-  assert(sw && allowedSw.has(sw), `Background entrypoint drifted: ${sw}`)
+  assert(sw === "static/background/index.js", `Background entrypoint drifted: ${sw}`)
+  assert(legacyManifest.background?.service_worker === sw, `manifest.json service_worker must be ${sw}`)
   assert(fs.existsSync(path.join(buildDir, sw)), `Background SW file missing: ${sw}`)
-  // Popup 入口允许 legacy `popup/popup.html` 或 Plasmo `popup.html`
   const pp = buildManifest.action?.default_popup
-  const allowedPp = new Set([
-    legacyManifest.action?.default_popup,
-    "popup.html"
-  ])
-  assert(pp && allowedPp.has(pp), `Popup entrypoint drifted: ${pp}`)
+  assert(pp === "popup/popup.html" && pp === legacyManifest.action?.default_popup, `Popup entrypoint drifted: ${pp}`)
   assert(fs.existsSync(path.join(buildDir, pp)), `Popup HTML missing: ${pp}`)
-  // Side panel 入口允许：legacy `sidepanel/sidepanel.html` 或 Plasmo `sidepanel.html`
   const sp = buildManifest.side_panel?.default_path
-  const allowedSp = new Set([
-    legacyManifest.side_panel?.default_path,
-    "sidepanel.html"
-  ])
-  assert(sp && allowedSp.has(sp), `Side panel entrypoint drifted: ${sp}`)
+  assert(sp === "sidepanel/sidepanel.html" && sp === legacyManifest.side_panel?.default_path, `Side panel entrypoint drifted: ${sp}`)
   assert(fs.existsSync(path.join(buildDir, sp)), `Side panel HTML missing: ${sp}`)
 
   const requiredPaths = collectManifestPaths(buildManifest)
@@ -91,7 +75,6 @@ function main() {
     "shared/logger.js",
     "shared/runtimeClient.js",
     "shared/storageDefaults.js",
-    "shared/menuStructureBuilder.js",
     "offscreen/voice.html",
     "voice-permission/permission.html",
     "privacy.js",
@@ -103,7 +86,7 @@ function main() {
   assert(missingStableAssets.length === 0, `Missing stable assets:\n${missingStableAssets.join("\n")}`)
 
   for (const jsPath of [
-    "background/index.js",
+    "static/background/index.js",
     "content.js",
     "popup/popup.js",
     "sidepanel/sidepanel.js"

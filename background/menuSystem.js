@@ -86,7 +86,6 @@ async function initMenuSystem(options = {}) {
 
     if (useNewSystem) {
       // useNewSystem 分支：MenuManager 已删除（v1.6.18），不再实例化。
-      // 与 src/background/menuSystem.ts 保持同一语义。
       console.warn('[MenuSystem] useNewSystem=true 但 MenuManager 已下线，仅 stateManager+urlBuilder 可用');
     } else {
       // 保持使用旧系统，但提供状态管理和 URL 构建能力

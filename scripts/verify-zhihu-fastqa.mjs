@@ -4,7 +4,6 @@ import fs from "node:fs"
 import path from "node:path"
 import process from "node:process"
 import vm from "node:vm"
-import ts from "typescript"
 
 const root = process.cwd()
 
@@ -39,58 +38,6 @@ function loadLegacyApi() {
     vm.runInContext(fs.readFileSync(path.join(root, filename), "utf8"), context, { filename })
   }
   return windowObject.CCSModules.ZhihuFastQa
-}
-
-function createTsLoader() {
-  const cache = new Map()
-  const load = (absolutePath) => {
-    if (cache.has(absolutePath)) return cache.get(absolutePath).exports
-    const source = fs.readFileSync(absolutePath, "utf8")
-    const compiled = ts.transpileModule(source, {
-      compilerOptions: {
-        module: ts.ModuleKind.CommonJS,
-        target: ts.ScriptTarget.ES2021,
-        esModuleInterop: true,
-        isolatedModules: true
-      },
-      fileName: absolutePath
-    })
-    const moduleObject = { exports: {} }
-    cache.set(absolutePath, moduleObject)
-    const customRequire = (specifier) => {
-      const base = path.resolve(path.dirname(absolutePath), specifier)
-      for (const candidate of [base, `${base}.ts`, `${base}.tsx`, path.join(base, "index.ts")]) {
-        if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return load(candidate)
-      }
-      throw new Error(`Cannot resolve ${specifier} from ${absolutePath}`)
-    }
-    const context = {
-      module: moduleObject,
-      exports: moduleObject.exports,
-      require: customRequire,
-      console,
-      globalThis: {},
-      URL,
-      Set,
-      Map,
-      Array,
-      Object,
-      String,
-      Number,
-      Boolean,
-      RegExp,
-      Promise,
-      Error,
-      Date,
-      Math,
-      setTimeout,
-      clearTimeout
-    }
-    vm.createContext(context)
-    vm.runInContext(compiled.outputText, context, { filename: absolutePath })
-    return moduleObject.exports
-  }
-  return load
 }
 
 class FakeTextElement {
@@ -189,11 +136,8 @@ function verifyApi(name, api) {
 }
 
 const legacyApi = loadLegacyApi()
-const loadTs = createTsLoader()
-const tsApi = loadTs(path.join(root, "src/content-modules/zhihuFastQa.ts")).ZhihuFastQa
 
-verifyApi("legacy", legacyApi)
-verifyApi("typescript", tsApi)
+verifyApi("modules/zhihuFastQa.js", legacyApi)
 
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"))
 const contentScripts = manifest.content_scripts?.flatMap((entry) => entry.js || []) || []
@@ -204,4 +148,4 @@ assert(runtimeIndex >= 0, "manifest must load shared site fastqa runtime")
 assert(xIndex > runtimeIndex, "X adapter must load after shared runtime")
 assert(zhihuIndex > runtimeIndex, "Zhihu adapter must load after shared runtime")
 
-console.log("[verify-zhihu-fastqa] ✓ 回答/文章提取、正文格式、URL 安全及双轨入口验证通过")
+console.log("[verify-zhihu-fastqa] ✓ 回答/文章提取、正文格式、URL 安全及入口验证通过")

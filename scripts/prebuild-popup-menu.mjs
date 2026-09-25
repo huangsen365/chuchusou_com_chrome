@@ -2,7 +2,8 @@
 /**
  * popup 菜单结构预编译
  *
- * 编译时把 6 个 JSON config 跑一遍 CCSMenuStructureBuilder，输出
+ * 编译时把 6 个 JSON config 跑一遍 CCSMenuStructureBuilder（src/shared/menuStructureBuilder.ts，
+ * 与 SW getMenuStructure 同一份实现），输出
  * `popup/popup-menu-prebuilt.json` 单文件。popup 启动时优先 fetch 这一个文件
  * （~5-15ms），fallback 才是 6 个 fetch + builder（~30-50ms）。
  *
@@ -18,7 +19,7 @@
 import fs from "node:fs"
 import path from "node:path"
 import process from "node:process"
-import vm from "node:vm"
+import { createTsLoader } from "./lib/tsLoader.mjs"
 
 const root = process.cwd()
 const buildDir = path.resolve(root, process.argv[2] || "build/chrome-mv3-prod")
@@ -33,11 +34,8 @@ function loadJSON(rel) {
 }
 
 function loadBuilder() {
-  const src = fs.readFileSync(path.join(root, "shared/menuStructureBuilder.js"), "utf8")
-  const sandbox = { globalThis: {}, console }
-  vm.createContext(sandbox)
-  vm.runInContext(src, sandbox)
-  return sandbox.globalThis.CCSMenuStructureBuilder
+  const loadTs = createTsLoader()
+  return loadTs(path.join(root, "src/shared/menuStructureBuilder.ts")).CCSMenuStructureBuilder
 }
 
 function escapeHTML(s) {

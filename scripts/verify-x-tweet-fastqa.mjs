@@ -4,7 +4,6 @@ import fs from "node:fs"
 import path from "node:path"
 import process from "node:process"
 import vm from "node:vm"
-import ts from "typescript"
 
 const root = process.cwd()
 const ARTICLE_SELECTOR = 'article[data-testid="tweet"]'
@@ -49,57 +48,6 @@ function loadLegacyApi() {
     adapter: windowObject.CCSModules.XTweetFastQa,
     runtime: windowObject.CCSModules.SiteFastQaRuntime
   }
-}
-
-function createTsLoader() {
-  const cache = new Map()
-  const load = (absolutePath) => {
-    if (cache.has(absolutePath)) return cache.get(absolutePath).exports
-    const source = fs.readFileSync(absolutePath, "utf8")
-    const compiled = ts.transpileModule(source, {
-      compilerOptions: {
-        module: ts.ModuleKind.CommonJS,
-        target: ts.ScriptTarget.ES2021,
-        esModuleInterop: true,
-        isolatedModules: true
-      },
-      fileName: absolutePath
-    })
-    const moduleObject = { exports: {} }
-    cache.set(absolutePath, moduleObject)
-    const customRequire = (specifier) => {
-      const base = path.resolve(path.dirname(absolutePath), specifier)
-      for (const candidate of [base, `${base}.ts`, `${base}.tsx`, path.join(base, "index.ts")]) {
-        if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return load(candidate)
-      }
-      throw new Error(`Cannot resolve ${specifier} from ${absolutePath}`)
-    }
-    const context = {
-      module: moduleObject,
-      exports: moduleObject.exports,
-      require: customRequire,
-      console,
-      globalThis: {},
-      Set,
-      Map,
-      Array,
-      Object,
-      String,
-      Number,
-      Boolean,
-      RegExp,
-      Promise,
-      Error,
-      Date,
-      Math,
-      setTimeout,
-      clearTimeout
-    }
-    vm.createContext(context)
-    vm.runInContext(compiled.outputText, context, { filename: absolutePath })
-    return moduleObject.exports
-  }
-  return load
 }
 
 class FakeElement {
@@ -205,12 +153,8 @@ function verifyApi(name, api) {
 }
 
 const legacyModules = loadLegacyApi()
-const loadTs = createTsLoader()
-const tsApi = loadTs(path.join(root, "src/content-modules/xTweetFastQa.ts")).XTweetFastQa
-const tsRuntime = loadTs(path.join(root, "src/content-modules/siteFastQaRuntime.ts"))
 
-verifyApi("legacy", legacyModules.adapter)
-verifyApi("typescript", tsApi)
+verifyApi("modules/xTweetFastQa.js", legacyModules.adapter)
 
 const runtimeUnavailableMessage = "扩展刚完成升级，请刷新当前页面后再试"
 assert(
@@ -222,11 +166,11 @@ assert(
   "legacy runtime must not expose runtime-unavailable"
 )
 assert(
-  tsRuntime.toUserFacingSiteFastQaError("Could not establish connection") === runtimeUnavailableMessage,
-  "TypeScript runtime must localize a disconnected extension context"
+  legacyModules.runtime.toUserFacingError("Could not establish connection") === runtimeUnavailableMessage,
+  "runtime must localize a disconnected extension context"
 )
 assert(
-  tsRuntime.toUserFacingSiteFastQaError("正文提取失败") === "正文提取失败",
+  legacyModules.runtime.toUserFacingError("正文提取失败") === "正文提取失败",
   "unrelated fastqa errors must retain their original message"
 )
 
@@ -248,4 +192,4 @@ assert(
   "shared site fastqa runtime must load before X adapter"
 )
 
-console.log("[verify-x-tweet-fastqa] ✓ 推文 / X 长文提取、引用排除、正文块、双操作栏及双轨入口验证通过")
+console.log("[verify-x-tweet-fastqa] ✓ 推文 / X 长文提取、引用排除、正文块、双操作栏及入口验证通过")

@@ -46,7 +46,8 @@ function main() {
   assert(manifest.side_panel?.default_path === legacyManifest.side_panel?.default_path, "Package side panel entrypoint drifted")
 
   const requiredEntries = [
-    "background/index.js",
+    "static/background/index.js",
+    "background/events.js",
     "popup/popup.html",
     "popup/popup.js",
     "popup/popup.css",
@@ -62,7 +63,6 @@ function main() {
     "prompts/optimizedPrompts.json",
     "prompts/coverPrompts.json",
     "prompts/articleRewritePrompts.json",
-    "shared/menuStructureBuilder.js",
     "shared/keywordClient.js",
     "offscreen/voice.html",
     "offscreen/voice.js",

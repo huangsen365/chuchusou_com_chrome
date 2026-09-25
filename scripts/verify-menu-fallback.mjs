@@ -94,33 +94,22 @@ const GOOGLE_AI_CANON = "https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&
 const ENCODING_SURFACES = [
   [BAIDU_CANON, /baidu\.com\/s\?(?!ie=utf-8&oe=utf-8&wd=)/, [
     "config/unifiedMenuConfig.json",
-    "src/assets-json/config/unifiedMenuConfig.json",
-    "shared/menuStructureBuilder.js",
     "src/shared/menuStructureBuilder.ts",
     "src/background/menuHandlersAttach.ts",
     "background/events.js",
     "modules/buttons.js",
     "modules/buttonDefinitions.js",
     "modules/commands.js",
-    "src/content-modules/buttons.ts",
-    "src/content-modules/buttonDefinitions.ts",
-    "src/content-modules/commands.ts",
   ]],
   [GOOGLE_AI_CANON, /google\.com\/search\?udm=50(?!&ie=UTF-8&oe=UTF-8&q=)/, [
     "config/unifiedMenuConfig.json",
-    "src/assets-json/config/unifiedMenuConfig.json",
     "config/engines.json",
-    "src/assets-json/config/engines.json",
-    "shared/menuStructureBuilder.js",
     "src/shared/menuStructureBuilder.ts",
     "src/background/menuHandlersAttach.ts",
     "background/events.js",
     "prompts/fastAnswersPrompts.json",
     "prompts/topQuestionsPrompts.json",
     "prompts/optimizedPrompts.json",
-    "src/assets-json/prompts/fastAnswersPrompts.json",
-    "src/assets-json/prompts/topQuestionsPrompts.json",
-    "src/assets-json/prompts/optimizedPrompts.json",
   ]],
 ]
 for (const [canon, barePattern, files] of ENCODING_SURFACES) {

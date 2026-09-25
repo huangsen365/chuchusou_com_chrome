@@ -1,0 +1,562 @@
+{
+  "Constants.LOG_PREFIX": "[触触搜][MENU]",
+  "Constants.STORAGE_KEYS": {
+    "BLACKLIST": "ccs_blacklist",
+    "DEBUG": "ccs_debug",
+    "MENU_ICON_SUPPORT": "ccs_menu_icon_supported",
+    "SHORTCUT_KEY": "ccs_shortcut_key"
+  },
+  "Constants.QUICK_RESULT_HOSTS": [
+    "chatgpt.com",
+    "claude.ai"
+  ],
+  "Constants.MENU_DEFINITIONS": {
+    "ccs-baidu": {
+      "icon": "🐼",
+      "text": "百度搜索"
+    },
+    "ccs-baidu-translate": {
+      "icon": "✍️",
+      "text": "百度翻译"
+    },
+    "ccs-base64": {
+      "icon": "🔤",
+      "text": "Base64 编码"
+    },
+    "ccs-chatgpt": {
+      "icon": "🤖",
+      "text": "ChatGPT"
+    },
+    "ccs-chuchusou": {
+      "icon": "🌐",
+      "text": "更多搜索引擎..."
+    },
+    "ccs-claude": {
+      "icon": "🧠",
+      "text": "Claude"
+    },
+    "ccs-copy": {
+      "icon": "📋",
+      "text": "复制文本"
+    },
+    "ccs-cover-anime-cute-chatgpt-images": {
+      "icon": "🌸",
+      "text": "二次元可爱"
+    },
+    "ccs-cover-coconut-chatgpt-images": {
+      "icon": "🥥",
+      "text": "椰树牌风格"
+    },
+    "ccs-cover-minimal-chatgpt-images": {
+      "icon": "⬜",
+      "text": "极简的留白"
+    },
+    "ccs-cover-open-all": {
+      "icon": "🚀",
+      "text": "打开以下全部预设风格"
+    },
+    "ccs-cover-root": {
+      "icon": "🎨",
+      "text": "封面生成器"
+    },
+    "ccs-cover-xiaohongshu-chatgpt-images": {
+      "icon": "🔴",
+      "text": "小红书封面"
+    },
+    "ccs-cover-zhumoqing-chatgpt-images": {
+      "icon": "✒️",
+      "text": "墨清风格"
+    },
+    "ccs-fastqa-chatgpt-quick": {
+      "icon": "🤖",
+      "text": "触触搜 · 速答壹拾佰 - ChatGPT"
+    },
+    "ccs-fastqa-claude-quick": {
+      "icon": "🧠",
+      "text": "触触搜 · 速答壹拾佰 - Claude"
+    },
+    "ccs-fastqa-google-ai-quick": {
+      "icon": "✨",
+      "text": "触触搜 · 速答壹拾佰 - Google AI 模式"
+    },
+    "ccs-fastqa-grok-quick": {
+      "icon": "🦊",
+      "text": "触触搜 · 速答壹拾佰 - Grok"
+    },
+    "ccs-fastqa-open-all": {
+      "icon": "🚀",
+      "text": "打开以下全部"
+    },
+    "ccs-fastqa-root": {
+      "icon": "⚡",
+      "text": "速答壹拾佰"
+    },
+    "ccs-fastqa-yiyan-quick": {
+      "icon": "🧠",
+      "text": "触触搜 · 速答壹拾佰 - 文心一言"
+    },
+    "ccs-google": {
+      "icon": "🔎",
+      "text": "Google 搜索"
+    },
+    "ccs-google-ai-chat": {
+      "icon": "✨",
+      "text": "Google AI 模式"
+    },
+    "ccs-google-translate": {
+      "icon": "🔁",
+      "text": "Google 翻译"
+    },
+    "ccs-grok": {
+      "icon": "🦊",
+      "text": "Grok"
+    },
+    "ccs-jd": {
+      "icon": "🛍️",
+      "text": "京东搜索"
+    },
+    "ccs-lower": {
+      "icon": "🔡",
+      "text": "转换为小写"
+    },
+    "ccs-main": {
+      "icon": "🔍",
+      "text": "触触搜"
+    },
+    "ccs-md5": {
+      "icon": "🔐",
+      "text": "MD5 哈希"
+    },
+    "ccs-optimize-open-all": {
+      "icon": "🚀",
+      "text": "打开以下全部"
+    },
+    "ccs-optimize-root": {
+      "icon": "🧠",
+      "text": "优化提示词"
+    },
+    "ccs-show-popover": {
+      "icon": "🪟",
+      "text": "打开触触搜面板 (Alt+S)"
+    },
+    "ccs-sov2ex": {
+      "icon": "💻",
+      "text": "V2EX (sov2ex)"
+    },
+    "ccs-taobao": {
+      "icon": "🛒",
+      "text": "淘宝搜索"
+    },
+    "ccs-top100-open-all": {
+      "icon": "🚀",
+      "text": "打开以下全部"
+    },
+    "ccs-top100-root": {
+      "icon": "💯",
+      "text": "触触搜百问"
+    },
+    "ccs-upper": {
+      "icon": "🔠",
+      "text": "转换为大写"
+    },
+    "ccs-url-encode": {
+      "icon": "🔗",
+      "text": "URL 编码"
+    },
+    "ccs-weixin": {
+      "icon": "💬",
+      "text": "微信搜一搜"
+    },
+    "ccs-x": {
+      "icon": "𝕏",
+      "text": "X（推特）搜索"
+    },
+    "ccs-yiyan": {
+      "icon": "🧠",
+      "text": "文心一言"
+    },
+    "ccs-zhihu": {
+      "icon": "💡",
+      "text": "知乎搜索"
+    }
+  },
+  "Constants.FAST_QA_QUICK_ITEMS": [
+    {
+      "engineId": "chatgpt",
+      "id": "ccs-fastqa-chatgpt-quick",
+      "menuIcon": "🤖",
+      "menuTitle": "触触搜 · 速答壹拾佰 - ChatGPT",
+      "titleKey": "chatgpt"
+    },
+    {
+      "engineId": "claude",
+      "id": "ccs-fastqa-claude-quick",
+      "menuIcon": "🧠",
+      "menuTitle": "触触搜 · 速答壹拾佰 - Claude",
+      "titleKey": "claude"
+    },
+    {
+      "engineId": "grok",
+      "id": "ccs-fastqa-grok-quick",
+      "menuIcon": "🦊",
+      "menuTitle": "触触搜 · 速答壹拾佰 - Grok",
+      "titleKey": "grok"
+    },
+    {
+      "engineId": "yiyan",
+      "id": "ccs-fastqa-yiyan-quick",
+      "menuIcon": "🧠",
+      "menuTitle": "触触搜 · 速答壹拾佰 - 文心一言",
+      "titleKey": "yiyan"
+    },
+    {
+      "engineId": "google-ai",
+      "id": "ccs-fastqa-google-ai-quick",
+      "menuIcon": "✨",
+      "menuTitle": "触触搜 · 速答壹拾佰 - Google AI 模式",
+      "titleKey": "google-ai"
+    }
+  ],
+  "Constants.OPTIMIZE_CATEGORY_TITLES": {
+    "brainstorm": "💡 头脑风暴",
+    "code-writing": "💻 代码编写",
+    "content-creation": "📝 内容创作",
+    "data-analysis": "📊 数据分析",
+    "deep-research": "📚 深度研究",
+    "description-polish": "✨ 优化描述",
+    "general-conversation": "💬 普通对话",
+    "problem-solving": "🧩 问题解答"
+  },
+  "Constants.COVER_CATEGORY_TITLES": {
+    "anime-cute": "🌸 二次元可爱",
+    "coconut": "🥥 椰树牌风格",
+    "custom": "🖌️ 自定义风格",
+    "minimal": "⬜ 极简的留白",
+    "xiaohongshu": "🔴 小红书封面",
+    "zhumoqing": "✒️ 墨清风格"
+  },
+  "Constants.DYNAMIC_SEARCH_MENU_ITEMS": [],
+  "Constants.FAST_QA_MENU_ITEMS": [
+    "ccs-fastqa-root",
+    "ccs-fastqa-open-all"
+  ],
+  "Constants.MENU_TITLE_MAX_LENGTH": 20,
+  "Constants.KEYWORD_MAX_LENGTH": 50,
+  "Constants.TITLE_CLEANUP_SUFFIXES": [
+    " - 搜索结果",
+    " - 知乎",
+    " - Zhihu",
+    " - ChatGPT",
+    " – ChatGPT",
+    " — ChatGPT",
+    " - Claude",
+    " – Claude",
+    " — Claude",
+    " / X"
+  ],
+  "Constants.SEARCH_ENGINE_SUFFIXES": [
+    " - 百度搜索",
+    " - Google 搜索",
+    " - 搜狗搜索",
+    " - 360搜索",
+    " - Bing",
+    " - 知乎",
+    " - 微博",
+    " - GitHub",
+    " - Stack Overflow",
+    " - CSDN博客",
+    " - 简书",
+    " - 掘金",
+    " - 博客园",
+    " | ",
+    " - ",
+    " – ",
+    " — "
+  ],
+  "Constants.CACHE_EXPIRY": {
+    "KEYWORD": 30000,
+    "SELECTION": 10000,
+    "TITLE": 30000
+  },
+  "Constants.GENERIC_HOST_KEYWORDS": {
+    "chatgpt.com": [
+      "chatgpt",
+      "chatgpt.com",
+      "www.chatgpt.com"
+    ],
+    "claude.ai": [
+      "claude",
+      "claude.ai",
+      "www.claude.ai"
+    ]
+  },
+  "formatMenuTitle": [
+    null,
+    null,
+    null,
+    "Hello",
+    "A very long sentence...",
+    "A ver...",
+    "multi space tab"
+  ],
+  "normalizeSearchText": [
+    "",
+    "hello world",
+    "中文",
+    "raw text",
+    "",
+    "not%encoded%abc"
+  ],
+  "cleanupTitleKeyword": [
+    "",
+    "",
+    "Hello",
+    "Hello",
+    "Hello",
+    "Foo Bar",
+    "some title",
+    "spaced  out",
+    "Just plain"
+  ],
+  "extractKeywordFromTitle": [
+    "",
+    "Hello",
+    "Hello",
+    "A very long title that should be cut off because i...",
+    "Hello",
+    ""
+  ],
+  "isGenericHostKeyword": [
+    true,
+    true,
+    true,
+    false,
+    true,
+    true,
+    true,
+    false,
+    false
+  ],
+  "menuDefinitionLookups": [
+    {
+      "definition": {
+        "icon": "🐼",
+        "text": "百度搜索"
+      },
+      "id": "ccs-baidu",
+      "text": "百度搜索",
+      "title": "🐼 百度搜索"
+    },
+    {
+      "definition": {
+        "icon": "🔎",
+        "text": "Google 搜索"
+      },
+      "id": "ccs-google",
+      "text": "Google 搜索",
+      "title": "🔎 Google 搜索"
+    },
+    {
+      "definition": {
+        "icon": "🤖",
+        "text": "ChatGPT"
+      },
+      "id": "ccs-chatgpt",
+      "text": "ChatGPT",
+      "title": "🤖 ChatGPT"
+    },
+    {
+      "definition": {
+        "icon": "🤖",
+        "text": "触触搜 · 速答壹拾佰 - ChatGPT"
+      },
+      "id": "ccs-fastqa-chatgpt-quick",
+      "text": "触触搜 · 速答壹拾佰 - ChatGPT",
+      "title": "🤖 触触搜 · 速答壹拾佰 - ChatGPT"
+    },
+    {
+      "definition": {
+        "icon": "💯",
+        "text": "触触搜百问"
+      },
+      "id": "ccs-top100-root",
+      "text": "触触搜百问",
+      "title": "💯 触触搜百问"
+    },
+    {
+      "definition": null,
+      "id": "ccs-unknown-id",
+      "text": "ccs-unknown-id",
+      "title": "ccs-unknown-id"
+    }
+  ],
+  "getMenuText.fallback": "FALLBACK",
+  "shouldPreserveMenuState": [
+    {
+      "forTab": false,
+      "forUrl": false,
+      "url": "https://chatgpt.com/"
+    },
+    {
+      "forTab": false,
+      "forUrl": false,
+      "url": "https://www.chatgpt.com/foo"
+    },
+    {
+      "forTab": false,
+      "forUrl": false,
+      "url": "https://claude.ai/abc"
+    },
+    {
+      "forTab": false,
+      "forUrl": false,
+      "url": "https://www.example.com/"
+    },
+    {
+      "forTab": false,
+      "forUrl": false,
+      "url": "not a url"
+    },
+    {
+      "forTab": false,
+      "forUrl": false,
+      "url": ""
+    },
+    {
+      "forTab": false,
+      "forUrl": false,
+      "url": null
+    }
+  ],
+  "pickFirstMeaningfulText": [
+    {
+      "raw": "first",
+      "trimmed": "first"
+    },
+    {
+      "raw": "second",
+      "trimmed": "second"
+    },
+    {
+      "raw": "only",
+      "trimmed": "only"
+    },
+    {
+      "raw": "",
+      "trimmed": ""
+    },
+    {
+      "raw": "",
+      "trimmed": ""
+    },
+    {
+      "raw": " trimmed ",
+      "trimmed": "trimmed"
+    }
+  ],
+  "TextLimits.constants": {
+    "FINAL_URL_HARD_CAP": 1900,
+    "LIMITS": {
+      "aiChat": 6000,
+      "default": 1500,
+      "googleAi": 1200,
+      "search": 1500
+    },
+    "SOFT_WARN_THRESHOLD": 1500
+  },
+  "getLimitForMenu": [
+    1500,
+    1500,
+    1500,
+    1200,
+    1200,
+    6000,
+    6000,
+    6000,
+    1500,
+    1500
+  ],
+  "smartTruncate": [
+    "",
+    "hi",
+    "hell…",
+    "aaaaaaaaa…",
+    "这是一个非常长的中…",
+    "short. with. some.…"
+  ],
+  "applyTextLimit.disabled": [
+    {
+      "limit": {
+        "$number": "Infinity"
+      },
+      "original": 3,
+      "text": "短文本",
+      "truncated": false
+    },
+    {
+      "limit": {
+        "$number": "Infinity"
+      },
+      "original": 2000,
+      "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "truncated": false
+    },
+    {
+      "limit": {
+        "$number": "Infinity"
+      },
+      "original": 0,
+      "text": "",
+      "truncated": false
+    },
+    {
+      "limit": {
+        "$number": "Infinity"
+      },
+      "original": 10000,
+      "text": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+      "truncated": false
+    }
+  ],
+  "Logger.static": {
+    "LEVELS": {
+      "DEBUG": 0,
+      "ERROR": 3,
+      "INFO": 1,
+      "NONE": 999,
+      "WARN": 2
+    },
+    "LEVEL_NAMES": {
+      "0": "DEBUG",
+      "1": "INFO",
+      "2": "WARN",
+      "3": "ERROR",
+      "999": "NONE"
+    },
+    "globalConfig": {
+      "colors": true,
+      "enabled": true,
+      "level": 0,
+      "prefix": "[触触搜]",
+      "timestamp": true
+    }
+  },
+  "Logger.getLevelName": [
+    "DEBUG",
+    "INFO",
+    "WARN",
+    "ERROR",
+    "NONE",
+    "UNKNOWN"
+  ],
+  "Logger.loggers": [
+    "events",
+    "init",
+    "menuBuilder",
+    "menuHandlers",
+    "menuManager",
+    "menuSystem",
+    "stateManager",
+    "urlBuilder"
+  ]
+}

@@ -5,13 +5,13 @@
  * 背景（2026-07 审计）：封面风格清单的 SSoT 是 prompts/coverPrompts.json 的
  * categories（三入口都按它的顺序遍历，排序天然一致），但周边有一批"必须与
  * 它/彼此手工同步"的登记点，此前只靠注释约定：
- *  - 标题表 4 份：COVER_CATEGORY_TITLES（Constants.ts / Constants.js）+
- *    COVER_TITLES（menuStructureBuilder.ts / .js）
+ *  - 标题表 2 份：COVER_CATEGORY_TITLES（background/utils/Constants.js，右键菜单）+
+ *    COVER_TITLES（src/shared/menuStructureBuilder.ts，popup / sidepanel）
  *  - pin 默认风格 / storage key / 默认比例：src/shared/coverPinConstants.ts 为
  *    名义 SSoT，但生产 popup（popup/popup.js）与 sidepanel（sidepanel/sidepanel.js）
  *    是 legacy 普通脚本没法 import，各自硬编码一份字面量；SW 的
  *    menuBuilderAttach.ts 曾经也硬编码（已改为 import）
- *  - AITaskHandler.ts/.js 的 ${ratio} 兜底字面量
+ *  - AITaskHandler.js 的 ${ratio} 兜底字面量
  *
  * 本脚本锁死上述所有登记点：新增/改名风格漏改任意一处、或默认值各处漂移
  * → npm test / CI 直接红。
@@ -66,7 +66,7 @@ ok()
 }
 ok()
 
-// ---- 2. 标题表 4 份：键集合 == SSoT id 集合，值 4 处逐字一致，且以 label 结尾 ----
+// ---- 2. 标题表 2 份：键集合 == SSoT id 集合，值两处逐字一致，且以 label 结尾 ----
 function extractTitleTable(file, marker) {
   const src = read(file)
   const idx = src.indexOf(marker)
@@ -80,10 +80,8 @@ function extractTitleTable(file, marker) {
   return table
 }
 const TITLE_TABLES = [
-  ["src/background/utils/Constants.ts", "export const COVER_CATEGORY_TITLES"],
   ["background/utils/Constants.js", "const COVER_CATEGORY_TITLES = {"],
   ["src/shared/menuStructureBuilder.ts", "export const COVER_TITLES"],
-  ["shared/menuStructureBuilder.js", "const COVER_TITLES = {"]
 ].map(([f, marker]) => [f, extractTitleTable(f, marker)])
 
 for (const [file, table] of TITLE_TABLES) {
@@ -173,7 +171,7 @@ if (JSON.stringify(spRatioValues) !== JSON.stringify(ssotRatioValues)) {
 ok()
 
 // ---- 5. AITaskHandler 的 ${ratio} 兜底字面量必须 == DEFAULT_RATIO ----
-for (const file of ["background/tasks/AITaskHandler.js", "src/background/tasks/AITaskHandler.ts"]) {
+for (const file of ["background/tasks/AITaskHandler.js"]) {
   const src = read(file)
   const fallbacks = [...src.matchAll(/vars\.ratio\s*=[^\n]*?["']([\d.]+:[\d.]+)["']/g)].map((m) => m[1])
   if (fallbacks.length === 0) fail(`${file} 找不到 vars.ratio 兜底字面量（形态变了请同步本脚本）`)
@@ -205,12 +203,12 @@ if (/COVER_PIN_DEFAULT_CATEGORY\s*=/.test(builderSrc)) {
 ok()
 
 if (process.exitCode) {
-  console.error(`${TAG} 修复指引：风格清单唯一改动点是 prompts/coverPrompts.json（+ mirror），`
-    + `改完同步 4 份标题表（Constants.ts/js + menuStructureBuilder.ts/js）；`
+  console.error(`${TAG} 修复指引：风格清单唯一改动点是 prompts/coverPrompts.json，`
+    + `改完同步 2 份标题表（background/utils/Constants.js + src/shared/menuStructureBuilder.ts）；`
     + `pin/比例默认值唯一改动点是 src/shared/coverPinConstants.ts，`
     + `改完同步 popup/popup.js、sidepanel/sidepanel.js 字面量与 AITaskHandler 兜底`)
   process.exit(1)
 }
 console.log(`${TAG} 全部 OK — ${categories.length} 个封面风格三入口一致`
-  + `（标题表 4 份逐字对齐；默认风格 ${defaultCategoryId} / 默认比例 ${SSOT.DEFAULT_RATIO} 全通道一致；`
+  + `（标题表 2 份逐字对齐；默认风格 ${defaultCategoryId} / 默认比例 ${SSOT.DEFAULT_RATIO} 全通道一致；`
   + `${ssotRatioValues.length} 个比例预设 sidepanel 对齐）`)

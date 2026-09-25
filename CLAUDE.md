@@ -9,10 +9,16 @@
 ⚠️ **改代码前先读这段**，避免走冤枉路：
 
 - **SW 双层架构**：Plasmo SW bundle (TS, `src/background.ts` → `static/background/index.js`) + legacy `background/*.js` importScripts 桥接。
+- **一份逻辑只有一个源**（2026-09 清理）：`src/` 只放 SW bundle 实际打包的 TS 模块；content / popup /
+  sidepanel / 静态页的 TS 平行实现（从未上线）与 `src/assets-json` 镜像已删，线上跑的就是
+  `modules/` `content/` `popup/` `sidepanel/` 里的 JS。importScripts 的 JS 不许再有 TS 孪生
+  （`verify-sw-bridge` 守卫）；要把某个 JS 改写成 TS，就在 `src/background.ts` 里 import 它并删掉原文件。
+- **行为回归用 golden 快照**：`verify-background-{utils,pure-modules,extras}` 把 SW 模块的输出对照
+  `scripts/fixtures/golden/*.json`；有意改行为后 `UPDATE_GOLDEN=1 node scripts/verify-xxx.mjs` 刷新并审 diff。
 - **已退役的 6 个 legacy 文件**（~3200 行）已移到 `legacy/background-retired/`（不进 build / 不进商店 zip，详见该目录 README）：
   - `base.js` (889) → src/background/{baseBridge,tabState,menuTitles,menuTitleUpdater,
     menuStateOrchestrator,menuActions,menuDebugInfo,popupMenuStructure,bootstrap}.ts
-  - `Logger.js` (458) → src/background/Logger.ts (via baseBridge)；仍被 dual 校验脚本当 legacy 对照源加载
+  - `Logger.js` (458) → src/background/Logger.ts (via baseBridge)
   - `menuHandlers.js` (611) → src/background/menuHandlersAttach.ts (TS chrome.contextMenus.onClicked listener)
   - `menuBuilder.js` (718) → src/background/menuBuilderAttach.ts (+ menuBuilderHelpers.ts，createContextMenus orchestrator)
   - `voiceOffscreenBridge.js` (100) → src/background/voiceOffscreenBridge.ts (autoRegisterVoiceBridge)
@@ -32,10 +38,7 @@
   1. Plasmo ESM 评估 → attachBaseBridge() / attachMenuBuilder() / attachMenuHandlers() /
      autoRegisterVoiceBridge() **先于 importScripts 调用**（events.js 顶层会立刻引用
      `createContextMenus` / `globalThis.setMenuState` 等，提供方必须先就位）
-  2. importScripts 20 个 legacy 模块（Constants / TextUtils / TextLimits / chatgptPromptRelay /
-     urlSafety / shared/menuStructureBuilder / MenuRegistry / KeywordSyncManager / menuIds /
-     StateManager / URLBuilder / menuSystem / config / icons / keywords / keywordResolver /
-     KeywordService / AITaskRegistry / AITaskHandler / events）
+  2. importScripts `background/*.js` / `shared/*.js`（列表以 `src/background.ts` 为准，events.js 必须最后）
   3. attachInit() **最后调用**（依赖 importScripts 提供的 g.MenuSystem / g.initKeywordSyncSystem）
 - **新架构已彻底删除**（v1.6.18+）：`MenuManager / menu/* / events/*` 共 7 个文件 3384 行已删（曾经放在 `legacy/_unactivated/`）。审计见 `docs/TECH_DEBT_AUDIT.md`。
 - **三个 SSoT 强制遵守**：
@@ -54,15 +57,14 @@
 
 ```
 chuchusou_com_chrome/
-├── manifest.json              # Manifest V3 配置（源模板；build 时 postbuild 会 patch SW 入口）
-├── src/                       # TS 源码（Plasmo 编译）
+├── manifest.json              # Manifest V3 配置（postbuild 写 version 后原样进 build）
+├── src/                       # 只放 SW bundle 的 TS 源码（Plasmo 编译）
 │   ├── background.ts         # 生产 SW 唯一入口（attach* + importScripts 桥接）
-│   ├── background/           # legacy 的 TS 移植（baseBridge / menuBuilderAttach /
-│   │                         #   menuHandlersAttach / initAttach / Logger / ...）
-│   └── shared/               # TS 共享常量（coverPinConstants 等）
-├── background/                # legacy Service Worker 脚本（仍在运行时的部分）
-│   ├── index.js              # legacy 入口（importScripts；与 src/background.ts 保持同序，
-│   │                         #   由 verify-sw-bridge 强制校验）
+│   ├── background/           # baseBridge / menuBuilderAttach / menuHandlersAttach /
+│   │                         #   initAttach / Logger / popupMenuStructure / ...
+│   └── shared/               # menuStructureBuilder（popup/sidepanel 菜单结构唯一实现）/
+│                             #   coverPinConstants / types
+├── background/                # SW 的 importScripts 普通脚本
 │   ├── utils/                # 工具模块
 │   │   ├── Constants.js      # 常量定义（MENU_DEFINITIONS / OPTIMIZE_CATEGORY_TITLES 等）
 │   │   ├── TextUtils.js      # 文本处理函数
@@ -82,7 +84,7 @@ chuchusou_com_chrome/
 │   ├── config.js             # 配置加载 + getEngineTitle() SSoT
 │   └── keywordResolver.js    # 关键字解析
 ├── shared/                    # 前后台共用 JS（keywordClient / runtimeClient / logger /
-│                              #   menuStructureBuilder —— SW 也 importScripts 它）
+│                              #   promptLanguage / rewriteVariety / rewriteConceptMemory）
 ├── content/                   # 内容脚本模块（SelectionManager / TextEncoder / ToastUI / ClipboardHelper）
 ├── modules/                   # 内容脚本主体模块（manifest 按序加载 20 个）
 ├── content.js                 # 主内容脚本
@@ -127,7 +129,8 @@ importScripts(
   // 第1层：工具
   'background/utils/Constants.js', 'background/utils/TextUtils.js',
   'background/utils/TextLimits.js', 'background/chatgptPromptRelay.js',
-  'background/urlSafety.js', 'shared/menuStructureBuilder.js',
+  'background/urlSafety.js', 'shared/promptLanguage.js',
+  'shared/rewriteVariety.js', 'shared/rewriteConceptMemory.js',
   // 第2层：核心管理器
   'background/MenuRegistry.js', 'background/KeywordSyncManager.js', 'background/menuIds.js',
   'background/StateManager.js', 'background/URLBuilder.js', 'background/menuSystem.js',
@@ -136,6 +139,7 @@ importScripts(
   'background/keywordResolver.js', 'background/KeywordService.js',
   // 第3.5层：AI 任务统一抽象
   'background/tasks/AITaskRegistry.js', 'background/tasks/AITaskHandler.js',
+  'background/articleActions.js',
   // 第4层：事件（最后一个 legacy listener 主体）
   'background/events.js'
 )
@@ -143,8 +147,9 @@ importScripts(
 attachInit()              // ← 必须在 importScripts 之后：依赖 g.MenuSystem / g.initKeywordSyncSystem
 ```
 
-`background/index.js`（legacy 入口）保持同一份 importScripts 列表，`npm run verify:sw-bridge`
-强制两边 20 个 import 顺序一致（且 events.js 必须在末位）—— 改加载顺序时两处要同改。
+这是唯一的 SW 入口（manifest.json 直接写 `static/background/index.js`，项目根目录不能直接当扩展加载）。
+`npm run verify:sw-bridge` 校验列表里文件都存在、events.js 在末位、attach* / attachInit 前后顺序、
+没有 TS 孪生实现、background/ 根目录没有列表外的 .js。
 
 #### Content Scripts
 按 manifest.json 中定义的顺序加载，新模块优先：

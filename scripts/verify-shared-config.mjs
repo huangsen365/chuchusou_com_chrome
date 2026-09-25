@@ -11,17 +11,6 @@ function readJson(relativePath) {
   return JSON.parse(fs.readFileSync(path.join(root, relativePath), "utf8"))
 }
 
-function stableJson(value) {
-  return JSON.stringify(value)
-}
-
-function assertJsonMirror(sourcePath, mirrorPath) {
-  const source = readJson(sourcePath)
-  const mirror = readJson(mirrorPath)
-  assert(stableJson(source) === stableJson(mirror), `${mirrorPath} must mirror ${sourcePath}`)
-  return mirror
-}
-
 function assert(condition, message) {
   if (!condition) throw new Error(message)
 }
@@ -31,13 +20,13 @@ function flattenItems(items) {
 }
 
 function main() {
-  const unified = assertJsonMirror("config/unifiedMenuConfig.json", "src/assets-json/config/unifiedMenuConfig.json")
-  const engines = assertJsonMirror("config/engines.json", "src/assets-json/config/engines.json")
+  const unified = readJson("config/unifiedMenuConfig.json")
+  const engines = readJson("config/engines.json")
   const promptFiles = [
-    { source: "prompts/fastAnswersPrompts.json", mirror: "src/assets-json/prompts/fastAnswersPrompts.json", validateEngineRefs: true },
-    { source: "prompts/topQuestionsPrompts.json", mirror: "src/assets-json/prompts/topQuestionsPrompts.json", validateEngineRefs: true },
-    { source: "prompts/optimizedPrompts.json", mirror: "src/assets-json/prompts/optimizedPrompts.json", validateEngineRefs: true },
-    { source: "prompts/coverPrompts.json", mirror: "src/assets-json/prompts/coverPrompts.json", validateEngineRefs: false }
+    { source: "prompts/fastAnswersPrompts.json", validateEngineRefs: true },
+    { source: "prompts/topQuestionsPrompts.json", validateEngineRefs: true },
+    { source: "prompts/optimizedPrompts.json", validateEngineRefs: true },
+    { source: "prompts/coverPrompts.json", validateEngineRefs: false }
   ]
 
   assert(unified.root?.id === "ccs-main", "unified menu root id must remain ccs-main")
@@ -78,8 +67,8 @@ function main() {
     }
   }
 
-  for (const { source: promptFile, mirror: mirrorPromptFile, validateEngineRefs } of promptFiles) {
-    const prompt = assertJsonMirror(promptFile, mirrorPromptFile)
+  for (const { source: promptFile, validateEngineRefs } of promptFiles) {
+    const prompt = readJson(promptFile)
     assert(Array.isArray(prompt.templateLines) && prompt.templateLines.length > 0, `${promptFile} templateLines must be non-empty`)
     const promptTemplate = prompt.templateLines.join("\n")
     assert(promptTemplate.includes("${input}"), `${promptFile} template must include \${input}`)

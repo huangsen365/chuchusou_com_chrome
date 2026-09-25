@@ -10,8 +10,7 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "config/**/*.json",
-    "prompts/**/*.json",
-    "src/assets-json/**/*.json"
+    "prompts/**/*.json"
   ],
   "compilerOptions": {
     "strict": true,

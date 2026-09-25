@@ -103,7 +103,7 @@ npm run plasmo:build        # 产物在 build/chrome-mv3-prod/
 3. 点击「加载已解压的扩展程序」，选择 `build/chrome-mv3-prod/` 目录
 4. 安装完成。改代码后重新 `npm run plasmo:build`，回到扩展页点「重新加载」
 
-> 也可以直接选择项目根目录加载（走 legacy `background/index.js` 入口，功能可用），但商店发布的是 Plasmo 构建产物，排查问题请以 `build/chrome-mv3-prod/` 为准。
+> 必须加载 `build/chrome-mv3-prod/`：Service Worker 入口 `static/background/index.js` 由 `src/background.ts` 编译生成，项目根目录本身不能直接作为扩展加载。
 
 ## 使用说明
 

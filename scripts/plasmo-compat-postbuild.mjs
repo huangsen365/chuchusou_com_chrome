@@ -116,30 +116,14 @@ function main() {
 
   const legacyManifest = readJson("manifest.json")
   const packageJson = readJson("package.json")
-  const plasmoManifestPath = path.join(buildDir, "manifest.json")
-  const plasmoManifest = fs.existsSync(plasmoManifestPath)
-    ? JSON.parse(fs.readFileSync(plasmoManifestPath, "utf8"))
-    : null
 
-  // ⚠️ SW 入口必须指 Plasmo bundle `static/background/index.js`。
-  // 历史：之前回退到 legacy `background/index.js` 是出于 Chrome 真机回归未做的谨慎。
-  // 但 commits 9437c35..725b45d 已经把 base.js / Logger.js / menuBuilder.js /
-  // menuHandlers.js / voiceOffscreenBridge.js / init.js 从 legacy index.js 的
-  // importScripts 列表里 drop 掉了（由 src/background/*.ts 取代）。如果 manifest 仍
-  // 指 legacy index.js，events.js 顶层 `addListener(createContextMenus)` 会拿到
-  // undefined → SW Status 15 注册失败。
-  // Plasmo bundle (`src/background.ts` 编译产物) 是唯一能跑通的入口：它顶层
-  // import 5 个 attach* TS 模块，再 importScripts 17 个剩余 legacy 文件。
-  // 其它 3 个 popup/sidepanel/content_scripts 入口保持 legacy，等单独 port 完整再切。
-  const background = {
-    ...legacyManifest.background,
-    service_worker: "static/background/index.js"
+  // 入口：SW = Plasmo 编译的 src/background.ts（static/background/index.js，它再 importScripts
+  // background/*.js）；popup / sidepanel / content_scripts 都是上面复制进来的普通文件。
+  // manifest.json 已直接写这些路径，这里只做防漂移断言。
+  if (legacyManifest.background?.service_worker !== "static/background/index.js") {
+    throw new Error(`manifest.json background.service_worker must be static/background/index.js, got ${legacyManifest.background?.service_worker}`)
   }
-  // Popup / Sidepanel / Content scripts 暂时回退到 legacy。
-  // 原因：TS port 不完整（sidepanel.js 1664 → SidepanelController 455 行只 27%，缺 17 个 DOM ID；
-  //       popup.js 1262 → PopupController 1038 行 82%；content.ts 已聚合但未 Chrome 验证）
-  // Plasmo bundle 已生成（popup.html / sidepanel.html / content.{hash}.js）作为预备态，
-  // 等 TS port 补齐到 1:1 + Chrome 真机回归后再逐个切。
+  const background = legacyManifest.background
   const sidePanel = legacyManifest.side_panel
   const action = legacyManifest.action
   const contentScripts = legacyManifest.content_scripts
@@ -168,7 +152,7 @@ function main() {
   }
 
   console.log(`[plasmo-compat] Copied ${copyDirs.length} legacy dirs + ${copyFiles.length} files into ${buildDir}`)
-  console.log(`[plasmo-compat] Patched manifest to legacy functional entrypoints, version ${compatManifest.version}`)
+  console.log(`[plasmo-compat] Wrote build manifest, version ${compatManifest.version}`)
 }
 
 main()

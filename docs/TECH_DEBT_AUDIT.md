@@ -1,5 +1,12 @@
 # 技术债体检报告 · 2026-04
 
+> **2026-09 增补**：双轨收口。`src/` 下 86 个从未上线的 TS 平行实现（content / popup / sidepanel /
+> 静态页 / SW importScripts 模块的孪生版 / `src/assets-json` 镜像）连同 5 个 dual 校验脚本删除；
+> 死入口 `background/index.js`（manifest 早已不指它，retire 后也跑不起来）和只剩 build 期用途的
+> `shared/menuStructureBuilder.js` 删除（popup 预渲染改用 `src/shared/menuStructureBuilder.ts`）。
+> 原 dual 脚本对 legacy 模块的行为覆盖改成 golden 快照（`scripts/fixtures/golden/`），录制时
+> legacy 与 TS 两边逐项 deep-equal；构建产物除去掉的死文件外与 v1.18.5 逐字节一致。
+>
 > **2026-06 增补**：TS 移植完成后又退役了 6 个 legacy SW 文件（base.js / Logger.js /
 > menuHandlers.js / menuBuilder.js / voiceOffscreenBridge.js / init.js，~3200 行），
 > 移入 `legacy/background-retired/`（不再随商店 zip 发布），详见该目录 README。

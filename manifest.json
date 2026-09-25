@@ -17,7 +17,7 @@
     "webRequest"
   ],
   "background": {
-    "service_worker": "background/index.js"
+    "service_worker": "static/background/index.js"
   },
   "host_permissions": [
     "<all_urls>"

@@ -1,14 +1,13 @@
 /**
  * 触触搜 - Popup 菜单结构构建器 (TypeScript port)
  *
- * 与 shared/menuStructureBuilder.js 1:1 行为对等。Legacy UMD 文件仍是生产 SSoT，
- * 该 TS 版本供 Plasmo / React / Vite 入口直接 import 使用，并由
- * scripts/verify-menu-structure-builder-dual.mjs 用真实 config 跟 legacy 做 deep-equal 校验。
+ * 唯一实现：SW 的 getMenuStructure（src/background/popupMenuStructure.ts）运行时调用它，
+ * build 期 scripts/prebuild-popup-menu.mjs 也用它把菜单预渲染进 popup.html / sidepanel.html。
+ * 回归：scripts/verify-menu-structure-builder.mjs（真实 config + 多种开关场景）。
  *
  * 同步约束：MENU_DEFS / FAST_QA_QUICK / OPTIMIZE_TITLES / COVER_TITLES 与
- *   - shared/menuStructureBuilder.js
- *   - background/utils/Constants.js
- * 三处必须保持一致。修改任意一处需同步另外两处，并跑 npm test。
+ * background/utils/Constants.js（右键菜单用）两处必须保持一致；
+ * COVER_TITLES 由 scripts/verify-cover-consistency.mjs 守卫。
  */
 
 import type {
@@ -549,7 +548,7 @@ export function build(opts: BuildOptions = {}): MenuStructure {
   return structure
 }
 
-// 与 legacy UMD root.CCSMenuStructureBuilder = { ... } 等价的默认导出
+// 聚合导出（popupMenuStructure.ts / prebuild-popup-menu.mjs 用）
 export const CCSMenuStructureBuilder = {
   build,
   extractToggleMap,
