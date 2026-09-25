@@ -62,6 +62,11 @@ function loadLegacyApi() {
   }
   vm.createContext(context)
   vm.runInContext(
+    fs.readFileSync(path.join(root, "modules/chatGptDom.js"), "utf8"),
+    context,
+    { filename: "modules/chatGptDom.js" }
+  )
+  vm.runInContext(
     fs.readFileSync(path.join(root, "shared/rewriteVariety.js"), "utf8"),
     context,
     { filename: "shared/rewriteVariety.js" }
@@ -430,6 +435,7 @@ await verifyApi("typescript", tsApi, { messages: tsMessages, fillCalls: tsFillCa
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"))
 const contentScripts = manifest.content_scripts?.flatMap((entry) => entry.js || []) || []
 for (const file of [
+  "modules/chatGptDom.js",
   "modules/articleRewriteRuntime.js",
   "modules/googleDocsRewrite.js",
   "modules/chatGptSelectARewrite.js"
@@ -437,6 +443,7 @@ for (const file of [
   assert(contentScripts.includes(file), `manifest must load ${file}`)
 }
 assert(
+  contentScripts.indexOf("modules/chatGptDom.js") < contentScripts.indexOf("modules/articleRewriteRuntime.js") &&
   contentScripts.indexOf("modules/articleRewriteRuntime.js") < contentScripts.indexOf("modules/googleDocsRewrite.js") &&
   contentScripts.indexOf("modules/articleRewriteRuntime.js") < contentScripts.indexOf("modules/chatGptSelectARewrite.js"),
   "article rewrite runtime must load before site adapters"

@@ -58,6 +58,7 @@
         "modules/siteFastQaRuntime.js",
         "modules/xTweetFastQa.js",
         "modules/zhihuFastQa.js",
+        "modules/chatGptDom.js",
         "modules/articleRewriteRuntime.js",
         "modules/googleDocsRewrite.js",
         "modules/chatGptSelectARewrite.js",

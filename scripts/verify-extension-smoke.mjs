@@ -35,6 +35,7 @@ import {
   hasWebSocket, findChrome, wait, waitForDevToolsPort, connectWebSocket, CdpClient, evaluate
 } from "./lib/cdp.mjs"
 import { verifyPlainArticleActions } from "./lib/verify-plain-article-actions.mjs"
+import { chatgptRedesignFixture, verifyChatgptRedesign } from "./lib/verify-chatgpt-redesign.mjs"
 
 const root = process.cwd()
 const buildDir = path.join(root, "build/chrome-mv3-prod")
@@ -126,6 +127,10 @@ async function main() {
   }, (req, res) => {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
     const hostname = String(req.headers.host || "").split(":")[0]
+    if (hostname === "chatgpt.com" && (req.url || "").startsWith("/redesign-fixture")) {
+      res.end(chatgptRedesignFixture(longArticleParagraphs))
+      return
+    }
     if (hostname === "chatgpt.com" && (req.url || "").startsWith("/rewrite-fixture")) {
       res.end(`<!doctype html><meta charset="utf-8"><title>ChatGPT select-A rewrite fixture</title>
         <style>
@@ -1253,6 +1258,12 @@ async function main() {
     console.log(`${TAG} ✓ ChatGPT 选A改写正常（严格结构 / 单按钮 / 完整填入 / 不自动发送 / 草稿保护）`)
     console.log(`${TAG} ✓ ChatGPT 长文双动作正常（工作流识别 / SPA 路由来源校验 / 普通回复 X 草稿精确写入与保存 / 完整文章封面中转 / writing block header 标题回退）`)
     chatRewriteFixture.cdp.close()
+
+    const chatRedesignFixture = await openSiteFixture("https://chatgpt.com/redesign-fixture")
+    await verifyChatgptRedesign(chatRedesignFixture.cdp, swCdp)
+    if (chatRedesignFixture.exceptions.length > 0) fail(`ChatGPT 新版页面未捕获异常: ${chatRedesignFixture.exceptions[0]}`)
+    console.log(`${TAG} ✓ ChatGPT 新版页面兼容（同轮双角色 / 严格选 A / Copy wrapper 定位 / Writing block 标题 / 主 composer 填充与草稿保护 / 纯 Markdown 长文 / 流式状态与来源隔离）`)
+    chatRedesignFixture.cdp.close()
 
     const docsFixture = await openSiteFixture("https://docs.google.com/document/u/0/d/smoke-doc/edit?tab=t.0#heading=h.smoke")
     const docsButtons = await evaluate(docsFixture.cdp, `(() => {

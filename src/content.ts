@@ -34,6 +34,7 @@ import { SiteFastQaRuntime } from "./content-modules/siteFastQaRuntime"
 import { startXTweetFastQaIntegration, XTweetFastQa } from "./content-modules/xTweetFastQa"
 import { startZhihuFastQaIntegration, ZhihuFastQa } from "./content-modules/zhihuFastQa"
 import { ArticleRewriteRuntime } from "./content-modules/articleRewriteRuntime"
+import { ChatGptDom } from "./content-modules/chatGptDom"
 import { GoogleDocsRewrite, startGoogleDocsRewriteIntegration } from "./content-modules/googleDocsRewrite"
 import { ChatGptSelectARewrite, startChatGptSelectARewriteIntegration } from "./content-modules/chatGptSelectARewrite"
 import { LongArticleActions } from "./content-modules/longArticleActions"
@@ -68,6 +69,7 @@ Object.assign(_ccsModulesHost.CCSModules, {
   XTweetFastQa,
   ZhihuFastQa,
   ArticleRewriteRuntime,
+  ChatGptDom,
   GoogleDocsRewrite,
   ChatGptSelectARewrite,
   LongArticleActions,

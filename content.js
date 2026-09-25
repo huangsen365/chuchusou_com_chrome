@@ -1289,7 +1289,24 @@
   }
 
   function findChatGptComposerTarget() {
-    const selectors = [
+    const isChatGpt = getSupportedAIEngineFromLocation() === 'chatgpt';
+    // ChatGPT now exposes the composer separately from editable writing blocks.
+    // Prefer that boundary: the first textbox on the page can be an article
+    // editor, and the sidebar can contain a search input before the composer.
+    const selectors = isChatGpt ? [
+      'form[data-chatgpt-composer] [data-composer-markdown]',
+      'form[data-chatgpt-composer] [contenteditable]:not([contenteditable="false"])',
+      'form[data-chatgpt-composer] textarea',
+      '[data-composer-markdown][contenteditable]:not([contenteditable="false"])',
+      '#prompt-textarea',
+      '[data-testid="prompt-textarea"]',
+      '[contenteditable="true"][role="textbox"]',
+      '[contenteditable="plaintext-only"][role="textbox"]',
+      '[contenteditable=""][role="textbox"]',
+      'textarea[placeholder]',
+      'textarea',
+      '[contenteditable="true"]'
+    ] : [
       '#prompt-textarea',
       '[data-testid="prompt-textarea"]',
       'textarea[name="q"]',
@@ -1308,7 +1325,15 @@
 
     for (const selector of selectors) {
       const nodes = Array.from(document.querySelectorAll(selector));
-      const target = nodes.find(isEditableComposerCandidate);
+      const target = nodes.find((element) => {
+        if (!isEditableComposerCandidate(element)) return false;
+        if (!isChatGpt) return true;
+        return !element.closest?.(
+          '.writing-block-editor, [data-testid="writing-block-container"], [data-testid="chatgpt-writing-block"], ' +
+          '[data-writing-block="true"], [data-oai-writing-block-surface], [data-message-author-role], ' +
+          '[data-chatgpt-search-unit-key], [role="search"]'
+        );
+      });
       if (target) return target;
     }
     return null;
@@ -1321,7 +1346,7 @@
     if (!editable) return false;
     if (element.disabled || element.readOnly) return false;
     if (element.getAttribute('aria-disabled') === 'true') return false;
-    if (element.id === 'prompt-textarea' || element.getAttribute('data-testid') === 'prompt-textarea') return true;
+    if (element.closest?.('[hidden], [inert], [aria-hidden="true"]')) return false;
     return isElementVisibleEnough(element);
   }
 

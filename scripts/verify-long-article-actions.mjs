@@ -37,6 +37,11 @@ function loadLongArticleApi() {
   }
   vm.createContext(context)
   vm.runInContext(
+    fs.readFileSync(path.join(root, "modules/chatGptDom.js"), "utf8"),
+    context,
+    { filename: "modules/chatGptDom.js" }
+  )
+  vm.runInContext(
     fs.readFileSync(path.join(root, "modules/longArticleActions.js"), "utf8"),
     context,
     { filename: "modules/longArticleActions.js" }

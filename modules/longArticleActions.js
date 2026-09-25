@@ -3,13 +3,11 @@
 
   window.CCSModules = window.CCSModules || {};
 
-  const ROLE_SELECTOR = '[data-message-author-role]';
-  const ASSISTANT_SELECTOR = '[data-message-author-role="assistant"]';
-  const TURN_SELECTOR = '[data-testid^="conversation-turn-"]';
-  const RESPONSE_COPY_SELECTOR = 'button[data-testid="copy-turn-action-button"]';
-  const WRITING_BLOCK_SELECTOR = '[data-testid="writing-block-container"], [data-writing-block="true"]';
-  const EDITOR_SELECTOR = '.ProseMirror.markdown.prose, .ProseMirror.markdown, [contenteditable="true"].markdown';
-  const HEADER_SELECTOR = '[data-testid="writing-block-header-surface"], [data-testid="writing-block-header-sticky-container"]';
+  const ChatGptDom = window.CCSModules.ChatGptDom;
+  const ASSISTANT_SELECTOR = ChatGptDom.ASSISTANT_SELECTOR;
+  const WRITING_BLOCK_SELECTOR = ChatGptDom.WRITING_BLOCK_SELECTOR;
+  const EDITOR_SELECTOR = ChatGptDom.WRITING_EDITOR_SELECTOR;
+  const HEADER_SELECTOR = '[data-testid="writing-block-header-surface"], [data-testid="writing-block-header-sticky-container"], header';
   const COPY_BUTTON_SELECTORS = [
     'button[data-testid="writing-block-copy-button"]',
     'button[data-testid*="copy"]',
@@ -88,16 +86,6 @@
     return normalizeText(clone.innerText || clone.textContent || '');
   }
 
-  function previousUserMessage(assistant) {
-    const messages = Array.from(document.querySelectorAll(ROLE_SELECTOR));
-    let index = messages.indexOf(assistant) - 1;
-    const turn = assistant.closest(TURN_SELECTOR);
-    // 来源属于整轮回复；跳过同轮消息，但不能越过其他轮去借用更早的提示词。
-    while (index >= 0 && turn && messages[index].closest(TURN_SELECTOR) === turn) index -= 1;
-    const previous = messages[index];
-    return previous?.getAttribute('data-message-author-role') === 'user' ? previous : null;
-  }
-
   function isVisible(element) {
     if (!(element instanceof HTMLElement) || !element.isConnected) return false;
     const style = getComputedStyle(element);
@@ -123,6 +111,10 @@
     if (copyButton?.disabled || copyButton?.getAttribute('aria-disabled') === 'true') return true;
     if (hasExternalGenerationSignal(assistant) || hasExternalGenerationSignal(block)) return true;
     if (assistant.querySelector('[data-testid="stop-button"]')) return true;
+    // The composer stop control belongs only to the latest response. Historical
+    // completed articles must stay available while another turn is streaming.
+    const latest = ChatGptDom.assistantMessages().at(-1);
+    if (!latest || (latest !== assistant && !assistant.contains(latest))) return false;
     return Array.from(document.querySelectorAll('button, [role="button"]')).some((control) =>
       !control.closest(`[${ACTIONS_MARKER}]`) && isVisible(control) && STOP_PATTERN.test(controlName(control))
     );
@@ -200,6 +192,17 @@
     // （分享页已实测），只有旧结构才把 <h1> 放在编辑器里。剔除按钮与我们自己的动作条后取首行。
     const header = block.querySelector(HEADER_SELECTOR);
     if (!header) return '';
+    // The redesigned header puts the visible document title inside its library
+    // action; read that title before removing action controls from the fallback.
+    const titleButton = header.querySelector('button[aria-label="Add to library"], button[aria-label="添加到库"], button[aria-label="添加到资料库"]')
+      || header.querySelector('button .min-w-0.truncate')?.closest('button');
+    if (titleButton) {
+      const titleNode = titleButton.querySelector('.truncate') || titleButton;
+      const titleClone = titleNode.cloneNode(true);
+      titleClone.querySelectorAll('svg, [aria-hidden="true"]').forEach((node) => node.remove());
+      const title = normalizeText(titleClone.textContent || '');
+      if (title && title.length <= MAX_TITLE_LENGTH) return title;
+    }
     const clone = header.cloneNode(true);
     clone.querySelectorAll(`button, [role="toolbar"], [${ACTIONS_MARKER}], svg, style, script`)
       .forEach((node) => node.remove());
@@ -215,7 +218,7 @@
     const editor = isWritingBlock ? block.querySelector(EDITOR_SELECTOR) : block;
     if (!editor) return null;
     // 普通回复没有 writing block 的标题栏，只接收包含唯一主标题的文章正文。
-    if (!isWritingBlock && (!editor.matches('.markdown') || editor.querySelectorAll('h1').length !== 1)) return null;
+    if (!isWritingBlock && (!editor.matches(ChatGptDom.MARKDOWN_SELECTOR) || editor.querySelectorAll('h1').length !== 1)) return null;
     const titleElement = editor.querySelector('h1');
     const title = titleElement ? normalizeText(titleElement.textContent || '') : headerTitleFrom(block);
     const body = sanitizeBody(editor, titleElement);
@@ -267,10 +270,10 @@
   }
 
   function singleArticleBlock(assistant) {
-    const blocks = Array.from(assistant.querySelectorAll(WRITING_BLOCK_SELECTOR));
+    const blocks = ChatGptDom.writingBlocks(assistant);
     if (blocks.length > 1) return null;
     if (blocks.length === 1) return blocks[0];
-    const articles = Array.from(assistant.querySelectorAll('.markdown')).filter((node) => node.querySelector('h1'));
+    const articles = ChatGptDom.markdownRoots(assistant).filter((node) => node.querySelector('h1'));
     return articles.length === 1 && articles[0].querySelectorAll('h1').length === 1 ? articles[0] : null;
   }
 
@@ -289,10 +292,10 @@
     if (!(assistant instanceof HTMLElement) || !assistant.matches(ASSISTANT_SELECTOR)) return null;
     const block = singleArticleBlock(assistant);
     if (!block) return null;
-    const turn = assistant.closest(TURN_SELECTOR);
+    const turn = ChatGptDom.turnFor(assistant);
     if (turn) {
-      const articleMessages = Array.from(turn.querySelectorAll(ASSISTANT_SELECTOR))
-        .filter((message) => message.querySelector(WRITING_BLOCK_SELECTOR) || message.querySelector('.markdown h1'));
+      const articleMessages = ChatGptDom.assistantMessages(turn)
+        .filter((message) => ChatGptDom.writingBlocks(message).length || ChatGptDom.markdownRoots(message).some((node) => node.querySelector('h1')));
       if (articleMessages.at(-1) !== assistant) return null;
       if (articleMessages.length > 1) {
         // Work 同轮可能保留中途截断的稿件，再输出完整成稿。只接受末篇，
@@ -311,12 +314,12 @@
       toolbar = copyButton?.closest('[role="toolbar"]') || block.querySelector('[role="toolbar"]');
     } else {
       if (!turn) return null;
-      copyButton = turn.querySelector(RESPONSE_COPY_SELECTOR);
+      copyButton = ChatGptDom.responseCopyButton(turn);
       if (!copyButton || block.contains(copyButton)) return null;
       toolbar = copyButton.closest('[role="toolbar"], [role="group"]');
     }
     if (!copyButton && !toolbar) return null;
-    const previous = previousUserMessage(assistant);
+    const previous = ChatGptDom.previousUserMessage(assistant);
     if (!previous || !isArticleRewritePromptText(messageText(previous))) return null;
     return {
       block,
@@ -444,6 +447,7 @@
     button.type = 'button';
     button.className = ACTION_CLASS;
     button.setAttribute(marker, 'true');
+    button.setAttribute('data-turn-action-width', 'content');
     button.setAttribute('aria-label', label);
     button.title = title;
     button.dataset.ccsLongArticleDefaultLabel = label;
@@ -464,12 +468,15 @@
     const style = document.createElement('style');
     style.id = STYLE_ID;
     style.textContent = `
+      [${ACTIONS_MARKER}] { flex-wrap: wrap; min-width: 0; max-width: 100%; }
       .${ACTION_CLASS} {
         display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 3px 8px;
+        box-sizing: border-box; flex: 0 0 auto; width: max-content; min-width: 0; max-width: 100%; height: auto;
         border: 0; border-radius: 7px; background: transparent; color: inherit;
         cursor: pointer; font: 500 12px/1.2 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-        opacity: .82; white-space: nowrap;
+        opacity: .82; white-space: normal; overflow-wrap: anywhere;
       }
+      .${LABEL_CLASS} { min-width: 0; }
       .${ACTION_CLASS}:hover:not(:disabled) { background: color-mix(in srgb, currentColor 8%, transparent); opacity: 1; }
       .${ACTION_CLASS}:focus-visible { outline: 2px solid color-mix(in srgb, currentColor 42%, transparent); outline-offset: 2px; }
       .${ACTION_CLASS}:disabled { cursor: wait; opacity: .55; }
@@ -524,8 +531,8 @@
       );
       actionGroups.set(assistant, actions);
     }
-    if (copyButton && actions.previousElementSibling !== copyButton) {
-      copyButton.insertAdjacentElement('afterend', actions);
+    if (copyButton) {
+      ChatGptDom.insertAfterAction(copyButton, actions);
     } else if (!actions.isConnected && toolbar) {
       toolbar.appendChild(actions);
     }
@@ -602,7 +609,7 @@
         for (const assistant of actionGroups.keys()) {
           if (!assistant.isConnected) removeActions(assistant);
         }
-        document.querySelectorAll(ASSISTANT_SELECTOR).forEach((assistant) => consider(assistant, schedule));
+        ChatGptDom.assistantMessages().forEach((assistant) => consider(assistant, schedule));
       });
     };
     const observer = new MutationObserver((mutations) => {

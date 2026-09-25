@@ -1,3 +1,4 @@
+import "./chatGptDom"
 import "../../modules/longArticleActions.js"
 
 export interface LongArticlePayload {

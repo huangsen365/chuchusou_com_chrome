@@ -3,12 +3,13 @@
 
   window.CCSModules = window.CCSModules || {};
 
+  const ChatGptDom = window.CCSModules.ChatGptDom;
+
   const PROMPT_PATH = 'prompts/articleRewritePrompts.json';
   const URL_PLACEHOLDER = '${url}';
   const SELECT_A_PREFIX = '选A并且按照提示词改写：';
   const CONVERSATION_SOURCE_NOTE = '原始素材参考本次对话上下文。';
-  const WRITING_BLOCK_SELECTOR = '[data-testid="writing-block-container"], [data-writing-block="true"]';
-  const ASSISTANT_MESSAGE_SELECTOR = '[data-message-author-role="assistant"][data-message-id]';
+  const WRITING_BLOCK_SELECTOR = ChatGptDom.WRITING_BLOCK_SELECTOR;
   const IGNORED_SELECTOR = 'button, [role="toolbar"], nav, menu, [role="menu"]';
   const BLOCK_TAGS = new Set([
     'ADDRESS', 'BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
@@ -96,22 +97,15 @@
       .trim();
   }
 
-  function assistantMessageFor(root) {
-    if (root.matches?.(ASSISTANT_MESSAGE_SELECTOR)) return root;
-    return root.closest?.(ASSISTANT_MESSAGE_SELECTOR)
-      || root.querySelector?.(ASSISTANT_MESSAGE_SELECTOR)
-      || null;
-  }
-
   function implicitTwoWritingBlockText(root) {
-    const assistantMessage = assistantMessageFor(root);
+    const assistantMessage = ChatGptDom.assistantMessageFor(root);
     if (!assistantMessage) return '';
-    const writingBlocks = Array.from(assistantMessage.querySelectorAll(WRITING_BLOCK_SELECTOR));
+    const writingBlocks = ChatGptDom.writingBlocks(assistantMessage);
     if (writingBlocks.length !== 2) return '';
     const shortText = responseTextForMatching(writingBlocks[0]);
     const middleText = responseTextForMatching(writingBlocks[1]);
     if (!shortText || !middleText) return '';
-    const response = assistantMessage.querySelector('.markdown') || assistantMessage;
+    const response = ChatGptDom.markdownFor(assistantMessage);
     const outsideClone = response.cloneNode(true);
     outsideClone.querySelectorAll(WRITING_BLOCK_SELECTOR).forEach((block) => block.remove());
     const outsideText = responseTextForMatching(outsideClone);
@@ -120,12 +114,12 @@
   }
 
   function matchesSelectARewriteResponse(assistantMessage) {
-    const message = assistantMessageFor(assistantMessage);
+    const message = ChatGptDom.assistantMessageFor(assistantMessage);
     if (!message) return false;
-    const response = message.querySelector('.markdown') || message;
+    const response = ChatGptDom.markdownFor(message);
     const directText = responseTextForMatching(response);
     if (isFullSelectARewriteResponse(directText)) return true;
-    const writingBlocks = Array.from(message.querySelectorAll(WRITING_BLOCK_SELECTOR));
+    const writingBlocks = ChatGptDom.writingBlocks(message);
     if (
       writingBlocks.length === 2 &&
       writingBlocks.every((block) => Boolean(responseTextForMatching(block))) &&

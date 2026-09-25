@@ -36,6 +36,100 @@ import {
 const root = process.cwd()
 const TAG = "[verify-ai-fill-ux]"
 
+async function verifyChatGptComposerSelection(cdp, contentSource) {
+  // Use the real browser's selector/visibility/event behavior, but fulfill the
+  // navigation locally: this fixture never reads or submits a real conversation.
+  const fixtureUrl = "https://chatgpt.com/?q=ccs-composer-fixture"
+  let interceptionError
+  cdp.on("Fetch.requestPaused", ({ requestId }) => {
+    cdp.call("Fetch.fulfillRequest", {
+      requestId,
+      responseCode: 200,
+      responseHeaders: [{ name: "Content-Type", value: "text/html; charset=utf-8" }],
+      body: Buffer.from("<!doctype html><html><body></body></html>").toString("base64")
+    }).catch((error) => { interceptionError = error })
+  })
+  await cdp.call("Fetch.enable", { patterns: [{ urlPattern: "https://chatgpt.com/*" }] })
+  await cdp.call("Page.navigate", { url: fixtureUrl })
+  await evaluate(cdp, `new Promise((resolve) => {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', resolve, { once: true });
+    else resolve();
+  })`)
+  if (interceptionError) throw interceptionError
+
+  const results = await evaluate(cdp, `
+    (async () => {
+      window.chrome = {
+        storage: { local: { get: (_keys, cb) => cb({ ccs_debug: false }), set() {} } },
+        runtime: { id: 'test-extension', onMessage: { addListener() {} }, sendMessage: (_message, cb) => cb?.({ ok: false }) }
+      };
+      ${contentSource}
+      const prompt = 'ChatGPT composer compatibility test.\\nSecond paragraph with a unique ending.';
+      const writingDraft = 'Existing article content must remain unchanged.';
+      const setup = (composerMarkup) => {
+        document.body.innerHTML =
+          '<input type="search" aria-label="Search chats" value="existing search">' +
+          '<div class="writing-block-editor"><div class="ProseMirror" contenteditable="true" role="textbox" aria-label="Start writing">' + writingDraft + '</div></div>' +
+          '<div hidden><textarea id="prompt-textarea">hidden compatibility field</textarea></div>' +
+          '<form data-chatgpt-composer hidden><div data-composer-markdown contenteditable="true" role="textbox">hidden composer</div></form>' +
+          composerMarkup;
+      };
+      const untouched = () =>
+        document.querySelector('.writing-block-editor').textContent === writingDraft &&
+        document.querySelector('input[type="search"]').value === 'existing search' &&
+        document.querySelector('#prompt-textarea').value === 'hidden compatibility field' &&
+        document.querySelector('form[hidden]').textContent === 'hidden composer';
+      const fill = () => window.CCSModules.AIPromptFill.fill(prompt, { attempts: 1, watchSendResidue: false });
+      const results = {};
+
+      // Captured 2026-09 DOM: both writing blocks and the thread composer are
+      // editable, with writing blocks occurring first in document order.
+      setup('<form data-chatgpt-composer data-composer-placement="thread"><div id="actual-composer" data-composer-markdown contenteditable="true" role="textbox" aria-label="Ask ChatGPT"></div></form>');
+      let model = '';
+      const actual = document.querySelector('#actual-composer');
+      actual.addEventListener('input', () => { model = actual.innerText; });
+      const modern = await fill();
+      results.modern = modern.ok && actual.innerText.includes('unique ending.') && model.includes('unique ending.') && untouched();
+
+      actual.textContent = 'User draft waiting to be sent.';
+      const protectedDraft = await fill();
+      results.draft = protectedDraft.stage === 'existing_draft' && actual.textContent === 'User draft waiting to be sent.' && untouched();
+
+      setup('<form><div id="actual-composer" data-testid="prompt-textarea" contenteditable="true" role="textbox"></div></form>');
+      const legacy = await fill();
+      results.legacy = legacy.ok && document.querySelector('#actual-composer').innerText.includes('unique ending.') && untouched();
+
+      setup('<form><div id="prompt-textarea" contenteditable="true" role="textbox" aria-label="Chat with ChatGPT"></div></form>');
+      const legacyId = await fill();
+      results.legacyId = legacyId.ok && document.querySelector('form > #prompt-textarea').innerText.includes('unique ending.') && untouched();
+
+      // When only an article editor/search is mounted during a route change,
+      // retry later instead of writing a prompt into either of those controls.
+      setup('');
+      const absent = await fill();
+      results.absent = absent.error === 'composer-not-found' && untouched();
+
+      // Message editors and alternate writing-block wrappers must stay intact
+      // even when the main composer is unmounted or temporarily unavailable.
+      for (const boundary of [
+        'data-testid="chatgpt-writing-block"', 'data-oai-writing-block-surface',
+        'data-message-author-role="user"', 'data-chatgpt-search-unit-key="user-message"'
+      ]) {
+        setup('<section ' + boundary + '><div contenteditable="true" role="textbox">User edit in progress.</div><textarea>Article draft.</textarea></section>');
+        const excluded = await fill();
+        results[boundary] = excluded.error === 'composer-not-found' && untouched() &&
+          document.querySelector('section [contenteditable]').textContent === 'User edit in progress.' &&
+          document.querySelector('section textarea').value === 'Article draft.';
+      }
+      return results;
+    })()
+  `, { timeoutMs: 30_000 })
+  for (const [scenario, passed] of Object.entries(results)) {
+    if (!passed) throw new Error(`ChatGPT composer selection failed: ${scenario} — ${JSON.stringify(results)}`)
+  }
+  await cdp.call("Fetch.disable")
+}
+
 async function main() {
   if (!hasWebSocket()) {
     console.warn(`${TAG} ⚠ SKIPPED — 此 Node 版本无全局 WebSocket（需 Node 21+）`)
@@ -355,7 +449,8 @@ async function main() {
       expect(r['residue_' + scenario], '发送驻留诊断场景失败: ' + scenario)
     }
 
-    console.log(`${TAG} OK — toast 顶部可穿透 / 发送可达 / model 同步 / 发送真出 / 新草稿不被写回 / revert 巩固恢复 / Yiyan 预同步首发成功 / 顽固编辑器驻留自愈`)
+    await verifyChatGptComposerSelection(cdp, contentSource)
+    console.log(`${TAG} OK — toast 顶部可穿透 / 发送可达 / model 同步 / 发送真出 / 新草稿不被写回 / revert 巩固恢复 / Yiyan 预同步首发成功 / 顽固编辑器驻留自愈 / ChatGPT 新旧输入框定位与正文隔离`)
   } finally {
     cdp?.close()
     child.kill("SIGKILL")

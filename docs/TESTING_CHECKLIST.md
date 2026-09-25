@@ -38,6 +38,26 @@
 - [ ] Grok 菜单正常打开新标签
 - [ ] 文心一言菜单正常打开新标签
 
+### ChatGPT 页面改版兼容（2026-09）
+
+新版一轮 `data-turn-key` 同时包含用户与助手消息，旧版 `conversation-turn-*` 按角色分开；
+回复和 writing block 的识别统一在 `modules/chatGptDom.js`。不要把页面第一个
+`contenteditable` 当作聊天输入框：新版 writing block 也是可编辑区域，真正的输入框在
+`form[data-chatgpt-composer]` 中，带 `data-composer-markdown`。
+
+自动化：`verify:ai-fill-ux` 覆盖新旧输入框定位、隐藏节点与草稿保护；
+`verify:extension-smoke` 使用 `scripts/lib/verify-chatgpt-redesign.mjs` 中的新版结构夹具，
+验证真实构建的按钮嵌入、填写、长文来源/标题提取、生成状态及动作栏重建。夹具不访问线上会话。
+新版操作栏会把未标记 `data-turn-action-width="content"` 的按钮设为 32px 图标宽度；
+扩展文字按钮必须带这个标记。布局回归同时检查文字边界、按钮点击区域及窄栏换行，不能只断言按钮存在。
+
+- [ ] 加载最新 `build/chrome-mv3-prod` 构建后刷新 ChatGPT 页面
+- [ ] 短篇/中篇回复的整轮复制按钮旁显示一个“选A并优化改写”入口
+- [ ] 点击后提示词只进入聊天输入框，writing block 不变，不自动发送
+- [ ] 输入框已有草稿时提示并保留草稿
+- [ ] 工作流生成的长文显示“注入X草稿”和“生成封面”，生成完成后才可用
+- [ ] 切换会话或重新渲染动作栏后入口恢复且不重复
+
 ### 速答功能
 - [ ] 速答壹（ChatGPT）正常携带提示词
 - [ ] 速答拾（Claude）正常携带提示词
