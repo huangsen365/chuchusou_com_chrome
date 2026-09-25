@@ -58,7 +58,8 @@ const G = globalThis as unknown as GlobalRecord
 // 共享状态：menuIcon 支持持久化（base.js 内部 state）
 // ============================================
 const menuIconState: MenuIconSupportState = createMenuIconSupportState()
-const MENU_ICON_SUPPORT_STORAGE_KEY = "ccs_menu_icon_support"
+// 必须与 background/icons.js 写入的键一致（shared/storageKeys.js MENU_ICON_SUPPORT；原 base.js 读的就是它）
+const MENU_ICON_SUPPORT_STORAGE_KEY = "ccs_menu_icon_supported"
 
 // ============================================
 // 工具：用 globalThis 上的真实依赖构造 setMenuState 的 deps
