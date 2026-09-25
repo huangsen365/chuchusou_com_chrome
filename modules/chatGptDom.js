@@ -11,6 +11,38 @@
   const MARKDOWN_SELECTOR = '[data-markdown-text-style="assistant-message"], .markdown';
   const WRITING_BLOCK_SELECTOR = '[data-testid="writing-block-container"], [data-writing-block="true"], [data-testid="chatgpt-writing-block"], [data-oai-writing-block-surface]';
   const WRITING_EDITOR_SELECTOR = '.writing-block-editor .ProseMirror, .ProseMirror.markdown.prose, .ProseMirror.markdown, [contenteditable="true"].markdown';
+  const WRITING_BLOCK_HEADER_SELECTOR = '[data-testid="writing-block-header-surface"], [data-testid="writing-block-header-sticky-container"], header';
+  const WRITING_BLOCK_COPY_BUTTON_SELECTORS = Object.freeze([
+    'button[data-testid="writing-block-copy-button"]',
+    'button[data-testid*="copy"]',
+    'button[aria-label*="Copy" i]',
+    'button[aria-label*="复制"]',
+    'button[title*="Copy" i]',
+    'button[title*="复制"]'
+  ]);
+
+  // Composer (the prompt box). ChatGPT exposes it separately from editable
+  // writing blocks: prefer that boundary, because the first textbox on the page
+  // can be an article editor and the sidebar can hold a search input.
+  const COMPOSER_SELECTORS = Object.freeze([
+    'form[data-chatgpt-composer] [data-composer-markdown]',
+    'form[data-chatgpt-composer] [contenteditable]:not([contenteditable="false"])',
+    'form[data-chatgpt-composer] textarea',
+    '[data-composer-markdown][contenteditable]:not([contenteditable="false"])',
+    '#prompt-textarea',
+    '[data-testid="prompt-textarea"]',
+    '[contenteditable="true"][role="textbox"]',
+    '[contenteditable="plaintext-only"][role="textbox"]',
+    '[contenteditable=""][role="textbox"]',
+    'textarea[placeholder]',
+    'textarea',
+    '[contenteditable="true"]'
+  ]);
+  // Editables inside these belong to articles, messages or search, never the composer.
+  const COMPOSER_EXCLUDE_SELECTOR = `.writing-block-editor, ${WRITING_BLOCK_SELECTOR}, [data-message-author-role], [data-chatgpt-search-unit-key], [role="search"]`;
+  const SEND_BUTTON_SELECTOR = '[data-testid="send-button"], [data-testid="fruitjuice-send-button"]';
+  const STOP_BUTTON_SELECTOR = '[data-testid="stop-button"]';
+  const STOP_CONTROL_SELECTOR = `${STOP_BUTTON_SELECTOR}, button[aria-label="Stop generating" i], button[aria-label="停止生成"]`;
 
   function messageRole(root) {
     const legacy = root.getAttribute('data-message-author-role');
@@ -117,7 +149,9 @@
 
   window.CCSModules.ChatGptDom = {
     MESSAGE_SELECTOR, ASSISTANT_SELECTOR, TURN_SELECTOR, MARKDOWN_SELECTOR,
-    WRITING_BLOCK_SELECTOR, WRITING_EDITOR_SELECTOR, messageRole, messages,
+    WRITING_BLOCK_SELECTOR, WRITING_EDITOR_SELECTOR, WRITING_BLOCK_HEADER_SELECTOR,
+    WRITING_BLOCK_COPY_BUTTON_SELECTORS, COMPOSER_SELECTORS, COMPOSER_EXCLUDE_SELECTOR,
+    SEND_BUTTON_SELECTOR, STOP_BUTTON_SELECTOR, STOP_CONTROL_SELECTOR, messageRole, messages,
     assistantMessages, assistantMessageFor, turnFor, markdownRoots, markdownFor,
     writingBlocks, previousUserMessage, responseCopyButton, actionAnchor, insertAfterAction
   };

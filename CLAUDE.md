@@ -13,6 +13,9 @@
   sidepanel / 静态页的 TS 平行实现（从未上线）与 `src/assets-json` 镜像已删，线上跑的就是
   `modules/` `content/` `popup/` `sidepanel/` 里的 JS。importScripts 的 JS 不许再有 TS 孪生
   （`verify-sw-bridge` 守卫）；要把某个 JS 改写成 TS，就在 `src/background.ts` 里 import 它并删掉原文件。
+- **站点 DOM 适配器**：ChatGPT 选择器只在 `modules/chatGptDom.js`（content.js / longArticleActions 等经
+  `window.CCSModules.ChatGptDom` 取用），X / 知乎 / Google Docs 各在自己的适配器里；`verify:site-adapters` 守卫。
+  ChatGPT 改版时先改 chatGptDom.js。
 - **行为回归用 golden 快照**：`verify-background-{utils,pure-modules,extras}` 把 SW 模块的输出对照
   `scripts/fixtures/golden/*.json`；有意改行为后 `UPDATE_GOLDEN=1 node scripts/verify-xxx.mjs` 刷新并审 diff。
 - **已退役的 6 个 legacy 文件**（~3200 行）已移到 `legacy/background-retired/`（不进 build / 不进商店 zip，详见该目录 README）：

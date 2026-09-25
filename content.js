@@ -1022,7 +1022,8 @@
       while (container && container !== document.body && !container.contains(button)) container = container.parentElement;
       if (!container || container === document.body || container === document.documentElement) return false;
     }
-    if (button.matches('[data-testid="send-button"], [data-testid="fruitjuice-send-button"]')) return true;
+    const chatGptSendButton = window.CCSModules?.ChatGptDom?.SEND_BUTTON_SELECTOR;
+    if (chatGptSendButton && button.matches(chatGptSendButton)) return true;
     const label = normalizeFilledText(button.getAttribute('aria-label') || button.getAttribute('title') || button.textContent || button.value);
     if (/^(?:send(?:\s+(?:message|prompt))?|submit(?:\s+(?:message|prompt))?|发送(?:消息|信息|提示词)?|提交)(?:\s*[（(].*[）)])?$/iu.test(label)) return true;
     return Boolean(composerForm && button.getAttribute('type') === 'submit');
@@ -1031,7 +1032,9 @@
   function hasAIPromptSendProgress(composer, button) {
     if (button && (!button.isConnected || !isAIPromptSendButton(button, composer))) return true;
     const scope = composer.closest('form') || composer.parentElement;
-    return Boolean(scope?.querySelector('[data-testid="stop-button"], button[aria-label="Stop generating" i], button[aria-label="停止生成"]'));
+    const stopControl = window.CCSModules?.ChatGptDom?.STOP_CONTROL_SELECTOR
+      || 'button[aria-label="Stop generating" i], button[aria-label="停止生成"]';
+    return Boolean(scope?.querySelector(stopControl));
   }
 
   function armPostSendResidueWatcher(text) {
@@ -1289,24 +1292,11 @@
   }
 
   function findChatGptComposerTarget() {
-    const isChatGpt = getSupportedAIEngineFromLocation() === 'chatgpt';
-    // ChatGPT now exposes the composer separately from editable writing blocks.
-    // Prefer that boundary: the first textbox on the page can be an article
-    // editor, and the sidebar can contain a search input before the composer.
-    const selectors = isChatGpt ? [
-      'form[data-chatgpt-composer] [data-composer-markdown]',
-      'form[data-chatgpt-composer] [contenteditable]:not([contenteditable="false"])',
-      'form[data-chatgpt-composer] textarea',
-      '[data-composer-markdown][contenteditable]:not([contenteditable="false"])',
-      '#prompt-textarea',
-      '[data-testid="prompt-textarea"]',
-      '[contenteditable="true"][role="textbox"]',
-      '[contenteditable="plaintext-only"][role="textbox"]',
-      '[contenteditable=""][role="textbox"]',
-      'textarea[placeholder]',
-      'textarea',
-      '[contenteditable="true"]'
-    ] : [
+    // ChatGPT 的输入框定位与排除区域在 modules/chatGptDom.js（manifest 与补注入都先于本文件加载）
+    const chatGptDom = getSupportedAIEngineFromLocation() === 'chatgpt'
+      ? window.CCSModules?.ChatGptDom || null
+      : null;
+    const selectors = chatGptDom ? chatGptDom.COMPOSER_SELECTORS : [
       '#prompt-textarea',
       '[data-testid="prompt-textarea"]',
       'textarea[name="q"]',
@@ -1327,12 +1317,8 @@
       const nodes = Array.from(document.querySelectorAll(selector));
       const target = nodes.find((element) => {
         if (!isEditableComposerCandidate(element)) return false;
-        if (!isChatGpt) return true;
-        return !element.closest?.(
-          '.writing-block-editor, [data-testid="writing-block-container"], [data-testid="chatgpt-writing-block"], ' +
-          '[data-writing-block="true"], [data-oai-writing-block-surface], [data-message-author-role], ' +
-          '[data-chatgpt-search-unit-key], [role="search"]'
-        );
+        if (!chatGptDom) return true;
+        return !element.closest?.(chatGptDom.COMPOSER_EXCLUDE_SELECTOR);
       });
       if (target) return target;
     }

@@ -117,7 +117,8 @@ async function reinjectContentForTab(tabId, reason) {
   try {
     await chrome.scripting.executeScript({
       target: { tabId },
-      files: ['content.js']
+      // chatGptDom.js 先注入：content.js 的 ChatGPT 输入框定位依赖它（与 manifest 顺序一致）
+      files: ['modules/chatGptDom.js', 'content.js']
     });
     logMenuEvent('selection-sync-reinject', { tabId, reason });
     return true;

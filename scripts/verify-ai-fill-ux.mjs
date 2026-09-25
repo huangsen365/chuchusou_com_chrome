@@ -36,7 +36,7 @@ import {
 const root = process.cwd()
 const TAG = "[verify-ai-fill-ux]"
 
-async function verifyChatGptComposerSelection(cdp, contentSource) {
+async function verifyChatGptComposerSelection(cdp, contentSource, chatGptDomSource) {
   // Use the real browser's selector/visibility/event behavior, but fulfill the
   // navigation locally: this fixture never reads or submits a real conversation.
   const fixtureUrl = "https://chatgpt.com/?q=ccs-composer-fixture"
@@ -63,6 +63,7 @@ async function verifyChatGptComposerSelection(cdp, contentSource) {
         storage: { local: { get: (_keys, cb) => cb({ ccs_debug: false }), set() {} } },
         runtime: { id: 'test-extension', onMessage: { addListener() {} }, sendMessage: (_message, cb) => cb?.({ ok: false }) }
       };
+      ${chatGptDomSource}
       ${contentSource}
       const prompt = 'ChatGPT composer compatibility test.\\nSecond paragraph with a unique ending.';
       const writingDraft = 'Existing article content must remain unchanged.';
@@ -167,6 +168,8 @@ async function main() {
 
     const toastSource = fs.readFileSync(path.join(root, "modules/toast.js"), "utf8")
     const contentSource = fs.readFileSync(path.join(root, "content.js"), "utf8")
+    // manifest 里 modules/chatGptDom.js 先于 content.js 加载（ChatGPT 输入框定位在里面）
+    const chatGptDomSource = fs.readFileSync(path.join(root, "modules/chatGptDom.js"), "utf8")
 
     const expression = `
       (async () => {
@@ -216,6 +219,7 @@ async function main() {
         };
 
         ${toastSource}
+        ${chatGptDomSource}
         ${contentSource}
         await wait(80);
         const deliver = (text, pendingId) =>
@@ -449,7 +453,7 @@ async function main() {
       expect(r['residue_' + scenario], '发送驻留诊断场景失败: ' + scenario)
     }
 
-    await verifyChatGptComposerSelection(cdp, contentSource)
+    await verifyChatGptComposerSelection(cdp, contentSource, chatGptDomSource)
     console.log(`${TAG} OK — toast 顶部可穿透 / 发送可达 / model 同步 / 发送真出 / 新草稿不被写回 / revert 巩固恢复 / Yiyan 预同步首发成功 / 顽固编辑器驻留自愈 / ChatGPT 新旧输入框定位与正文隔离`)
   } finally {
     cdp?.close()

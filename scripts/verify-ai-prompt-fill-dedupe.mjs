@@ -7,6 +7,8 @@ import vm from "node:vm"
 
 const root = process.cwd()
 const contentSource = fs.readFileSync(path.join(root, "content.js"), "utf8")
+// manifest 里 modules/chatGptDom.js 先于 content.js 加载（ChatGPT 输入框定位在里面）
+const chatGptDomSource = fs.readFileSync(path.join(root, "modules/chatGptDom.js"), "utf8")
 const fastAnswersConfig = JSON.parse(fs.readFileSync(path.join(root, "prompts/fastAnswersPrompts.json"), "utf8"))
 const topQuestionsConfig = JSON.parse(fs.readFileSync(path.join(root, "prompts/topQuestionsPrompts.json"), "utf8"))
 const optimizedPromptsConfig = JSON.parse(fs.readFileSync(path.join(root, "prompts/optimizedPrompts.json"), "utf8"))
@@ -515,7 +517,9 @@ function makeHarness({
   context.self = context
   context.top = context
 
-  vm.runInNewContext(contentSource, context, { filename: "content.js" })
+  vm.createContext(context)
+  vm.runInContext(chatGptDomSource, context, { filename: "modules/chatGptDom.js" })
+  vm.runInContext(contentSource, context, { filename: "content.js" })
 
   return {
     context,

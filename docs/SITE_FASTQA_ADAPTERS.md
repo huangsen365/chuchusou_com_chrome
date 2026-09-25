@@ -34,6 +34,10 @@
 
 ## 适配约束
 
+- 每个网站的 DOM 选择器只写在它的适配器文件里（ChatGPT → `modules/chatGptDom.js`，X → `xTweetFastQa.js` /
+  `xArticleDraftDelivery.js` / `xArticleMainWorld.js`，知乎 → `zhihuFastQa.js`，Google Docs → `googleDocsRewrite.js`），
+  其它模块从适配器取用；`npm run verify:site-adapters` 会拦下散落在别处的选择器。新增网站时把它登记进该守卫。
+
 - 优先使用永久链接、ARIA、`itemprop`、`data-testid` 和稳定语义类名，不依赖散列类名。
 - 正文与标题必须用明确边界包装后再交给现有速答模板。
 - 折叠正文不能静默当作全文发送；展开失败应显示错误并允许重试。

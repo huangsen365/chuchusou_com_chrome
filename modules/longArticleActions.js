@@ -7,15 +7,8 @@
   const ASSISTANT_SELECTOR = ChatGptDom.ASSISTANT_SELECTOR;
   const WRITING_BLOCK_SELECTOR = ChatGptDom.WRITING_BLOCK_SELECTOR;
   const EDITOR_SELECTOR = ChatGptDom.WRITING_EDITOR_SELECTOR;
-  const HEADER_SELECTOR = '[data-testid="writing-block-header-surface"], [data-testid="writing-block-header-sticky-container"], header';
-  const COPY_BUTTON_SELECTORS = [
-    'button[data-testid="writing-block-copy-button"]',
-    'button[data-testid*="copy"]',
-    'button[aria-label*="Copy" i]',
-    'button[aria-label*="复制"]',
-    'button[title*="Copy" i]',
-    'button[title*="复制"]'
-  ];
+  const HEADER_SELECTOR = ChatGptDom.WRITING_BLOCK_HEADER_SELECTOR;
+  const COPY_BUTTON_SELECTORS = ChatGptDom.WRITING_BLOCK_COPY_BUTTON_SELECTORS;
   const ACTION_CLASS = 'ccs-long-article-action';
   const ACTIONS_MARKER = 'data-ccs-long-article-actions';
   const X_MARKER = 'data-ccs-long-article-x-draft';
@@ -110,7 +103,7 @@
   function isStreaming(assistant, block, copyButton) {
     if (copyButton?.disabled || copyButton?.getAttribute('aria-disabled') === 'true') return true;
     if (hasExternalGenerationSignal(assistant) || hasExternalGenerationSignal(block)) return true;
-    if (assistant.querySelector('[data-testid="stop-button"]')) return true;
+    if (assistant.querySelector(ChatGptDom.STOP_BUTTON_SELECTOR)) return true;
     // The composer stop control belongs only to the latest response. Historical
     // completed articles must stay available while another turn is streaming.
     const latest = ChatGptDom.assistantMessages().at(-1);
