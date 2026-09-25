@@ -9,7 +9,7 @@
  *  1. importScripts 列表里每个文件都存在于源码树（build 后也存在于 build/）
  *  2. events.js 是列表最后一项；attach* 在 importScripts 之前、attachInit 在之后
  *  3. 列表里的文件不能同时有 TS 实现（一份逻辑只能有一个源）
- *  4. 退役文件（legacy/background-retired/）不回流
+ *  4. 已被 TS 取代的 6 个 SW 文件不回流
  *  5. background/ 根目录只允许 importScripts 列表里的 .js（防僵尸文件 / 同步冲突副本进商店 zip）
  *  6. SW bundle 确实包含 importScripts 调用 + 关键引用
  */
@@ -75,18 +75,17 @@ console.log("[verify-sw-bridge] ✓ importScripts 模块没有 TS 孪生实现")
   console.log(`[verify-sw-bridge] ✓ ${owners.size} 个 SW 共享作用域顶层名字无重名`)
 }
 
-// 4. 退役文件不回流
-const retiredDir = path.join(root, "legacy/background-retired")
-if (fs.existsSync(retiredDir)) {
-  const retired = fs.readdirSync(retiredDir).filter((f) => f.endsWith(".js"))
+// 4. 已被 src/background/*.ts 取代的 SW 文件不回流（原文件见 git 历史）
+{
+  const retired = ["base.js", "Logger.js", "menuHandlers.js", "menuBuilder.js", "voiceOffscreenBridge.js", "init.js"]
   for (const f of retired) {
     assert(!imports.includes(`background/${f}`), `退役文件 ${f} 重新出现在 src/background.ts importScripts`)
-    assert(!fs.existsSync(path.join(root, "background", f)), `退役文件 ${f} 同时存在于 background/ 与 legacy/background-retired/`)
+    assert(!fs.existsSync(path.join(root, "background", f)), `退役文件 background/${f} 又出现了（它的逻辑已在 src/background/*.ts）`)
     if (fs.existsSync(buildDir)) {
-      assert(!fs.existsSync(path.join(buildDir, "background", f)), `退役文件 ${f} 被打进了 build/（postbuild 不应复制 legacy/）`)
+      assert(!fs.existsSync(path.join(buildDir, "background", f)), `退役文件 ${f} 被打进了 build/`)
     }
   }
-  console.log(`[verify-sw-bridge] ✓ ${retired.length} 个退役文件未混入 importScripts / background/ / build/`)
+  console.log(`[verify-sw-bridge] ✓ ${retired.length} 个退役文件未回流`)
 }
 
 // 5. background/ 白名单：目录下（含子目录）每个 .js 都必须在 importScripts 列表里。抓两类污染：

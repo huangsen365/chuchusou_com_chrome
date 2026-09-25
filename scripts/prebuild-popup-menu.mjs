@@ -225,15 +225,6 @@ function main() {
       console.warn("[prebuild-popup-menu] ⚠ popup/popup.html 找不到 menuContainer 标记，跳过注入")
     }
   }
-  // popup-v2 共用同一份 hierarchical 菜单 HTML（容器 id/class 与旧 popup 完全一致）
-  const popupV2Path = path.join(buildDir, "popup-v2/popup.html")
-  if (fs.existsSync(popupV2Path)) {
-    if (injectStaticMenu(popupV2Path, renderStaticMenu(structure))) {
-      console.log("[prebuild-popup-menu] ✓ 静态菜单注入 → popup-v2/popup.html (data-static-built)")
-    } else {
-      console.warn("[prebuild-popup-menu] ⚠ popup-v2/popup.html 找不到 menuContainer 标记，跳过注入")
-    }
-  }
   const sidepanelPath = path.join(buildDir, "sidepanel/sidepanel.html")
   if (fs.existsSync(sidepanelPath)) {
     if (injectStaticMenu(sidepanelPath, renderSidepanelMenu(structure), {
@@ -243,18 +234,6 @@ function main() {
       console.log("[prebuild-popup-menu] ✓ 静态菜单注入 → sidepanel/sidepanel.html (data-static-built)")
     } else {
       console.warn("[prebuild-popup-menu] ⚠ sidepanel/sidepanel.html 找不到 spMenu 标记，跳过注入")
-    }
-  }
-  // sidepanel-v2 共用同一份 flat sidepanel 菜单 HTML（容器 id/class 与旧版完全一致）
-  const sidepanelV2Path = path.join(buildDir, "sidepanel-v2/sidepanel.html")
-  if (fs.existsSync(sidepanelV2Path)) {
-    if (injectStaticMenu(sidepanelV2Path, renderSidepanelMenu(structure), {
-      containerId: "spMenu",
-      containerClass: "sp-menu"
-    })) {
-      console.log("[prebuild-popup-menu] ✓ 静态菜单注入 → sidepanel-v2/sidepanel.html (data-static-built)")
-    } else {
-      console.warn("[prebuild-popup-menu] ⚠ sidepanel-v2/sidepanel.html 找不到 spMenu 标记，跳过注入")
     }
   }
 }

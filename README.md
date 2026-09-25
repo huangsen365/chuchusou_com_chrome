@@ -150,8 +150,8 @@ chuchusou_com_chrome/
 ├── shared/                    # 前后台共用 JS（keywordClient / runtimeClient / logger…）
 ├── content/ + modules/        # 内容脚本（选区捕获 / AI prompt 填充 / toast…）
 ├── content.js / dockbar.js    # 内容脚本入口
-├── popup/  + popup-v2/        # Popup（生产 + 备用重写版）
-├── sidepanel/ + sidepanel-v2/ # 侧边栏（生产 + 备用重写版）
+├── popup/                     # Popup（点击扩展图标）
+├── sidepanel/                 # 侧边栏
 ├── offscreen/                 # 语音识别 offscreen 文档
 ├── config/                    # unifiedMenuConfig.json / engines.json（SSoT）
 ├── prompts/                   # 提示词：*.md 模板正文 + *Prompts.json 元数据（速答 / 百问 / 优化 / 封面 / 长文改写）

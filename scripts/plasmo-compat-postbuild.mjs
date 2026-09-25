@@ -10,9 +10,7 @@ const buildDir = path.resolve(projectRoot, process.argv[2] || "build/chrome-mv3-
 const copyDirs = [
   "background",
   "popup",
-  "popup-v2",
   "sidepanel",
-  "sidepanel-v2",
   "welcome",
   "content",
   "modules",

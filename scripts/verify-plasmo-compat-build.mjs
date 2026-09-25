@@ -75,6 +75,8 @@ function main() {
     "shared/logger.js",
     "shared/runtimeClient.js",
     "shared/storageDefaults.js",
+    "popup/popup.bundle.js",
+    "sidepanel/sidepanel.bundle.js",
     "offscreen/voice.html",
     "voice-permission/permission.html",
     "privacy.js",

@@ -399,7 +399,7 @@ function verifyPromptHandlersDoNotBypassRelay() {
   )
 
   // 右键菜单 onClicked 的运行时主体是 TS port（src/background/menuHandlersAttach.ts，
-  // legacy menuHandlers.js 已退役到 legacy/background-retired/），所以源码检查指向 TS 文件。
+  // legacy menuHandlers.js 已退役删除），所以源码检查指向 TS 文件。
   // openPromptUrlPattern 是 attach 内的统一出口：AI URL 走 ccsPrepareAIPromptUrl relay。
   const menuHandlersSource = fs.readFileSync(path.join(root, "src/background/menuHandlersAttach.ts"), "utf8")
   for (const blockName of ["top100", "fastqa"]) {

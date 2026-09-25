@@ -32,6 +32,9 @@ logs/
 
 # Generated assets
 assets/menu-icons/*.tmp
+# popup / sidepanel 合并脚本：build 时由 scripts/bundle-shared-deps.mjs 生成进 build/
+popup/*.bundle.js
+sidepanel/*.bundle.js
 
 # 冒烟测试自签证书（verify-extension-smoke 运行时用 openssl 现生成）
 scripts/fixtures/*.pem

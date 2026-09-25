@@ -13,8 +13,8 @@
  *
  * 关键点：
  *  - shared/*.js + popup.js / sidepanel.js 仍各自独立，方便单文件 review / debug
- *  - 支持传入 "." 生成源码目录 bundle，方便直接加载未打包扩展时也走快路径
- *  - 默认处理 build/chrome-mv3-prod，保证正式产物也走快路径
+ *  - 只在 build 产物里生成（build/chrome-mv3-prod），bundle 不进源码仓库；
+ *    popup.boot.js / sidepanel.boot.js 首屏后会加载它，所以生成失败时整个 build 失败
  *  - 拼接顺序与 popup.html / sidepanel.html 里 script 标签顺序完全一致，确保
  *    globalThis.CCSLogger / CCSRuntimeClient / CCSStorageDefaults / CCSKeywordClient
  *    在 popup/sidepanel.js 运行前已经挂好
@@ -129,8 +129,8 @@ function patchHtml(htmlPath, mainScriptName, entryHref, bundleHref) {
 
 function main() {
   if (!fs.existsSync(buildDir)) {
-    console.warn(`[bundle-shared-deps] build dir 不存在，跳过: ${buildDir}`)
-    process.exit(0)
+    console.error(`[bundle-shared-deps] build dir 不存在: ${buildDir}（先跑 plasmo build + postbuild）`)
+    process.exit(1)
   }
 
   // === popup ===
@@ -145,7 +145,8 @@ function main() {
       )
     }
   } catch (e) {
-    console.warn(`[bundle-shared-deps] popup bundle 失败: ${e?.message || e}`)
+    console.error(`[bundle-shared-deps] popup bundle 失败: ${e?.message || e}`)
+    process.exitCode = 1
   }
 
   // === sidepanel ===
@@ -160,7 +161,8 @@ function main() {
       )
     }
   } catch (e) {
-    console.warn(`[bundle-shared-deps] sidepanel bundle 失败: ${e?.message || e}`)
+    console.error(`[bundle-shared-deps] sidepanel bundle 失败: ${e?.message || e}`)
+    process.exitCode = 1
   }
 }
 

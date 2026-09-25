@@ -18,7 +18,7 @@
   ChatGPT 改版时先改 chatGptDom.js。
 - **行为回归用 golden 快照**：`verify-background-{utils,pure-modules,extras}` 把 SW 模块的输出对照
   `scripts/fixtures/golden/*.json`；有意改行为后 `UPDATE_GOLDEN=1 node scripts/verify-xxx.mjs` 刷新并审 diff。
-- **已退役的 6 个 legacy 文件**（~3200 行）已移到 `legacy/background-retired/`（不进 build / 不进商店 zip，详见该目录 README）：
+- **已退役的 6 个 legacy SW 文件**（~3200 行）已被 TS 取代并删除（原文件见 git 历史；`verify-sw-bridge` 防回流）：
   - `base.js` (889) → src/background/{baseBridge,tabState,menuTitles,menuTitleUpdater,
     menuStateOrchestrator,menuActions,menuDebugInfo,popupMenuStructure,bootstrap}.ts
   - `Logger.js` (458) → src/background/Logger.ts (via baseBridge)
@@ -105,9 +105,7 @@ chuchusou_com_chrome/
 ├── dockbar.js                 # 底部 dock 栏内容脚本
 ├── popup/                     # Popup 菜单（生产，action.default_popup）
 │   └── modules/              # MenuRenderer / SettingsManager / ToastHelper / PromptLibraryManager
-├── popup-v2/                  # Popup 重写版（备用，未在 manifest 启用，随包发布可一键切换）
 ├── sidepanel/                 # Side Panel（生产，side_panel.default_path）
-├── sidepanel-v2/              # Side Panel 重写版（备用，未在 manifest 启用）
 ├── offscreen/                 # 语音识别 offscreen 文档
 ├── voice-permission/          # 麦克风授权引导页
 ├── config/                    # 配置文件
@@ -117,9 +115,8 @@ chuchusou_com_chrome/
 │                              #   （引擎 / 分类 / varietyPlan / 配色表），templateFile 指向正文
 ├── scripts/                   # 构建 + 校验脚本（npm test 全链的所有关卡都在这，
 │                              #   含链尾 headless Chrome 扩展冒烟回归）
-├── legacy/                    # 🗑 退役代码（不进 build / zip，eslint ignore）
-│   ├── background-retired/   # 6 个已退役 legacy SW 文件（见该目录 README）
-│   └── content.panel-legacy.js
+├── legacy/                    # 暂停功能的旧代码（不进 build / zip，eslint ignore）
+│   └── content.panel-legacy.js #   悬浮面板旧逻辑（面板暂时关闭，保留以便恢复）
 ├── docs/
 │   ├── TECH_DEBT_AUDIT.md    # 技术债审计
 │   └── archive/              # 历史设计文档

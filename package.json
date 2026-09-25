@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "test": "npm run lint && npm run typecheck && npm run verify:shared-config && npm run verify:menu-fallback && npm run verify:cover-consistency && npm run verify:menu-structure-builder && npm run verify:background-utils && npm run verify:background-pure-modules && npm run verify:background-extras && npm run verify:content-modules && npm run verify:site-adapters && npm run verify:x-tweet-fastqa && npm run verify:zhihu-fastqa && npm run verify:article-rewrite && npm run verify:long-article-actions && npm run verify:ai-prompt-fill && npm run verify:url-safety && npm run verify:select-all-protection && npm run verify:ai-fill-ux && npm run plasmo:build && npm run verify:perf-budget && npm run verify:sw-bridge && npm run verify:extension-smoke",
     "plasmo:dev": "plasmo dev --target=chrome-mv3 --src-path=src",
-    "plasmo:build": "node scripts/bundle-shared-deps.mjs . && plasmo build --target=chrome-mv3 --src-path=src && node scripts/plasmo-compat-postbuild.mjs && node scripts/prebuild-popup-menu.mjs && node scripts/bundle-shared-deps.mjs && npm run plasmo:verify",
+    "plasmo:build": "plasmo build --target=chrome-mv3 --src-path=src && node scripts/plasmo-compat-postbuild.mjs && node scripts/prebuild-popup-menu.mjs && node scripts/bundle-shared-deps.mjs && npm run plasmo:verify",
     "plasmo:package": "npm run plasmo:build && plasmo package --target=chrome-mv3 --src-path=src && npm run plasmo:verify-package",
     "plasmo:verify": "node scripts/verify-plasmo-compat-build.mjs",
     "plasmo:verify-package": "node scripts/verify-plasmo-package.mjs",
@@ -51,17 +51,12 @@
   "devDependencies": {
     "@types/chrome": "^0.0.258",
     "@types/node": "^20.11.5",
-    "@types/react": "^18.2.48",
-    "@types/react-dom": "^18.2.18",
-    "@types/scheduler": "^0.16.8",
     "eslint": "^9.39.2",
     "prettier": "^3.2.4",
     "typescript": "^5.3.3"
   },
   "dependencies": {
     "plasmo": "^0.90.5",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
     "sharp": "^0.34.5"
   },
   "displayName": "触触搜 - ChatGPT Images 2.5 封面生成器 / 多 AI 速答 / 提示词优化",
