@@ -1,7 +1,7 @@
 {
   "_comment": "${outputLanguage} 是统一目标输出语言占位符；当前运行时默认注入“简体中文”，未来由语言设置值覆盖。",
   "id": "article_rewrite",
-  "version": 30,
+  "version": 31,
   "status": "active",
   "description": "触触搜用于对话上下文或 Google Docs 原始素材的 ChatGPT / Claude 长文优化改写提示词。",
   "templateFile": "articleRewrite.md",
