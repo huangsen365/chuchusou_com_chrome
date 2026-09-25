@@ -32,7 +32,8 @@ import path from "node:path"
 import process from "node:process"
 import { execFileSync, spawn } from "node:child_process"
 import {
-  hasWebSocket, findChrome, wait, waitForDevToolsPort, connectWebSocket, CdpClient, evaluate
+  hasWebSocket, findChrome, wait, waitForDevToolsPort, connectWebSocket, CdpClient, evaluate,
+  extensionWorldContextId
 } from "./lib/cdp.mjs"
 import { verifyPlainArticleActions } from "./lib/verify-plain-article-actions.mjs"
 import { chatgptRedesignFixture, verifyChatgptRedesign } from "./lib/verify-chatgpt-redesign.mjs"
@@ -960,12 +961,17 @@ async function main() {
       composer.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: composer.textContent }));
       document.querySelector('[data-ccs-select-a-rewrite]')?.click();
     })()`)
-    await wait(1000)
-    const preservedChatDraft = await evaluate(chatRewriteFixture.cdp, `(() => ({
-      text: document.getElementById('prompt-textarea')?.textContent || '',
-      buttonText: document.querySelector('[data-ccs-select-a-rewrite]')?.textContent || '',
-      submitClicks: window.__submitClicks || 0
-    }))()`)
+    // 填入是异步的（先向后台取提示词再检测草稿）；轮询到终态，别用固定等待
+    let preservedChatDraft = null
+    for (let i = 0; i < 40; i++) {
+      await wait(150)
+      preservedChatDraft = await evaluate(chatRewriteFixture.cdp, `(() => ({
+        text: document.getElementById('prompt-textarea')?.textContent || '',
+        buttonText: document.querySelector('[data-ccs-select-a-rewrite]')?.textContent || '',
+        submitClicks: window.__submitClicks || 0
+      }))()`)
+      if (preservedChatDraft?.buttonText?.includes("填入失败")) break
+    }
     if (preservedChatDraft?.text !== "这是用户尚未发送的独立草稿，绝不能被覆盖。" ||
         !preservedChatDraft.buttonText.includes("填入失败") || preservedChatDraft.submitClicks !== 0) {
       fail(`ChatGPT 已有草稿保护异常: ${JSON.stringify(preservedChatDraft)}`)
@@ -1429,9 +1435,21 @@ async function main() {
       fail(`知乎嵌套操作栏/延迟分享锚点校位异常: ${JSON.stringify(zhihuReanchored)}`)
     }
 
+    // 复现 CI 条件：速答会打开 ChatGPT 标签抢到前台，知乎标签转入后台，后台标签里
+    // requestAnimationFrame 不触发。本地 headless 不会真的把标签藏起来，所以在内容脚本的
+    // isolated world 里模拟：document.hidden = true 且 rAF 永不回调。按钮重建必须不依赖用户切回。
+    const zhihuWorld = await extensionWorldContextId(zhihuFixture.cdp, extensionId)
+    if (!zhihuWorld) fail("找不到知乎夹具页里扩展内容脚本的 isolated world")
+    const zhihuHiddenAfterClick = await evaluate(zhihuFixture.cdp, `(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+      window.__ccsSmokeRaf = window.requestAnimationFrame;
+      window.requestAnimationFrame = () => 0;
+      return document.visibilityState;
+    })()`, { contextId: zhihuWorld })
     await evaluate(zhihuFixture.cdp, `document.querySelector('[data-ccs-zhihu-fastqa]')?.click()`)
     let zhihuAfter = null
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 40; i++) {
       await wait(150)
       zhihuAfter = await evaluate(zhihuFixture.cdp, `(() => {
         const button = document.querySelector('[data-ccs-zhihu-fastqa]');
@@ -1449,8 +1467,12 @@ async function main() {
     }
     if (zhihuAfter?.count !== 1 || zhihuAfter.state !== "success" || zhihuAfter.text !== "已发送" ||
         zhihuAfter.collapsed || !zhihuAfter.body.includes("展开后的完整正文") || !zhihuAfter.beforeShare) {
-      fail(`知乎展开/操作栏重建/状态恢复异常: ${JSON.stringify(zhihuAfter)}`)
+      fail(`知乎展开/操作栏重建/状态恢复异常: ${JSON.stringify({ ...zhihuAfter, visibility: zhihuHiddenAfterClick })}`)
     }
+    await evaluate(zhihuFixture.cdp, `(() => {
+      delete document.hidden; delete document.visibilityState;
+      window.requestAnimationFrame = window.__ccsSmokeRaf; return true;
+    })()`, { contextId: zhihuWorld })
     if (zhihuFixture.exceptions.length > 0) fail(`知乎回答速答适配器未捕获异常: ${zhihuFixture.exceptions[0]}`)
     const chatGptTarget = await findTarget(port, (t) => t.type === "page" && (t.url || "").includes("chatgpt.com/"), 4000)
     if (!chatGptTarget) fail("知乎速答点击后未走现有 ChatGPT fastqa 链路")

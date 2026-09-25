@@ -132,7 +132,8 @@
     const schedule = () => {
       if (scheduled) return;
       scheduled = true;
-      requestAnimationFrame(() => {
+      // 后台标签页里 requestAnimationFrame 不触发：页面隐藏时改用定时器，保证切回前按钮已重建
+      (document.hidden ? (fn) => setTimeout(fn, 32) : requestAnimationFrame)(() => {
         scheduled = false;
         document.querySelectorAll(TURN_SELECTOR).forEach(inject);
       });

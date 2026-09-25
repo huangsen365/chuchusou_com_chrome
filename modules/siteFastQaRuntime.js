@@ -268,7 +268,9 @@
     const schedule = () => {
       if (stopped || scheduled) return;
       scheduled = true;
-      requestAnimationFrame(scan);
+      // 后台标签页里 requestAnimationFrame 不触发：页面隐藏时改用定时器，保证切回前按钮已重建
+      if (document.hidden) setTimeout(scan, 32);
+      else requestAnimationFrame(scan);
     };
     const boot = () => {
       if (stopped || observer || !document.documentElement) return;

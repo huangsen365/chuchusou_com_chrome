@@ -114,11 +114,12 @@ export class CdpClient {
   }
 }
 
-export async function evaluate(cdp, expression, { timeoutMs } = {}) {
+export async function evaluate(cdp, expression, { timeoutMs, contextId } = {}) {
   const result = await cdp.call("Runtime.evaluate", {
     expression,
     awaitPromise: true,
-    returnByValue: true
+    returnByValue: true,
+    ...(contextId ? { contextId } : {})
   }, timeoutMs ? { timeoutMs } : {})
   if (result.exceptionDetails) {
     const d = result.exceptionDetails
@@ -129,4 +130,24 @@ export async function evaluate(cdp, expression, { timeoutMs } = {}) {
     throw new Error(`${detail}${where} | expr: ${snippet}...`)
   }
   return result.result?.value
+}
+
+/**
+ * 找到页面里扩展内容脚本所在的 isolated world。内容脚本的全局（window / document 包装、
+ * requestAnimationFrame）与页面主世界隔离，要模拟「后台标签页」必须在这个世界里改写。
+ * 通过 Runtime.disable → enable 让 CDP 重放已有的执行上下文。
+ */
+export async function extensionWorldContextId(cdp, extensionId, { timeoutMs = 3000 } = {}) {
+  const contexts = []
+  cdp.on("Runtime.executionContextCreated", (params) => contexts.push(params.context))
+  await cdp.call("Runtime.disable")
+  await cdp.call("Runtime.enable")
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const hit = contexts.find((ctx) => ctx.origin === `chrome-extension://${extensionId}` ||
+      (ctx.auxData?.type === "isolated" && String(ctx.name || "").includes("触触搜")))
+    if (hit) return hit.id
+    await wait(50)
+  }
+  return null
 }
