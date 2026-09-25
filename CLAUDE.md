@@ -166,16 +166,18 @@ attachInit()              // ← 必须在 importScripts 之后：依赖 g.MenuS
 
 这是唯一的 SW 入口（manifest.json 直接写 `static/background/index.js`，项目根目录不能直接当扩展加载）。
 `npm run verify:sw-bridge` 校验列表里文件都存在、events.js 在末位、attach* / attachInit 前后顺序、
-没有 TS 孪生实现、background/ 根目录没有列表外的 .js。
+没有 TS 孪生实现、background/（含子目录）没有列表外的 .js、各脚本顶层名字不重名。
 
 #### Content Scripts
-按 manifest.json 中定义的顺序加载，新模块优先：
-1. `content/SelectionManager.js`
-2. `content/TextEncoder.js`
-3. `content/ToastUI.js`
-4. `content/ClipboardHelper.js`
-5. `modules/*.js`
-6. `content.js`
+按 manifest.json 中定义的顺序加载（`<all_urls>`，all_frames）：
+1. `shared/storageKeys.js`（键名注册表，必须第一个）
+2. `content/*.js`（SelectionManager / TextEncoder / ToastUI / ClipboardHelper）
+3. `modules/*.js` + `shared/promptLanguage.js` / `promptTemplate.js` / `rewriteVariety.js` / `rewriteConceptMemory.js`
+   （站点适配器 `siteFastQaRuntime` → `xTweetFastQa` / `zhihuFastQa`；`chatGptDom` 先于所有 ChatGPT 相关模块）
+4. `dockbar.js`、`content.js`（最后）
+
+另有一组 MAIN world 脚本 `modules/xArticleMainWorld.js`（仅 x.com 长文编辑页，必须自包含）。
+SW 补注入 content.js 时按同样顺序带上 `shared/storageKeys.js` 与 `modules/chatGptDom.js`。
 
 ### 菜单系统
 
@@ -189,9 +191,9 @@ attachInit()              // ← 必须在 importScripts 之后：依赖 g.MenuS
    - `popup.js` 通过 `getMenuStructure` 消息从 background 获取菜单结构
    - `src/background/popupMenuStructure.ts` 的 `getPopupMenuStructure()` 返回与右键菜单一致的结构
 
-3. **悬浮面板**（鼠标选中文本后显示）
-   - 由 `content.js` 管理
-   - 显示常用快捷按钮
+3. **Side Panel**（侧边栏）
+   - `sidepanel.js` 渲染与 popup 同源的扁平菜单 + 置顶封面风格
+   - 悬浮面板 / 底部 dock 暂时关闭（content.js 里是 noop，旧逻辑在 `legacy/content.panel-legacy.js`）
 
 #### 菜单结构
 
