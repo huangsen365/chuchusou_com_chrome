@@ -19,6 +19,7 @@ import process from "node:process"
 import vm from "node:vm"
 import { createGolden } from "./lib/golden.mjs"
 import { createTsLoader } from "./lib/tsLoader.mjs"
+import { createRepoFetch } from "./lib/prompts.mjs"
 
 const root = process.cwd()
 
@@ -71,11 +72,7 @@ function loadLegacy() {
     QUICK_RESULT_HOSTS: ["chatgpt.com", "claude.ai"],
     Proxy, parseInt, isNaN, encodeURIComponent, decodeURIComponent, atob, btoa,
     // config.js loadEnginesConfig 走 fetch(chrome.runtime.getURL(...))：直接读仓库文件
-    fetch: async (url) => {
-      const abs = path.join(root, String(url).replace("chrome-extension://test/", ""))
-      if (!fs.existsSync(abs)) return { ok: false, status: 404, json: async () => null }
-      return { ok: true, status: 200, json: async () => JSON.parse(fs.readFileSync(abs, "utf8")) }
-    }
+    fetch: createRepoFetch(root, { prefix: "chrome-extension://test/" })
   }
   const ctx = { globalThis: globals, ...globals }
   ctx.window = ctx.globalThis

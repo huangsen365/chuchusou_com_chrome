@@ -4,15 +4,17 @@ import assert from "node:assert/strict"
 import fs from "node:fs"
 import path from "node:path"
 import vm from "node:vm"
+import { readPromptConfig } from "./lib/prompts.mjs"
 
 const root = process.cwd()
 const contentSource = fs.readFileSync(path.join(root, "content.js"), "utf8")
 // manifest 里 modules/chatGptDom.js 先于 content.js 加载（ChatGPT 输入框定位在里面）
 const chatGptDomSource = fs.readFileSync(path.join(root, "modules/chatGptDom.js"), "utf8")
-const fastAnswersConfig = JSON.parse(fs.readFileSync(path.join(root, "prompts/fastAnswersPrompts.json"), "utf8"))
-const topQuestionsConfig = JSON.parse(fs.readFileSync(path.join(root, "prompts/topQuestionsPrompts.json"), "utf8"))
-const optimizedPromptsConfig = JSON.parse(fs.readFileSync(path.join(root, "prompts/optimizedPrompts.json"), "utf8"))
-const coverPromptsConfig = JSON.parse(fs.readFileSync(path.join(root, "prompts/coverPrompts.json"), "utf8"))
+// 提示词正文在 prompts/*.md（JSON 的 templateFile 指向），readPromptConfig 展开成 templateLines
+const fastAnswersConfig = readPromptConfig(root, "prompts/fastAnswersPrompts.json").config
+const topQuestionsConfig = readPromptConfig(root, "prompts/topQuestionsPrompts.json").config
+const optimizedPromptsConfig = readPromptConfig(root, "prompts/optimizedPrompts.json").config
+const coverPromptsConfig = readPromptConfig(root, "prompts/coverPrompts.json").config
 const FASTQA_PROMPT = fastAnswersConfig.templateLines.join("\n").replaceAll("${input}", "文心一言速答重复填充回归验证")
 const MARKER_HEAD = "请针对以下主题生成回答："
 const MARKER_TAIL = "* B 的口吻要求："
@@ -617,7 +619,7 @@ function assertPromptTemplateNewlines() {
       .replaceAll("${purpose}", "换行验证目的")
       .replaceAll("${ratio}", "5:2")
     assert.equal(prompt.includes("换行验证主题"), true, `${name} prompt should include input`)
-    assert.equal(prompt.split("\n").length > config.templateLines.length / 2, true, `${name} prompt should keep real newline structure`)
+    assert.equal(prompt.split("\n").length, template.split("\n").length, `${name} prompt should keep real newline structure`)
   }
 }
 

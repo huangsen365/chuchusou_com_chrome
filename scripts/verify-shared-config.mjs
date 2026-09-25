@@ -3,6 +3,7 @@
 import fs from "node:fs"
 import path from "node:path"
 import process from "node:process"
+import { readPromptConfig } from "./lib/prompts.mjs"
 
 const root = process.cwd()
 const WENXIN_ENTRY_URL = "https://chat.baidu.com/"
@@ -68,9 +69,9 @@ function main() {
   }
 
   for (const { source: promptFile, validateEngineRefs } of promptFiles) {
-    const prompt = readJson(promptFile)
-    assert(Array.isArray(prompt.templateLines) && prompt.templateLines.length > 0, `${promptFile} templateLines must be non-empty`)
-    const promptTemplate = prompt.templateLines.join("\n")
+    const { config: prompt, template: promptTemplate } = readPromptConfig(root, promptFile)
+    assert(typeof prompt.templateFile === "string" && prompt.templateFile.endsWith(".md"), `${promptFile} must point templateFile at a Markdown file`)
+    assert(promptTemplate.trim().length > 0, `${promptFile} template (${prompt.templateFile}) must be non-empty`)
     assert(promptTemplate.includes("${input}"), `${promptFile} template must include \${input}`)
     if (promptFile === "prompts/fastAnswersPrompts.json") {
       assert(promptTemplate.split("${outputLanguage}").length - 1 === 1, "fast answers must contain one output-language placeholder")

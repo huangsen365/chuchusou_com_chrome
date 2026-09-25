@@ -7,6 +7,7 @@ async function loadOptimizedPromptConfig() {
       throw new Error(`Failed to load optimized prompt config: ${response.status}`);
     }
     const config = await response.json();
+    await globalThis.CCSPromptTemplate.resolveTemplateFile(config, 'prompts/optimizedPrompts.json');
     globalThis.optimizedPromptConfig = config;
     globalThis.optimizedPromptTemplate = Array.isArray(config.templateLines)
       ? config.templateLines.join('\n')
@@ -29,6 +30,7 @@ async function loadCoverPromptConfig() {
       throw new Error(`Failed to load cover prompt config: ${response.status}`);
     }
     const config = await response.json();
+    await globalThis.CCSPromptTemplate.resolveTemplateFile(config, 'prompts/coverPrompts.json');
     globalThis.coverPromptConfig = config;
     globalThis.coverPromptTemplate = Array.isArray(config.templateLines)
       ? config.templateLines.join('\n')
@@ -51,6 +53,7 @@ async function loadTopQuestionsConfig() {
       throw new Error(`Failed to load top questions config: ${response.status}`);
     }
     const config = await response.json();
+    await globalThis.CCSPromptTemplate.resolveTemplateFile(config, 'prompts/topQuestionsPrompts.json');
     globalThis.topQuestionsConfig = config;
     globalThis.topQuestionsTemplate = Array.isArray(config.templateLines)
       ? config.templateLines.join('\n')
@@ -73,6 +76,7 @@ async function loadFastAnswersConfig() {
       throw new Error(`Failed to load fast answers config: ${response.status}`);
     }
     const config = await response.json();
+    await globalThis.CCSPromptTemplate.resolveTemplateFile(config, 'prompts/fastAnswersPrompts.json');
     globalThis.fastAnswersConfig = config;
     globalThis.fastAnswersTemplate = Array.isArray(config.templateLines)
       ? config.templateLines.join('\n')

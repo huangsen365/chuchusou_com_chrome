@@ -15,6 +15,7 @@ import path from "node:path"
 import process from "node:process"
 import vm from "node:vm"
 import { createGolden } from "./lib/golden.mjs"
+import { createRepoFetch } from "./lib/prompts.mjs"
 
 const root = process.cwd()
 
@@ -30,12 +31,8 @@ function loadLegacyGlobals() {
       runtime: { lastError: null, getURL: (p) => p },
       contextMenus: { update: (_id, _opts, cb) => cb && cb() }
     },
-    // AITaskRegistry.loadTask 走 fetch(chrome.runtime.getURL(promptsFile))：直接读仓库里的 prompts
-    fetch: async (url) => {
-      const abs = path.join(root, url)
-      if (!fs.existsSync(abs)) return { ok: false, status: 404, json: async () => null }
-      return { ok: true, status: 200, json: async () => JSON.parse(fs.readFileSync(abs, "utf8")) }
-    },
+    // AITaskRegistry.loadTask 走 fetch(chrome.runtime.getURL(promptsFile))：直接读仓库里的 prompts（含 Markdown 正文）
+    fetch: createRepoFetch(root),
     Promise, Map, Set, Array, Object, JSON
   }
   const context = { globalThis: globals, ...globals }
@@ -45,6 +42,7 @@ function loadLegacyGlobals() {
 
   const files = [
     { rel: "shared/promptLanguage.js", append: "" },
+    { rel: "shared/promptTemplate.js", append: "" },
     // URLBuilder.js 没把类挂到 globalThis，追加暴露
     { rel: "background/URLBuilder.js", append: "\nglobalThis.URLBuilder = URLBuilder;" },
     { rel: "background/MenuRegistry.js", append: "" },

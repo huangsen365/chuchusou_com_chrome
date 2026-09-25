@@ -5,10 +5,9 @@ import path from "node:path"
 import process from "node:process"
 import vm from "node:vm"
 import { readEventSources } from "./lib/swSources.mjs"
+import { createRepoFetch, readPromptConfig } from "./lib/prompts.mjs"
 
 const root = process.cwd()
-const promptSourcePath = path.join(root, "prompts/articleRewritePrompts.json")
-const promptConfig = JSON.parse(fs.readFileSync(promptSourcePath, "utf8"))
 
 function assert(condition, message) {
   if (!condition) throw new Error(message)
@@ -49,7 +48,7 @@ function loadLegacyApi() {
         }
       }
     },
-    fetch: async () => ({ ok: true, json: async () => promptConfig }),
+    fetch: createRepoFetch(root, { prefix: "chrome-extension://test/" }),
     URL,
     Set,
     RegExp,
@@ -60,6 +59,11 @@ function loadLegacyApi() {
     console
   }
   vm.createContext(context)
+  vm.runInContext(
+    fs.readFileSync(path.join(root, "shared/promptTemplate.js"), "utf8"),
+    context,
+    { filename: "shared/promptTemplate.js" }
+  )
   vm.runInContext(
     fs.readFileSync(path.join(root, "modules/chatGptDom.js"), "utf8"),
     context,
@@ -147,15 +151,33 @@ async function verifyApi(name, api, hooks) {
   assert(message?.target === "claude", `${name}: wrong rewrite target`)
 }
 
-const sourceJson = JSON.parse(fs.readFileSync(promptSourcePath, "utf8"))
+const { config: sourceJson, template: articleRewriteTemplate } = readPromptConfig(root, "prompts/articleRewritePrompts.json")
 assert(sourceJson.id === "article_rewrite" && sourceJson.status === "active", "article rewrite prompt metadata invalid")
-assert(sourceJson.version === 30, "article rewrite prompt version must be 30")
-assert(sourceJson.templateLines.filter((line) => /^# [一二三四五六七八九十]+、/.test(line)).length === 28, "article rewrite prompt must retain its 28 writing sections")
-assert(sourceJson.templateLines.join("\n").split("${url}").length - 1 === 1, "article rewrite prompt must contain one URL placeholder")
-assert(sourceJson.templateLines.join("\n").split("${outputLanguage}").length - 1 === 1, "article rewrite prompt must contain one output-language placeholder")
-assert(sourceJson.templateLines.join("\n").includes("无论原始素材使用何种语言"), "article rewrite prompt must handle foreign-language source material")
+assert(Number.isInteger(sourceJson.version) && sourceJson.version >= 30, "article rewrite prompt version must be an integer ≥ 30")
+assert(sourceJson.templateFile === "articleRewrite.md", "article rewrite prompt text lives in prompts/articleRewrite.md")
+// 章节结构：「# 一、」起连续编号、不跳号不重号（加减章节时只要编号连贯就行，不锁死数量）
+{
+  const numerals = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
+  const toNumber = (text) => {
+    if (text === "十") return 10
+    const [tens, ones] = text.includes("十") ? text.split("十") : ["", text]
+    return (text.includes("十") ? (tens ? numerals.indexOf(tens) + 1 : 1) * 10 : 0) + (ones ? numerals.indexOf(ones) + 1 : 0)
+  }
+  const sections = sourceJson.templateLines
+    .map((line) => line.match(/^# ([一二三四五六七八九十]+)、/)?.[1])
+    .filter(Boolean)
+    .map(toNumber)
+  assert(sections.length >= 10, `article rewrite prompt lost its numbered sections (found ${sections.length})`)
+  sections.forEach((n, i) => assert(n === i + 1, `article rewrite section numbering broken at position ${i + 1}: got ${n}`))
+}
+// 这四个标记被外部工作流用来识别提示词，任何改版都不能动
+for (const marker of ["# 通用「GPT-4.5 感」原始素材深度改写提示词", "# 二十八、输出与排版要求", "主标题 + 小标题 + 正文", "# 原始素材"]) {
+  assert(articleRewriteTemplate.includes(marker), `article rewrite prompt must keep the workflow marker: ${marker}`)
+}
+assert(articleRewriteTemplate.split("${url}").length - 1 === 1, "article rewrite prompt must contain one URL placeholder")
+assert(articleRewriteTemplate.split("${outputLanguage}").length - 1 === 1, "article rewrite prompt must contain one output-language placeholder")
+assert(articleRewriteTemplate.includes("无论原始素材使用何种语言"), "article rewrite prompt must handle foreign-language source material")
 
-const articleRewriteTemplate = sourceJson.templateLines.join("\n")
 const secondVersionReferenceProfile = {
   paragraphs: 313,
   singleSentenceParagraphs: 311,
@@ -328,8 +350,7 @@ const fuzzyMerged = memoryApi.mergeRecent([{ term: "锚定效应", ts: 1 }], ["�
 assert(fuzzyMerged.length === 1 && fuzzyMerged[0].term === "锚定" && fuzzyMerged[0].ts === 2, `fuzzy merge must collapse suffix variants keeping the newest: ${JSON.stringify(fuzzyMerged)}`)
 const capped = memoryApi.mergeRecent(Array.from({ length: 80 }, (_, i) => ({ term: `概念${i}`, ts: 1 })), ["新概念"], 2)
 assert(capped.length === 80 && capped[0].term === "新概念" && !capped.some((item) => item.term === "概念79"), "cap must evict the oldest entry")
-const fastAnswersJson = JSON.parse(fs.readFileSync(path.join(root, "prompts/fastAnswersPrompts.json"), "utf8"))
-const fastAnswersTemplate = fastAnswersJson.templateLines.join("\n")
+const { template: fastAnswersTemplate } = readPromptConfig(root, "prompts/fastAnswersPrompts.json")
 for (const rule of [
   "素材决定要解释的问题，学科提供解释问题的工具",
   "概念可以通用，应用必须具体",

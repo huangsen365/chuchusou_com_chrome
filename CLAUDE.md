@@ -52,7 +52,12 @@
   - URL 模板 → `config/unifiedMenuConfig.json`（通过 `URLBuilder.loadFromConfig()` 装载，启动时即使兼容模式也装）
   - 引擎标题 → `config/engines.json`（通过 `globalThis.getEngineTitle(engineId, fallback)` 读取）
   - AI 任务定义 → `background/tasks/AITaskRegistry.js` 的 `TASK_DEFINITIONS`（速答/百问/优化统一走 `runAITaskByMenuId`）
-- **添加新菜单**：改 `unifiedMenuConfig.json`；**添加新 AI 任务**：改 `TASK_DEFINITIONS` + 对应 prompts json。
+- **添加新菜单**：改 `unifiedMenuConfig.json`；**添加新 AI 任务**：改 `TASK_DEFINITIONS` + 对应 prompts json（元数据）+ `prompts/*.md`（正文）。
+- **提示词正文在 `prompts/*.md`**（articleRewrite / fastAnswers / topQuestions / optimized / cover）：直接改 Markdown，
+  不用再转义 JSON 字符串；JSON 的 `templateFile` 指向它，SW 与内容脚本都经 `shared/promptTemplate.js` 装载（展开回
+  `templateLines`）。长文改写模板里的 4 个工作流识别标记（`# 通用「GPT-4.5 感」原始素材深度改写提示词` /
+  `# 二十八、输出与排版要求` / `主标题 + 小标题 + 正文` / `# 原始素材`）不能动，`verify:article-rewrite` 守着；
+  章节只要求「# 一、」起连续编号，不锁数量。改完跑 `npm run plasmo:build` 再在扩展页重新加载。
 - **字数保护总闸关闭**：`background/utils/TextLimits.js` 的 `TEXT_LIMITS_ENABLED = false`，两个主函数都 early return。所有截断/smartTruncate/toast/URL 硬上限代码保留作兜底，改一行即可恢复。
 - **Smart Post / Smart Reply 已彻底删除**：popup 和 sidepanel 里都不存在。
 - **老 switch-case fallback 要保留**：两处入口（`src/background/menuHandlersAttach.ts` / `background/events/menu.js`）都在 SSoT 快速通道后加了 switch-case 作安全网，**不要擅自删**。
@@ -108,7 +113,8 @@ chuchusou_com_chrome/
 ├── config/                    # 配置文件
 │   ├── unifiedMenuConfig.json # 统一菜单 URL 模板 SSoT
 │   └── engines.json          # 引擎标题 SSoT（icon + label）
-├── prompts/                   # 提示词模板（topQuestions / fastAnswers / optimized / cover）
+├── prompts/                   # 提示词：*.md 是模板正文（直接编辑），*Prompts.json 放元数据
+│                              #   （引擎 / 分类 / varietyPlan / 配色表），templateFile 指向正文
 ├── scripts/                   # 构建 + 校验脚本（npm test 全链的所有关卡都在这，
 │                              #   含链尾 headless Chrome 扩展冒烟回归）
 ├── legacy/                    # 🗑 退役代码（不进 build / zip，eslint ignore）

@@ -7,9 +7,9 @@
    * 单次提示词没有跨文章记忆，模型每次都会退回自己最熟的那几种标题 / 开头 / 结尾。
    * 这里用一个本地轮换计数器 n 查表，把「本篇采用哪种形式」写成具体指令注入
    * ${varietyPlan}。除写作形式外，也指定本篇须先探索的学科；入选概念仍须通过
-   * 对应关系与解释价值检验（见 articleRewritePrompts.json 第五节）。
+   * 对应关系与解释价值检验（见 prompts/articleRewrite.md 第五节）。
    *
-   * 映射（表在 articleRewritePrompts.json 的 varietyPlan 字段里，可直接改）：
+   * 映射（表在 prompts/articleRewritePrompts.json 的 varietyPlan 字段里，可直接改）：
    *   标题   = titleForms[n % 6]
    *   开头   = openingForms[n % 5]
    *   结尾   = endingForms[(n + floor(n / 5)) % 5]     相邻两篇必不同，且与开头的配对每 5 篇漂移一次

@@ -53,6 +53,7 @@
         "modules/positioning.js",
         "modules/domMonitor.js",
         "shared/promptLanguage.js",
+        "shared/promptTemplate.js",
         "shared/rewriteVariety.js",
         "shared/rewriteConceptMemory.js",
         "modules/siteFastQaRuntime.js",

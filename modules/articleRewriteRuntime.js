@@ -153,6 +153,7 @@
           if (!response.ok) throw new Error(`提示词模板加载失败（HTTP ${response.status}）`);
           return response.json();
         })
+        .then((config) => globalThis.CCSPromptTemplate.resolveTemplateFile(config, PROMPT_PATH))
         .then((config) => {
           const template = Array.isArray(config?.templateLines)
             ? config.templateLines.join('\n').trim()

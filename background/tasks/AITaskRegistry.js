@@ -102,6 +102,7 @@ async function loadTask(taskId) {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const raw = await response.json();
+    await globalThis.CCSPromptTemplate.resolveTemplateFile(raw, def.promptsFile);
 
     const task = _normalize(def, raw);
     _taskCache.set(taskId, task);

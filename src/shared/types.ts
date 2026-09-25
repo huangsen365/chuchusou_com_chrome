@@ -87,7 +87,9 @@ export interface PromptCategoryDefinition {
 }
 
 export interface PromptConfig {
-  templateLines: string[]
+  /** 模板正文所在的 Markdown（与 JSON 同目录）；运行时由 shared/promptTemplate.js 展开成 templateLines */
+  templateFile?: string
+  templateLines?: string[]
   engines?: PromptEngineDefinition[]
   categories?: PromptCategoryDefinition[]
 }

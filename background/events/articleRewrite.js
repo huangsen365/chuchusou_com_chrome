@@ -49,6 +49,7 @@ async function ccsLoadArticleRewriteTemplate() {
         if (!response.ok) throw new Error(`article-rewrite-template-http-${response.status}`);
         return response.json();
       })
+      .then((config) => globalThis.CCSPromptTemplate.resolveTemplateFile(config, 'prompts/articleRewritePrompts.json'))
       .then((config) => {
         const template = Array.isArray(config?.templateLines)
           ? config.templateLines.join('\n').trim()
