@@ -1,5 +1,19 @@
 # 更新日志
 
+## v1.18.5 (2026-09-25)
+
+**适配 ChatGPT 页面改版：改写按钮、长文按钮与 AI 填入恢复正常**。详细见 [releases/v1.18.5.md](./releases/v1.18.5.md)。
+
+### 🐛 修复
+
+- **ChatGPT 改版后「选A并优化改写」「注入X草稿 / 生成封面」识别失效、AI 填入可能填错位置**：新版 ChatGPT 一轮对话同时包含用户与助手消息，消息改用新的标识，writing block 换了新标识且本身是可编辑区域，真正的聊天输入框放在带 `data-chatgpt-composer` 的表单里。现在新旧两套页面结构统一识别；AI 填入在 ChatGPT 上优先定位聊天输入框，并排除 writing block、消息、搜索框和隐藏节点，不会再把提示词填进文章编辑器；扩展按钮适配新版操作栏的宽度规则，文字完整显示、窄栏可换行。
+
+### 🛠 技术改动
+
+- 新增 `modules/chatGptDom.js`（TS 口径 `src/content-modules/chatGptDom.ts`），manifest 在 `articleRewriteRuntime.js` 之前加载；`chatGptSelectARewrite`、`articleRewriteRuntime`、`longArticleActions` 改走该模块。
+- `content.js` 的 ChatGPT 输入框选择器改为以 `form[data-chatgpt-composer] [data-composer-markdown]` 为首选。
+- 新增 `scripts/lib/verify-chatgpt-redesign.mjs` 新版结构冒烟夹具；`verify:ai-fill-ux` 覆盖新旧输入框定位、隐藏节点与草稿保护；`docs/TESTING_CHECKLIST.md` 补新版手测清单。
+
 ## v1.18.4 (2026-09-24)
 
 **墨清风格加入硬朗构图：左侧粗色条、斜切色块、深色底栏**。详细见 [releases/v1.18.4.md](./releases/v1.18.4.md)。
