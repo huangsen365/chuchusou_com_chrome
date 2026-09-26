@@ -1,5 +1,17 @@
 # 更新日志
 
+## v1.18.7 (2026-09-26)
+
+**「选A改写」的长文固定放进 writing block，块标题用文章主标题**。详细见 [releases/v1.18.7.md](./releases/v1.18.7.md)。
+
+### 🐛 修复
+
+- **「选A改写」有时不进 writing block**：v1.18.6 恢复主标题与小节时，覆盖句把「放进 writing block」也当成要撤销的旧要求，写成了「无论是否使用 writing block」，模型就自行决定用不用。同一模型、同一版提示词下 7 次里只有 2 次进了 writing block。现在改写提示词无条件要求整篇文章（从主标题到最后一段）放进同一个 writing block，块标题直接用文章主标题（不再出现「详细内容」）；速答的 A 规则例外只放开标题、分节与篇幅，仍保留 writing block。改写目标是没有 writing block 功能的平台（如 Google Docs 改写选 Claude）时直接输出正文，不用代码块。
+
+### 🛠 技术改动
+
+- 改写提示词版本 32；`verify:article-rewrite` 断言 writing block 要求存在、且覆盖句不能再把它变成可选。
+
 ## v1.18.6 (2026-09-25)
 
 **「选A改写」生成的长文恢复主标题与小节结构；右键菜单图标探测结果恢复持久化；内部大重构**。详细见 [releases/v1.18.6.md](./releases/v1.18.6.md)。
