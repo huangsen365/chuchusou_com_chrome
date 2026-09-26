@@ -1815,10 +1815,10 @@ async function main() {
       }
     })()`)
     if (!credit?.pickerOpen || !credit?.rowExists) fail(`sidepanel picker 未打开或缺墨清风格行: ${JSON.stringify(credit)}`)
-    if (credit?.href !== "https://x.com/zzqgz7326" || credit?.target !== "_blank" || !/noopener/.test(credit?.rel || "")) {
+    if (credit?.href !== "https://x.com/zzqgz7326/articles" || credit?.target !== "_blank" || !/noopener/.test(credit?.rel || "")) {
       fail(`墨清风格署名链接异常: ${JSON.stringify(credit)}`)
     }
-    if (!credit?.title.includes("https://x.com/zzqgz7326") || !credit?.title.includes("朱墨清") || credit?.text !== "ⓘ") {
+    if (!credit?.title.includes("https://x.com/zzqgz7326/articles") || !credit?.title.includes("朱墨清") || credit?.text !== "ⓘ") {
       fail(`墨清风格署名 hover 提示异常: ${JSON.stringify(credit)}`)
     }
     if (credit?.minimalHasCredit) fail("没有 credit 的风格也渲染了署名 ⓘ")
