@@ -182,7 +182,8 @@ for (const marker of ["# 通用「GPT-4.5 感」原始素材深度改写提示�
 assert(articleRewriteTemplate.split("${url}").length - 1 === 1, "article rewrite prompt must contain one URL placeholder")
 assert(articleRewriteTemplate.split("${outputLanguage}").length - 1 === 1, "article rewrite prompt must contain one output-language placeholder")
 assert(articleRewriteTemplate.includes("无论原始素材使用何种语言"), "article rewrite prompt must handle foreign-language source material")
-// 结构：一个 # 主标题 + 3～6 个 ## 小节，并且在「选A改写」里压过第一轮速答的「writing block 只放正文、不得出现标题、约 100 句」
+// 结构：整篇进同一个 writing block（块标题 = 主标题），一个 # 主标题 + 3～6 个 ## 小节；
+// 在「选A改写」里压过第一轮速答的「只放正文、不得出现标题、约 100 句」，但不能连 writing block 一起撤掉
 {
   const outputSection = articleRewriteTemplate.slice(
     articleRewriteTemplate.indexOf("# 二十八、输出与排版要求"),
@@ -191,14 +192,22 @@ assert(articleRewriteTemplate.includes("无论原始素材使用何种语言"), 
   for (const rule of [
     "全文只有一个主标题，放在最开头",
     "正文按主线分成 3～6 个部分，每部分以一个 `##` 小标题开头",
+    "整篇文章（从主标题到最后一段）放进同一个独立的 writing block",
+    "writing block 的标题就用本文主标题",
+    "当前平台没有 writing block 功能时，直接输出正文，不要改用代码块",
     "这一轮一律以本节为准",
-    "无论是否使用 writing block，都必须写出主标题和小标题",
+    "writing block 里必须写出主标题和小标题",
     "不受「约 100 句」限制"
   ]) {
     assert(outputSection.includes(rule), `article rewrite output section must keep the structure rule: ${rule}`)
   }
+  // v1.18.6 的覆盖句曾把「放进一个 writing block」列为要撤销的旧要求，导致 7 篇里只有 2 篇进了 writing block
+  assert(!outputSection.includes("「放进一个 writing block」") && !outputSection.includes("无论是否使用 writing block"),
+    "article rewrite override must not make the writing block optional")
   assert(articleRewriteTemplate.includes("是否有且只有一个 `#` 主标题，全文是否按主线分成 3～6 个 `##` 小节"),
     "article rewrite self-check must cover the title/section structure")
+  assert(articleRewriteTemplate.includes("是否把整篇文章放进了同一个 writing block，块标题是否就是主标题"),
+    "article rewrite self-check must cover the writing block")
 }
 
 const secondVersionReferenceProfile = {
@@ -398,11 +407,13 @@ for (const obsoleteRule of [
 }
 assert(fastAnswersTemplate.includes("“真正”全文不用") && fastAnswersTemplate.includes("三种回答都必须独立成文") && fastAnswersTemplate.includes("不得出现“原文”“素材”"),
   "fast answers prompt must ban 「真正」 and require standalone answers")
-// 第一轮速答的 A 规则（只放正文、不得出现标题、约 100 句）遇到附带改写提示词的「选A改写」必须让位
+// 第一轮速答的 A 规则（只放正文、不得出现标题、约 100 句）遇到附带改写提示词的「选A改写」必须让位，
+// 但 writing block 要保留
 assert(fastAnswersTemplate.includes("如果用户选 A 时附带了完整的改写提示词") &&
   fastAnswersTemplate.includes("必须按它的要求写出主标题和小标题") &&
-  fastAnswersTemplate.includes("“不得出现标题”等要求不再适用"),
-  "fast answers A rule must yield to an attached rewrite prompt (titles and sections)")
+  fastAnswersTemplate.includes("“约 100 句”“不得出现标题”不再适用") &&
+  fastAnswersTemplate.includes("但全文仍放进一个独立的 writing block"),
+  "fast answers A rule must yield titles/sections to an attached rewrite prompt while keeping the writing block")
 await verifyApi("modules/articleRewriteRuntime.js", legacy.api, legacy)
 
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"))
