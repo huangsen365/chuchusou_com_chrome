@@ -494,6 +494,7 @@ class PinnedAction {
     this.refreshSaveBtn();
     const picker = document.getElementById('spPinPicker');
     picker.hidden = false;
+    this.watchPickerActions();
     // .sp-pin 已经 sticky 在顶部，picker 在主滚动区，用户当前滚到中段时点 ✏️ 会看不到 picker；
     // 自动滚回顶部确保 picker 可见
     try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (_) { window.scrollTo(0, 0); }
@@ -660,6 +661,20 @@ class PinnedAction {
     // custom 必须有选中行才能保存；其它风格随时可保存
     const blocked = this.draft?.categoryId === 'custom' && !(this.draftCustomSelectedLine || '').trim();
     btn.disabled = !!blocked;
+  }
+
+  // 「取消 / 保存」在窗口矮时由 CSS 贴底浮起（sticky）；这里只负责浮起时加阴影：
+  // 按钮行原位底边的标记落在窗口下方 = 正在浮起，回到可见范围 = 已停回原位。
+  watchPickerActions() {
+    if (this.pickerActionsObserver || typeof IntersectionObserver === 'undefined') return;
+    const actions = document.getElementById('spPinPickerActions');
+    const sentinel = document.getElementById('spPinPickerSentinel');
+    if (!actions || !sentinel) return;
+    this.pickerActionsObserver = new IntersectionObserver(([entry]) => {
+      const rootBottom = entry.rootBounds ? entry.rootBounds.bottom : window.innerHeight;
+      actions.classList.toggle('is-floating', !entry.isIntersecting && entry.boundingClientRect.top >= rootBottom);
+    });
+    this.pickerActionsObserver.observe(sentinel);
   }
 
   closePicker() {

@@ -1836,6 +1836,47 @@ async function main() {
     }
     if (spPage.exceptions.length > 0) fail(`sidepanel 打开 picker 后出现未捕获异常: ${spPage.exceptions[0]}`)
     console.log(`${TAG} ✓ sidepanel 置顶 picker 风格署名正常（墨清 / 韩系粉色行尾 ⓘ / hover 带作者与链接 / 新标签打开 / 其它风格无）`)
+
+    // 11c. 窗口矮时「取消 / 保存」贴底（sticky）：不滚动就看得到且带阴影；滚到原位停回原位、去阴影；
+    //      继续往下滚随 picker 一起离开。只改视口高度，不点按钮。
+    await spPage.cdp.call("Emulation.setDeviceMetricsOverride", { width: 420, height: 400, deviceScaleFactor: 1, mobile: false })
+    const measureActions = `(() => {
+      const actions = document.getElementById("spPinPickerActions")
+      const save = document.getElementById("spPinSave")?.getBoundingClientRect()
+      const natural = document.getElementById("spPinPickerSentinel")?.getBoundingClientRect()
+      return {
+        vh: window.innerHeight,
+        saveTop: save?.top ?? -1,
+        saveBottom: save?.bottom ?? -1,
+        naturalBottom: natural?.bottom ?? -1,
+        actionsBottom: actions?.getBoundingClientRect().bottom ?? -1,
+        floating: !!actions?.classList.contains("is-floating")
+      }
+    })()`
+    await evaluate(spPage.cdp, `window.scrollTo(0, 0)`)
+    await wait(400)
+    const actionsAtTop = await evaluate(spPage.cdp, measureActions)
+    if (!(actionsAtTop.naturalBottom > actionsAtTop.vh)) {
+      fail(`贴底测试前提不成立：按钮原位已在窗口内，调小视口高度再测: ${JSON.stringify(actionsAtTop)}`)
+    }
+    if (!(actionsAtTop.saveTop >= 0 && actionsAtTop.saveBottom <= actionsAtTop.vh && Math.abs(actionsAtTop.actionsBottom - actionsAtTop.vh) < 1.5 && actionsAtTop.floating)) {
+      fail(`窗口矮时「保存」应贴在窗口底部且带阴影: ${JSON.stringify(actionsAtTop)}`)
+    }
+    await evaluate(spPage.cdp, `document.getElementById("spPinPickerSentinel").scrollIntoView({ block: "center" })`)
+    await wait(400)
+    const actionsAtRest = await evaluate(spPage.cdp, measureActions)
+    if (actionsAtRest.floating || Math.abs(actionsAtRest.actionsBottom - actionsAtRest.naturalBottom) > 1.5) {
+      fail(`滚到原位后按钮行应停回原位、去掉阴影: ${JSON.stringify(actionsAtRest)}`)
+    }
+    await evaluate(spPage.cdp, `window.scrollBy(0, 200)`)
+    await wait(400)
+    const actionsPast = await evaluate(spPage.cdp, measureActions)
+    if (actionsPast.floating || Math.abs(actionsPast.actionsBottom - actionsPast.naturalBottom) > 1.5 || !(actionsPast.actionsBottom < actionsAtRest.actionsBottom)) {
+      fail(`继续往下滚时按钮行应随 picker 一起上移: ${JSON.stringify(actionsPast)}`)
+    }
+    await spPage.cdp.call("Emulation.clearDeviceMetricsOverride")
+    await evaluate(spPage.cdp, `window.scrollTo(0, 0)`)
+    console.log(`${TAG} ✓ 窗口矮时「取消 / 保存」贴底可见（带阴影）→ 滚到原位停回 → 继续滚随 picker 离开`)
     // 还原活动标签：#17 依赖 #16 开出的百度页是活动标签
     if (popupClickTab) await browserCdp.call("Target.activateTarget", { targetId: popupClickTab.id })
     await wait(200)

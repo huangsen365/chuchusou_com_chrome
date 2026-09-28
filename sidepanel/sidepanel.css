@@ -649,7 +649,8 @@ body {
 
 /* ==================== Pin Picker ==================== */
 .sp-pin-picker {
-  padding: 12px 14px;
+  /* 底部 12px 由 .sp-pin-picker-actions 的 padding 提供（按钮行要贴底浮起，背景得铺到边） */
+  padding: 12px 14px 0;
   background: #fafbfc;
   border-bottom: 1px solid var(--ccs-separator-color);
 }
@@ -963,10 +964,32 @@ body {
   color: #dc2626;
 }
 
+/* 「取消 / 保存」：窗口矮、按钮原位在屏幕外时贴在窗口底部（sticky + bottom: 0），
+ * 滚到原位后停回原位、随页面正常滚动。负外边距把底色铺满 picker 宽度，padding 补回原间距：
+ * 上方 .sp-pin-ratio 的 margin-bottom 12px 与这里的 -10px 合并成 2px，再加 padding-top 10px，
+ * 停在原位时与改之前逐像素一致。浮起时才加阴影（.is-floating，由 sidepanel.js 切换）。 */
 .sp-pin-picker-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: -10px -14px 0;
+  padding: 10px 14px 12px;
+  background: #fafbfc;
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  transition: box-shadow 0.15s;
+}
+
+.sp-pin-picker-actions.is-floating {
+  box-shadow: 0 -1px 0 var(--ccs-separator-color), 0 -6px 14px rgba(15, 23, 42, 0.08);
+}
+
+/* 占按钮行原位的最后 1px，不改变布局 */
+.sp-pin-picker-sentinel {
+  height: 1px;
+  margin-top: -1px;
+  pointer-events: none;
 }
 
 .sp-pin-cancel,

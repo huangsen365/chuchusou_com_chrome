@@ -155,10 +155,12 @@
       <div class="sp-pin-ratio-hint" id="spPinRatioHint" hidden>格式：宽:高（数字，可带小数）</div>
     </div>
 
-    <div class="sp-pin-picker-actions">
+    <div class="sp-pin-picker-actions" id="spPinPickerActions">
       <button class="sp-pin-cancel" id="spPinCancel" type="button">取消</button>
       <button class="sp-pin-save" id="spPinSave" type="button">保存</button>
     </div>
+    <!-- 按钮行原位底边的标记：它落在窗口下方 = 按钮行正贴底浮着（sidepanel.js watchPickerActions） -->
+    <div class="sp-pin-picker-sentinel" id="spPinPickerSentinel" aria-hidden="true"></div>
   </div>
 
   <!-- Flat first-level menu items：静态核心菜单先出，sidepanel.js 启动后再绑定/增强。
