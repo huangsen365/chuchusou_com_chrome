@@ -65,6 +65,7 @@ function main() {
   assert(missingManifestAssets.length === 0, `Missing manifest assets:\n${missingManifestAssets.join("\n")}`)
 
   const stableAssets = [
+    "prompts/coverPrompts.json",
     "config/unifiedMenuConfig.json",
     "background/chatgptPromptRelay.js",
     "config/engines.json",
@@ -86,6 +87,8 @@ function main() {
 
   const missingStableAssets = stableAssets.filter((relativePath) => !fs.existsSync(path.join(buildDir, relativePath)))
   assert(missingStableAssets.length === 0, `Missing stable assets:\n${missingStableAssets.join("\n")}`)
+  // 封面风格源文件（一个风格一个）只用于构建时组装 coverPrompts.json，不进 build
+  assert(!fs.existsSync(path.join(buildDir, "prompts/cover")), "build 里不应留下 prompts/cover/（封面风格源文件）")
 
   for (const jsPath of [
     "static/background/index.js",

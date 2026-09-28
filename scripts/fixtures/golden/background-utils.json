@@ -39,18 +39,6 @@
       "icon": "📋",
       "text": "复制文本"
     },
-    "ccs-cover-anime-cute-chatgpt-images": {
-      "icon": "🌸",
-      "text": "二次元可爱"
-    },
-    "ccs-cover-coconut-chatgpt-images": {
-      "icon": "🥥",
-      "text": "椰树牌风格"
-    },
-    "ccs-cover-minimal-chatgpt-images": {
-      "icon": "⬜",
-      "text": "极简的留白"
-    },
     "ccs-cover-open-all": {
       "icon": "🚀",
       "text": "打开以下全部预设风格"
@@ -58,14 +46,6 @@
     "ccs-cover-root": {
       "icon": "🎨",
       "text": "封面生成器"
-    },
-    "ccs-cover-xiaohongshu-chatgpt-images": {
-      "icon": "🔴",
-      "text": "小红书封面"
-    },
-    "ccs-cover-zhumoqing-chatgpt-images": {
-      "icon": "✒️",
-      "text": "墨清风格"
     },
     "ccs-fastqa-chatgpt-quick": {
       "icon": "🤖",
@@ -226,14 +206,6 @@
     "description-polish": "✨ 优化描述",
     "general-conversation": "💬 普通对话",
     "problem-solving": "🧩 问题解答"
-  },
-  "Constants.COVER_CATEGORY_TITLES": {
-    "anime-cute": "🌸 二次元可爱",
-    "coconut": "🥥 椰树牌风格",
-    "custom": "🖌️ 自定义风格",
-    "minimal": "⬜ 极简的留白",
-    "xiaohongshu": "🔴 小红书封面",
-    "zhumoqing": "✒️ 墨清风格"
   },
   "Constants.DYNAMIC_SEARCH_MENU_ITEMS": [],
   "Constants.FAST_QA_MENU_ITEMS": [

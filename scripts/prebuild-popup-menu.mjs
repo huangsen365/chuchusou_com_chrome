@@ -20,6 +20,7 @@ import fs from "node:fs"
 import path from "node:path"
 import process from "node:process"
 import { createTsLoader } from "./lib/tsLoader.mjs"
+import { assembleCoverPrompts } from "./lib/coverStyles.mjs"
 
 const root = process.cwd()
 const buildDir = path.resolve(root, process.argv[2] || "build/chrome-mv3-prod")
@@ -191,7 +192,7 @@ function main() {
   const top100Config = loadJSON("prompts/topQuestionsPrompts.json")
   const fastqaConfig = loadJSON("prompts/fastAnswersPrompts.json")
   const optimizeConfig = loadJSON("prompts/optimizedPrompts.json")
-  const coverConfig = loadJSON("prompts/coverPrompts.json")
+  const coverConfig = assembleCoverPrompts(root) // 源码里一个风格一个文件（prompts/cover/），现场组装
 
   if (!unifiedConfig) {
     console.warn("[prebuild-popup-menu] unifiedMenuConfig 缺失，跳过")

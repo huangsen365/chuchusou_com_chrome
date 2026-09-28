@@ -82,6 +82,8 @@ export interface PromptEngineDefinition {
 export interface PromptCategoryDefinition {
   id: string
   label: string
+  /** 封面风格的菜单 emoji（prompts/cover/<id>.json），标题 = icon + 空格 + label */
+  icon?: string
   purpose: string
   engines: PromptEngineDefinition[]
 }

@@ -1,0 +1,20 @@
+{
+  "_comment": "${input} = 选中文本；${purpose} = 风格指令（来自 categories[i].purpose 或 sidepanel 自定义覆盖）；${ratio} = 用户在 sidepanel 选的比例，运行时由 AITaskHandler 从 chrome.storage.local 注入（缺省 5:2）。",
+  "_readme": "每个封面风格一个文件：prompts/cover/<id>.json（id / label / icon / purpose，可选 credit / palettes / engines）。order 决定右键菜单、popup、侧边栏里的显示顺序；新增风格 = 新建一个文件 + 把 id 加进 order。构建时由 scripts/lib/coverStyles.mjs 组装成 prompts/coverPrompts.json（运行时读的就是它）。",
+  "templateFile": "cover.md",
+  "engines": [
+    {
+      "id": "chatgpt-images",
+      "label": "ChatGPT Images 2.5",
+      "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}"
+    }
+  ],
+  "order": [
+    "minimal",
+    "xiaohongshu",
+    "coconut",
+    "anime-cute",
+    "zhumoqing",
+    "custom"
+  ]
+}

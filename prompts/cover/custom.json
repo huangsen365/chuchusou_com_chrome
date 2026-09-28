@@ -1,0 +1,6 @@
+{
+  "id": "custom",
+  "label": "自定义风格",
+  "icon": "🖌️",
+  "purpose": "（用户自定义，由 sidepanel 输入框运行时覆盖）"
+}

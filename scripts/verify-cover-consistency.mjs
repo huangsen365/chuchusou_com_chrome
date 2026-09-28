@@ -2,11 +2,10 @@
 /**
  * 封面生成器一致性守卫（三入口：右键菜单 / Popup / Sidepanel）
  *
- * 背景（2026-07 审计）：封面风格清单的 SSoT 是 prompts/coverPrompts.json 的
- * categories（三入口都按它的顺序遍历，排序天然一致），但周边有一批"必须与
- * 它/彼此手工同步"的登记点，此前只靠注释约定：
- *  - 标题表 2 份：COVER_CATEGORY_TITLES（background/utils/Constants.js，右键菜单）+
- *    COVER_TITLES（src/shared/menuStructureBuilder.ts，popup / sidepanel）
+ * 封面风格的 SSoT：一个风格一个文件 prompts/cover/<id>.json（id / label / icon / purpose，
+ * 可选 credit / palettes / engines），prompts/cover/index.json 的 order 决定三入口的显示顺序；
+ * 构建时由 scripts/lib/coverStyles.mjs 组装成运行时读取的 prompts/coverPrompts.json。
+ * 菜单标题不再建表，统一是 icon + 空格 + label。周边仍需手工同步的登记点：
  *  - pin 默认风格 / storage key / 默认比例：src/shared/coverPinConstants.ts 为
  *    名义 SSoT，但生产 popup（popup/popup.js）与 sidepanel（sidepanel/sidepanel.js）
  *    是 legacy 普通脚本没法 import，各自硬编码一份字面量；SW 的
@@ -21,6 +20,7 @@ import fs from "node:fs"
 import path from "node:path"
 import process from "node:process"
 import vm from "node:vm"
+import { COVER_STYLE_DIR, assembleCoverPrompts } from "./lib/coverStyles.mjs"
 
 const root = process.cwd()
 const TAG = "[verify-cover-consistency]"
@@ -33,21 +33,29 @@ function fail(msg) {
 }
 function ok() { checks++ }
 
-// ---- 1. SSoT：coverPrompts.json categories 基本形态 ----
-const coverConfig = JSON.parse(read("prompts/coverPrompts.json"))
-const categories = Array.isArray(coverConfig.categories) ? coverConfig.categories : []
-if (categories.length < 2) fail(`coverPrompts.json categories 数量异常（${categories.length}）`)
-const ids = categories.map((c) => c.id)
-if (new Set(ids).size !== ids.length) fail(`coverPrompts.json categories id 有重复：${ids.join(",")}`)
-for (const c of categories) {
-  if (!c.id || typeof c.label !== "string" || !c.label.trim()) {
-    fail(`coverPrompts.json category ${c.id || "(无 id)"} 缺 label`)
-  }
-  if (c.id !== "custom" && !(Array.isArray(c.engines) && c.engines[0]?.urlPattern)) {
-    fail(`coverPrompts.json category ${c.id} 缺 engines[0].urlPattern —— 三入口都开不出去`)
-  }
+// ---- 1. SSoT：prompts/cover/ 风格文件组装后的基本形态（缺文件 / 多文件 / id 不符由组装器直接抛错）----
+let coverConfig = { categories: [] }
+try {
+  coverConfig = assembleCoverPrompts(root)
+} catch (error) {
+  fail(error.message)
 }
-if (!ids.includes("custom")) fail(`coverPrompts.json 缺 custom 分类 —— sidepanel 自定义风格失效`)
+const categories = Array.isArray(coverConfig.categories) ? coverConfig.categories : []
+if (categories.length < 2) fail(`${COVER_STYLE_DIR}/ 风格数量异常（${categories.length}）`)
+const ids = categories.map((c) => c.id)
+for (const c of categories) {
+  const file = `${COVER_STYLE_DIR}/${c.id}.json`
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(c.id || "")) fail(`${file} 的 id 只能用小写字母、数字和连字符（会拼进菜单 id）`)
+  if (typeof c.label !== "string" || !c.label.trim()) fail(`${file} 缺 label`)
+  if (typeof c.icon !== "string" || !c.icon.trim()) fail(`${file} 缺 icon —— 菜单标题是 icon + 空格 + label`)
+  if (typeof c.purpose !== "string" || !c.purpose.trim()) fail(`${file} 缺 purpose`)
+  if (c.id !== "custom" && !(Array.isArray(c.engines) && c.engines[0]?.urlPattern)) {
+    fail(`${file} 缺 engines[0].urlPattern（也没从 index.json 继承到）—— 三入口都开不出去`)
+  }
+  if (c.credit && !(c.credit.name && /^https:\/\//.test(c.credit.url || ""))) fail(`${file} 的 credit 需要 name 和 https 链接`)
+}
+if (!ids.includes("custom")) fail(`${COVER_STYLE_DIR}/ 缺 custom 风格 —— sidepanel 自定义风格失效`)
+if (new Set(categories.map((c) => c.label)).size !== categories.length) fail("封面风格 label 有重复 —— 三入口里分不清")
 ok()
 
 // ---- 1b. 墨清配色轮换表：27 组合法十六进制色，purpose 恰好一个 ${coverPalette} ----
@@ -67,45 +75,18 @@ ok()
 }
 ok()
 
-// ---- 2. 标题表 2 份：键集合 == SSoT id 集合，值两处逐字一致，且以 label 结尾 ----
-function extractTitleTable(file, marker) {
-  const src = read(file)
-  const idx = src.indexOf(marker)
-  if (idx < 0) {
-    fail(`${file} 找不到 ${marker}（结构变了请同步本脚本）`)
-    return null
-  }
-  const block = src.slice(idx, src.indexOf("}", idx))
-  const table = {}
-  for (const m of block.matchAll(/["']([\w-]+)["']\s*:\s*["']([^"']+)["']/g)) table[m[1]] = m[2]
-  return table
+// ---- 2. 菜单标题不建表：不许再出现手抄的风格标题表 ----
+for (const [file, pattern] of [
+  ["background/utils/Constants.js", /COVER_CATEGORY_TITLES/],
+  ["src/shared/menuStructureBuilder.ts", /COVER_TITLES\b/],
+  ["src/background/menuBuilderAttach.ts", /COVER_CATEGORY_TITLES/]
+]) {
+  if (pattern.test(read(file))) fail(`${file} 又出现了封面风格标题表 —— 标题统一由风格文件的 icon + label 生成`)
 }
-const TITLE_TABLES = [
-  ["background/utils/Constants.js", "const COVER_CATEGORY_TITLES = {"],
-  ["src/shared/menuStructureBuilder.ts", "export const COVER_TITLES"],
-].map(([f, marker]) => [f, extractTitleTable(f, marker)])
-
-for (const [file, table] of TITLE_TABLES) {
-  if (!table) continue
-  for (const c of categories) {
-    const v = table[c.id]
-    if (!v) {
-      fail(`${file} 标题表缺 "${c.id}" —— 新风格漏登记，菜单标题会掉 emoji 静默 fallback`)
-    } else if (!v.endsWith(c.label)) {
-      fail(`${file} 标题表 "${c.id}" 值 "${v}" 与 SSoT label "${c.label}" 不一致（应为 emoji + 空格 + label）`)
-    }
-  }
-  for (const k of Object.keys(table)) {
-    if (!ids.includes(k)) fail(`${file} 标题表有僵尸条目 "${k}"（SSoT 已无此风格）`)
-  }
-}
-const [refFile, refTable] = TITLE_TABLES[0]
-for (const [file, table] of TITLE_TABLES.slice(1)) {
-  if (!table || !refTable) continue
-  for (const id of ids) {
-    if (table[id] !== refTable[id]) {
-      fail(`标题表分裂："${id}" 在 ${refFile} 是 "${refTable[id]}"，在 ${file} 是 "${table[id]}"`)
-    }
+for (const c of categories) {
+  if (c.id === "custom") continue
+  for (const file of ["background/utils/Constants.js", "src/shared/menuStructureBuilder.ts"]) {
+    if (read(file).includes(`ccs-cover-${c.id}-`)) fail(`${file} 手写了 ccs-cover-${c.id}-* 菜单条目 —— 封面风格菜单全部由风格文件生成`)
   }
 }
 ok()
@@ -231,12 +212,12 @@ if (/COVER_PIN_DEFAULT_CATEGORY\s*=/.test(builderSrc)) {
 ok()
 
 if (process.exitCode) {
-  console.error(`${TAG} 修复指引：风格清单唯一改动点是 prompts/coverPrompts.json，`
-    + `改完同步 2 份标题表（background/utils/Constants.js + src/shared/menuStructureBuilder.ts）；`
+  console.error(`${TAG} 修复指引：新增 / 修改风格只动 prompts/cover/<id>.json，`
+    + `新增时把 id 加进 prompts/cover/index.json 的 order；`
     + `pin/比例默认值唯一改动点是 src/shared/coverPinConstants.ts，`
     + `改完同步 popup/popup.js、sidepanel/sidepanel.js 字面量与 AITaskHandler 兜底`)
   process.exit(1)
 }
 console.log(`${TAG} 全部 OK — ${categories.length} 个封面风格三入口一致`
-  + `（标题表 2 份逐字对齐；默认风格 ${defaultCategoryId} / 默认比例 ${SSOT.DEFAULT_RATIO} 全通道一致；`
+  + `（${COVER_STYLE_DIR}/ 一风格一文件；默认风格 ${defaultCategoryId} / 默认比例 ${SSOT.DEFAULT_RATIO} 全通道一致；`
   + `${ssotRatioValues.length} 个比例预设 sidepanel 对齐）`)

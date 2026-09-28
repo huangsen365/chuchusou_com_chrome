@@ -58,11 +58,6 @@ const MENU_DEFINITIONS = {
   'ccs-optimize-open-all': { text: '打开以下全部', icon: '🚀' },
   'ccs-cover-root': { text: '封面生成器', icon: '🎨' },
   'ccs-cover-open-all': { text: '打开以下全部预设风格', icon: '🚀' },
-  'ccs-cover-anime-cute-chatgpt-images': { text: '二次元可爱', icon: '🌸' },
-  'ccs-cover-xiaohongshu-chatgpt-images': { text: '小红书封面', icon: '🔴' },
-  'ccs-cover-coconut-chatgpt-images': { text: '椰树牌风格', icon: '🥥' },
-  'ccs-cover-minimal-chatgpt-images': { text: '极简的留白', icon: '⬜' },
-  'ccs-cover-zhumoqing-chatgpt-images': { text: '墨清风格', icon: '✒️' },
   'ccs-copy': { text: '复制文本', icon: '📋' },
   'ccs-base64': { text: 'Base64 编码', icon: '🔤' },
   'ccs-md5': { text: 'MD5 哈希', icon: '🔐' },
@@ -137,17 +132,8 @@ const OPTIMIZE_CATEGORY_TITLES = {
   'description-polish': '✨ 优化描述'
 };
 
-/**
- * 封面生成器 - 风格标题
- */
-const COVER_CATEGORY_TITLES = {
-  'anime-cute':  '🌸 二次元可爱',
-  'xiaohongshu': '🔴 小红书封面',
-  'coconut':     '🥥 椰树牌风格',
-  'minimal':     '⬜ 极简的留白',
-  'zhumoqing':   '✒️ 墨清风格',
-  'custom':      '🖌️ 自定义风格'
-};
+// 封面生成器风格标题不在这里建表：每个风格一个文件 prompts/cover/<id>.json，
+// 标题 = icon + 空格 + label（右键菜单 / popup 用 coverStyleTitle，SW 任务用 AITaskRegistry 的 category.title）。
 
 /**
  * 引擎标题 SSoT：config/engines.json（通过 globalThis.getEngineTitle(engineId, fallbackLabel) 读取）
@@ -407,7 +393,6 @@ globalThis.QUICK_RESULT_HOSTS = QUICK_RESULT_HOSTS;
 globalThis.MENU_DEFINITIONS = MENU_DEFINITIONS;
 globalThis.FAST_QA_QUICK_ITEMS = FAST_QA_QUICK_ITEMS;
 globalThis.OPTIMIZE_CATEGORY_TITLES = OPTIMIZE_CATEGORY_TITLES;
-globalThis.COVER_CATEGORY_TITLES = COVER_CATEGORY_TITLES;
 globalThis.DYNAMIC_SEARCH_MENU_ITEMS = DYNAMIC_SEARCH_MENU_ITEMS;
 globalThis.FAST_QA_MENU_ITEMS = FAST_QA_MENU_ITEMS;
 globalThis.MENU_TITLE_MAX_LENGTH = MENU_TITLE_MAX_LENGTH;

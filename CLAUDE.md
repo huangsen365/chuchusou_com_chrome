@@ -62,6 +62,11 @@
   `templateLines`）。长文改写模板里的 4 个工作流识别标记（`# 通用「GPT-4.5 感」原始素材深度改写提示词` /
   `# 二十八、输出与排版要求` / `主标题 + 小标题 + 正文` / `# 原始素材`）不能动，`verify:article-rewrite` 守着；
   章节只要求「# 一、」起连续编号，不锁数量。改完跑 `npm run plasmo:build` 再在扩展页重新加载。
+- **封面风格一风格一文件**：`prompts/cover/<id>.json`（id / label / icon / purpose，可选 credit / palettes /
+  engines），`prompts/cover/index.json` 的 `order` 决定三入口显示顺序、`engines` 是默认引擎。**新增风格 = 新建一个
+  文件 + 把 id 加进 order**，菜单标题自动是 icon + 空格 + label，不用再改任何标题表。构建时
+  `scripts/build-cover-prompts.mjs` 组装成 build 里的 `prompts/coverPrompts.json`（运行时读的就是它，源码里没有这个文件；
+  测试 / prebuild 经 `scripts/lib/coverStyles.mjs` 现场组装）。`verify:cover-consistency` 守卫缺文件 / 多文件 / 缺 icon。
 - **字数保护总闸关闭**：`background/utils/TextLimits.js` 的 `TEXT_LIMITS_ENABLED = false`，两个主函数都 early return。所有截断/smartTruncate/toast/URL 硬上限代码保留作兜底，改一行即可恢复。
 - **Smart Post / Smart Reply 已彻底删除**：popup 和 sidepanel 里都不存在。
 - **老 switch-case fallback 要保留**：两处入口（`src/background/menuHandlersAttach.ts` / `background/events/menu.js`）都在 SSoT 快速通道后加了 switch-case 作安全网，**不要擅自删**。
@@ -116,7 +121,8 @@ chuchusou_com_chrome/
 │   ├── unifiedMenuConfig.json # 统一菜单 URL 模板 SSoT
 │   └── engines.json          # 引擎标题 SSoT（icon + label）
 ├── prompts/                   # 提示词：*.md 是模板正文（直接编辑），*Prompts.json 放元数据
-│                              #   （引擎 / 分类 / varietyPlan / 配色表），templateFile 指向正文
+│   │                          #   （引擎 / 分类 / varietyPlan），templateFile 指向正文
+│   └── cover/                # 封面风格：一个风格一个 <id>.json + index.json（顺序 / 默认引擎）
 ├── scripts/                   # 构建 + 校验脚本（npm test 全链的所有关卡都在这，
 │                              #   含链尾 headless Chrome 扩展冒烟回归）
 ├── legacy/                    # 暂停功能的旧代码（不进 build / zip，eslint ignore）

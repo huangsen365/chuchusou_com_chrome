@@ -404,14 +404,20 @@
       : fallback;
   }
 
-  function coverStyleLabel(categoryId, purposeOverride) {
+  async function coverStyleLabel(categoryId, purposeOverride) {
     if (categoryId === 'custom' && purposeOverride) {
       return purposeOverride.length > COVER_LABEL_PREVIEW_MAX
         ? `${purposeOverride.slice(0, COVER_LABEL_PREVIEW_MAX)}…`
         : purposeOverride;
     }
-    const titled = globalThis.COVER_CATEGORY_TITLES?.[categoryId];
-    return typeof titled === 'string' && titled.trim() ? titled.trim() : categoryId;
+    // 标题来自风格文件（prompts/cover/<id>.json）的 icon + label，由 AITaskRegistry 规范化成 category.title
+    try {
+      const task = await globalThis.AITaskRegistry?.loadTask?.('cover');
+      const category = (task?.categories || []).find((item) => item?.id === categoryId);
+      const titled = typeof category?.title === 'string' ? category.title.trim() : '';
+      if (titled) return titled;
+    } catch (_) { /* 取不到就退回 id */ }
+    return categoryId;
   }
 
   async function createLongArticleCover(inputValue, sourceUrl, tabId) {
@@ -437,14 +443,13 @@
       style = { categoryId: COVER_DEFAULT_CATEGORY, purposeOverride: undefined };
       result = await runCover(style);
     }
-    return result?.success
-      ? {
-        success: true,
-        opened: result.opened || 1,
-        categoryId: style.categoryId,
-        styleLabel: coverStyleLabel(style.categoryId, style.purposeOverride)
-      }
-      : { success: false, error: result?.error || 'cover-task-failed' };
+    if (!result?.success) return { success: false, error: result?.error || 'cover-task-failed' };
+    return {
+      success: true,
+      opened: result.opened || 1,
+      categoryId: style.categoryId,
+      styleLabel: await coverStyleLabel(style.categoryId, style.purposeOverride)
+    };
   }
 
   globalThis.CCSArticleActions = {

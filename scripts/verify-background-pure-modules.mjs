@@ -179,6 +179,15 @@ async function checkAITaskRegistry(golden, registry) {
   assert(localized?.includes("English"), "fastqa prompt language override missing")
   assert(!localized?.includes("${outputLanguage}"), "fastqa language override leaked placeholder")
 
+  // 封面风格（prompts/cover/<id>.json 组装而来）：规范化后带 icon，标题 = icon + 空格 + label
+  const coverTask = await registry.loadTask("cover")
+  assert(coverTask?.categories?.length >= 2, "cover task must load its styles")
+  for (const category of coverTask.categories) {
+    assert(category.icon, `cover style ${category.id} must carry an icon`)
+    assert(category.title === `${category.icon} ${category.label}`, `cover style ${category.id} title must be icon + label, got "${category.title}"`)
+  }
+  assert(coverTask.categories.find((c) => c.id === "zhumoqing")?.title === "✒️ 墨清风格", "墨清 title must stay ✒️ 墨清风格")
+
   // 分类任务：缺 categoryId → null；带 categoryId → 注入 purpose
   assert(await registry.buildTaskPrompt("optimize", "hello") === null, "optimize prompt without categoryId must be null")
   const optimizeTask = await registry.loadTask("optimize")

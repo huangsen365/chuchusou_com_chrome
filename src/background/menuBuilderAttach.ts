@@ -9,7 +9,7 @@
  *
  * 本文件由 src/background.ts 在 importScripts 完成后调用 attachMenuBuilder()，
  * 替代 legacy menuBuilder.js。所有 globalThis.X 依赖（MENU_DEFINITIONS /
- * FAST_QA_QUICK_ITEMS / OPTIMIZE_CATEGORY_TITLES / COVER_CATEGORY_TITLES /
+ * FAST_QA_QUICK_ITEMS / OPTIMIZE_CATEGORY_TITLES /
  * loadXxxConfig / getMenuTitle / getEngineTitle / isMenuEnabled /
  * loadMenuToggleConfig / menuRegistry / refreshMenuTitle / updateMainMenuTitle /
  * keywordSyncManager / currentMenuState / applyMenuIcons / 等）在调用时 LAZY
@@ -35,6 +35,7 @@ import {
   parseCustomLines,
   truncateLine
 } from "../shared/coverPinConstants"
+import { coverStyleTitle } from "../shared/menuStructureBuilder"
 
 type G = Record<string, any> & { chrome?: any }
 
@@ -416,7 +417,7 @@ async function populateCoverMenus(g: G, { buildId }: { buildId: number }): Promi
       const leafId = `ccs-cover-${category.id}-${engine.id}`
       if (!g.isMenuEnabled?.(leafId)) continue
       if (isStaleBuild(buildId, g)) return
-      const leafTitle = g.COVER_CATEGORY_TITLES?.[category.id] || category.label
+      const leafTitle = coverStyleTitle(category)
       await createMenuItem(g, {
         id: leafId, parentId: "ccs-cover-root", title: leafTitle, contexts: [...MENU_CONTEXTS_DEFAULT]
       }, buildMeta(g, "cover-leaf-create-failed"))

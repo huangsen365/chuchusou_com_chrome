@@ -154,7 +154,8 @@ chuchusou_com_chrome/
 ├── sidepanel/                 # 侧边栏
 ├── offscreen/                 # 语音识别 offscreen 文档
 ├── config/                    # unifiedMenuConfig.json / engines.json（SSoT）
-├── prompts/                   # 提示词：*.md 模板正文 + *Prompts.json 元数据（速答 / 百问 / 优化 / 封面 / 长文改写）
+├── prompts/                   # 提示词：*.md 模板正文 + *Prompts.json 元数据（速答 / 百问 / 优化 / 长文改写）
+│   └── cover/                # 封面风格：一个风格一个文件（新增风格 = 加一个 <id>.json + 登记顺序）
 ├── scripts/                   # 构建 + 校验脚本（npm test 全链，含真 Chrome 冒烟回归）
 ├── legacy/                    # 退役代码（不进 build / zip）
 ├── docs/                      # 技术债审计 / 测试清单 / 归档

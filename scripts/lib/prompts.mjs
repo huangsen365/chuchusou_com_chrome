@@ -5,6 +5,7 @@
 
 import fs from "node:fs"
 import path from "node:path"
+import { COVER_OUTPUT, assembleCoverPrompts } from "./coverStyles.mjs"
 
 export function markdownToTemplate(text) {
   const normalized = String(text).replace(/\r\n?/g, "\n")
@@ -12,8 +13,14 @@ export function markdownToTemplate(text) {
 }
 
 // 返回展开后的 config（templateLines 已填好）与 template 字符串
+// prompts/coverPrompts.json 只存在于 build：源码里是一个风格一个文件（prompts/cover/），这里现场组装
+function readConfigJson(root, jsonRel) {
+  if (jsonRel === COVER_OUTPUT) return assembleCoverPrompts(root)
+  return JSON.parse(fs.readFileSync(path.join(root, jsonRel), "utf8"))
+}
+
 export function readPromptConfig(root, jsonRel) {
-  const config = JSON.parse(fs.readFileSync(path.join(root, jsonRel), "utf8"))
+  const config = readConfigJson(root, jsonRel)
   if (typeof config.templateFile === "string" && config.templateFile) {
     const mdPath = path.join(path.dirname(path.join(root, jsonRel)), config.templateFile)
     config.templateLines = markdownToTemplate(fs.readFileSync(mdPath, "utf8")).split("\n")
@@ -26,6 +33,10 @@ export function readPromptConfig(root, jsonRel) {
 export function createRepoFetch(root, { prefix = "" } = {}) {
   return async (url) => {
     const rel = String(url).startsWith(prefix) ? String(url).slice(prefix.length) : String(url)
+    if (rel === COVER_OUTPUT) {
+      const body = JSON.stringify(assembleCoverPrompts(root))
+      return { ok: true, status: 200, json: async () => JSON.parse(body), text: async () => body }
+    }
     const abs = path.join(root, rel)
     if (!fs.existsSync(abs)) return { ok: false, status: 404, json: async () => null, text: async () => "" }
     const body = fs.readFileSync(abs, "utf8")

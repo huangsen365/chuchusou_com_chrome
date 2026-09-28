@@ -5,9 +5,9 @@
  * build 期 scripts/prebuild-popup-menu.mjs 也用它把菜单预渲染进 popup.html / sidepanel.html。
  * 回归：scripts/verify-menu-structure-builder.mjs（真实 config + 多种开关场景）。
  *
- * 同步约束：MENU_DEFS / FAST_QA_QUICK / OPTIMIZE_TITLES / COVER_TITLES 与
- * background/utils/Constants.js（右键菜单用）两处必须保持一致；
- * COVER_TITLES 由 scripts/verify-cover-consistency.mjs 守卫。
+ * 同步约束：MENU_DEFS / FAST_QA_QUICK / OPTIMIZE_TITLES 与
+ * background/utils/Constants.js（右键菜单用）两处必须保持一致（verify-menu-structure-builder 守卫）。
+ * 封面风格标题不建表：由 coverStyleTitle() 从风格文件（prompts/cover/<id>.json）的 icon + label 拼出。
  */
 
 import type {
@@ -51,11 +51,6 @@ export const MENU_DEFS: Record<string, MenuDefinitionEntry> = {
   "ccs-optimize-open-all": { text: "打开以下全部", icon: "🚀" },
   "ccs-cover-root": { text: "封面生成器", icon: "🎨" },
   "ccs-cover-open-all": { text: "打开以下全部预设风格", icon: "🚀" },
-  "ccs-cover-anime-cute-chatgpt-images": { text: "二次元可爱", icon: "🌸" },
-  "ccs-cover-xiaohongshu-chatgpt-images": { text: "小红书封面", icon: "🔴" },
-  "ccs-cover-coconut-chatgpt-images": { text: "椰树牌风格", icon: "🥥" },
-  "ccs-cover-minimal-chatgpt-images": { text: "极简的留白", icon: "⬜" },
-  "ccs-cover-zhumoqing-chatgpt-images": { text: "墨清风格", icon: "✒️" },
   "ccs-copy": { text: "复制文本", icon: "📋" },
   "ccs-base64": { text: "Base64 编码", icon: "🔤" },
   "ccs-md5": { text: "MD5 哈希", icon: "🔐" },
@@ -96,13 +91,10 @@ export const OPTIMIZE_TITLES: Record<string, string> = {
   "description-polish": "✨ 优化描述"
 }
 
-export const COVER_TITLES: Record<string, string> = {
-  "anime-cute": "🌸 二次元可爱",
-  "xiaohongshu": "🔴 小红书封面",
-  "coconut": "🥥 椰树牌风格",
-  "minimal": "⬜ 极简的留白",
-  "zhumoqing": "✒️ 墨清风格",
-  "custom": "🖌️ 自定义风格"
+/** 封面风格菜单标题：「icon + 空格 + label」（右键菜单 menuBuilderAttach.ts 也用它） */
+export function coverStyleTitle(category: Pick<PromptCategoryDefinition, "label" | "icon">): string {
+  const label = category.label || ""
+  return category.icon ? `${category.icon} ${label}` : label
 }
 
 // ============ Popup 菜单常驻条目 ============
@@ -458,7 +450,7 @@ export function build(opts: BuildOptions = {}): MenuStructure {
       if (!isEnabled(leafId)) continue
       coverPresets.push({
         id: leafId,
-        title: COVER_TITLES[category.id] || category.label,
+        title: coverStyleTitle(category),
         icon: "",
         type: "cover",
         categoryId: category.id,
@@ -555,7 +547,7 @@ export const CCSMenuStructureBuilder = {
   MENU_DEFS,
   FAST_QA_QUICK,
   OPTIMIZE_TITLES,
-  COVER_TITLES
+  coverStyleTitle
 }
 
 export default CCSMenuStructureBuilder

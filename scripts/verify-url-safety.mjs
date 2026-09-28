@@ -4,6 +4,7 @@ import http from "node:http"
 import path from "node:path"
 import vm from "node:vm"
 import { readEventSources } from "./lib/swSources.mjs"
+import { assembleCoverPrompts } from "./lib/coverStyles.mjs"
 
 const root = process.cwd()
 
@@ -339,7 +340,7 @@ function collectPromptPatterns() {
     for (const engine of category.engines || []) addEngine("optimize", category.id || "category", engine)
   }
 
-  const cover = readJson("prompts/coverPrompts.json")
+  const cover = assembleCoverPrompts(root)
   for (const category of cover.categories || []) {
     for (const engine of category.engines || []) addEngine("cover", category.id || "category", engine)
   }

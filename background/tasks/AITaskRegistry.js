@@ -81,8 +81,7 @@ const TASK_DEFINITIONS = {
     showOpenAll: true,                // 「打开以下全部预设风格」按 category 维度展开（同一引擎跑 N 种风格）
     openAllAxis: 'category',          // cover 单引擎多风格 → 沿 category 轴批量；fastqa/top100/optimize 默认沿 engine 轴
     openAllSkipCategoryIds: ['custom'],// 「自定义风格」依赖 sidepanel 输入框，批量场景无 purpose，跳过
-    categoryVariable: 'purpose',      // 风格指令注入到 prompt 的 ${purpose}
-    categoryTitlesKey: 'COVER_CATEGORY_TITLES'
+    categoryVariable: 'purpose'       // 风格指令注入到 prompt 的 ${purpose}；风格标题取 category.title（icon + label）
   }
 };
 
@@ -144,6 +143,9 @@ function _normalize(def, raw) {
       return {
         id: cat.id,
         label: cat.label,
+        icon: cat.icon || '',
+        // 菜单 / 按钮上显示的标题：icon + 空格 + label（与 menuStructureBuilder.ts 的 coverStyleTitle 同规则）
+        title: cat.icon ? `${cat.icon} ${cat.label}` : cat.label,
         purpose: cat.purpose || cat.label || '',
         template: catTemplate,
         engines: Array.isArray(cat.engines) ? cat.engines.map(_normEngine) : [],

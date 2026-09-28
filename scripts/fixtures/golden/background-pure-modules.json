@@ -278,7 +278,6 @@
   },
   "TASK_DEFINITIONS": {
     "cover": {
-      "categoryTitlesKey": "COVER_CATEGORY_TITLES",
       "categoryVariable": "purpose",
       "hasCategories": true,
       "icon": "🎨",
@@ -367,7 +366,6 @@
       "templateVariable": "input"
     },
     {
-      "categoryTitlesKey": "COVER_CATEGORY_TITLES",
       "categoryVariable": "purpose",
       "hasCategories": true,
       "icon": "🎨",

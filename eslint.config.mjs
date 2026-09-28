@@ -195,7 +195,6 @@ export default [
         buildCoverPrompt: "writable",
         coverPromptTemplate: "writable",
         coverPromptConfig: "writable",
-        COVER_CATEGORY_TITLES: "writable",
         loadMenuIconConfig: "writable",
 
         // utils/TextLimits.js exports

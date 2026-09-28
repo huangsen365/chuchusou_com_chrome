@@ -10,6 +10,7 @@ import path from "node:path"
 import process from "node:process"
 import vm from "node:vm"
 import { createTsLoader } from "./lib/tsLoader.mjs"
+import { assembleCoverPrompts } from "./lib/coverStyles.mjs"
 
 const root = process.cwd()
 
@@ -47,7 +48,6 @@ function assertTablesMatch(builder) {
   const pairs = [
     ["MENU_DEFS", builder.MENU_DEFS, "MENU_DEFINITIONS", constants.MENU_DEFINITIONS],
     ["OPTIMIZE_TITLES", builder.OPTIMIZE_TITLES, "OPTIMIZE_CATEGORY_TITLES", constants.OPTIMIZE_CATEGORY_TITLES],
-    ["COVER_TITLES", builder.COVER_TITLES, "COVER_CATEGORY_TITLES", constants.COVER_CATEGORY_TITLES]
   ]
   for (const [builderName, builderTable, constantsName, constantsTable] of pairs) {
     const ids = new Set([...Object.keys(builderTable), ...Object.keys(constantsTable)])
@@ -75,7 +75,7 @@ function main() {
   const top100Config = readJson("prompts/topQuestionsPrompts.json")
   const fastqaConfig = readJson("prompts/fastAnswersPrompts.json")
   const optimizeConfig = readJson("prompts/optimizedPrompts.json")
-  const coverConfig = readJson("prompts/coverPrompts.json")
+  const coverConfig = assembleCoverPrompts(root)
 
   const structure = builder.build({
     unifiedConfig,
@@ -132,6 +132,20 @@ function main() {
 
   const fullOpts = { unifiedConfig, enginesConfig, top100Config, fastqaConfig, optimizeConfig, coverConfig }
   const idsOf = (out) => new Set(out.groups.flatMap((group) => flattenItems(group.items || [])).map((item) => item.id))
+
+  // 封面风格标题 = 风格文件的 icon + 空格 + label；五个内置预设的标题与拆分前的标题表逐字一致
+  const coverLeaves = builtItems.filter((item) => item.type === "cover" && item.categoryId)
+  assert(coverLeaves.length === coverConfig.categories.filter((c) => c.id !== "custom").length, "every non-custom cover style must become a menu leaf")
+  for (const leaf of coverLeaves) {
+    const style = coverConfig.categories.find((c) => c.id === leaf.categoryId)
+    assert(style?.icon, `cover style ${leaf.categoryId} must have an icon`)
+    assert(leaf.title === `${style.icon} ${style.label}`, `cover leaf ${leaf.id} title "${leaf.title}" must be icon + label`)
+    assert(builder.coverStyleTitle(style) === leaf.title, "coverStyleTitle must match the built leaf title")
+  }
+  const legacyTitles = { minimal: "⬜ 极简的留白", xiaohongshu: "🔴 小红书封面", coconut: "🥥 椰树牌风格", "anime-cute": "🌸 二次元可爱", zhumoqing: "✒️ 墨清风格" }
+  for (const [id, title] of Object.entries(legacyTitles)) {
+    assert(coverLeaves.find((leaf) => leaf.categoryId === id)?.title === title, `cover style ${id} title must stay "${title}"`)
+  }
 
   // 无 unified config / 无开关：全部启用，仍产出分组
   const noToggles = builder.build({ ...fullOpts, unifiedConfig: null, toggleConfig: null })
