@@ -1803,7 +1803,15 @@ async function main() {
       const row = document.querySelector('label[for="pin-opt-zhumoqing"]')
       const link = row?.querySelector("a.sp-pin-option-credit")
       const minimalRow = document.querySelector('label[for="pin-opt-minimal"]')
+      const kpRow = document.querySelector('label[for="pin-opt-korean-pink"]')
+      const kpLink = kpRow?.querySelector("a.sp-pin-option-credit")
       return {
+        koreanPink: {
+          label: kpRow?.querySelector(".sp-pin-option-label")?.textContent || "",
+          href: kpLink?.getAttribute("href") || "",
+          target: kpLink?.getAttribute("target") || "",
+          title: kpLink?.getAttribute("title") || ""
+        },
         pickerOpen,
         rowExists: !!row,
         href: link?.getAttribute("href") || "",
@@ -1822,8 +1830,12 @@ async function main() {
       fail(`墨清风格署名 hover 提示异常: ${JSON.stringify(credit)}`)
     }
     if (credit?.minimalHasCredit) fail("没有 credit 的风格也渲染了署名 ⓘ")
+    const kp = credit?.koreanPink
+    if (kp?.label !== "韩系粉色" || kp?.href !== "https://x.com/inwelove/articles" || kp?.target !== "_blank" || !kp?.title.includes("inwelove")) {
+      fail(`韩系粉色风格行或署名异常: ${JSON.stringify(kp)}`)
+    }
     if (spPage.exceptions.length > 0) fail(`sidepanel 打开 picker 后出现未捕获异常: ${spPage.exceptions[0]}`)
-    console.log(`${TAG} ✓ sidepanel 置顶 picker 风格署名正常（墨清风格行尾 ⓘ / hover 带作者与链接 / 新标签打开 / 其它风格无）`)
+    console.log(`${TAG} ✓ sidepanel 置顶 picker 风格署名正常（墨清 / 韩系粉色行尾 ⓘ / hover 带作者与链接 / 新标签打开 / 其它风格无）`)
     // 还原活动标签：#17 依赖 #16 开出的百度页是活动标签
     if (popupClickTab) await browserCdp.call("Target.activateTarget", { targetId: popupClickTab.id })
     await wait(200)

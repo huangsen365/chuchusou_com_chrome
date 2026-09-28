@@ -63,7 +63,7 @@
   `# 二十八、输出与排版要求` / `主标题 + 小标题 + 正文` / `# 原始素材`）不能动，`verify:article-rewrite` 守着；
   章节只要求「# 一、」起连续编号，不锁数量。改完跑 `npm run plasmo:build` 再在扩展页重新加载。
 - **封面风格一风格一文件**：`prompts/cover/<id>.json`（id / label / icon / purpose，可选 credit / palettes /
-  engines），`prompts/cover/index.json` 的 `order` 决定三入口显示顺序、`engines` 是默认引擎。**新增风格 = 新建一个
+  engines；风格说明很长时用 `purposeFile` 指向同目录的 `<id>.md`，构建时原样内联成 purpose），`prompts/cover/index.json` 的 `order` 决定三入口显示顺序、`engines` 是默认引擎。**新增风格 = 新建一个
   文件 + 把 id 加进 order**，菜单标题自动是 icon + 空格 + label，不用再改任何标题表。构建时
   `scripts/build-cover-prompts.mjs` 组装成 build 里的 `prompts/coverPrompts.json`（运行时读的就是它，源码里没有这个文件；
   测试 / prebuild 经 `scripts/lib/coverStyles.mjs` 现场组装）。`verify:cover-consistency` 守卫缺文件 / 多文件 / 缺 icon。
