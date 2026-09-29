@@ -776,25 +776,49 @@ async function main() {
 
     // 12. URL 关键字提取子系统（keywords.js 搜索引擎分支）：
     //     复用 #9 开出的"百度"标签（域名已映射到本地 HTTPS 夹具，URL 与 wd=
-    //     参数原样保留、无反爬重定向）—— getKeyword 走 tabId 重新水化路径提取关键字
+    //     参数原样保留、无反爬重定向）—— getKeyword 走 tabId 重新水化路径提取关键字。
+    //     轮询重试：偶发一次 sendMessage 拿不到回包（source 为空、无错误信息，v1.18.11 发版时
+    //     7 次里出现 1 次），真实的提取失败会在全部重试后仍然报错，并带上最后一次的回包与 lastError。
     const urlExtract = await evaluate(pageCdp, `
       (async () => {
-        const tabs = await new Promise((res) => chrome.tabs.query({}, res));
-        const baiduTab = tabs.find((t) => (t.url || t.pendingUrl || "").includes("baidu.com/s?ie=utf-8&oe=utf-8&wd="));
-        if (!baiduTab) return { error: "no-baidu-tab" };
-        const url = baiduTab.url || baiduTab.pendingUrl;
-        const resp = await new Promise((res) =>
-          chrome.runtime.sendMessage(
-            { action: "getKeyword", tabId: baiduTab.id, url, title: baiduTab.title || "", intent: "popup-open" },
-            res
-          ));
-        return { tabId: baiduTab.id, text: resp?.text || "", raw: resp?.raw || "", source: resp?.source || "" };
+        const deadline = Date.now() + 8000;
+        let last = null;
+        for (let attempt = 1; Date.now() < deadline; attempt++) {
+          const tabs = await new Promise((res) => chrome.tabs.query({}, res));
+          const baiduTab = tabs.find((t) => (t.url || t.pendingUrl || "").includes("baidu.com/s?ie=utf-8&oe=utf-8&wd="));
+          if (!baiduTab) {
+            last = { error: "no-baidu-tab", attempt };
+          } else {
+            const url = baiduTab.url || baiduTab.pendingUrl;
+            // 单次回包最多等 1.5s，没回就算这次失败、进入下一轮，不让一次挂起吃掉整个重试窗口
+            const resp = await Promise.race([
+              new Promise((res) =>
+                chrome.runtime.sendMessage(
+                  { action: "getKeyword", tabId: baiduTab.id, url, title: baiduTab.title || "", intent: "popup-open" },
+                  (r) => res({ r, lastError: chrome.runtime.lastError?.message || "" })
+                )),
+              new Promise((res) => setTimeout(() => res({ r: null, lastError: "no-reply-within-1500ms" }), 1500))
+            ]);
+            last = {
+              tabId: baiduTab.id,
+              text: resp.r?.text || "",
+              raw: resp.r?.raw || "",
+              source: resp.r?.source || "",
+              lastError: resp.lastError,
+              attempt
+            };
+            if ((last.text + last.raw).includes("冒烟smoke123")) return last;
+          }
+          await new Promise((r) => setTimeout(r, 250));
+        }
+        return last;
       })()
-    `)
+    `, { timeoutMs: 15000 })
     if (!urlExtract?.text?.includes("冒烟smoke123") && !urlExtract?.raw?.includes("冒烟smoke123")) {
-      fail(`URL 关键字提取失败: ${JSON.stringify(urlExtract)}`)
+      fail(`URL 关键字提取失败（重试 8s 后仍无结果）: ${JSON.stringify(urlExtract)}`)
     }
-    console.log(`${TAG} ✓ URL 关键字提取正常（百度 wd= → "${urlExtract.text.slice(0, 20)}"，source: ${urlExtract.source}）`)
+    const urlExtractRetry = urlExtract.attempt > 1 ? `，第 ${urlExtract.attempt} 次拿到` : ""
+    console.log(`${TAG} ✓ URL 关键字提取正常（百度 wd= → "${urlExtract.text.slice(0, 20)}"，source: ${urlExtract.source}${urlExtractRetry}）`)
 
     // 13. ccs_kw_<tabId> storage 即时缓存契约（popup/sidepanel 首屏即时渲染靠它）：
     //     #12 的 getKeyword(popup-open) 解析后 KeywordService 应已持久化
