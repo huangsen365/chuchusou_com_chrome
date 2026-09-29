@@ -20,6 +20,8 @@
  *  E. Yiyan 类 IME 编辑器如果要到第二次 compositionend 才提交 model，
  *     填充完成时就必须预同步，用户第一次点发送应成功；更顽固的编辑器仍由
  *     驻留侦测器兜底二次发送。
+ *  F. ChatGPT hydration 清空或替换输入框后重试恢复；真实键盘清空/修改时
+ *     停止重填，保留用户草稿，整个过程不得自动发送。
  *
  * 跳过条件与其它 Chrome 校验一致：无全局 WebSocket / 无 Chrome。
  */
@@ -80,7 +82,9 @@ async function verifyChatGptComposerSelection(cdp, contentSource, chatGptDomSour
         document.querySelector('input[type="search"]').value === 'existing search' &&
         document.querySelector('#prompt-textarea').value === 'hidden compatibility field' &&
         document.querySelector('form[hidden]').textContent === 'hidden composer';
-      const fill = () => window.CCSModules.AIPromptFill.fill(prompt, { attempts: 1, watchSendResidue: false });
+      const fill = (options = {}) => window.CCSModules.AIPromptFill.fill(prompt, {
+        attempts: 1, watchSendResidue: false, ...options
+      });
       const results = {};
 
       // Captured 2026-09 DOM: both writing blocks and the thread composer are
@@ -104,6 +108,50 @@ async function verifyChatGptComposerSelection(cdp, contentSource, chatGptDomSour
       const legacyId = await fill();
       results.legacyId = legacyId.ok && document.querySelector('form > #prompt-textarea').innerText.includes('unique ending.') && untouched();
 
+      // A framework can clear the first input or replace the entire composer
+      // asynchronously after accepting it. Success must describe the stable,
+      // currently mounted editor, not the first DOM write before hydration.
+      const retryOptions = { attempts: 6, intervalMs: 30 };
+      const composerMarkup = '<form data-chatgpt-composer><div id="actual-composer" data-composer-markdown contenteditable="true" role="textbox" style="min-height:40px"></div><button type="submit" data-testid="send-button">Send</button></form>';
+      const normalize = (text) => text.replace(/\\s+/g, ' ').trim();
+      for (const scenario of ['clear', 'replace', 'unmount', 'replace-with-draft']) {
+        setup(composerMarkup);
+        const form = document.querySelector('form:not([hidden])');
+        const editor = document.querySelector('#actual-composer');
+        let submissions = 0;
+        let mutations = 0;
+        let frameworkModel = '';
+        form.addEventListener('submit', (event) => { event.preventDefault(); submissions++; });
+        form.lastElementChild.addEventListener('click', () => { submissions++; });
+        form.addEventListener('input', (event) => { frameworkModel = event.target.innerText; });
+        editor.addEventListener('input', () => {
+          setTimeout(() => {
+            mutations++;
+            frameworkModel = '';
+            if (scenario === 'clear') {
+              editor.replaceChildren();
+            } else {
+              const replacement = editor.cloneNode(false);
+              if (scenario === 'replace-with-draft') replacement.textContent = 'User draft restored by the framework.';
+              if (scenario === 'unmount') {
+                editor.remove();
+                setTimeout(() => form.prepend(replacement), 140);
+              } else {
+                editor.replaceWith(replacement);
+              }
+            }
+          }, 30);
+        }, { once: true });
+        const recovered = await fill(retryOptions);
+        await new Promise((resolve) => setTimeout(resolve, 160));
+        const current = document.querySelector('#actual-composer');
+        results['hydration-' + scenario] = mutations === 1 && submissions === 0 && untouched() && (
+          scenario === 'replace-with-draft'
+            ? !recovered.ok && recovered.stage === 'existing_draft' && current.textContent === 'User draft restored by the framework.'
+            : recovered.ok && normalize(current.innerText) === normalize(prompt) && normalize(frameworkModel) === normalize(prompt)
+        );
+      }
+
       // When only an article editor/search is mounted during a route change,
       // retry later instead of writing a prompt into either of those controls.
       setup('');
@@ -122,11 +170,71 @@ async function verifyChatGptComposerSelection(cdp, contentSource, chatGptDomSour
           document.querySelector('section [contenteditable]').textContent === 'User edit in progress.' &&
           document.querySelector('section textarea').value === 'Article draft.';
       }
+      window.__chatGptFixture = { setup, untouched, fill, composerMarkup, retryOptions };
       return results;
     })()
   `, { timeoutMs: 30_000 })
   for (const [scenario, passed] of Object.entries(results)) {
     if (!passed) throw new Error(`ChatGPT composer selection failed: ${scenario} — ${JSON.stringify(results)}`)
+  }
+
+  // Dispatch keyboard events through the offline Chrome fixture, so isTrusted
+  // distinguishes user takeover from both synthetic and execCommand fill events.
+  for (const scenario of ["clear", "draft"]) {
+    const ready = await evaluate(cdp, `
+      (async () => {
+        const fixture = window.__chatGptFixture;
+        fixture.setup(fixture.composerMarkup);
+        const editor = document.querySelector('#actual-composer');
+        const form = editor.closest('form');
+        const state = window.__chatGptTakeover = { submissions: 0, trustedDeletion: false, result: null };
+        form.addEventListener('submit', (event) => { event.preventDefault(); state.submissions++; });
+        form.lastElementChild.addEventListener('click', () => { state.submissions++; });
+        editor.addEventListener('input', (event) => {
+          if (event.isTrusted && event.inputType === 'deleteContentBackward') state.trustedDeletion = true;
+        });
+        const firstInput = new Promise((resolve) => editor.addEventListener('input', resolve, { once: true }));
+        state.completion = fixture.fill(fixture.retryOptions).then((result) => { state.result = result; });
+        await firstInput;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        editor.focus();
+        return { filled: editor.innerText.includes('unique ending.'), stillPending: state.result === null };
+      })()
+    `)
+    if (!ready?.filled || !ready.stillPending) {
+      throw new Error(`ChatGPT keyboard ${scenario} fixture missed stabilization window: ${JSON.stringify(ready)}`)
+    }
+    await cdp.call("Input.dispatchKeyEvent", {
+      type: "keyDown", key: "a", code: "KeyA",
+      modifiers: process.platform === "darwin" ? 4 : 2, commands: ["selectAll"]
+    })
+    await cdp.call("Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA" })
+    await cdp.call("Input.dispatchKeyEvent", {
+      type: "keyDown", key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8
+    })
+    await cdp.call("Input.dispatchKeyEvent", { type: "keyUp", key: "Backspace", code: "Backspace" })
+    if (scenario === "draft") {
+      for (const character of "User's new draft.") {
+        await cdp.call("Input.dispatchKeyEvent", { type: "char", text: character })
+      }
+    }
+    const takeover = await evaluate(cdp, `
+      (async () => {
+        const state = window.__chatGptTakeover;
+        await state.completion;
+        await new Promise((resolve) => setTimeout(resolve, 1400));
+        return {
+          result: state.result, trustedDeletion: state.trustedDeletion,
+          text: document.querySelector('#actual-composer').innerText.trim(),
+          submissions: state.submissions, untouched: window.__chatGptFixture.untouched()
+        };
+      })()
+    `)
+    const expectedText = scenario === "draft" ? "User's new draft." : ""
+    if (!takeover.result?.ok || !takeover.result?.skipped || takeover.result?.reason !== "user-takeover" || !takeover.trustedDeletion ||
+      takeover.text !== expectedText || takeover.submissions !== 0 || !takeover.untouched) {
+      throw new Error(`ChatGPT keyboard ${scenario} overwrote user input or failed to stop filling: ${JSON.stringify(takeover)}`)
+    }
   }
   await cdp.call("Fetch.disable")
 }
@@ -454,7 +562,7 @@ async function main() {
     }
 
     await verifyChatGptComposerSelection(cdp, contentSource, chatGptDomSource)
-    console.log(`${TAG} OK — toast 顶部可穿透 / 发送可达 / model 同步 / 发送真出 / 新草稿不被写回 / revert 巩固恢复 / Yiyan 预同步首发成功 / 顽固编辑器驻留自愈 / ChatGPT 新旧输入框定位与正文隔离`)
+    console.log(`${TAG} OK — toast 顶部可穿透 / 发送可达 / model 同步 / 发送真出 / 新草稿不被写回 / revert 巩固恢复 / Yiyan 预同步首发成功 / 顽固编辑器驻留自愈 / ChatGPT 新旧输入框定位与正文隔离 / hydration 清空与换框恢复 / 真实键盘清空与新草稿保护`)
   } finally {
     cdp?.close()
     child.kill("SIGKILL")

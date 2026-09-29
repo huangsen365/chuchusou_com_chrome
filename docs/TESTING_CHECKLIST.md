@@ -45,7 +45,8 @@
 `contenteditable` 当作聊天输入框：新版 writing block 也是可编辑区域，真正的输入框在
 `form[data-chatgpt-composer]` 中，带 `data-composer-markdown`。
 
-自动化：`verify:ai-fill-ux` 覆盖新旧输入框定位、隐藏节点与草稿保护；
+自动化：`verify:ai-fill-ux` 覆盖新旧输入框定位、隐藏节点、页面重绘清空/替换后的恢复与草稿保护；
+`verify:ai-prompt-fill` 同时检查填充未稳定时不确认消费待填提示词，用户接管后不重填；
 `verify:extension-smoke` 使用 `scripts/lib/verify-chatgpt-redesign.mjs` 中的新版结构夹具，
 验证真实构建的按钮嵌入、填写、长文来源/标题提取、生成状态及动作栏重建。夹具不访问线上会话。
 新版操作栏会把未标记 `data-turn-action-width="content"` 的按钮设为 32px 图标宽度；
@@ -55,6 +56,8 @@
 - [ ] 短篇/中篇回复的整轮复制按钮旁显示一个“选A并优化改写”入口
 - [ ] 点击后提示词只进入聊天输入框，writing block 不变，不自动发送
 - [ ] 输入框已有草稿时提示并保留草稿
+- [ ] 新页面加载时输入框被重绘或清空，提示词仍能完整恢复
+- [ ] 自动填入后立即手动清空、修改或发送，旧提示词不会再次出现
 - [ ] 工作流生成的长文显示“注入X草稿”和“生成封面”，生成完成后才可用
 - [ ] 切换会话或重新渲染动作栏后入口恢复且不重复
 

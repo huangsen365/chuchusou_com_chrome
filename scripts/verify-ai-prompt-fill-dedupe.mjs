@@ -277,6 +277,9 @@ function makeHarness({
       if (!documentListeners.has(type)) documentListeners.set(type, [])
       documentListeners.get(type).push(listener)
     },
+    removeEventListener(type, listener) {
+      documentListeners.set(type, (documentListeners.get(type) || []).filter((entry) => entry !== listener))
+    },
     createElement(tagName) {
       return new FakeElement(tagName, document)
     },
@@ -325,7 +328,7 @@ function makeHarness({
   }
 
   document.body = new FakeElement("body", document)
-  const editor = new FakeElement(editorTag, document)
+  let editor = new FakeElement(editorTag, document)
   if (editor.tagName === "TEXTAREA" || editor.tagName === "INPUT") {
     editor.value = initialText
     editor.setAttribute("placeholder", "询问AI任何问题")
@@ -525,7 +528,20 @@ function makeHarness({
 
   return {
     context,
-    editor,
+    get editor() { return editor },
+    replaceEditor(text = "") {
+      const replacement = new FakeElement(editorTag, document)
+      replacement.setAttribute("contenteditable", "true")
+      replacement.setAttribute("role", "textbox")
+      replacement.textContent = text
+      document.body.replaceChildren(replacement)
+      editor = replacement
+    },
+    dispatchUserEvent(type, init = {}) {
+      const event = Object.assign(new FakeEvent(type), { target: editor, isTrusted: true }, init)
+      for (const listener of documentListeners.get(type) || []) listener(event)
+    },
+    listenerCount(type) { return (documentListeners.get(type) || []).length },
     pendingGets,
     ackMessages,
     runtimeMessages,
@@ -927,6 +943,88 @@ async function verifyChatGptStyleEditorUsesInsertHtml() {
   )
 }
 
+async function verifyChatGptHydrationKeepsPendingUntilStable() {
+  for (const replace of [false, true]) {
+    const pendingId = `pchatgpt_hydration_${replace}`
+    const harness = makeHarness({
+      url: `https://chatgpt.com/?hints=reason#ccs_pp=${pendingId}`,
+      pendingId, consumesPaste: false, consumesInsertHtml: true
+    })
+    let reverted = false
+    harness.editor.addEventListener("input", () => {
+      if (reverted) return
+      reverted = true
+      // A framework microtask, with no user gesture; it can also replace the DOM node.
+      Promise.resolve().then(() => {
+        if (replace) harness.replaceEditor()
+        else harness.editor.textContent = ""
+        // Query cleanup during hydration is not a switch to another conversation.
+        harness.context.location.href = `https://chatgpt.com/#ccs_pp=${pendingId}`
+        assert.equal(harness.ackMessages.length, 0, "unstable prompt must remain pending")
+      })
+    })
+    await harness.flush()
+    harness.pendingGets[0].callback({ ok: true, prompt: FASTQA_PROMPT, pendingId })
+    await harness.flush(200)
+    assert.deepEqual(
+      normalize(harness.editor.textContent).split("\n").filter((line) => line.trim()),
+      normalize(FASTQA_PROMPT).split("\n").filter((line) => line.trim()),
+      "hydration retry must restore every prompt line exactly once"
+    )
+    assert.equal(harness.ackMessages.length, 1, "restored stable prompt should be acknowledged once")
+    assert.equal(harness.context.location.href, "https://chatgpt.com/")
+    assert.equal(harness.listenerCount("beforeinput"), 0, "fill gesture listeners must be removed")
+  }
+
+  const harness = makeHarness({
+    url: "https://chatgpt.com/#ccs_pp=pchatgpt_never_stable",
+    pendingId: "pchatgpt_never_stable", consumesPaste: false, consumesInsertHtml: true
+  })
+  harness.editor.addEventListener("input", () => {
+    Promise.resolve().then(() => { harness.editor.textContent = "" })
+  })
+  const fill = harness.sendFill()
+  await harness.flush(3000)
+  assert.equal(fill.response?.ok, false, "persistent framework reverts must exhaust the bounded retries")
+  assert.equal(fill.response?.error, "fill-not-stable")
+  assert.equal(harness.execCommands.filter((entry) => entry.command === "insertHTML").length, 80)
+  assert.equal(harness.ackMessages.length, 0, "failed stabilization must never delete the pending prompt")
+  assert(harness.context.location.href.includes("ccs_pp="), "failed stabilization must retain the relay marker")
+  assert.equal(harness.listenerCount("beforeinput"), 0, "failed fill must remove gesture listeners")
+}
+
+async function verifyChatGptUserTakeoverCancelsDelivery() {
+  for (const key of ["Backspace", "Enter"]) {
+    const pendingId = `pchatgpt_takeover_${key}`
+    const harness = makeHarness({
+      url: `https://chatgpt.com/#ccs_pp=${pendingId}`,
+      pendingId, consumesPaste: false, consumesInsertHtml: true
+    })
+    const schedule = harness.context.setTimeout
+    let acted = false
+    harness.context.setTimeout = (fn, delay) => schedule(() => {
+      if (delay === 120 && !acted) {
+        acted = true
+        harness.dispatchUserEvent("keydown", { key })
+        harness.editor.textContent = ""
+      }
+      fn()
+    })
+    const fill = harness.sendFill()
+    await harness.flush(200)
+    assert.equal(fill.response?.reason, "user-takeover", "trusted delete/send must stop automatic filling")
+    assert.equal(harness.editor.textContent, "", "user-cleared/submitted composer must stay empty")
+    assert.equal(harness.ackMessages.length, 1, "user cancellation must delete persistent relay for a safe refresh")
+    assert.equal(harness.context.location.href, "https://chatgpt.com/", "cancelled relay must not survive in the URL")
+    const lateDelivery = harness.sendFill()
+    await harness.flush(50)
+    assert.equal(lateDelivery.response?.reason, "user-takeover", "late push must not revive a cancelled prompt")
+    assert.equal(harness.editor.textContent, "")
+    assert.equal(harness.ackMessages.length, 1)
+    assert.equal(harness.listenerCount("beforeinput"), 0, "cancelled fill must remove gesture listeners")
+  }
+}
+
 assertPromptTemplateNewlines()
 await verifyPullPushRaceDoesNotDuplicate()
 await verifyConcurrentMessagesDedupe()
@@ -942,5 +1040,7 @@ await verifyChatGptStyleEditorUsesInsertHtml()
 await verifySilentPasteStillDispatchesInput()
 await verifyStabilizeRespectsUserClear()
 await verifyPullPushRaceRespectsUserClear()
+await verifyChatGptHydrationKeepsPendingUntilStable()
+await verifyChatGptUserTakeoverCancelsDelivery()
 
 console.log("AI prompt fill dedupe verifier passed")

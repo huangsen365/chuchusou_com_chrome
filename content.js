@@ -35,6 +35,7 @@
   const SELECT_ALL_PROTECT_MS = 3000;
   const aiPromptFillInFlight = new Set();
   const aiPromptFillDone = new Set();
+  const aiPromptFillCancelled = new Set();
 
   // expose basic globals expected by other modules
   window.selectedText = '';
@@ -953,6 +954,7 @@
     if (!text) return { ok: false, error: 'no-text' };
 
     const key = makeAIPromptFillKey(pendingId, text);
+    if (aiPromptFillCancelled.has(key)) return { ok: true, skipped: true, reason: 'user-takeover' };
     if (aiPromptFillDone.has(key)) {
       // push/pull 竞态时第二次进来——本次已经填过了。
       // **不要无脑 refill**：用户点了发送（编辑器被清空）或已开始打新草稿时，
@@ -986,8 +988,13 @@
         preserveExistingDraft: true
       });
       if (!result.ok) return result;
-      const stableResult = await stabilizeAIPromptFill(text);
-      if (!stableResult.ok) return stableResult;
+      if (result.reason === 'user-takeover') {
+        aiPromptFillCancelled.add(key);
+        // 用户已主动接管，取消本次投递；删除持久记录，避免刷新后旧提示词复活。
+        cleanupChatGptRelayUrl();
+        if (pendingId && ackAction) await sendRuntimeMessage({ action: ackAction, pendingId });
+        return result;
+      }
 
       aiPromptFillDone.add(key);
       cleanupChatGptRelayUrl();
@@ -1122,16 +1129,59 @@
     } catch (_) { /* ignore */ }
   }
 
-  async function stabilizeAIPromptFill(text) {
+  function watchChatGptPromptUserTakeover() {
+    const guard = { takenOver: false, writing: false, composer: null };
+    const pageUrl = new URL(window.location.href);
+    // 会话切换后不能写入旧任务；站点清理 query/hash 参数仍可继续恢复。
+    guard.hasUserTakenOver = () => {
+      const currentUrl = new URL(window.location.href);
+      return guard.takenOver || currentUrl.origin !== pageUrl.origin || currentUrl.pathname !== pageUrl.pathname;
+    };
+    const events = ['keydown', 'beforeinput', 'input', 'paste', 'cut', 'compositionstart', 'click'];
+    const onGesture = (event) => {
+      // execCommand 也会同步发 trusted input；自动写入期间不能把它当成用户编辑。
+      if (!event.isTrusted || guard.writing || guard.takenOver) return;
+      const composer = findChatGptComposerTarget() || guard.composer;
+      if (!composer) return;
+      const inComposer = event.target === composer || composer.contains?.(event.target);
+      if (event.type === 'click') {
+        const button = event.target?.closest?.('button, [role="button"], input[type="submit"]');
+        const clearButton = button && composer.closest?.('form')?.contains(button) &&
+          /^(?:clear(?:\s+(?:text|prompt|message|all))?|清空|清除)(?:输入|内容|文本|提示词)?$/iu.test(
+            normalizeFilledText(button.getAttribute('aria-label') || button.getAttribute('title') || button.textContent)
+          );
+        if (!isAIPromptSendButton(button, composer) && !clearButton) return;
+      } else {
+        if (!inComposer) return;
+        if (event.type === 'keydown') {
+          const editsText = ['Enter', 'Backspace', 'Delete'].includes(event.key) ||
+            (event.key?.length === 1 && (!(event.ctrlKey || event.metaKey) || /^[vxzy]$/i.test(event.key)));
+          if (!editsText) return;
+        }
+      }
+      guard.takenOver = true;
+    };
+    for (const type of events) document.addEventListener(type, onGesture, true);
+    guard.dispose = () => {
+      for (const type of events) document.removeEventListener?.(type, onGesture, true);
+    };
+    return guard;
+  }
+
+  async function stabilizeAIPromptFill(text, guard) {
     // 检查窗口覆盖 Lexical 之类 reconcile 撤回（典型 50-500ms 内），但不能太长——
     // 否则会和用户提交动作抢编辑器（提交后 Yiyan 清空，stabilize 重填，prompt 又出现）。
     for (const delayMs of [120, 350, 700]) {
       await sleep(delayMs);
+      if (guard?.hasUserTakenOver()) return { ok: true, skipped: true, reason: 'user-takeover' };
       const target = findChatGptComposerTarget();
+      // ChatGPT hydration 可自行清空或替换输入框；未稳定就退回有界重试，不能 ACK。
+      if (guard && !target) return { ok: false, error: 'composer-not-found' };
       if (!target) return { ok: true };
 
       // 已是正确状态，跳过本轮重填
       if (editableAcceptsFilledText(target, text)) continue;
+      if (guard) return { ok: false, error: 'fill-not-stable' };
 
       // 编辑器跟预期不符。三种可能：
       //   A. 完全空 —— 用户主动操作（提交、Backspace、清空），**不能争抢**
@@ -1160,34 +1210,47 @@
     return `text:${normalized.length}:${normalized.slice(0, 80)}:${normalized.slice(-80)}`;
   }
 
-  function fillChatGptPrompt(text, options = {}) {
+  async function fillChatGptPrompt(text, options = {}) {
     const prompt = typeof text === 'string' ? text : '';
     const attempts = Number.isFinite(options.attempts) ? options.attempts : 30;
     const intervalMs = Number.isFinite(options.intervalMs) ? options.intervalMs : 400;
     const preserveExistingDraft = options.preserveExistingDraft !== false;
-
-    return new Promise((resolve) => {
-      let count = 0;
-      const tryFill = async () => {
-        count += 1;
+    const guard = getSupportedAIEngineFromLocation() === 'chatgpt' ? watchChatGptPromptUserTakeover() : null;
+    try {
+      await waitForDOMReady();
+      for (let count = 1; ; count += 1) {
+        if (guard?.hasUserTakenOver()) return { ok: true, skipped: true, reason: 'user-takeover' };
+        const target = guard ? findChatGptComposerTarget() : null;
+        // 新输入框的非空内容可能是站点恢复的用户草稿，即使它恰好是提示词的前缀也不覆盖。
+        if (guard?.composer && target && target !== guard.composer &&
+            normalizeFilledText(readEditableText(target)) && !editableAcceptsFilledText(target, prompt)) {
+          return { ok: false, error: 'existing-draft', stage: 'existing_draft' };
+        }
         let result;
         try {
+          if (guard) { if (target) guard.composer = target; guard.writing = true; }
           result = await fillChatGptPromptOnceAsync(prompt, { preserveExistingDraft });
         } catch (error) {
           result = { ok: false, error: error?.message || 'fill-failed' };
+        } finally {
+          if (guard) guard.writing = false;
+        }
+        if (result.ok) {
+          const stableResult = await stabilizeAIPromptFill(prompt, guard);
+          if (!stableResult.ok || stableResult.reason === 'user-takeover') result = stableResult;
         }
         if (result.ok || result.stage === 'existing_draft' || count >= attempts) {
-          resolve(result.ok ? result : {
+          return result.ok ? result : {
             ok: false,
             error: result.error || 'composer-not-found',
             ...(result.stage ? { stage: result.stage } : {})
-          });
-          return;
+          };
         }
-        setTimeout(tryFill, intervalMs);
-      };
-      waitForDOMReady().then(tryFill).catch(() => tryFill());
-    });
+        await sleep(intervalMs);
+      }
+    } finally {
+      guard?.dispose();
+    }
   }
 
   function fillChatGptPromptOnce(text, options = {}) {
@@ -1789,8 +1852,7 @@
       preserveExistingDraft: options.preserveExistingDraft !== false
     });
     if (!result.ok) return result;
-    const stableResult = await stabilizeAIPromptFill(prompt);
-    if (!stableResult.ok) return stableResult;
+    if (result.reason === 'user-takeover') return result;
     if (options.watchSendResidue !== false) armPostSendResidueWatcher(prompt);
     return result;
   }
