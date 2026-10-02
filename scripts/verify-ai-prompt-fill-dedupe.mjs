@@ -993,6 +993,86 @@ async function verifyChatGptHydrationKeepsPendingUntilStable() {
   assert.equal(harness.listenerCount("beforeinput"), 0, "failed fill must remove gesture listeners")
 }
 
+// ChatGPT 新开页面加载完成时会换输入框，并把框里的纯文本按 Markdown 转义后搬进新框
+// （与 2026-10 实测一致：行首 # - + > 前加 \\、「1.」→「1\\.」、所有 * _ ` [ ] \\ 前加 \\）。
+function chatGptMarkdownEscape(text) {
+  return String(text).split("\n").map((line) => {
+    let escaped = line.replace(/[\\`*_[\]]/g, "\\$&")
+    escaped = escaped.replace(/^(\s*)([#>+-])/, "$1\\$2")
+    escaped = escaped.replace(/^(\s*\d+)\./, "$1\\.")
+    return escaped
+  }).join("\n")
+}
+
+async function verifyChatGptEscapedComposerSwapIsRepaired() {
+  const escaped = chatGptMarkdownEscape(FASTQA_PROMPT)
+  assert.notEqual(escaped, FASTQA_PROMPT, "fixture prompt must contain Markdown characters")
+  assert(escaped.includes("\\*\\*") && escaped.includes("1\\.") && escaped.includes("\\#"), "escape fixture must mirror ChatGPT")
+  const promptLines = normalize(FASTQA_PROMPT).split("\n").filter((line) => line.trim())
+  // 测试环境里定时器是微任务，修复观察的约 15 秒窗口几百个微任务就走完：等填入一确认就换框
+  const fillAndWaitForAck = async (harness) => {
+    const fill = harness.sendFill()
+    for (let i = 0; i < 2000 && harness.ackMessages.length === 0; i++) await harness.flush(1)
+    return fill
+  }
+  const editorLines = (harness) => normalize(harness.editor.textContent).split("\n").filter((line) => line.trim())
+
+  // 1) 换框发生在填入确认之前：新框里的转义版是我们自己的，不能当成用户草稿放弃
+  {
+    const pendingId = "pchatgpt_escaped_swap"
+    const harness = makeHarness({
+      url: `https://chatgpt.com/?hints=reason#ccs_pp=${pendingId}`,
+      pendingId, consumesPaste: false, consumesInsertHtml: true
+    })
+    let swapped = false
+    harness.editor.addEventListener("input", () => {
+      if (swapped) return
+      swapped = true
+      Promise.resolve().then(() => {
+        harness.replaceEditor(escaped)
+        harness.context.location.href = `https://chatgpt.com/#ccs_pp=${pendingId}`
+      })
+    })
+    await harness.flush()
+    harness.pendingGets[0].callback({ ok: true, prompt: FASTQA_PROMPT, pendingId })
+    await harness.flush(400)
+    assert.equal(swapped, true, "fixture must swap the composer")
+    assert.deepEqual(editorLines(harness), promptLines, "escaped copy must be replaced by the original prompt")
+    assert(!harness.editor.textContent.includes("\\"), "no backslash may survive in the composer")
+    assert.equal(harness.ackMessages.length, 1, "repaired prompt is acknowledged once")
+  }
+
+  // 2) 换框发生在确认之后：填入后的修复观察会用原文重填
+  {
+    const pendingId = "pchatgpt_escaped_late"
+    const harness = makeHarness({ url: `https://chatgpt.com/#ccs_pp=${pendingId}`, pendingId, consumesPaste: false, consumesInsertHtml: true })
+    const fill = await fillAndWaitForAck(harness)
+    assert.equal(harness.ackMessages.length, 1)
+    harness.replaceEditor(escaped)
+    await harness.flush(400)
+    assert.equal(fill.response?.ok, true)
+    assert.deepEqual(editorLines(harness), promptLines, "late swap must be repaired with the original prompt")
+    assert(!harness.editor.textContent.includes("\\"), "late swap must not leave backslashes")
+    assert.equal(harness.ackMessages.length, 1, "repair must not acknowledge again")
+  }
+
+  // 3) 用户自己的内容一律不碰：换来的是用户草稿，或转义版后面被用户加了字
+  for (const [label, text] of [
+    ["user draft", "我自己写的草稿，不要覆盖"],
+    ["escaped copy edited by the user", `${escaped}\n我补充一句`]
+  ]) {
+    const pendingId = `pchatgpt_escaped_user_${label.length}`
+    const harness = makeHarness({ url: `https://chatgpt.com/#ccs_pp=${pendingId}`, pendingId, consumesPaste: false, consumesInsertHtml: true })
+    const fill = await fillAndWaitForAck(harness)
+    harness.replaceEditor(text)
+    const before = harness.execCommands.length
+    await harness.flush(400)
+    assert.equal(fill.response?.ok, true)
+    assert.equal(harness.editor.textContent, text, `${label} must stay untouched`)
+    assert.equal(harness.execCommands.length, before, `${label} must not trigger any write`)
+  }
+}
+
 async function verifyChatGptUserTakeoverCancelsDelivery() {
   for (const key of ["Backspace", "Enter"]) {
     const pendingId = `pchatgpt_takeover_${key}`
@@ -1042,5 +1122,6 @@ await verifyStabilizeRespectsUserClear()
 await verifyPullPushRaceRespectsUserClear()
 await verifyChatGptHydrationKeepsPendingUntilStable()
 await verifyChatGptUserTakeoverCancelsDelivery()
+await verifyChatGptEscapedComposerSwapIsRepaired()
 
 console.log("AI prompt fill dedupe verifier passed")

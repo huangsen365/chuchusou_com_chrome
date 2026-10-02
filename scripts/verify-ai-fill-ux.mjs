@@ -22,6 +22,8 @@
  *     驻留侦测器兜底二次发送。
  *  F. ChatGPT hydration 清空或替换输入框后重试恢复；真实键盘清空/修改时
  *     停止重填，保留用户草稿，整个过程不得自动发送。
+ *  G. ChatGPT 换框时把提示词按 Markdown 转义（\*\*、1\.、\#）搬进新框：
+ *     无论发生在填入中还是确认后，都换回原文；用户改过的内容不碰。
  *
  * 跳过条件与其它 Chrome 校验一致：无全局 WebSocket / 无 Chrome。
  */
@@ -150,6 +152,56 @@ async function verifyChatGptComposerSelection(cdp, contentSource, chatGptDomSour
             ? !recovered.ok && recovered.stage === 'existing_draft' && current.textContent === 'User draft restored by the framework.'
             : recovered.ok && normalize(current.innerText) === normalize(prompt) && normalize(frameworkModel) === normalize(prompt)
         );
+      }
+
+      // ChatGPT's fresh page swaps its composer once loading finishes and carries
+      // the text over Markdown-escaped (\\*\\*, 1\\., \\#...), which then gets sent.
+      // The escaped copy is ours: replace it with the original, whether the swap
+      // lands during the fill or after it was confirmed. User text stays untouched.
+      {
+        const mdPrompt = '请针对以下主题生成回答：\\n##########\\n测试主题\\n##########\\n**输出语言要求（必须严格遵守）：**\\n1. **短篇回答**：约 1 句话\\n---\\n* 用户选择 A：生成详细内容';
+        const escapeLikeChatGpt = (text) => text.split('\\n').map((line) => line
+          .replace(/[\\\\\`*_\\[\\]]/g, '\\\\$&')
+          .replace(/^([#>+-])/, '\\\\$1')
+          .replace(/^(\\d+)\\./, '$1\\\\.')).join('\\n');
+        const escaped = escapeLikeChatGpt(mdPrompt);
+        const toParagraphs = (text) => text.split('\\n').map((line) => {
+          const p = document.createElement('p');
+          p.textContent = line;
+          return p;
+        });
+        const swapComposer = (text) => {
+          const current = document.querySelector('#actual-composer');
+          const replacement = current.cloneNode(false);
+          replacement.replaceChildren(...toParagraphs(text));
+          current.replaceWith(replacement);
+        };
+        const mdFill = (options = {}) => window.CCSModules.AIPromptFill.fill(mdPrompt, {
+          attempts: 6, intervalMs: 30, watchSendResidue: false, ...options
+        });
+        const clean = (el) => normalize(el.innerText);
+        results['escape-fixture'] = escaped.includes('\\\\*\\\\*') && escaped.includes('1\\\\.') && escaped.startsWith('请针对') && escaped.includes('\\\\#');
+
+        setup(composerMarkup);
+        document.querySelector('#actual-composer').addEventListener('input', () => setTimeout(() => swapComposer(escaped), 30), { once: true });
+        const duringFill = await mdFill();
+        await new Promise((resolve) => setTimeout(resolve, 160));
+        const afterDuring = document.querySelector('#actual-composer');
+        results['escaped-swap-during-fill'] = duringFill.ok && !afterDuring.innerText.includes('\\\\') && clean(afterDuring) === normalize(mdPrompt) && untouched();
+
+        setup(composerMarkup);
+        const beforeLate = await mdFill();
+        swapComposer(escaped);
+        await new Promise((resolve) => setTimeout(resolve, 700));
+        const afterLate = document.querySelector('#actual-composer');
+        results['escaped-swap-after-fill'] = beforeLate.ok && !afterLate.innerText.includes('\\\\') && clean(afterLate) === normalize(mdPrompt) && untouched();
+
+        setup(composerMarkup);
+        await mdFill();
+        const userEdited = escaped + '\\n我补充一句';
+        swapComposer(userEdited);
+        await new Promise((resolve) => setTimeout(resolve, 700));
+        results['escaped-copy-with-user-edit-untouched'] = clean(document.querySelector('#actual-composer')) === normalize(userEdited);
       }
 
       // When only an article editor/search is mounted during a route change,
@@ -562,7 +614,7 @@ async function main() {
     }
 
     await verifyChatGptComposerSelection(cdp, contentSource, chatGptDomSource)
-    console.log(`${TAG} OK — toast 顶部可穿透 / 发送可达 / model 同步 / 发送真出 / 新草稿不被写回 / revert 巩固恢复 / Yiyan 预同步首发成功 / 顽固编辑器驻留自愈 / ChatGPT 新旧输入框定位与正文隔离 / hydration 清空与换框恢复 / 真实键盘清空与新草稿保护`)
+    console.log(`${TAG} OK — toast 顶部可穿透 / 发送可达 / model 同步 / 发送真出 / 新草稿不被写回 / revert 巩固恢复 / Yiyan 预同步首发成功 / 顽固编辑器驻留自愈 / ChatGPT 新旧输入框定位与正文隔离 / hydration 清空与换框恢复 / 换框转义修复 / 真实键盘清空与新草稿保护`)
   } finally {
     cdp?.close()
     child.kill("SIGKILL")

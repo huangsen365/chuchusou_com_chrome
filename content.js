@@ -969,7 +969,8 @@
         if (currentText === expected) {
           return { ok: true, skipped: true, reason: 'already-filled-intact' };
         }
-        if (currentText && (expected.includes(currentText) || currentText.includes(expected))) {
+        if (currentText && (expected.includes(currentText) || currentText.includes(expected) ||
+            isMarkdownEscapedCopyOfPrompt(currentText, text))) {
           const result = await fillChatGptPromptOnceAsync(text);
           return result.ok ? { ...result, skipped: true, reason: 'already-filled' } : result;
         }
@@ -1191,7 +1192,8 @@
       const currentText = normalizeFilledText(readEditableText(target));
       if (!currentText) return { ok: true };
       const expectedNorm = normalizeFilledText(text);
-      if (!(expectedNorm.includes(currentText) || currentText.includes(expectedNorm))) return { ok: true };
+      if (!(expectedNorm.includes(currentText) || currentText.includes(expectedNorm)) &&
+          !isMarkdownEscapedCopyOfPrompt(currentText, text)) return { ok: true };
 
       const result = await fillChatGptPromptOnceAsync(text);
       if (!result.ok) return result;
@@ -1221,9 +1223,11 @@
       for (let count = 1; ; count += 1) {
         if (guard?.hasUserTakenOver()) return { ok: true, skipped: true, reason: 'user-takeover' };
         const target = guard ? findChatGptComposerTarget() : null;
-        // 新输入框的非空内容可能是站点恢复的用户草稿，即使它恰好是提示词的前缀也不覆盖。
+        // 新输入框的非空内容可能是站点恢复的用户草稿，即使它恰好是提示词的前缀也不覆盖；
+        // 但 ChatGPT 换框时转义过的本提示词是我们自己的，照常重填。
         if (guard?.composer && target && target !== guard.composer &&
-            normalizeFilledText(readEditableText(target)) && !editableAcceptsFilledText(target, prompt)) {
+            normalizeFilledText(readEditableText(target)) && !editableAcceptsFilledText(target, prompt) &&
+            !isMarkdownEscapedCopyOfPrompt(readEditableText(target), prompt)) {
           return { ok: false, error: 'existing-draft', stage: 'existing_draft' };
         }
         let result;
@@ -1239,6 +1243,7 @@
           const stableResult = await stabilizeAIPromptFill(prompt, guard);
           if (!stableResult.ok || stableResult.reason === 'user-takeover') result = stableResult;
         }
+        if (result.ok && guard && result.reason !== 'user-takeover') armComposerEscapeRepair(prompt);
         if (result.ok || result.stage === 'existing_draft' || count >= attempts) {
           return result.ok ? result : {
             ok: false,
@@ -1253,6 +1258,31 @@
     }
   }
 
+  // 填入确认之后 ChatGPT 仍可能换框（慢网络下页面加载更久）：之后约 15 秒内每 250ms 看一眼，
+  // 输入框里出现「本提示词被加了反斜杠」的版本就用原文重填。只认这一种形态——用户改过、清空、
+  // 发送后的内容都不是它，所以不会和用户抢输入框。按次数而不是按时间计，测试环境里不会空转。
+  let composerEscapeRepair = null;
+
+  function armComposerEscapeRepair(text) {
+    const token = {};
+    composerEscapeRepair = token;
+    let polls = 0;
+    const tick = async () => {
+      if (composerEscapeRepair !== token) return;
+      polls += 1;
+      const target = findChatGptComposerTarget();
+      if (target && isMarkdownEscapedCopyOfPrompt(readEditableText(target), text)) {
+        const result = await fillChatGptPromptOnceAsync(text, { preserveExistingDraft: true });
+        try {
+          console.info('[触触搜][AIFill] ChatGPT 换框时给提示词加了反斜杠，已用原文重新填入', { ok: !!result?.ok });
+        } catch (_) { /* ignore */ }
+      }
+      if (polls < 60 && composerEscapeRepair === token) setTimeout(tick, 250);
+      else if (composerEscapeRepair === token) composerEscapeRepair = null;
+    };
+    setTimeout(tick, 250);
+  }
+
   function fillChatGptPromptOnce(text, options = {}) {
     if (!text) return { ok: false, error: 'no-text' };
     const target = findChatGptComposerTarget();
@@ -1262,8 +1292,8 @@
       const expected = normalizeFilledText(text);
       const current = normalizeFilledText(readEditableText(target));
       if (current === expected) return { ok: true, skipped: true, reason: 'already-filled-intact' };
-      const safeCurrentTask = current.length >= 32 &&
-        (expected.includes(current) || current.includes(expected));
+      const safeCurrentTask = (current.length >= 32 &&
+        (expected.includes(current) || current.includes(expected))) || isMarkdownEscapedCopyOfPrompt(current, text);
       if (options.preserveExistingDraft !== false && current && !safeCurrentTask) {
         return { ok: false, error: 'existing-draft', stage: 'existing_draft' };
       }
@@ -1289,8 +1319,8 @@
     const expected = normalizeFilledText(text);
     const current = normalizeFilledText(readEditableText(target));
     if (current === expected) return { ok: true, skipped: true, reason: 'already-filled-intact' };
-    const safeCurrentTask = current.length >= 32 &&
-      (expected.includes(current) || current.includes(expected));
+    const safeCurrentTask = (current.length >= 32 &&
+      (expected.includes(current) || current.includes(expected))) || isMarkdownEscapedCopyOfPrompt(current, text);
     if (options.preserveExistingDraft !== false && current && !safeCurrentTask) {
       return { ok: false, error: 'existing-draft', stage: 'existing_draft' };
     }
@@ -1713,7 +1743,11 @@
   }
 
   function editableAcceptsFilledText(element, text) {
-    const value = normalizeFilledText(readEditableText(element));
+    return filledTextMatches(readEditableText(element), text);
+  }
+
+  function filledTextMatches(rawValue, text) {
+    const value = normalizeFilledText(rawValue);
     const expected = normalizeFilledText(text);
     if (!expected) return !value;
     if (value === expected) return true;
@@ -1735,6 +1769,21 @@
     const end = valueCollapsed.lastIndexOf(tail) + tail.length;
     if (start < 0 || end <= start) return false;
     return collapseBlankLines(normalizeFilledText(valueCollapsed.slice(start, end))) === expectedCollapsed;
+  }
+
+  // ChatGPT 新开页面加载完成时会换掉输入框，把框里已有的纯文本按 Markdown 转义后搬进新框
+  // （行首 # - * +、「1.」、所有 * _ ` 等前面加反斜杠），发送出去就带着这些反斜杠。
+  // 转义后的内容就是我们自己的提示词，不是用户草稿：识别出来后用原文重新填入新框
+  // （已加载好的输入框里填入的纯文本发送时不会被转义）。
+  const COMPOSER_MARKDOWN_ESCAPE = /\\([\\`*_{}\[\]()#+\-.!>~|])/g;
+
+  function isMarkdownEscapedCopyOfPrompt(rawValue, text) {
+    const value = normalizeFilledText(rawValue);
+    if (!value || !value.includes('\\')) return false;
+    const unescaped = value.replace(COMPOSER_MARKDOWN_ESCAPE, '$1');
+    // 必须逐字等于本提示词（只容忍空行差异）：用户在后面补了字、改了一处，都不再是「我们的」内容
+    return unescaped !== value &&
+      collapseBlankLines(normalizeFilledText(unescaped)) === collapseBlankLines(normalizeFilledText(text));
   }
 
   function hasRequiredLineBreakStructure(value, expected) {
