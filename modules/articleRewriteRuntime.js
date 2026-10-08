@@ -10,7 +10,9 @@
   const SELECT_A_PREFIX = '选A并且按照提示词改写：';
   const CONVERSATION_SOURCE_NOTE = '原始素材参考本次对话上下文。';
   const WRITING_BLOCK_SELECTOR = ChatGptDom.WRITING_BLOCK_SELECTOR;
-  const IGNORED_SELECTOR = 'button, [role="toolbar"], nav, menu, [role="menu"]';
+  // 交互控件不算回复正文。新模型会在 A/B 两行纯文本后面再渲染一组单选项 + 「确认选择」按钮
+  // （选项文案是模型改述的），不跳过它就会让「回复以 B 行结尾」的判断失败。
+  const IGNORED_SELECTOR = 'button, [role="toolbar"], nav, menu, [role="menu"], [role="radiogroup"]';
   const BLOCK_TAGS = new Set([
     'ADDRESS', 'BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
     'LI', 'OL', 'P', 'PRE', 'SECTION', 'UL'

@@ -81,6 +81,8 @@ function main() {
       assert(promptTemplate.includes("在 writing block 之外输出标题：【短篇回答】"), "short answer label must stay outside its writing block")
       assert(promptTemplate.includes("在 writing block 之外输出标题：【中篇回答】"), "medium answer label must stay outside its writing block")
       assert(promptTemplate.includes("在所有 writing block 之外输出以下两个选项"), "A/B options must stay outside writing blocks")
+      // 新模型会把 A/B 做成单选控件 +「确认选择」，点它只发一个 "A"，绕过选A改写提示词
+      assert(promptTemplate.includes("原样写成两行纯文本，不要做成单选框、按钮或其他可点击的选项控件"), "A/B options must stay plain text, not an interactive choice widget")
       assert(promptTemplate.includes("用户选择 A："), "fast answers must define the A follow-up")
       assert(promptTemplate.includes("用户选择 B："), "fast answers must define the B follow-up")
     }

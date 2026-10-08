@@ -79,6 +79,17 @@ export async function verifyChatgptRedesign(cdp, swCdp) {
     await waitFor(() => !button(), '不完整 A/B 内容错误保留选 A 入口')
     choices.innerHTML = validChoices
     await waitFor(() => button(), '恢复完整 A/B 内容后没有选 A 入口')
+    // 2026-10 新模型：A/B 两行纯文本后面再渲染一组改述过的单选项 + 「确认选择」（GenUI）
+    const genUi = document.createElement('div')
+    genUi.innerHTML = `<div role="radiogroup" aria-label="Options" data-d-component="radio-group">
+        <div data-d-component="radio"><button type="button" role="radio" aria-checked="true" id="genui-a"></button><label for="genui-a">A：生成约 100 句话的长篇深度分析</label></div>
+        <div data-d-component="radio"><button type="button" role="radio" aria-checked="false" id="genui-b"></button><label for="genui-b">B：改写成更口语、更自然的表达</label></div>
+      </div>
+      <div data-d-component="box"><button type="button">确认选择</button></div>`
+    choices.after(genUi)
+    await delay(300)
+    assert(button() && document.querySelectorAll(marker).length === 1, 'A/B 后面跟着单选控件时丢了选 A 入口')
+    genUi.remove()
     const controls = select.querySelector('.turn-action-controls')
     const replacement = controls.cloneNode(true)
     replacement.querySelectorAll(marker).forEach((node) => node.remove())
