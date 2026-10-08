@@ -25,7 +25,8 @@ const SITES = [
     adapters: ["modules/chatGptDom.js"],
     tokens: [
       "data-message-author-role", "data-chatgpt-", "writing-block", "data-composer-markdown",
-      "conversation-turn-", 'data-testid="stop-button"', 'data-testid="send-button"', "fruitjuice", "data-oai-"
+      "conversation-turn-", 'data-testid="stop-button"', 'data-testid="send-button"', "fruitjuice", "data-oai-",
+      "data-user-message-bubble"
     ]
   },
   {

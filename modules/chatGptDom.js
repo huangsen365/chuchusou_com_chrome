@@ -43,6 +43,9 @@
   const SEND_BUTTON_SELECTOR = '[data-testid="send-button"], [data-testid="fruitjuice-send-button"]';
   const STOP_BUTTON_SELECTOR = '[data-testid="stop-button"]';
   const STOP_CONTROL_SELECTOR = `${STOP_BUTTON_SELECTOR}, button[aria-label="Stop generating" i], button[aria-label="停止生成"]`;
+  // Long user messages render collapsed: only the first ~10k characters plus a
+  // "Show more" toggle. The rest is not in the DOM until the user expands it.
+  const COLLAPSED_USER_MESSAGE_SELECTOR = '[data-user-message-bubble] button[aria-expanded="false"]';
 
   function messageRole(root) {
     const legacy = root.getAttribute('data-message-author-role');
@@ -61,6 +64,10 @@
       const ancestor = node.parentElement?.closest(MESSAGE_SELECTOR);
       return !ancestor || messageRole(ancestor) !== role || !root.contains(ancestor);
     });
+  }
+
+  function isCollapsedUserMessage(message) {
+    return messageRole(message) === 'user' && Boolean(message.querySelector(COLLAPSED_USER_MESSAGE_SELECTOR));
   }
 
   function assistantMessages(root = document) {
@@ -152,7 +159,7 @@
     WRITING_BLOCK_SELECTOR, WRITING_EDITOR_SELECTOR, WRITING_BLOCK_HEADER_SELECTOR,
     WRITING_BLOCK_COPY_BUTTON_SELECTORS, COMPOSER_SELECTORS, COMPOSER_EXCLUDE_SELECTOR,
     SEND_BUTTON_SELECTOR, STOP_BUTTON_SELECTOR, STOP_CONTROL_SELECTOR, messageRole, messages,
-    assistantMessages, assistantMessageFor, turnFor, markdownRoots, markdownFor,
+    isCollapsedUserMessage, assistantMessages, assistantMessageFor, turnFor, markdownRoots, markdownFor,
     writingBlocks, previousUserMessage, responseCopyButton, actionAnchor, insertAfterAction
   };
 })();

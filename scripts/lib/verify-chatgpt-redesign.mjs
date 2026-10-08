@@ -189,6 +189,19 @@ export async function verifyChatgptRedesign(cdp, swCdp) {
     await waitFor(() => !actions(), '同轮普通用户输入仍借用其他轮的旧工作流')
     user.textContent = sourcePrompt
     await waitFor(ready, '恢复同轮工作流后长文动作未恢复')
+    // 2026-10：很长的用户消息默认折叠，只渲染开头 +「Show more」，二十八节与原始素材展开前不在 DOM
+    user.textContent = '请写一篇普通文章。'
+    await waitFor(() => !actions(), '普通用户输入仍保留长文动作')
+    user.textContent = sourcePrompt.split('\n').slice(0, 2).join('\n') + '\n# 一、写作目标\n前面一万字的模板正文……'
+    const showMore = document.createElement('button')
+    showMore.setAttribute('aria-expanded', 'false')
+    showMore.textContent = 'Show more'
+    user.append(showMore)
+    await waitFor(ready, '折叠的选A提示词（只渲染开头 + Show more）没认出改写工作流')
+    showMore.remove()
+    await waitFor(() => !actions(), '没折叠、只有模板开头的提示词被当成改写工作流')
+    user.textContent = sourcePrompt
+    await waitFor(ready, '恢复完整提示词后长文动作未恢复')
     const nextTurn = document.createElement('div')
     nextTurn.setAttribute('data-turn-key', 'turn-next')
     nextTurn.innerHTML = '<div data-chatgpt-search-unit-key="turn-next:0:user" data-chatgpt-search-message-ids="user-next"><div data-user-message-bubble="true">普通后续提问。</div></div>' +

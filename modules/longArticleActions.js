@@ -79,6 +79,16 @@
     return normalizeText(clone.innerText || clone.textContent || '');
   }
 
+  const REWRITE_PROMPT_HEAD = /^(?:选A并且按照提示词改写：\s*)?# 通用「GPT-4\.5 感」原始素材深度改写提示词(?:\n|$)/u;
+
+  // ChatGPT 把很长的用户消息折叠起来：只渲染开头一万字左右 +「Show more」，二十八节与原始素材
+  // 都在没渲染的后半段。折叠时只能凭开头认——选A改写和文档改写的提示词都以模板标题开头。
+  function isWorkflowSourceMessage(message) {
+    const text = messageText(message);
+    if (isArticleRewritePromptText(text)) return true;
+    return ChatGptDom.isCollapsedUserMessage(message) && REWRITE_PROMPT_HEAD.test(text);
+  }
+
   function isVisible(element) {
     if (!(element instanceof HTMLElement) || !element.isConnected) return false;
     const style = getComputedStyle(element);
@@ -313,7 +323,7 @@
     }
     if (!copyButton && !toolbar) return null;
     const previous = ChatGptDom.previousUserMessage(assistant);
-    if (!previous || !isArticleRewritePromptText(messageText(previous))) return null;
+    if (!previous || !isWorkflowSourceMessage(previous)) return null;
     return {
       block,
       copyButton,
