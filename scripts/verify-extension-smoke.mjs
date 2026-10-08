@@ -509,15 +509,23 @@ async function main() {
       })()
     `)
     if (!liveProbe?.ok) fail(`ccs-main-live 未注册（探针结果: ${JSON.stringify(liveProbe)}）`)
+    // 孪生树在 ccs-main-live 之后才建完，同样轮询（单次探测在 SW 慢启动时偶发误报）
     const twinProbe = await evaluate(swCdp, `
-      new Promise((res) => {
-        try {
-          chrome.contextMenus.update("ccs-baidu--sel", { visible: true }, () => {
-            const lastError = chrome.runtime.lastError?.message || "";
-            res({ ok: !lastError, lastError });
+      (async () => {
+        let lastError = "";
+        for (let i = 0; i < 50; i++) {
+          lastError = await new Promise((res) => {
+            try {
+              chrome.contextMenus.update("ccs-baidu--sel", { visible: true }, () => {
+                res(chrome.runtime.lastError?.message || "");
+              });
+            } catch (e) { res(e?.message || String(e)); }
           });
-        } catch (e) { res({ ok: false, lastError: e?.message || String(e) }); }
-      })
+          if (!lastError) return { ok: true, attempts: i + 1 };
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        return { ok: false, lastError };
+      })()
     `)
     if (!twinProbe?.ok) fail(`选区孪生树未注册（ccs-baidu--sel 探针: ${JSON.stringify(twinProbe)}）`)
     console.log(`${TAG} ✓ 选区孪生树已注册（动态关键词根/顶部标签 + 固定标题子项）`)
