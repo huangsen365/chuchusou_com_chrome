@@ -10,9 +10,10 @@
   const SELECT_A_PREFIX = '选A并且按照提示词改写：';
   const CONVERSATION_SOURCE_NOTE = '原始素材参考本次对话上下文。';
   const WRITING_BLOCK_SELECTOR = ChatGptDom.WRITING_BLOCK_SELECTOR;
-  // 交互控件不算回复正文。新模型会在 A/B 两行纯文本后面再渲染一组单选项 + 「确认选择」按钮
-  // （选项文案是模型改述的），不跳过它就会让「回复以 B 行结尾」的判断失败。
-  const IGNORED_SELECTOR = 'button, [role="toolbar"], nav, menu, [role="menu"], [role="radiogroup"]';
+  const IGNORED_SELECTOR = 'button, [role="toolbar"], nav, menu, [role="menu"]';
+  // 新模型会把 A/B 做成单选控件 +「确认选择」，见过两种形态：A/B 两行纯文本后面再跟一组改述过的
+  // 单选项（得跳过控件才以 B 行结尾），或 A/B 只出现在单选项里（得把选项当文字读）。两种读法各判一次。
+  const CHOICE_WIDGET_SELECTOR = '[role="radiogroup"]';
   const BLOCK_TAGS = new Set([
     'ADDRESS', 'BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
     'LI', 'OL', 'P', 'PRE', 'SECTION', 'UL'
@@ -77,11 +78,12 @@
     return matchesAnswerShape(text, COMPACT_RESPONSE_PATTERN);
   }
 
-  function responseTextForMatching(root) {
+  function responseTextForMatching(root, { skipChoiceWidgets = false } = {}) {
+    const ignored = skipChoiceWidgets ? `${IGNORED_SELECTOR}, ${CHOICE_WIDGET_SELECTOR}` : IGNORED_SELECTOR;
     const visit = (node, isRoot = false) => {
       if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
       if (!(node instanceof HTMLElement)) return '';
-      if (node.matches(IGNORED_SELECTOR)) return '';
+      if (node.matches(ignored)) return '';
       if (node.tagName === 'BR') return '\n';
       let text = Array.from(node.childNodes).map((child) => visit(child)).join('');
       if (!isRoot && BLOCK_TAGS.has(node.tagName)) {
@@ -99,36 +101,43 @@
       .trim();
   }
 
-  function implicitTwoWritingBlockText(root) {
+  function implicitTwoWritingBlockText(root, options) {
     const assistantMessage = ChatGptDom.assistantMessageFor(root);
     if (!assistantMessage) return '';
     const writingBlocks = ChatGptDom.writingBlocks(assistantMessage);
     if (writingBlocks.length !== 2) return '';
-    const shortText = responseTextForMatching(writingBlocks[0]);
-    const middleText = responseTextForMatching(writingBlocks[1]);
+    const shortText = responseTextForMatching(writingBlocks[0], options);
+    const middleText = responseTextForMatching(writingBlocks[1], options);
     if (!shortText || !middleText) return '';
     const response = ChatGptDom.markdownFor(assistantMessage);
     const outsideClone = response.cloneNode(true);
     outsideClone.querySelectorAll(WRITING_BLOCK_SELECTOR).forEach((block) => block.remove());
-    const outsideText = responseTextForMatching(outsideClone);
+    const outsideText = responseTextForMatching(outsideClone, options);
     if (!outsideText.startsWith('A：')) return '';
     return ['【短篇回答】', shortText, '【中篇回答】', middleText, outsideText].join('\n');
+  }
+
+  function matchesResponseText(message, options) {
+    const response = ChatGptDom.markdownFor(message);
+    const directText = responseTextForMatching(response, options);
+    if (isFullSelectARewriteResponse(directText)) return true;
+    const writingBlocks = ChatGptDom.writingBlocks(message);
+    if (
+      writingBlocks.length === 2 &&
+      writingBlocks.every((block) => Boolean(responseTextForMatching(block, options))) &&
+      isCompactSelectARewriteResponse(directText)
+    ) return true;
+    const implicitText = implicitTwoWritingBlockText(message, options);
+    return Boolean(implicitText && isFullSelectARewriteResponse(implicitText));
   }
 
   function matchesSelectARewriteResponse(assistantMessage) {
     const message = ChatGptDom.assistantMessageFor(assistantMessage);
     if (!message) return false;
-    const response = ChatGptDom.markdownFor(message);
-    const directText = responseTextForMatching(response);
-    if (isFullSelectARewriteResponse(directText)) return true;
-    const writingBlocks = ChatGptDom.writingBlocks(message);
-    if (
-      writingBlocks.length === 2 &&
-      writingBlocks.every((block) => Boolean(responseTextForMatching(block))) &&
-      isCompactSelectARewriteResponse(directText)
-    ) return true;
-    const implicitText = implicitTwoWritingBlockText(message);
-    return Boolean(implicitText && isFullSelectARewriteResponse(implicitText));
+    if (matchesResponseText(message)) return true;
+    // 第二种读法只在真有单选控件时才算，普通回复不多花一遍
+    return Boolean(message.querySelector(CHOICE_WIDGET_SELECTOR)) &&
+      matchesResponseText(message, { skipChoiceWidgets: true });
   }
 
   function normalizeGoogleDocUrl(urlValue) {
