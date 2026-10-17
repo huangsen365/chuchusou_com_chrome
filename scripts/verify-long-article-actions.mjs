@@ -231,15 +231,57 @@ assert(
 assert(!longApi.isArticleRewritePromptText(prompt.replace("# 二十八、输出与排版要求", "输出要求")), "partial prompt fingerprint accepted")
 assert(!longApi.isArticleRewritePromptText("请写一篇很长的文章"), "generic long-answer prompt accepted")
 
+// Gemini 把整篇放进「Markdown」代码块：# 主标题 / ## 小标题 / **加粗** / 空行分段（2026-10 实测）。
+// 转换只拼字符串、不碰 DOM（页面有 Trusted Types），所以能在这里直接测。
+{
+  const paragraph = (n) => `第 ${n} 段正文，这里有足够长的论述，用来确认整篇文章的长度门槛与段落结构都被保留下来。`
+  const markdown = [
+    "# Google靠给混乱网页排座次起家",
+    "",
+    paragraph(1),
+    "",
+    `谷歌的核心是 **PageRank算法** 与 *双边市场*，见 [官方说明](https://example.com/a?x=1&y=2)，或 [危险链接](javascript:alert(1))。`,
+    "",
+    "## 为什么容易停留在表面",
+    "",
+    ...Array.from({ length: 12 }, (_, i) => [paragraph(i + 2), ""]).flat(),
+    "- 第一条要点",
+    "- 第二条要点",
+    "",
+    "1. 有序一",
+    "2. 有序二",
+    "",
+    "> 引用里的话",
+    "",
+    "<script>alert(1)</script> 结尾段落。"
+  ].join("\n")
+  const parsed = longApi.articleFromMarkdown(markdown)
+  assert(parsed?.title === "Google靠给混乱网页排座次起家", `markdown title wrong: ${parsed?.title}`)
+  assert(parsed.bodyHtml.startsWith("<p>第 1 段正文"), "markdown body must start after the title")
+  assert(!parsed.bodyHtml.includes("Google靠给混乱网页排座次起家"), "markdown title must not repeat in the body")
+  assert(parsed.bodyHtml.includes("<strong>PageRank算法</strong>") && parsed.bodyHtml.includes("<em>双边市场</em>"), "markdown bold/italic not converted")
+  assert(parsed.bodyHtml.includes('<a href="https://example.com/a?x=1&amp;y=2">官方说明</a>'), "markdown http link not converted")
+  assert(!parsed.bodyHtml.includes("javascript:") || !parsed.bodyHtml.includes('href="javascript'), "non-http link must not become an anchor")
+  assert(parsed.bodyHtml.includes("<h2>为什么容易停留在表面</h2>"), "markdown ## heading must become h2")
+  assert(parsed.bodyHtml.includes("<ul><li>第一条要点</li><li>第二条要点</li></ul>") && parsed.bodyHtml.includes("<ol><li>有序一</li><li>有序二</li></ol>"), "markdown lists not converted")
+  assert(parsed.bodyHtml.includes("<blockquote><p>引用里的话</p></blockquote>"), "markdown quote not converted")
+  assert(parsed.bodyHtml.includes("&lt;script&gt;alert(1)&lt;/script&gt;") && !parsed.bodyHtml.includes("<script>"), "raw HTML in markdown must be escaped")
+  assert(!/\*\*|\[官方说明\]/.test(parsed.bodyText) && parsed.bodyText.includes("PageRank算法"), "markdown syntax must be stripped from bodyText")
+  assert(longApi.validArticle(parsed)?.title === parsed.title, "a full markdown article must be deliverable")
+  assert(longApi.articleFromMarkdown("没有主标题的一段话\n\n正文") === null, "markdown without a leading # title is not an article")
+  assert(longApi.articleFromMarkdown("## 只有二级标题\n\n正文") === null, "a ## heading is not a main title")
+  assert(longApi.validArticle(longApi.articleFromMarkdown("# 标题\n\n太短的正文")) === null, "too-short markdown article must not be deliverable")
+}
+
 const bg = loadBackgroundApi()
 const article = {
   title: "测试长文标题",
   bodyText: "正文段落。".repeat(180),
   bodyHtml: `<p>${"正文段落。".repeat(180)}</p>`
 }
-assert(bg.api.trustedChatGptSource("https://chatgpt.com/c/abc", "https://chatgpt.com/c/abc"), "trusted ChatGPT source rejected")
+assert(bg.api.trustedArticleSource("https://chatgpt.com/c/abc", "https://chatgpt.com/c/abc"), "trusted ChatGPT source rejected")
 assert(
-  bg.api.trustedChatGptSource(
+  bg.api.trustedArticleSource(
     "https://chatgpt.com/c/previous",
     "https://chatgpt.com/c/current",
     "https://chatgpt.com/c/current"
@@ -247,7 +289,7 @@ assert(
   "ChatGPT SPA navigation source rejected"
 )
 assert(
-  !bg.api.trustedChatGptSource(
+  !bg.api.trustedArticleSource(
     "https://chatgpt.com/c/previous",
     "https://chatgpt.com/c/current",
     "https://chatgpt.com/c/another"
@@ -255,14 +297,25 @@ assert(
   "unrelated ChatGPT source accepted"
 )
 assert(
-  !bg.api.trustedChatGptSource(
+  !bg.api.trustedArticleSource(
     "https://x.com/compose/articles",
     "https://chatgpt.com/c/current",
     "https://chatgpt.com/c/current"
   ),
   "non-ChatGPT sender accepted through its tab URL"
 )
-assert(!bg.api.trustedChatGptSource("https://chatgpt.com.evil.test/c/abc", "https://chatgpt.com.evil.test/c/abc"), "lookalike ChatGPT host accepted")
+assert(!bg.api.trustedArticleSource("https://chatgpt.com.evil.test/c/abc", "https://chatgpt.com.evil.test/c/abc"), "lookalike ChatGPT host accepted")
+assert(bg.api.trustedArticleSource("https://gemini.google.com/app/abc", "https://gemini.google.com/app/abc"), "trusted Gemini source rejected")
+assert(
+  bg.api.trustedArticleSource("https://gemini.google.com/app", "https://gemini.google.com/app/abc", "https://gemini.google.com/app/abc"),
+  "Gemini SPA navigation source rejected"
+)
+assert(
+  !bg.api.trustedArticleSource("https://gemini.google.com/app/abc", "https://chatgpt.com/c/abc", "https://chatgpt.com/c/abc"),
+  "a Gemini sender must not act for a ChatGPT source"
+)
+assert(!bg.api.trustedArticleSource("https://gemini.google.com.evil.test/app/abc", "https://gemini.google.com.evil.test/app/abc"), "lookalike Gemini host accepted")
+assert(!bg.api.trustedArticleSource("https://www.google.com/search?q=x", "https://www.google.com/search?q=x"), "plain Google pages are not article sources")
 const delivery = await bg.api.createAndDeliverXArticleDraft(article, "https://chatgpt.com/c/abc")
 assert(delivery.success === true, "X article task delivery failed")
 assert(bg.createdTabs[0]?.url === "https://x.com/compose/articles", "wrong X composer URL")
@@ -360,7 +413,9 @@ assert(longActionSource.includes("workflowCandidateFor"), "long actions must mou
 assert(longActionSource.includes("ccsLongArticleState"), "long actions generation state is missing")
 assert(longActionSource.includes("'generating'"), "long actions generating state is missing")
 assert(longActionSource.includes("'settling'"), "long actions settling state is missing")
-assert(longActionSource.includes("extractArticle(current.block)"), "long actions must read the live article at click time")
+// 点击时重新向站点要一次文章（不复用挂载时的快照）：ChatGPT 与 Gemini 都经 site.inspect → article()
+assert(longActionSource.includes("const current = site.inspect(assistant);") && longActionSource.includes("current.article()"),
+  "long actions must read the live article at click time")
 assert(longActionSource.includes("replaceArticlePayloadTa(article)"), "X draft action must apply TA replacement")
 assert(longActionSource.includes("replace(/他/g, 'TA')"), "X draft TA replacement rule missing")
 assert(longActionSource.includes("replaceHtmlTextNodes(template.content)"), "X draft HTML text-node replacement missing")
@@ -378,8 +433,8 @@ for (const action of [
   assert(registeredActions.includes(action), `background route ${action} missing`)
 }
 assert(
-  eventSource.includes("trustedChatGptSource(senderUrl, sourceUrl, senderTabUrl)"),
-  "background must pass the current tab URL for ChatGPT SPA navigation"
+  eventSource.includes("trustedArticleSource(senderUrl, sourceUrl, senderTabUrl)"),
+  "background must pass the current tab URL for ChatGPT / Gemini SPA navigation"
 )
 
 console.log("[verify-long-article-actions] ✓ 长文来源识别、任务隔离、封面跟随侧边栏置顶风格（7 种场景）、MAIN-world Draft.js 写入及保存保护验证通过")

@@ -37,6 +37,8 @@ import {
 } from "./lib/cdp.mjs"
 import { verifyPlainArticleActions } from "./lib/verify-plain-article-actions.mjs"
 import { chatgptRedesignFixture, verifyChatgptRedesign } from "./lib/verify-chatgpt-redesign.mjs"
+import { geminiSelectAFixture, verifyGeminiSelectA } from "./lib/verify-gemini-select-a.mjs"
+import { geminiLongArticleFixture, verifyGeminiLongArticle } from "./lib/verify-gemini-long-article.mjs"
 
 const root = process.cwd()
 const buildDir = path.join(root, "build/chrome-mv3-prod")
@@ -126,8 +128,13 @@ async function main() {
     key: fs.readFileSync(tls.keyPath),
     cert: fs.readFileSync(tls.certPath)
   }, (req, res) => {
-    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
     const hostname = String(req.headers.host || "").split(":")[0]
+    // 真实 Gemini 开着 Trusted Types（2026-10 实测：页面里 execCommand('insertHTML', 字符串) 直接抛错）。
+    // 夹具照做，扩展在 Gemini 上的写法都得在它下面跑通。
+    res.writeHead(200, {
+      "Content-Type": "text/html; charset=utf-8",
+      ...(hostname === "gemini.google.com" ? { "Content-Security-Policy": "require-trusted-types-for 'script'" } : {})
+    })
     if (hostname === "chatgpt.com" && (req.url || "").startsWith("/redesign-fixture")) {
       res.end(chatgptRedesignFixture(longArticleParagraphs))
       return
@@ -207,6 +214,37 @@ async function main() {
             event.preventDefault()
             window.__submitClicks += 1
           })
+        </script>`)
+      return
+    }
+    if (hostname === "gemini.google.com" && (req.url || "").startsWith("/app/long-article-fixture")) {
+      res.end(geminiLongArticleFixture())
+      return
+    }
+    if (hostname === "gemini.google.com" && (req.url || "").startsWith("/app/select-a-fixture")) {
+      res.end(geminiSelectAFixture())
+      return
+    }
+    if (hostname === "gemini.google.com") {
+      // 仿真实 Gemini 输入框（2026-10 实测）：<rich-textarea> 里的 Quill 编辑器 .ql-editor[contenteditable][role=textbox]，
+      // 外加 Quill 隐藏的 .ql-clipboard。点发送只计数，用来断言扩展不会自动发送。
+      res.end(`<!doctype html><meta charset="utf-8"><title>Google Gemini fixture</title>
+        <style>
+          .ql-editor { width: 720px; min-height: 120px; border: 1px solid #999; white-space: pre-wrap; }
+          .ql-clipboard { position: absolute; left: -100000px; height: 1px; overflow-y: hidden; }
+        </style>
+        <main>
+          <rich-textarea class="text-input-field_textarea ql-container ql-bubble">
+            <div class="ql-editor ql-blank textarea new-input-ui" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Enter a prompt for Gemini" data-placeholder="Ask Gemini"><p><br></p></div>
+            <div class="ql-clipboard" contenteditable="true" tabindex="-1"></div>
+          </rich-textarea>
+          <button class="send-button" type="button" aria-label="Send message">Send</button>
+        </main>
+        <script>
+          window.__geminiSends = 0
+          document.querySelector('.send-button').addEventListener('click', () => { window.__geminiSends += 1 })
+          const editor = document.querySelector('.ql-editor')
+          editor.addEventListener('input', () => editor.classList.toggle('ql-blank', !editor.textContent.trim()))
         </script>`)
       return
     }
@@ -392,7 +430,7 @@ async function main() {
     // Extensions.loadUnpacked（需要下面这个 flag）。不要再加
     // --load-extension/--disable-extensions-except —— 实测会干扰 CDP 装载的扩展。
     "--enable-unsafe-extension-debugging",
-    `--host-resolver-rules=MAP www.baidu.com 127.0.0.1:${httpsPort},MAP chat.baidu.com 127.0.0.1:${httpsPort},MAP www.google.com 127.0.0.1:${httpsPort},MAP chatgpt.com 127.0.0.1:${httpsPort},MAP claude.ai 127.0.0.1:${httpsPort},MAP docs.google.com 127.0.0.1:${httpsPort},MAP x.com 127.0.0.1:${httpsPort},MAP www.zhihu.com 127.0.0.1:${httpsPort},MAP zhuanlan.zhihu.com 127.0.0.1:${httpsPort}`,
+    `--host-resolver-rules=MAP www.baidu.com 127.0.0.1:${httpsPort},MAP chat.baidu.com 127.0.0.1:${httpsPort},MAP www.google.com 127.0.0.1:${httpsPort},MAP chatgpt.com 127.0.0.1:${httpsPort},MAP claude.ai 127.0.0.1:${httpsPort},MAP docs.google.com 127.0.0.1:${httpsPort},MAP gemini.google.com 127.0.0.1:${httpsPort},MAP x.com 127.0.0.1:${httpsPort},MAP www.zhihu.com 127.0.0.1:${httpsPort},MAP zhuanlan.zhihu.com 127.0.0.1:${httpsPort}`,
     "--ignore-certificate-errors",
     "--remote-debugging-port=0",
     `--user-data-dir=${userDataDir}`,
@@ -529,6 +567,31 @@ async function main() {
     `)
     if (!twinProbe?.ok) fail(`选区孪生树未注册（ccs-baidu--sel 探针: ${JSON.stringify(twinProbe)}）`)
     console.log(`${TAG} ✓ 选区孪生树已注册（动态关键词根/顶部标签 + 固定标题子项）`)
+
+    // Gemini 右键菜单：速答快捷 / AI 对话 / 百问 / 速答 / 优化各分类都要真建出来（封面暂不接 Gemini）
+    const geminiMenuProbe = await evaluate(swCdp, `
+      (async () => {
+        const ids = ["ccs-fastqa-gemini-quick", "ccs-gemini", "ccs-top100-gemini", "ccs-fastqa-gemini",
+          "ccs-optimize-deep-research-gemini", "ccs-optimize-description-polish-gemini"];
+        const missing = [];
+        for (const id of ids) {
+          let lastError = "";
+          for (let i = 0; i < 50; i++) {
+            lastError = await new Promise((res) => {
+              try {
+                chrome.contextMenus.update(id, {}, () => res(chrome.runtime.lastError?.message || ""));
+              } catch (e) { res(e?.message || String(e)); }
+            });
+            if (!lastError) break;
+            await new Promise((r) => setTimeout(r, 100));
+          }
+          if (lastError) missing.push(id + ": " + lastError);
+        }
+        return { ok: missing.length === 0, missing };
+      })()
+    `)
+    if (!geminiMenuProbe?.ok) fail(`Gemini 右键菜单项缺失: ${JSON.stringify(geminiMenuProbe)}`)
+    console.log(`${TAG} ✓ Gemini 右键菜单项齐全（速答快捷 / AI 对话 / 百问 / 速答 / 优化）`)
 
     // 4. 消息协议：从扩展页（about:blank tab 导航到 welcome 页）发真实消息
     const pageTarget = await findTarget(port, (t) => t.type === "page" && t.webSocketDebuggerUrl)
@@ -781,6 +844,58 @@ async function main() {
       fail(`文心 relay storage/tab 绑定异常: ${JSON.stringify(storedWenxinRelay)}`)
     }
     console.log(`${TAG} ✓ 文心新入口短提示走 storage relay（新域名 / 无 q / prompt + tab 绑定完整）`)
+
+    // 9.2 Gemini：网址不接受提示词参数，任何提示词都走 storage relay。打开 gemini.google.com/app 后
+    //     content.js 把完整速答提示词填进 Quill 输入框（夹具仿真实 DOM），清掉 relay 标记，不自动发送。
+    const geminiKeyword = "Gemini 冒烟速答主题"
+    const targetIdsBeforeGemini = new Set(
+      (await fetch(`http://127.0.0.1:${port}/json/list`).then((r) => r.json())).map((target) => target.id)
+    )
+    const geminiExec = await evaluate(pageCdp, `
+      new Promise((resolve) => {
+        const timer = setTimeout(() => resolve({ __timeout: true }), 8000);
+        chrome.runtime.sendMessage(
+          {
+            action: "executeMenuAction", menuItemId: "ccs-fastqa-gemini-quick", menuType: "fastqa-quick",
+            engineId: "gemini", keyword: ${JSON.stringify("Gemini 冒烟速答主题")}
+          },
+          (resp) => { clearTimeout(timer); resolve({ success: resp?.success === true, raw: resp }); }
+        );
+      })
+    `)
+    if (geminiExec?.__timeout || !geminiExec?.success) {
+      fail(`Gemini 速答 executeMenuAction 失败: ${JSON.stringify(geminiExec?.raw || geminiExec)}`)
+    }
+    const geminiTarget = await findTarget(port, (t) =>
+      t.type === "page" && !targetIdsBeforeGemini.has(t.id) && (t.url || "").startsWith("https://gemini.google.com/app"), 8000)
+    if (!geminiTarget) fail("Gemini 速答没有打开 gemini.google.com/app")
+    const geminiOpenedUrl = new URL(geminiTarget.url)
+    if (geminiOpenedUrl.searchParams.has("q") || geminiOpenedUrl.searchParams.has("prompt")) {
+      fail(`Gemini 不接受提示词参数，打开的网址不该带 q/prompt: ${geminiTarget.url}`)
+    }
+    const geminiCdp = new CdpClient(await connectWebSocket(geminiTarget.webSocketDebuggerUrl))
+    let geminiFill = null
+    try {
+      await geminiCdp.call("Runtime.enable")
+      for (let i = 0; i < 60; i++) {
+        geminiFill = await evaluate(geminiCdp, `(() => {
+          const editor = document.querySelector('rich-textarea .ql-editor');
+          return { text: editor ? editor.innerText : '', hash: location.hash, sends: window.__geminiSends || 0 };
+        })()`).catch(() => null)
+        if (geminiFill?.text?.includes(geminiKeyword) && !geminiFill.hash.includes("ccs_pp")) break
+        await wait(250)
+      }
+    } finally {
+      geminiCdp.close()
+    }
+    if (!geminiFill?.text?.startsWith("请针对以下主题生成回答") || !geminiFill.text.includes(geminiKeyword) ||
+        !geminiFill.text.includes("以**简体中文**为主要输出语言") || /\$\{[A-Za-z]+\}/.test(geminiFill.text)) {
+      fail(`Gemini 输入框没有填入完整速答提示词: ${JSON.stringify(geminiFill)?.slice(0, 600)}`)
+    }
+    if (geminiFill.hash.includes("ccs_pp") || geminiFill.sends !== 0) {
+      fail(`Gemini 填入后 relay 标记未清理或被自动发送: ${JSON.stringify({ hash: geminiFill.hash, sends: geminiFill.sends })}`)
+    }
+    console.log(`${TAG} ✓ Gemini 速答全链正常（无 q / storage relay / Quill 输入框填入完整提示词 / 清理标记 / 不自动发送）`)
 
     // 12. URL 关键字提取子系统（keywords.js 搜索引擎分支）：
     //     复用 #9 开出的"百度"标签（域名已映射到本地 HTTPS 夹具，URL 与 wd=
@@ -1302,6 +1417,24 @@ async function main() {
     if (chatRedesignFixture.exceptions.length > 0) fail(`ChatGPT 新版页面未捕获异常: ${chatRedesignFixture.exceptions[0]}`)
     console.log(`${TAG} ✓ ChatGPT 新版页面兼容（同轮双角色 / 严格选 A / Copy wrapper 定位 / Writing block 标题 / 主 composer 填充与草稿保护 / 纯 Markdown 长文 / 流式状态与来源隔离）`)
     chatRedesignFixture.cdp.close()
+
+    // 每生成一次改写提示词，形式轮换计数器就前进一格；这里点两次会改变后面「相邻两篇形式不同」检查的前提，
+    // 测完把计数器放回原值，让本段对后续用例无副作用
+    const readVarietyCounter = () => evaluate(swCdp, `new Promise((resolve) => chrome.storage.local.get(['ccs_rewrite_variety_counter'], (d) => resolve(d.ccs_rewrite_variety_counter ?? null)))`)
+    const varietyCounterBeforeGemini = await readVarietyCounter()
+    const geminiSelectAFixturePage = await openSiteFixture("https://gemini.google.com/app/select-a-fixture")
+    await verifyGeminiSelectA(geminiSelectAFixturePage.cdp)
+    if (await readVarietyCounter() === varietyCounterBeforeGemini) fail("Gemini 选A改写没有经后台生成改写提示词（轮换计数器未前进）")
+    await evaluate(swCdp, `new Promise((resolve) => chrome.storage.local.set({ ccs_rewrite_variety_counter: ${JSON.stringify(varietyCounterBeforeGemini)} }, resolve))`)
+    if (geminiSelectAFixturePage.exceptions.length > 0) fail(`Gemini 选A改写未捕获异常: ${geminiSelectAFixturePage.exceptions[0]}`)
+    console.log(`${TAG} ✓ Gemini 选A改写正常（代码块速答识别 / 复制按钮后单按钮 / 生成中不出 / 底栏重绘恢复 / 完整填入 / 不自动发送 / 草稿保护）`)
+    geminiSelectAFixturePage.cdp.close()
+
+    const geminiLongArticlePage = await openSiteFixture("https://gemini.google.com/app/long-article-fixture")
+    await verifyGeminiLongArticle(geminiLongArticlePage.cdp, swCdp)
+    if (geminiLongArticlePage.exceptions.length > 0) fail(`Gemini 长文双动作未捕获异常: ${geminiLongArticlePage.exceptions[0]}`)
+    console.log(`${TAG} ✓ Gemini 长文双动作正常（Markdown 代码块 / 渲染版两种文章 / 生成中等待态 / 来源校验 / 封面与 X 草稿投递 / TA 替换 / Trusted Types 下可用）`)
+    geminiLongArticlePage.cdp.close()
 
     const docsFixture = await openSiteFixture("https://docs.google.com/document/u/0/d/smoke-doc/edit?tab=t.0#heading=h.smoke")
     const docsButtons = await evaluate(docsFixture.cdp, `(() => {

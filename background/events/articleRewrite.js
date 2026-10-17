@@ -125,11 +125,13 @@ function ccsHandleGetSelectARewritePrompt(request, sender, sendResponse) {
   } catch (_) {
     senderHost = '';
   }
+  // 「选A并优化改写」按钮只在 ChatGPT 与 Gemini 页面出现
   if (!(
     senderHost === 'chatgpt.com' || senderHost.endsWith('.chatgpt.com') ||
-    senderHost === 'chat.openai.com' || senderHost.endsWith('.chat.openai.com')
+    senderHost === 'chat.openai.com' || senderHost.endsWith('.chat.openai.com') ||
+    senderHost === 'gemini.google.com'
   )) {
-    respond({ success: false, error: 'sender-not-chatgpt' });
+    respond({ success: false, error: 'sender-not-supported-ai-site' });
     return true;
   }
   ccsBuildArticleRewritePrompt('原始素材参考本次对话上下文。')

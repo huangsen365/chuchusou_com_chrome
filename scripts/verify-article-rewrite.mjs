@@ -126,6 +126,16 @@ async function verifyApi(name, api, hooks) {
   assert(api.isCompactSelectARewriteResponse(COMPACT_RESPONSE), `${name}: compact Select-A response rejected`)
   assert(!api.isCompactSelectARewriteResponse(`${COMPACT_RESPONSE}\n额外说明`), `${name}: trailing response content accepted`)
   assert(!api.isCompactSelectARewriteResponse(COMPACT_RESPONSE.replace("更口语", "更简洁")), `${name}: incomplete B constraint accepted`)
+  // 站点无关判定：紧凑版 A/B 要恰好两个有内容的独立块；allowNoBlocks（Gemini）时没有块也认
+  const twoBlocks = ["短篇正文", "中篇正文"]
+  assert(api.matchesSelectARewriteText(COMPACT_RESPONSE, twoBlocks), `${name}: compact text with two blocks rejected`)
+  assert(!api.matchesSelectARewriteText(COMPACT_RESPONSE, []), `${name}: compact text without blocks accepted by default`)
+  assert(api.matchesSelectARewriteText(COMPACT_RESPONSE, [], { allowNoBlocks: true }), `${name}: compact text without blocks rejected under allowNoBlocks`)
+  assert(!api.matchesSelectARewriteText(COMPACT_RESPONSE, ["只有一块"], { allowNoBlocks: true }), `${name}: compact text with one block accepted`)
+  assert(!api.matchesSelectARewriteText(COMPACT_RESPONSE, ["短篇正文", ""]), `${name}: compact text with an empty block accepted`)
+  assert(api.matchesSelectARewriteText(FULL_RESPONSE, []), `${name}: full text must match without blocks`)
+  assert(!api.matchesSelectARewriteText(`${COMPACT_RESPONSE}\n额外说明`, twoBlocks, { allowNoBlocks: true }), `${name}: trailing content accepted by text matcher`)
+  assert(typeof api.fillSelectARewriteFromButton === "function", `${name}: shared select-A click handler missing`)
 
   const prompt = await api.buildSelectARewritePrompt()
   assert(prompt.startsWith("选A并且按照提示词改写：\n# 通用「GPT-4.5 感」"), `${name}: Select-A prefix/template missing`)

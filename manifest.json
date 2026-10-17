@@ -64,7 +64,10 @@
         "modules/articleRewriteRuntime.js",
         "modules/googleDocsRewrite.js",
         "modules/chatGptSelectARewrite.js",
+        "modules/geminiDom.js",
+        "modules/geminiSelectARewrite.js",
         "modules/longArticleActions.js",
+        "modules/geminiLongArticle.js",
         "modules/xArticleDraftDelivery.js",
         "dockbar.js",
         "content.js"

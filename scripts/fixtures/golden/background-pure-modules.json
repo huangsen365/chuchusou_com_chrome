@@ -8,9 +8,11 @@
     "COPY": "ccs-copy",
     "FASTQA_CHATGPT_QUICK": "ccs-fastqa-chatgpt-quick",
     "FASTQA_CLAUDE_QUICK": "ccs-fastqa-claude-quick",
+    "FASTQA_GEMINI_QUICK": "ccs-fastqa-gemini-quick",
     "FASTQA_GROK_QUICK": "ccs-fastqa-grok-quick",
     "FASTQA_OPEN_ALL": "ccs-fastqa-open-all",
     "FASTQA_ROOT": "ccs-fastqa-root",
+    "GEMINI": "ccs-gemini",
     "GOOGLE": "ccs-google",
     "GOOGLE_AI_CHAT": "ccs-google-ai-chat",
     "GOOGLE_TRANSLATE": "ccs-google-translate",
@@ -40,24 +42,28 @@
     "AI_CHAT": [
       "ccs-chatgpt",
       "ccs-claude",
-      "ccs-grok"
+      "ccs-grok",
+      "ccs-gemini"
     ],
     "DYNAMIC_TITLE": [
       "ccs-main",
       "ccs-chatgpt",
       "ccs-claude",
       "ccs-grok",
+      "ccs-gemini",
       "ccs-chuchusou",
       "ccs-fastqa-chatgpt-quick",
       "ccs-fastqa-claude-quick",
       "ccs-fastqa-grok-quick",
+      "ccs-fastqa-gemini-quick",
       "ccs-fastqa-root",
       "ccs-fastqa-open-all"
     ],
     "FAST_QA_QUICK": [
       "ccs-fastqa-chatgpt-quick",
       "ccs-fastqa-claude-quick",
-      "ccs-fastqa-grok-quick"
+      "ccs-fastqa-grok-quick",
+      "ccs-fastqa-gemini-quick"
     ],
     "GENERAL_SEARCH": [
       "ccs-zhihu",
@@ -163,9 +169,11 @@
     "ccs-copy",
     "ccs-fastqa-chatgpt-quick",
     "ccs-fastqa-claude-quick",
+    "ccs-fastqa-gemini-quick",
     "ccs-fastqa-grok-quick",
     "ccs-fastqa-open-all",
     "ccs-fastqa-root",
+    "ccs-gemini",
     "ccs-google",
     "ccs-google-ai-chat",
     "ccs-google-translate",
@@ -416,6 +424,11 @@
     {
       "categoryId": "content-creation",
       "engineId": "grok",
+      "taskId": "optimize"
+    },
+    {
+      "categoryId": "content-creation",
+      "engineId": "gemini",
       "taskId": "optimize"
     },
     {

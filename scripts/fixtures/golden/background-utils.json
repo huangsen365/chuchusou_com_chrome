@@ -55,6 +55,10 @@
       "icon": "🧠",
       "text": "触触搜 · 速答壹拾佰 - Claude"
     },
+    "ccs-fastqa-gemini-quick": {
+      "icon": "♊",
+      "text": "触触搜 · 速答壹拾佰 - Gemini"
+    },
     "ccs-fastqa-google-ai-quick": {
       "icon": "✨",
       "text": "触触搜 · 速答壹拾佰 - Google AI 模式"
@@ -74,6 +78,10 @@
     "ccs-fastqa-yiyan-quick": {
       "icon": "🧠",
       "text": "触触搜 · 速答壹拾佰 - 文心一言"
+    },
+    "ccs-gemini": {
+      "icon": "♊",
+      "text": "Gemini"
     },
     "ccs-google": {
       "icon": "🔎",
@@ -181,6 +189,13 @@
       "menuIcon": "🦊",
       "menuTitle": "触触搜 · 速答壹拾佰 - Grok",
       "titleKey": "grok"
+    },
+    {
+      "engineId": "gemini",
+      "id": "ccs-fastqa-gemini-quick",
+      "menuIcon": "♊",
+      "menuTitle": "触触搜 · 速答壹拾佰 - Gemini",
+      "titleKey": "gemini"
     },
     {
       "engineId": "yiyan",

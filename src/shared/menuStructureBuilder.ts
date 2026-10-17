@@ -34,6 +34,7 @@ export const MENU_DEFS: Record<string, MenuDefinitionEntry> = {
   "ccs-chatgpt": { text: "ChatGPT", icon: "🤖" },
   "ccs-claude": { text: "Claude", icon: "🧠" },
   "ccs-grok": { text: "Grok", icon: "🦊" },
+  "ccs-gemini": { text: "Gemini", icon: "♊" },
   "ccs-google-ai-chat": { text: "Google AI 模式", icon: "✨" },
   "ccs-zhihu": { text: "知乎搜索", icon: "💡" },
   "ccs-weixin": { text: "微信搜一搜", icon: "💬" },
@@ -71,6 +72,7 @@ export const FAST_QA_QUICK: FastQaQuickItem[] = [
   { id: "ccs-fastqa-chatgpt-quick", engineId: "chatgpt", menuTitle: "触触搜 · 速答壹拾佰 - ChatGPT", menuIcon: "🤖" },
   { id: "ccs-fastqa-claude-quick", engineId: "claude", menuTitle: "触触搜 · 速答壹拾佰 - Claude", menuIcon: "🧠" },
   { id: "ccs-fastqa-grok-quick", engineId: "grok", menuTitle: "触触搜 · 速答壹拾佰 - Grok", menuIcon: "🦊" },
+  { id: "ccs-fastqa-gemini-quick", engineId: "gemini", menuTitle: "触触搜 · 速答壹拾佰 - Gemini", menuIcon: "♊" },
   { id: "ccs-fastqa-yiyan-quick", engineId: "yiyan", menuTitle: "触触搜 · 速答壹拾佰 - 文心一言", menuIcon: "🧠" },
   { id: "ccs-fastqa-google-ai-quick", engineId: "google-ai", menuTitle: "触触搜 · 速答壹拾佰 - Google AI 模式", menuIcon: "✨" }
 ]
@@ -121,6 +123,8 @@ const AI_ITEMS: SearchLikeItem[] = [
   { id: "ccs-chatgpt", type: "ai-chat", urlPattern: "https://chatgpt.com/?q=${KEYWORD}" },
   { id: "ccs-claude", type: "ai-chat", urlPattern: "https://claude.ai/new?q=${KEYWORD}" },
   { id: "ccs-grok", type: "ai-chat", urlPattern: "https://grok.com/?q=${KEYWORD}" },
+  // Gemini 网址不接受提示词参数：入口不带占位符，打开时固定走本地 relay 自动填入（同文心）
+  { id: "ccs-gemini", type: "ai-chat", urlPattern: "https://gemini.google.com/app" },
   { id: "ccs-yiyan", type: "ai-search", urlPattern: "https://chat.baidu.com/" },
   { id: "ccs-google-ai-chat", type: "ai-chat", urlPattern: "https://www.google.com/search?udm=50&ie=UTF-8&oe=UTF-8&q=${KEYWORD}" }
 ]

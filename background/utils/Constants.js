@@ -41,6 +41,7 @@ const MENU_DEFINITIONS = {
   'ccs-chatgpt': { text: 'ChatGPT', icon: '🤖' },
   'ccs-claude': { text: 'Claude', icon: '🧠' },
   'ccs-grok': { text: 'Grok', icon: '🦊' },
+  'ccs-gemini': { text: 'Gemini', icon: '♊' },
   'ccs-google-ai-chat': { text: 'Google AI 模式', icon: '✨' },
   'ccs-zhihu': { text: '知乎搜索', icon: '💡' },
   'ccs-weixin': { text: '微信搜一搜', icon: '💬' },
@@ -91,6 +92,13 @@ const FAST_QA_QUICK_ITEMS = [
     titleKey: 'grok',
     menuTitle: '触触搜 · 速答壹拾佰 - Grok',
     menuIcon: '🦊'
+  },
+  {
+    id: 'ccs-fastqa-gemini-quick',
+    engineId: 'gemini',
+    titleKey: 'gemini',
+    menuTitle: '触触搜 · 速答壹拾佰 - Gemini',
+    menuIcon: '♊'
   },
   {
     id: 'ccs-fastqa-yiyan-quick',

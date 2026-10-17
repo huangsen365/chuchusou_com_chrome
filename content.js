@@ -114,6 +114,8 @@
       if (host === 'grok.com' || host.endsWith('.grok.com')) return 'grok';
       if (host === 'chat.baidu.com') return 'yiyan';
       if (host === 'yiyan.baidu.com') return 'yiyan';
+      // 先于 Google AI 模式：gemini.google.com 也是 .google.com
+      if (host === 'gemini.google.com') return 'gemini';
       if ((host === 'google.com' || host.endsWith('.google.com')) && (url.searchParams.get('udm') === '50' || hasRelayId)) {
         return 'google-ai';
       }

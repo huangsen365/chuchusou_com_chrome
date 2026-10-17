@@ -232,8 +232,8 @@
     };
   }
 
-  function extractArticle(block) {
-    const snapshot = extractArticleSnapshot(block);
+  // 站点无关：标题 + 正文够格才算一篇可投递的文章
+  function validArticle(snapshot) {
     if (!snapshot) return null;
     if (snapshot.title.length < 2 || snapshot.title.length > MAX_TITLE_LENGTH) return null;
     if (snapshot.bodyText.length < MIN_BODY_LENGTH || !snapshot.bodyHtml) return null;
@@ -242,6 +242,99 @@
       bodyHtml: snapshot.bodyHtml,
       bodyText: snapshot.bodyText,
       omittedMedia: snapshot.omittedMedia
+    };
+  }
+
+  function extractArticle(block) {
+    return validArticle(extractArticleSnapshot(block));
+  }
+
+  // 已渲染的文章（正文里恰好一个 <h1> 作主标题），站点无关
+  function articleFromRenderedRoot(root) {
+    const headings = root.querySelectorAll('h1');
+    if (headings.length !== 1) return null;
+    return { title: normalizeText(headings[0].textContent || ''), ...sanitizeBody(root, headings[0]) };
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function markdownInlineToHtml(value) {
+    return escapeHtml(value)
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2">$1</a>')
+      .replace(/\*\*([^*]+?)\*\*|__([^_]+?)__/g, (_, a, b) => `<strong>${a || b}</strong>`)
+      .replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, '$1<em>$2</em>');
+  }
+
+  function markdownInlineToText(value) {
+    return String(value)
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/\*\*([^*]+?)\*\*|__([^_]+?)__/g, (_, a, b) => a || b)
+      .replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, '$1$2')
+      .trim();
+  }
+
+  // Markdown 原文写成的文章（Gemini 会把整篇放进「Markdown」代码块）：首个非空行必须是「# 主标题」。
+  // 只拼字符串、不碰 DOM——页面开了 Trusted Types 也能用。各级小标题统一成 h2（与渲染版一致）。
+  function articleFromMarkdown(text) {
+    const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+    let index = 0;
+    while (index < lines.length && !lines[index].trim()) index += 1;
+    const titleMatch = (lines[index] || '').trim().match(/^#\s+(.+?)\s*#*$/u);
+    if (!titleMatch) return null;
+    const html = [];
+    const plain = [];
+    let list = null;
+    const closeList = () => {
+      if (!list) return;
+      html.push(`<${list.tag}>${list.items.map((item) => `<li>${item}</li>`).join('')}</${list.tag}>`);
+      list = null;
+    };
+    for (const rawLine of lines.slice(index + 1)) {
+      const line = rawLine.trim();
+      if (!line || /^(?:-{3,}|\*{3,}|_{3,})$/.test(line)) {
+        closeList();
+        continue;
+      }
+      const heading = line.match(/^#{1,6}\s+(.+?)\s*#*$/u);
+      const item = line.match(/^(?:([-*+])|\d+[.)])\s+(.+)$/u);
+      const quote = line.match(/^>\s?(.*)$/u);
+      if (item) {
+        const tag = item[1] ? 'ul' : 'ol';
+        if (list?.tag !== tag) {
+          closeList();
+          list = { tag, items: [] };
+        }
+        list.items.push(markdownInlineToHtml(item[2]));
+        plain.push(markdownInlineToText(item[2]));
+        continue;
+      }
+      closeList();
+      if (heading) {
+        html.push(`<h2>${markdownInlineToHtml(heading[1])}</h2>`);
+        plain.push(markdownInlineToText(heading[1]));
+      } else if (quote) {
+        if (!quote[1].trim()) continue;
+        html.push(`<blockquote><p>${markdownInlineToHtml(quote[1])}</p></blockquote>`);
+        plain.push(markdownInlineToText(quote[1]));
+      } else {
+        html.push(`<p>${markdownInlineToHtml(line)}</p>`);
+        plain.push(markdownInlineToText(line));
+      }
+    }
+    closeList();
+    return {
+      title: markdownInlineToText(titleMatch[1]),
+      bodyHtml: html.join(''),
+      bodyText: normalizeText(plain.join('\n')),
+      omittedMedia: false
     };
   }
 
@@ -340,6 +433,30 @@
     return article ? { ...candidate, article } : null;
   }
 
+  // 站点接口：responses() 列出回复；inspect(response) 返回 null（不是改写工作流产出的长文），或
+  // { streaming, signature, article(), place(actions) }——按钮、状态机与投递对所有站点共用。
+  // ChatGPT 的实现在这里，Gemini 的在 modules/geminiLongArticle.js。
+  const chatGptSite = {
+    isSupportedPage,
+    responses: () => ChatGptDom.assistantMessages(),
+    inspect(assistant) {
+      const candidate = workflowCandidateFor(assistant);
+      if (!candidate) return null;
+      return {
+        streaming: candidate.streaming,
+        signature: candidate.snapshot?.signature || '',
+        article: () => extractArticle(candidate.block),
+        place(actions) {
+          if (candidate.copyButton) {
+            ChatGptDom.insertAfterAction(candidate.copyButton, actions);
+          } else if (!actions.isConnected && candidate.toolbar) {
+            candidate.toolbar.appendChild(actions);
+          }
+        }
+      };
+    }
+  };
+
   function sendMessage(message) {
     return new Promise((resolve) => {
       try {
@@ -401,11 +518,11 @@
     });
   }
 
-  async function runAction(button, action, assistant, schedule) {
+  async function runAction(button, action, assistant, schedule, site) {
     const isX = action === 'ccsCreateXArticleDraft';
     const original = button.dataset.ccsLongArticleDefaultLabel || (isX ? '注入X草稿' : '生成封面');
-    const current = workflowCandidateFor(assistant);
-    const article = current && !current.streaming ? extractArticle(current.block) : null;
+    const current = site.inspect(assistant);
+    const article = current && !current.streaming ? current.article() : null;
     if (!article) {
       toast('warning', current?.streaming
         ? ACTION_STATE_TITLES.generating
@@ -445,7 +562,7 @@
     }
   }
 
-  function createActionButton(marker, label, title, action, assistant, schedule) {
+  function createActionButton(marker, label, title, action, assistant, schedule, site) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = ACTION_CLASS;
@@ -462,7 +579,7 @@
     labelNode.className = LABEL_CLASS;
     labelNode.textContent = label;
     button.append(spinner, labelNode);
-    button.addEventListener('click', () => void runAction(button, action, assistant, schedule));
+    button.addEventListener('click', () => void runAction(button, action, assistant, schedule, site));
     return button;
   }
 
@@ -506,14 +623,14 @@
     actionGroups.delete(assistant);
   }
 
-  function ensureActions(assistant, candidate, schedule) {
-    const { copyButton, toolbar } = candidate;
+  function ensureActions(assistant, candidate, schedule, site) {
     let actions = actionGroups.get(assistant);
     if (!actions) {
       actions = document.createElement('span');
       actions.setAttribute(ACTIONS_MARKER, 'true');
       actions.style.display = 'inline-flex';
       actions.style.alignItems = 'center';
+      actions.style.verticalAlign = 'middle';
       actions.append(
         createActionButton(
           X_MARKER,
@@ -521,7 +638,8 @@
           '打开专用 X Articles 标签页并写入草稿；遇到已有内容会停止，不会自动发布',
           'ccsCreateXArticleDraft',
           assistant,
-          schedule
+          schedule,
+          site
         ),
         createActionButton(
           COVER_MARKER,
@@ -529,27 +647,24 @@
           '用完整文章生成封面，风格跟随侧边栏置顶的封面风格（未置顶时用默认的墨清风格）；打开 ChatGPT 并填入提示词，不会自动发送',
           'ccsCreateLongArticleCover',
           assistant,
-          schedule
+          schedule,
+          site
         )
       );
       actionGroups.set(assistant, actions);
     }
-    if (copyButton) {
-      ChatGptDom.insertAfterAction(copyButton, actions);
-    } else if (!actions.isConnected && toolbar) {
-      toolbar.appendChild(actions);
-    }
+    candidate.place(actions);
     return actions;
   }
 
-  function consider(assistant, schedule) {
-    const candidate = workflowCandidateFor(assistant);
+  function consider(site, assistant, schedule) {
+    const candidate = site.inspect(assistant);
     if (!candidate) {
       removeActions(assistant);
       return;
     }
-    const actions = ensureActions(assistant, candidate, schedule);
-    const signature = candidate.snapshot?.signature || '';
+    const actions = ensureActions(assistant, candidate, schedule, site);
+    const signature = candidate.signature || '';
     let record = stability.get(assistant);
     if (!record) {
       record = { signature, since: 0, timer: 0, wasStreaming: false };
@@ -578,7 +693,7 @@
       return;
     }
     record.timer = 0;
-    const article = extractArticle(candidate.block);
+    const article = candidate.article();
     if (article && record.conceptsSignature !== signature) {
       // 成品就绪即记录加粗概念（近期概念记忆），与按钮状态无关；同一篇只记一次
       record.conceptsSignature = signature;
@@ -596,9 +711,9 @@
     } catch (_) { /* 记忆失败不影响主流程 */ }
   }
 
-  function start() {
+  function start(site = chatGptSite) {
     try {
-      if (window.top !== window || !isSupportedPage()) return () => {};
+      if (window.top !== window || !site.isSupportedPage()) return () => {};
     } catch (_) {
       return () => {};
     }
@@ -613,7 +728,7 @@
         for (const assistant of actionGroups.keys()) {
           if (!assistant.isConnected) removeActions(assistant);
         }
-        ChatGptDom.assistantMessages().forEach((assistant) => consider(assistant, schedule));
+        site.responses().forEach((assistant) => consider(site, assistant, schedule));
       });
     };
     const observer = new MutationObserver((mutations) => {
@@ -649,12 +764,15 @@
   }
 
   window.CCSModules.LongArticleActions = {
+    articleFromMarkdown,
+    articleFromRenderedRoot,
     candidateFor,
     extractArticle,
     isArticleRewritePromptText,
     isSupportedPage,
     replaceArticlePayloadTa,
-    start
+    start,
+    validArticle
   };
   start();
 })();

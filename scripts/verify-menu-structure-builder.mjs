@@ -130,6 +130,22 @@ function main() {
   const disabledIds = new Set(disabledStructure.groups.flatMap((group) => flattenItems(group.items || [])).map((item) => item.id))
   assert(!disabledIds.has(disabledId), "explicit toggleConfig=false must hide matching menu item")
 
+  // Gemini：速答快捷、AI 对话、百问、速答、优化（每个分类）都有；封面暂不接（只有 ChatGPT 图片）
+  const geminiItems = builtItems.filter((item) => item.id.includes("gemini"))
+  const geminiIds = new Set(geminiItems.map((item) => item.id))
+  for (const id of [
+    "ccs-fastqa-gemini-quick", "ccs-gemini", "ccs-top100-gemini", "ccs-fastqa-gemini",
+    ...optimizeConfig.categories.map((category) => `ccs-optimize-${category.id}-gemini`)
+  ]) {
+    assert(geminiIds.has(id), `Gemini menu item ${id} missing from builder output`)
+  }
+  assert(geminiIds.size === 4 + optimizeConfig.categories.length, `unexpected Gemini items: ${[...geminiIds].join(", ")}`)
+  assert(!builtItems.some((item) => item.type === "cover" && item.engineId === "gemini"), "cover styles must not offer Gemini yet")
+  for (const item of geminiItems) {
+    assert(item.title.includes("Gemini"), `${item.id} title should name Gemini, got ${item.title}`)
+    if (item.urlPattern) assert(item.urlPattern === "https://gemini.google.com/app", `${item.id} must open the Gemini chat entry`)
+  }
+
   const fullOpts = { unifiedConfig, enginesConfig, top100Config, fastqaConfig, optimizeConfig, coverConfig }
   const idsOf = (out) => new Set(out.groups.flatMap((group) => flattenItems(group.items || [])).map((item) => item.id))
 

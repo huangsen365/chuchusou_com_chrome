@@ -78,8 +78,11 @@
     return matchesAnswerShape(text, COMPACT_RESPONSE_PATTERN);
   }
 
-  function responseTextForMatching(root, { skipChoiceWidgets = false } = {}) {
-    const ignored = skipChoiceWidgets ? `${IGNORED_SELECTOR}, ${CHOICE_WIDGET_SELECTOR}` : IGNORED_SELECTOR;
+  // ignoreSelector：站点自己的控件区（如 Gemini 代码块头部的「Plaintext」标签），不算回复正文
+  function responseTextForMatching(root, { skipChoiceWidgets = false, ignoreSelector = '' } = {}) {
+    const ignored = [IGNORED_SELECTOR, skipChoiceWidgets ? CHOICE_WIDGET_SELECTOR : '', ignoreSelector]
+      .filter(Boolean)
+      .join(', ');
     const visit = (node, isRoot = false) => {
       if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
       if (!(node instanceof HTMLElement)) return '';
@@ -117,16 +120,21 @@
     return ['【短篇回答】', shortText, '【中篇回答】', middleText, outsideText].join('\n');
   }
 
+  // 站点无关的判定：directText 是整条回复的文字，blockTexts 是回复里独立文本块（ChatGPT 的 writing block、
+  // Gemini 的代码块）的正文。完整版 A/B 直接认；紧凑版只在恰好两块且都有内容时认——allowNoBlocks
+  // 时（站点可能把两篇回答直接写成段落）没有块也认。
+  function matchesSelectARewriteText(directText, blockTexts = [], { allowNoBlocks = false } = {}) {
+    if (isFullSelectARewriteResponse(directText)) return true;
+    const blocksOk = (blockTexts.length === 2 && blockTexts.every(Boolean)) ||
+      (allowNoBlocks && blockTexts.length === 0);
+    return blocksOk && isCompactSelectARewriteResponse(directText);
+  }
+
   function matchesResponseText(message, options) {
     const response = ChatGptDom.markdownFor(message);
     const directText = responseTextForMatching(response, options);
-    if (isFullSelectARewriteResponse(directText)) return true;
-    const writingBlocks = ChatGptDom.writingBlocks(message);
-    if (
-      writingBlocks.length === 2 &&
-      writingBlocks.every((block) => Boolean(responseTextForMatching(block, options))) &&
-      isCompactSelectARewriteResponse(directText)
-    ) return true;
+    const blockTexts = ChatGptDom.writingBlocks(message).map((block) => responseTextForMatching(block, options));
+    if (matchesSelectARewriteText(directText, blockTexts)) return true;
     const implicitText = implicitTwoWritingBlockText(message, options);
     return Boolean(implicitText && isFullSelectARewriteResponse(implicitText));
   }
@@ -234,6 +242,41 @@
     return fill(prompt, { preserveExistingDraft: true, watchSendResidue: true });
   }
 
+  function toast(type, message) {
+    const api = window.CCSModules.Toast;
+    if (typeof api?.[type] === 'function') api[type](message);
+  }
+
+  // 「选A并优化改写」按钮的点击：取改写提示词 → 填进当前站点的输入框（不覆盖草稿、不自动发送）。
+  // siteName 只用于提示文案。ChatGPT 与 Gemini 的按钮共用这一份。
+  async function fillSelectARewriteFromButton(button, { siteName = 'AI' } = {}) {
+    const original = button.textContent || '↗ 选A并优化改写';
+    button.disabled = true;
+    button.textContent = '⏳ 填入中…';
+    try {
+      const prompt = await buildSelectARewritePrompt();
+      const result = await fillCurrentComposer(prompt);
+      if (!result?.ok && result?.stage === 'existing_draft') {
+        throw new Error(`${siteName} 输入框已有草稿，为避免覆盖，未填入改写提示词`);
+      }
+      if (!result?.ok) {
+        throw new Error(result?.error === 'composer-not-found'
+          ? `未找到 ${siteName} 输入框`
+          : `${siteName} 输入框未完整接受改写提示词`);
+      }
+      button.textContent = '✓ 已填入';
+      toast('success', `“选A”与优化改写提示词已填入 ${siteName}，请检查后手动发送`);
+    } catch (error) {
+      button.textContent = '⚠ 填入失败';
+      toast('error', error?.message || String(error));
+    } finally {
+      window.setTimeout(() => {
+        button.disabled = false;
+        button.textContent = original;
+      }, 2500);
+    }
+  }
+
   function requestGoogleDocRewrite(sourceUrl, target) {
     return new Promise((resolve) => {
       try {
@@ -258,9 +301,11 @@
     WRITING_BLOCK_SELECTOR,
     buildSelectARewritePrompt,
     fillCurrentComposer,
+    fillSelectARewriteFromButton,
     isCompactSelectARewriteResponse,
     isFullSelectARewriteResponse,
     matchesSelectARewriteResponse,
+    matchesSelectARewriteText,
     normalizeGoogleDocUrl,
     requestGoogleDocRewrite,
     responseTextForMatching

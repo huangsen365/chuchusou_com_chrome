@@ -193,6 +193,32 @@ async function verifyWenxinNewSiteAlwaysUsesRelay(runtime) {
   assert(relayIdFromUrl(legacyUrl), "legacy yiyan patterns should still use relay")
 }
 
+async function verifyGeminiAlwaysUsesRelay(runtime) {
+  const { context } = runtime
+  const entry = "https://gemini.google.com/app"
+  assert.equal(context.ccsGetAIEngineForUrl(entry), "gemini", "gemini.google.com should be recognized as the gemini engine")
+  // gemini.google.com 也是 .google.com：带 relay id 时不能被误认成 Google AI 模式
+  assert.equal(context.ccsGetAIEngineForUrl(`${entry}#ccs_pp=pabc_123456`), "gemini", "Gemini relay URL must not be classified as google-ai")
+  assert.equal(context.ccsGetAIEngineForUrl("https://www.google.com/search?udm=50&q=x"), "google-ai", "Google AI mode detection must stay unchanged")
+  assert.equal(context.ccsGetAIEngineForUrl("https://www.google.com/search?q=x"), "", "plain Google search is not an AI engine")
+
+  const prompt = "Gemini 单行短提示"
+  const url = await context.ccsPrepareAIPromptUrl(entry, prompt, {
+    source: "gemini-relay-test",
+    menuId: "ccs-gemini",
+    engineId: "gemini"
+  })
+  const parsed = new URL(url)
+  const relayId = relayIdFromUrl(url)
+  assert.equal(parsed.hostname, "gemini.google.com", "Gemini relay should open gemini.google.com")
+  assert.equal(parsed.pathname, "/app", "Gemini relay should open the chat entry")
+  assert.equal(parsed.searchParams.has("q"), false, "Gemini ignores q, so relay URLs must not include it")
+  assert(relayId, "Gemini should use relay even for a short single-line prompt")
+  const pending = await context.ccsReadPendingAIPrompt(relayId)
+  assert.equal(pending.prompt, prompt)
+  assert.equal(pending.relayEngine, "gemini", "the relay record must name gemini so the page's request matches it")
+}
+
 async function verifyMultilineAiPromptsUseRelay(runtime) {
   const { context } = runtime
   const prompt = "第一行\n\n第二行\n第三行"
@@ -362,6 +388,13 @@ async function verifyConfiguredPatterns(runtime) {
         `${item.source}:${item.id} should use the official Wenxin entry without a dead q parameter`
       )
     }
+    if (item.id.includes("gemini")) {
+      assert.equal(
+        item.pattern,
+        "https://gemini.google.com/app",
+        `${item.source}:${item.id} should use the Gemini chat entry (no prompt parameter)`
+      )
+    }
     const direct = context.ccsBuildUrlFromPattern(item.pattern, longText)
     if (context.ccsIsSupportedAIUrl(direct)) {
       const prepared = await context.ccsPrepareAIPromptUrl(item.pattern, longText, {
@@ -428,6 +461,7 @@ verifyPromptHandlersDoNotBypassRelay()
 await verifyAiRelay(runtime)
 await verifyGoogleAiRelay(runtime)
 await verifyWenxinNewSiteAlwaysUsesRelay(runtime)
+await verifyGeminiAlwaysUsesRelay(runtime)
 await verifyMultilineAiPromptsUseRelay(runtime)
 await verifyRegularUrlTruncation(runtime)
 await verifyFourOhFour(runtime)

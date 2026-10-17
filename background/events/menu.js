@@ -475,6 +475,15 @@ function ccsHandleExecuteMenuAction(request, sender, sendResponse) {
                 );
                 handled = true;
                 break;
+              case 'ccs-gemini':
+                await ccsOpenMenuUrlWithAIRelay(
+                  'https://gemini.google.com/app',
+                  keyword,
+                  'https://gemini.google.com/app',
+                  { source: 'execute-menu-action-fallback', menuId: menuItemId, engineId: 'gemini' }
+                );
+                handled = true;
+                break;
               case 'ccs-zhihu':
                 chrome.tabs.create({ url: `https://www.zhihu.com/search?q=${encodedKeyword}` });
                 handled = true;

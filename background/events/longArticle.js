@@ -10,8 +10,8 @@ function ccsHandleCreateXArticleDraft(request, sender, sendResponse) {
   const senderUrl = sender?.url || '';
   const senderTabUrl = sender?.tab?.url || '';
   const sourceUrl = typeof request.sourceUrl === 'string' ? request.sourceUrl : '';
-  if (!globalThis.CCSArticleActions?.trustedChatGptSource(senderUrl, sourceUrl, senderTabUrl)) {
-    respond({ success: false, error: 'sender-not-chatgpt' });
+  if (!globalThis.CCSArticleActions?.trustedArticleSource(senderUrl, sourceUrl, senderTabUrl)) {
+    respond({ success: false, error: 'sender-not-supported-ai-site' });
     return true;
   }
   globalThis.CCSArticleActions.createAndDeliverXArticleDraft(request.input, sourceUrl)
@@ -26,8 +26,8 @@ function ccsHandleCreateLongArticleCover(request, sender, sendResponse) {
   const senderUrl = sender?.url || '';
   const senderTabUrl = sender?.tab?.url || '';
   const sourceUrl = typeof request.sourceUrl === 'string' ? request.sourceUrl : '';
-  if (!globalThis.CCSArticleActions?.trustedChatGptSource(senderUrl, sourceUrl, senderTabUrl)) {
-    respond({ success: false, error: 'sender-not-chatgpt' });
+  if (!globalThis.CCSArticleActions?.trustedArticleSource(senderUrl, sourceUrl, senderTabUrl)) {
+    respond({ success: false, error: 'sender-not-supported-ai-site' });
     return true;
   }
   globalThis.CCSArticleActions.createLongArticleCover(request.input, sourceUrl, sender?.tab?.id)

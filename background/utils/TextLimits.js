@@ -30,7 +30,7 @@ const SOFT_WARN_THRESHOLD = 1500;
 // 各类菜单对"用户原文"的硬截断上限（扣除 prompt 模板开销后的安全预算）
 const LIMITS = {
   googleAi: 1200,      // udm=50 搜索形态，2048 URL 上限扣除 encode + 模板后约 1200
-  aiChat: 6000,        // ChatGPT/Claude/Grok/文心: ?q=... 承载较宽
+  aiChat: 6000,        // ChatGPT/Claude/Grok/Gemini/文心: ?q=... 承载较宽
   search: 1500,        // 百度/Google/知乎/微信/淘宝/京东/V2EX/翻译等普通搜索
   default: 1500        // 未知场景的保守值
 };
@@ -45,7 +45,7 @@ const FINAL_URL_HARD_CAP = 1900;
  *   - 任何涉及 Google 搜索普通形态 ccs-google (非 ai) → search
  *   - fastqa / top100 / optimize 的 google-ai 分支 → googleAi
  *   - fastqa / top100 / optimize 的其它引擎 → aiChat
- *   - ccs-chatgpt / ccs-claude / ccs-grok / ccs-yiyan / ccs-tongyi → aiChat
+ *   - ccs-chatgpt / ccs-claude / ccs-grok / ccs-gemini / ccs-yiyan / ccs-tongyi → aiChat
  *   - 其它 → search
  */
 function getLimitForMenu(menuId) {
@@ -55,8 +55,8 @@ function getLimitForMenu(menuId) {
   if (menuId.includes('google-ai')) return LIMITS.googleAi;
 
   // AI 对话引擎（包括主菜单、快捷菜单、百问/速答/优化子项）
-  // 特征：id 里出现 chatgpt/claude/grok/yiyan/tongyi
-  if (/chatgpt|claude|grok|yiyan|tongyi/i.test(menuId)) return LIMITS.aiChat;
+  // 特征：id 里出现 chatgpt/claude/grok/gemini/yiyan/tongyi
+  if (/chatgpt|claude|grok|gemini|yiyan|tongyi/i.test(menuId)) return LIMITS.aiChat;
 
   // 其它（搜索引擎 / 电商 / 翻译 / 入口）
   return LIMITS.search;

@@ -288,8 +288,8 @@ function resolveMenuId(menuId) {
       // rest = "<categoryId>" 或 "<categoryId>-<engineId>"
       // 简化：找最后一段作 engineId，前面作 categoryId
       // 但 categoryId 本身可能带连字符，如 "deep-research"
-      // 约定：engineId 必须是已知引擎（chatgpt/claude/grok/yiyan/google-ai）
-      const KNOWN_ENGINE_IDS = ['chatgpt-images', 'chatgpt', 'claude', 'grok', 'yiyan', 'google-ai'];
+      // 约定：engineId 必须是已知引擎（chatgpt/claude/grok/gemini/yiyan/google-ai）
+      const KNOWN_ENGINE_IDS = ['chatgpt-images', 'chatgpt', 'claude', 'grok', 'gemini', 'yiyan', 'google-ai'];
       for (const eid of KNOWN_ENGINE_IDS) {
         if (rest === eid) {
           // 未带 category，不是合法叶子

@@ -27,6 +27,14 @@
       "searchUrlPattern": "https://grok.com/?q=${KEYWORD}",
       "description": "xAI Grok"
     },
+    "gemini": {
+      "id": "gemini",
+      "label": "Gemini",
+      "icon": "♊",
+      "urlPattern": "https://gemini.google.com/app",
+      "searchUrlPattern": "https://gemini.google.com/app",
+      "description": "Google Gemini（网址不接受提示词参数，固定走本地 relay 自动填入）"
+    },
     "yiyan": {
       "id": "yiyan",
       "label": "文心一言",
@@ -56,11 +64,11 @@
   "presets": {
     "topQuestions": {
       "description": "触触搜百问引擎列表",
-      "engines": ["chatgpt", "claude", "grok", "yiyan", "google-ai"]
+      "engines": ["chatgpt", "claude", "grok", "gemini", "yiyan", "google-ai"]
     },
     "fastAnswers": {
       "description": "速答壹拾佰引擎列表",
-      "engines": ["chatgpt", "claude", "grok", "yiyan", "google-ai"]
+      "engines": ["chatgpt", "claude", "grok", "gemini", "yiyan", "google-ai"]
     },
     "optimizePrompts": {
       "description": "优化提示词引擎列表",
@@ -68,7 +76,7 @@
     },
     "fastQaQuick": {
       "description": "速答快捷菜单引擎列表",
-      "engines": ["chatgpt", "claude", "grok", "yiyan", "google-ai"]
+      "engines": ["chatgpt", "claude", "grok", "gemini", "yiyan", "google-ai"]
     }
   }
 }

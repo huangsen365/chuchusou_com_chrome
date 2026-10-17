@@ -15,6 +15,7 @@
   const AI_QUERY_PARAM_KEYS = ['prompt', 'q', 'query', 'text'];
   const YIYAN_CHAT_HOST = 'chat.baidu.com';
   const YIYAN_LEGACY_HOST = 'yiyan.baidu.com';
+  const GEMINI_HOST = 'gemini.google.com';
   const memoryStore = new Map();
 
   function ccsAIPromptStorageKey(id) {
@@ -108,6 +109,8 @@
       if (host === 'claude.ai' || host.endsWith('.claude.ai')) return 'claude';
       if (host === 'grok.com' || host.endsWith('.grok.com')) return 'grok';
       if (host === YIYAN_CHAT_HOST || host === YIYAN_LEGACY_HOST) return 'yiyan';
+      // 必须先于 Google AI 模式判断：gemini.google.com 也是 .google.com，带 relay id 时会被误认成 google-ai
+      if (host === GEMINI_HOST) return 'gemini';
       if ((host === 'google.com' || host.endsWith('.google.com')) && (parsed.searchParams.get('udm') === '50' || hasRelayId)) {
         return 'google-ai';
       }
@@ -119,6 +122,7 @@
       if (/(^|\/\/)([^/]+\.)?grok\.com([/?#:]|$)/i.test(raw)) return 'grok';
       if (/(^|\/\/)chat\.baidu\.com([/?#:]|$)/i.test(raw)) return 'yiyan';
       if (/(^|\/\/)yiyan\.baidu\.com([/?#:]|$)/i.test(raw)) return 'yiyan';
+      if (/(^|\/\/)gemini\.google\.com([/?#:]|$)/i.test(raw)) return 'gemini';
       if (/(^|\/\/)([^/]+\.)?google\.com\/search\?/i.test(raw) && (/[?&]udm=50(&|$)/i.test(raw) || /[?&#]ccs_pp=[A-Za-z0-9_-]+/i.test(raw))) return 'google-ai';
       return '';
     }
@@ -339,9 +343,10 @@
     const directUrl = ccsBuildPromptUrl(urlPattern, prompt);
     const engine = ccsGetAIEngineForUrl(directUrl);
     const hasPromptLineBreaks = /[\r\n]/.test(String(prompt || ''));
-    // chat.baidu.com ignores the historical q URL parameter. Yiyan therefore
-    // always uses storage relay, including short one-line prompts.
-    const shouldRelay = !!meta.forceRelay || engine === 'google-ai' || engine === 'yiyan' ||
+    // chat.baidu.com ignores the historical q URL parameter, and Gemini has no
+    // prompt URL parameter at all. Both therefore always use storage relay,
+    // including short one-line prompts.
+    const shouldRelay = !!meta.forceRelay || engine === 'google-ai' || engine === 'yiyan' || engine === 'gemini' ||
       hasPromptLineBreaks || directUrl.length > DIRECT_URL_LIMIT;
     if (!engine || !shouldRelay) {
       return directUrl;

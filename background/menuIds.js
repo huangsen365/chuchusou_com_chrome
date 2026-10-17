@@ -21,6 +21,7 @@ const MENU_IDS = Object.freeze({
   FASTQA_CHATGPT_QUICK: 'ccs-fastqa-chatgpt-quick',
   FASTQA_CLAUDE_QUICK: 'ccs-fastqa-claude-quick',
   FASTQA_GROK_QUICK: 'ccs-fastqa-grok-quick',
+  FASTQA_GEMINI_QUICK: 'ccs-fastqa-gemini-quick',
 
   // 搜索引擎组
   BAIDU: 'ccs-baidu',
@@ -30,6 +31,7 @@ const MENU_IDS = Object.freeze({
   CHATGPT: 'ccs-chatgpt',
   CLAUDE: 'ccs-claude',
   GROK: 'ccs-grok',
+  GEMINI: 'ccs-gemini',
   YIYAN: 'ccs-yiyan',
   GOOGLE_AI_CHAT: 'ccs-google-ai-chat',
 
@@ -76,10 +78,12 @@ const MENU_ID_GROUPS = Object.freeze({
     MENU_IDS.CHATGPT,
     MENU_IDS.CLAUDE,
     MENU_IDS.GROK,
+    MENU_IDS.GEMINI,
     MENU_IDS.CHUCHUSOU,
     MENU_IDS.FASTQA_CHATGPT_QUICK,
     MENU_IDS.FASTQA_CLAUDE_QUICK,
     MENU_IDS.FASTQA_GROK_QUICK,
+    MENU_IDS.FASTQA_GEMINI_QUICK,
     MENU_IDS.FASTQA_ROOT,
     MENU_IDS.FASTQA_OPEN_ALL
   ],
@@ -88,7 +92,8 @@ const MENU_ID_GROUPS = Object.freeze({
   FAST_QA_QUICK: [
     MENU_IDS.FASTQA_CHATGPT_QUICK,
     MENU_IDS.FASTQA_CLAUDE_QUICK,
-    MENU_IDS.FASTQA_GROK_QUICK
+    MENU_IDS.FASTQA_GROK_QUICK,
+    MENU_IDS.FASTQA_GEMINI_QUICK
   ],
 
   // 搜索引擎
@@ -103,7 +108,8 @@ const MENU_ID_GROUPS = Object.freeze({
   AI_CHAT: [
     MENU_IDS.CHATGPT,
     MENU_IDS.CLAUDE,
-    MENU_IDS.GROK
+    MENU_IDS.GROK,
+    MENU_IDS.GEMINI
   ],
 
   // 通用搜索

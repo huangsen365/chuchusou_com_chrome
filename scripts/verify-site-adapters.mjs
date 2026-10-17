@@ -4,6 +4,7 @@
  *
  * 各网站的 DOM 知识（data-testid / 私有 class / 属性名）只能写在该站点的适配器文件里：
  *   ChatGPT      → modules/chatGptDom.js（其它模块经 window.CCSModules.ChatGptDom 取用）
+ *   Gemini       → modules/geminiDom.js（geminiSelectARewrite 经 window.CCSModules.GeminiDom 取用）
  *   X            → modules/xTweetFastQa.js（读推文 / 长文）、modules/xArticleDraftDelivery.js
  *                  （写长文草稿）、modules/xArticleMainWorld.js（MAIN world，必须自包含）
  *   知乎          → modules/zhihuFastQa.js
@@ -28,6 +29,11 @@ const SITES = [
       "conversation-turn-", 'data-testid="stop-button"', 'data-testid="send-button"', "fruitjuice", "data-oai-",
       "data-user-message-bubble"
     ]
+  },
+  {
+    site: "Gemini",
+    adapters: ["modules/geminiDom.js"],
+    tokens: ["model-response", "code-block-decoration", "message-actions", "markdown-main-panel", "message-content", "conversation-container", "user-query"]
   },
   {
     site: "X",
@@ -85,6 +91,17 @@ const domIndex = mainScripts.indexOf("modules/chatGptDom.js")
 for (const consumer of ["modules/articleRewriteRuntime.js", "modules/chatGptSelectARewrite.js", "modules/longArticleActions.js", "content.js"]) {
   const idx = mainScripts.indexOf(consumer)
   if (domIndex === -1 || idx === -1 || idx < domIndex) violations.push(`manifest 里 modules/chatGptDom.js 必须先于 ${consumer} 加载`)
+}
+const geminiDomIndex = mainScripts.indexOf("modules/geminiDom.js")
+const geminiConsumerIndex = mainScripts.indexOf("modules/geminiSelectARewrite.js")
+const runtimeIndex = mainScripts.indexOf("modules/articleRewriteRuntime.js")
+if (geminiDomIndex === -1 || geminiConsumerIndex === -1 || geminiConsumerIndex < geminiDomIndex || geminiConsumerIndex < runtimeIndex) {
+  violations.push("manifest 里 modules/geminiDom.js 与 modules/articleRewriteRuntime.js 必须先于 modules/geminiSelectARewrite.js 加载")
+}
+const geminiLongIndex = mainScripts.indexOf("modules/geminiLongArticle.js")
+const longActionsIndex = mainScripts.indexOf("modules/longArticleActions.js")
+if (geminiLongIndex === -1 || geminiLongIndex < geminiDomIndex || geminiLongIndex < longActionsIndex) {
+  violations.push("manifest 里 modules/geminiDom.js 与 modules/longArticleActions.js 必须先于 modules/geminiLongArticle.js 加载")
 }
 // content.js 单独补注入时也要带上 chatGptDom.js
 const reinject = fs.readFileSync(path.join(root, "background/events/menuState.js"), "utf8")

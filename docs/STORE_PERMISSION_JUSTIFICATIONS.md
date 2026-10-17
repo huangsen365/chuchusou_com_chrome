@@ -14,7 +14,7 @@
 **复制粘贴到 devconsole：**
 
 ```
-本扩展会根据用户选中的文本，代用户在新标签页打开搜索引擎和 AI 对话页面（如 ChatGPT、Claude、Grok、Google AI 等）。其中部分 URL 可能被目标网站拒绝（返回 HTTP 4xx）或导航失败——最常见的情况是用户选中的文本过长、拼出的 URL 超出长度上限。我们以"只读/观察"模式使用 webRequest API 来检测这类失败，从而向用户提供一个"恢复"操作（通过中转页重新打开请求，以安全方式提交文本）。
+本扩展会根据用户选中的文本，代用户在新标签页打开搜索引擎和 AI 对话页面（如 ChatGPT、Claude、Grok、Gemini、Google AI 等）。其中部分 URL 可能被目标网站拒绝（返回 HTTP 4xx）或导航失败——最常见的情况是用户选中的文本过长、拼出的 URL 超出长度上限。我们以"只读/观察"模式使用 webRequest API 来检测这类失败，从而向用户提供一个"恢复"操作（通过中转页重新打开请求，以安全方式提交文本）。
 
 具体而言，我们只注册 chrome.webRequest.onCompleted 和 chrome.webRequest.onErrorOccurred 两个监听器，并过滤为 type "main_frame"。我们仅读取由本扩展自身发起的顶层导航的状态码和错误字符串。我们不使用 webRequestBlocking，不读取请求/响应的正文或头部，也不修改、重定向或取消任何请求。不收集、不存储、不向任何地方传输任何网络请求数据。
 ```

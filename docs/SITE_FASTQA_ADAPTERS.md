@@ -34,7 +34,7 @@
 
 ## 适配约束
 
-- 每个网站的 DOM 选择器只写在它的适配器文件里（ChatGPT → `modules/chatGptDom.js`，X → `xTweetFastQa.js` /
+- 每个网站的 DOM 选择器只写在它的适配器文件里（ChatGPT → `modules/chatGptDom.js`，Gemini → `modules/geminiDom.js`，X → `xTweetFastQa.js` /
   `xArticleDraftDelivery.js` / `xArticleMainWorld.js`，知乎 → `zhihuFastQa.js`，Google Docs → `googleDocsRewrite.js`），
   其它模块从适配器取用；`npm run verify:site-adapters` 会拦下散落在别处的选择器。新增网站时把它登记进该守卫。
 

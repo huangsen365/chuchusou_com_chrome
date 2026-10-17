@@ -71,6 +71,18 @@
           "enabled": true
         },
         {
+          "id": "ccs-fastqa-gemini-quick",
+          "type": "fastqa-quick",
+          "title": "触触搜 · 速答壹拾佰 - Gemini",
+          "icon": "♊",
+          "engineId": "gemini",
+          "titleKey": "gemini",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page", "editable"],
+          "urlPattern": "https://gemini.google.com/app",
+          "enabled": true
+        },
+        {
           "id": "ccs-fastqa-yiyan-quick",
           "type": "fastqa-quick",
           "title": "触触搜 · 速答壹拾佰 - 文心一言",
@@ -165,6 +177,16 @@
           "dynamicTitle": true,
           "contexts": ["selection", "page"],
           "urlPattern": "https://grok.com/?q=${KEYWORD}",
+          "enabled": true
+        },
+        {
+          "id": "ccs-gemini",
+          "type": "ai-chat",
+          "title": "Gemini",
+          "icon": "♊",
+          "dynamicTitle": true,
+          "contexts": ["selection", "page"],
+          "urlPattern": "https://gemini.google.com/app",
           "enabled": true
         },
         {
@@ -502,6 +524,11 @@
       "id": "grok",
       "label": "Grok (默认 Grok 3)",
       "icon": "🦊"
+    },
+    "gemini": {
+      "id": "gemini",
+      "label": "Gemini",
+      "icon": "♊"
     }
   }
 }

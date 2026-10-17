@@ -741,6 +741,7 @@ async function verifySupportedContenteditableEnginesPreserveNewlines() {
     ["chatgpt", "https://chatgpt.com/#ccs_pp=pchatgpt_123456"],
     ["claude", "https://claude.ai/new#ccs_pp=pclaude_abcdef"],
     ["grok", "https://grok.com/#ccs_pp=pgrok_123456"],
+    ["gemini", "https://gemini.google.com/app#ccs_pp=pgemini_123456"],
     ["yiyan", "https://yiyan.baidu.com/#ccs_pp=pyiyan_123456"],
     ["google-ai", "https://www.google.com/search?udm=50#ccs_pp=pgoogle_123456"]
   ]
@@ -821,6 +822,32 @@ async function verifyChatBaiduTextareaUsesGenericRelayFill() {
   assert.equal(cleaned.hostname, "chat.baidu.com")
   assert.equal(cleaned.searchParams.get("enter_type"), "yiyan_site")
   assert.equal(cleaned.hash.includes("ccs_pp"), false, "relay marker should be removed after filling")
+}
+
+// Gemini 网址不接受提示词参数，只能走 relay。marker 在 hash 里时按 id 取；hash 已被清掉（或从未保留）时
+// 靠「标签页绑定」取——这要求 gemini.google.com 本身就被认作 AI 站点，而不是只在带 ccs_pp 时被当成 Google AI 模式。
+async function verifyGeminiPullsRelayedPrompt() {
+  const pendingId = "pgemini_relay_123"
+  const harness = makeHarness({ url: `https://gemini.google.com/app#ccs_pp=${pendingId}`, pendingId })
+  await harness.flush()
+  assert.equal(harness.pendingGets.length, 1, "Gemini should pull its relayed prompt by id")
+  assert.equal(harness.pendingGets[0].message.pendingId, pendingId)
+  harness.pendingGets[0].callback({ ok: true, prompt: FASTQA_PROMPT, pendingId })
+  await harness.flush(120)
+  assertSinglePrompt(harness.editor)
+  assert.equal(harness.ackMessages.length, 1, "Gemini relay should be acknowledged once")
+  const cleaned = new URL(harness.context.location.href)
+  assert.equal(cleaned.hostname, "gemini.google.com")
+  assert.equal(cleaned.pathname, "/app")
+  assert.equal(cleaned.hash.includes("ccs_pp"), false, "relay marker should be removed after filling")
+
+  const tabBound = makeHarness({ url: "https://gemini.google.com/app", pendingId: "" })
+  await tabBound.flush()
+  assert.equal(tabBound.pendingGets.length, 1, "Gemini without a relay marker should still ask for a tab-bound prompt")
+  assert.equal(tabBound.pendingGets[0].message.pendingId, "", "tab-bound request carries no relay id")
+  tabBound.pendingGets[0].callback({ ok: true, prompt: FASTQA_PROMPT, pendingId: "pgemini_tab_bound" })
+  await tabBound.flush(120)
+  assertSinglePrompt(tabBound.editor)
 }
 
 async function verifySilentPasteStillDispatchesInput() {
@@ -1115,6 +1142,7 @@ await verifyClaudeMultilineUsesPasteHandler()
 await verifySupportedContenteditableEnginesPreserveNewlines()
 await verifyYiyanUsesSlateMainWorldBridge()
 await verifyChatBaiduTextareaUsesGenericRelayFill()
+await verifyGeminiPullsRelayedPrompt()
 await verifyFallbackWhenEditorRejectsPaste()
 await verifyChatGptStyleEditorUsesInsertHtml()
 await verifySilentPasteStillDispatchesInput()

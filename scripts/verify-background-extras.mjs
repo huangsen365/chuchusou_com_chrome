@@ -981,11 +981,13 @@ async function main() {
       { id: "ccs-chatgpt", title: "🤖 ChatGPT" },
       { id: "ccs-claude", title: "🧠 Claude" },
       { id: "ccs-grok", title: "🦊 Grok" },
+      { id: "ccs-gemini", title: "♊ Gemini" },
       { id: "ccs-yiyan", title: "🧠 文心一言" },
       { id: "ccs-google-ai-chat", title: "✨ Google AI 模式" },
       { id: "ccs-fastqa-chatgpt-quick", title: "🤖 触触搜 · 速答壹拾佰 - ChatGPT" },
       { id: "ccs-fastqa-claude-quick", title: "🧠 触触搜 · 速答壹拾佰 - Claude" },
       { id: "ccs-fastqa-grok-quick", title: "🦊 触触搜 · 速答壹拾佰 - Grok" },
+      { id: "ccs-fastqa-gemini-quick", title: "♊ 触触搜 · 速答壹拾佰 - Gemini" },
       { id: "ccs-fastqa-yiyan-quick", title: "🧠 触触搜 · 速答壹拾佰 - 文心一言" },
       { id: "ccs-fastqa-google-ai-quick", title: "✨ 触触搜 · 速答壹拾佰 - Google AI 模式" }
     ]) {

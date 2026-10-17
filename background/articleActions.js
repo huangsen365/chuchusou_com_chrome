@@ -98,6 +98,22 @@
     }
   }
 
+  function isGeminiUrl(value) {
+    try {
+      const url = new URL(String(value || ''));
+      return url.protocol === 'https:' && url.hostname.toLowerCase() === 'gemini.google.com';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // 长文动作（注入X草稿 / 生成封面）支持的来源站点
+  function articleSiteOf(value) {
+    if (isChatGptUrl(value)) return 'chatgpt';
+    if (isGeminiUrl(value)) return 'gemini';
+    return '';
+  }
+
   function isXArticleComposerUrl(value) {
     try {
       const url = new URL(String(value || ''));
@@ -110,16 +126,18 @@
     }
   }
 
-  function trustedChatGptSource(senderUrl, sourceUrl, senderTabUrl) {
+  // 发起方与文章来源必须是同一个支持的站点（ChatGPT 或 Gemini），且来源就是发起页（SPA 换页时看标签页地址）
+  function trustedArticleSource(senderUrl, sourceUrl, senderTabUrl) {
     const sender = normalizeUrl(senderUrl);
     const source = normalizeUrl(sourceUrl);
     const senderTab = normalizeUrl(senderTabUrl);
     const trustedSender = sender || senderTab;
+    const site = articleSiteOf(source);
     return Boolean(
       trustedSender &&
       source &&
-      isChatGptUrl(trustedSender) &&
-      isChatGptUrl(source) &&
+      site &&
+      articleSiteOf(trustedSender) === site &&
       (sender === source || senderTab === source)
     );
   }
@@ -423,7 +441,7 @@
   async function createLongArticleCover(inputValue, sourceUrl, tabId) {
     const input = normalizeArticleInput(inputValue);
     if (!input) return { success: false, error: 'invalid-article-payload' };
-    if (!isChatGptUrl(sourceUrl)) return { success: false, error: 'sender-not-chatgpt' };
+    if (!articleSiteOf(sourceUrl)) return { success: false, error: 'sender-not-supported-ai-site' };
     if (typeof globalThis.runAITask !== 'function') {
       return { success: false, error: 'cover-task-unavailable' };
     }
@@ -457,6 +475,7 @@
     checksumText,
     createAndDeliverXArticleDraft,
     createLongArticleCover,
+    articleSiteOf,
     isChatGptUrl,
     isXArticleComposerUrl,
     normalizeArticleInput,
@@ -467,7 +486,7 @@
     taskChecksum,
     taskForTarget,
     completeTaskFromTarget,
-    trustedChatGptSource,
+    trustedArticleSource,
     updateTask
   };
 })();

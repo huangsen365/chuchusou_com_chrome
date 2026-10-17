@@ -155,6 +155,7 @@ async function checkAITaskRegistry(golden, registry) {
     "ccs-optimize-root",
     "ccs-optimize-deep-research-chatgpt",
     "ccs-optimize-content-creation-grok",
+    "ccs-optimize-content-creation-gemini",
     "ccs-optimize-content-creation-open-all",
     "ccs-optimize-content-creation",                 // 仅 category（submenu）
     "ccs-optimize-google-ai",                        // hasCategories 但无 category → null
@@ -166,6 +167,9 @@ async function checkAITaskRegistry(golden, registry) {
     "random"
   ]
   golden.check("resolveMenuId", menuIds.map((m) => registry.resolveMenuId(m)))
+  const geminiLeaf = registry.resolveMenuId("ccs-optimize-content-creation-gemini")
+  assert(geminiLeaf?.categoryId === "content-creation" && geminiLeaf?.engineId === "gemini",
+    `optimize Gemini leaf must split into category + engine, got ${JSON.stringify(geminiLeaf)}`)
 
   // 真实 prompts/fastAnswersPrompts.json：关键字注入 + 默认简体中文 + 语言覆盖
   for (const [kw, opts] of [["hello", {}], ["", {}], ["complex 中文 query", {}], ["x", { vars: { ratio: "9:16" } }]]) {

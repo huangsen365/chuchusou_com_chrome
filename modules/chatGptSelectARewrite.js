@@ -59,39 +59,6 @@
     (document.head || document.documentElement).appendChild(style);
   }
 
-  function toast(type, message) {
-    const api = window.CCSModules.Toast;
-    if (typeof api?.[type] === 'function') api[type](message);
-  }
-
-  async function fillRewritePrompt(button) {
-    const original = button.textContent || '↗ 选A并优化改写';
-    button.disabled = true;
-    button.textContent = '⏳ 填入中…';
-    try {
-      const prompt = await Runtime.buildSelectARewritePrompt();
-      const result = await Runtime.fillCurrentComposer(prompt);
-      if (!result?.ok && result?.stage === 'existing_draft') {
-        throw new Error('ChatGPT 输入框已有草稿，为避免覆盖，未填入改写提示词');
-      }
-      if (!result?.ok) {
-        throw new Error(result?.error === 'composer-not-found'
-          ? '未找到 ChatGPT 输入框'
-          : 'ChatGPT 输入框未完整接受改写提示词');
-      }
-      button.textContent = '✓ 已填入';
-      toast('success', '“选A”与优化改写提示词已填入 ChatGPT，请检查后手动发送');
-    } catch (error) {
-      button.textContent = '⚠ 填入失败';
-      toast('error', error?.message || String(error));
-    } finally {
-      window.setTimeout(() => {
-        button.disabled = false;
-        button.textContent = original;
-      }, 2500);
-    }
-  }
-
   function inject(root) {
     const turn = ChatGptDom.turnFor(root);
     if (!turn) return;
@@ -117,7 +84,7 @@
     button.setAttribute('aria-label', '选A并优化改写');
     button.title = '将“选A”和文章优化改写提示词填入 ChatGPT 输入框；不会覆盖草稿，也不会自动发送';
     button.textContent = '↗ 选A并优化改写';
-    button.addEventListener('click', () => void fillRewritePrompt(button));
+    button.addEventListener('click', () => void Runtime.fillSelectARewriteFromButton(button, { siteName: 'ChatGPT' }));
     ChatGptDom.insertAfterAction(copyButton, button);
   }
 

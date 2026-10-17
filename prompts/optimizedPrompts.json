@@ -22,6 +22,11 @@
           "urlPattern": "https://grok.com/?q=${PROMPT}"
         },
         {
+          "id": "gemini",
+          "label": "Gemini",
+          "urlPattern": "https://gemini.google.com/app"
+        },
+        {
           "id": "yiyan",
           "label": "文心一言",
           "urlPattern": "https://chat.baidu.com/"
@@ -52,6 +57,11 @@
           "id": "grok",
           "label": "Grok",
           "urlPattern": "https://grok.com/?q=${PROMPT}"
+        },
+        {
+          "id": "gemini",
+          "label": "Gemini",
+          "urlPattern": "https://gemini.google.com/app"
         },
         {
           "id": "yiyan",
@@ -86,6 +96,11 @@
           "urlPattern": "https://grok.com/?q=${PROMPT}"
         },
         {
+          "id": "gemini",
+          "label": "Gemini",
+          "urlPattern": "https://gemini.google.com/app"
+        },
+        {
           "id": "yiyan",
           "label": "文心一言",
           "urlPattern": "https://chat.baidu.com/"
@@ -116,6 +131,11 @@
           "id": "grok",
           "label": "Grok",
           "urlPattern": "https://grok.com/?q=${PROMPT}"
+        },
+        {
+          "id": "gemini",
+          "label": "Gemini",
+          "urlPattern": "https://gemini.google.com/app"
         },
         {
           "id": "yiyan",
@@ -150,6 +170,11 @@
           "urlPattern": "https://grok.com/?q=${PROMPT}"
         },
         {
+          "id": "gemini",
+          "label": "Gemini",
+          "urlPattern": "https://gemini.google.com/app"
+        },
+        {
           "id": "yiyan",
           "label": "文心一言",
           "urlPattern": "https://chat.baidu.com/"
@@ -180,6 +205,11 @@
           "id": "grok",
           "label": "Grok",
           "urlPattern": "https://grok.com/?q=${PROMPT}"
+        },
+        {
+          "id": "gemini",
+          "label": "Gemini",
+          "urlPattern": "https://gemini.google.com/app"
         },
         {
           "id": "yiyan",
@@ -214,6 +244,11 @@
           "urlPattern": "https://grok.com/?q=${PROMPT}"
         },
         {
+          "id": "gemini",
+          "label": "Gemini",
+          "urlPattern": "https://gemini.google.com/app"
+        },
+        {
           "id": "yiyan",
           "label": "文心一言",
           "urlPattern": "https://chat.baidu.com/"
@@ -244,6 +279,11 @@
           "id": "grok",
           "label": "Grok",
           "urlPattern": "https://grok.com/?q=${PROMPT}"
+        },
+        {
+          "id": "gemini",
+          "label": "Gemini",
+          "urlPattern": "https://gemini.google.com/app"
         },
         {
           "id": "yiyan",

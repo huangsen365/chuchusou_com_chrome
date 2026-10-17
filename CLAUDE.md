@@ -14,8 +14,15 @@
   `modules/` `content/` `popup/` `sidepanel/` 里的 JS。importScripts 的 JS 不许再有 TS 孪生
   （`verify-sw-bridge` 守卫）；要把某个 JS 改写成 TS，就在 `src/background.ts` 里 import 它并删掉原文件。
 - **站点 DOM 适配器**：ChatGPT 选择器只在 `modules/chatGptDom.js`（content.js / longArticleActions 等经
-  `window.CCSModules.ChatGptDom` 取用），X / 知乎 / Google Docs 各在自己的适配器里；`verify:site-adapters` 守卫。
-  ChatGPT 改版时先改 chatGptDom.js。
+  `window.CCSModules.ChatGptDom` 取用），Gemini 在 `modules/geminiDom.js`，X / 知乎 / Google Docs 各在自己的适配器里；
+  `verify:site-adapters` 守卫。ChatGPT 改版时先改 chatGptDom.js，Gemini 改版先改 geminiDom.js。
+- **「选A并优化改写」按钮**：ChatGPT（`chatGptSelectARewrite.js`）与 Gemini（`geminiSelectARewrite.js`）各管自己页面的
+  按钮位置；速答回复的识别（`matchesSelectARewriteText`）和点击填入（`fillSelectARewriteFromButton`）共用
+  `modules/articleRewriteRuntime.js`。Gemini 把速答要求的 writing block 渲染成「Plaintext」代码块。
+- **长文「注入X草稿 / 生成封面」**：按钮、状态机与投递只有一份（`modules/longArticleActions.js`），站点各自实现
+  `inspect(response)`（是否改写工作流的长文、文章怎么取、按钮放哪）：ChatGPT 在同文件里，Gemini 在
+  `modules/geminiLongArticle.js`（Gemini 常把整篇放进「Markdown」代码块，按钮放代码块头部右上角，经 `articleFromMarkdown` 只拼字符串转换，
+  Gemini 页面开着 Trusted Types）。后台来源校验 `trustedArticleSource`：发起页与文章来源须是同一个站点。
 - **存储键名唯一登记处 `shared/storageKeys.js`**（`globalThis.CCSStorageKeys`）：SW importScripts、内容脚本 manifest、
   popup / sidepanel bundle 里都是第一个加载。键常量一律 `globalThis.CCSStorageKeys.X` / `.PREFIX.X`；新增键先登记。
   `verify:storage-keys` 会拦下任何未登记的 `ccs_` 名字（字符串 / 属性 / 对象键）和抄成字面量的键常量；
@@ -179,7 +186,7 @@ attachInit()              // ← 必须在 importScripts 之后：依赖 g.MenuS
 1. `shared/storageKeys.js`（键名注册表，必须第一个）
 2. `content/*.js`（SelectionManager / TextEncoder / ToastUI / ClipboardHelper）
 3. `modules/*.js` + `shared/promptLanguage.js` / `promptTemplate.js` / `rewriteVariety.js` / `rewriteConceptMemory.js`
-   （站点适配器 `siteFastQaRuntime` → `xTweetFastQa` / `zhihuFastQa`；`chatGptDom` 先于所有 ChatGPT 相关模块）
+   （站点适配器 `siteFastQaRuntime` → `xTweetFastQa` / `zhihuFastQa`；`chatGptDom` 先于所有 ChatGPT 相关模块，`geminiDom` 先于 `geminiSelectARewrite`）
 4. `dockbar.js`、`content.js`（最后）
 
 另有一组 MAIN world 脚本 `modules/xArticleMainWorld.js`（仅 x.com 长文编辑页，必须自包含）。
@@ -357,7 +364,7 @@ Popup 菜单和右键菜单必须保持一致：
 - **软提示阈值**：选中原文 > 1500 字符触发 toast 温馨提示
 - **硬截断上限**（按 menuId 自动分档）
   - Google AI 模式 (udm=50): 1200 字符
-  - AI 对话（ChatGPT/Claude/Grok/文心）: 6000 字符
+  - AI 对话（ChatGPT/Claude/Grok/Gemini/文心）: 6000 字符
   - 普通搜索/电商/翻译: 1500 字符
 - **最终 URL 兜底**：构造后的 URL 若仍 > 1900 字符，强制截断
 

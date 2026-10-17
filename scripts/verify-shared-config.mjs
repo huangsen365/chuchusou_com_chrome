@@ -6,7 +6,13 @@ import process from "node:process"
 import { readPromptConfig } from "./lib/prompts.mjs"
 
 const root = process.cwd()
-const WENXIN_ENTRY_URL = "https://chat.baidu.com/"
+// 网址不接受提示词参数的引擎：入口固定、不带占位符，打开时一律走本地 relay 自动填入
+const RELAY_ONLY_ENTRY_URLS = {
+  yiyan: "https://chat.baidu.com/",
+  gemini: "https://gemini.google.com/app"
+}
+const relayOnlyEngineFor = (item) =>
+  Object.keys(RELAY_ONLY_ENTRY_URLS).find((engineId) => item.engineId === engineId || item.id.includes(engineId))
 
 function readJson(relativePath) {
   return JSON.parse(fs.readFileSync(path.join(root, relativePath), "utf8"))
@@ -47,8 +53,9 @@ function main() {
     }
 
     if (item.urlPattern) {
-      if (item.engineId === "yiyan" || item.id.includes("yiyan")) {
-        assert(item.urlPattern === WENXIN_ENTRY_URL, `Menu item ${item.id} must use the official Wenxin relay entry`)
+      const relayOnly = relayOnlyEngineFor(item)
+      if (relayOnly) {
+        assert(item.urlPattern === RELAY_ONLY_ENTRY_URLS[relayOnly], `Menu item ${item.id} must use the official ${relayOnly} relay entry`)
         continue
       }
       const hasKnownToken = ["${KEYWORD}", "${keyword}", "${PROMPT}", "${prompt}"].some((token) => item.urlPattern.includes(token))
@@ -60,9 +67,9 @@ function main() {
   for (const [engineId, engine] of Object.entries(engines.engines)) {
     assert(engine.id === engineId, `Engine key/id mismatch: ${engineId} vs ${engine.id}`)
     assert(engine.label, `Engine ${engineId} missing label`)
-    if (engineId === "yiyan") {
-      assert(engine.urlPattern === WENXIN_ENTRY_URL, "Engine yiyan must use the official Wenxin relay entry")
-      assert(engine.searchUrlPattern === WENXIN_ENTRY_URL, "Engine yiyan search URL must use the official Wenxin relay entry")
+    if (RELAY_ONLY_ENTRY_URLS[engineId]) {
+      assert(engine.urlPattern === RELAY_ONLY_ENTRY_URLS[engineId], `Engine ${engineId} must use the official relay entry`)
+      assert(engine.searchUrlPattern === RELAY_ONLY_ENTRY_URLS[engineId], `Engine ${engineId} search URL must use the official relay entry`)
     } else {
       assert(engine.urlPattern?.includes("${PROMPT}"), `Engine ${engineId} urlPattern must include \${PROMPT}`)
     }
@@ -94,6 +101,8 @@ function main() {
     if (validateEngineRefs) {
       for (const promptEngine of promptEngines) {
         assert(engines.engines[promptEngine.id], `${promptFile} references missing engine ${promptEngine.id}`)
+        const entry = RELAY_ONLY_ENTRY_URLS[promptEngine.id]
+        if (entry) assert(promptEngine.urlPattern === entry, `${promptFile} ${promptEngine.id} must use the official relay entry ${entry}`)
       }
     }
   }

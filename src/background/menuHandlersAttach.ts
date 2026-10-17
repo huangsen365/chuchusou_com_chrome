@@ -543,6 +543,9 @@ export function attachMenuHandlers(): void {
       case "ccs-grok":
         openIfHas(`https://grok.com/?q=${enc(finalNormalized)}`, "https://grok.com/?q=${KEYWORD}")
         break
+      case "ccs-gemini":
+        openIfHas("https://gemini.google.com/app", "https://gemini.google.com/app")
+        break
       case "ccs-zhihu":
         openIfHas(`https://www.zhihu.com/search?q=${enc(finalNormalized)}`)
         break

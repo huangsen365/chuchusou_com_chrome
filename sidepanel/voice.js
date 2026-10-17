@@ -24,6 +24,7 @@
     'ccs-chatgpt':          ['ChatGPT', 'chat gpt', 'gpt', '鸡屁屁', '吉皮提', '聊天 gpt', '吉批批', '机批批'],
     'ccs-claude':           ['Claude', '克劳德', '克劳特', '克老德', '克老特'],
     'ccs-grok':             ['Grok', '格罗克', '高科', '格洛克'],
+    'ccs-gemini':           ['Gemini', 'gemini', '杰米尼', '吉米尼', '哲米尼', '双子座'],
     'ccs-yiyan':            ['文心一言', '文心', '一言', 'yiyan'],
     'ccs-google-ai-chat':   ['Google AI', 'google ai', '谷歌 AI', '谷歌 ai', 'AI 模式', '谷歌 AI 模式'],
     'ccs-zhihu':            ['知乎', 'zhihu', '智乎', '只乎'],
