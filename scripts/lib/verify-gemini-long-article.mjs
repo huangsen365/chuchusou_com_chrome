@@ -38,13 +38,16 @@ export function geminiLongArticleFixture() {
       <copy-button><gem-icon-button arialabel="Copy"><button aria-label="Copy">⧉</button></gem-icon-button></copy-button>
       <gem-icon-button arialabel="Show more options"><button aria-label="Show more options">⋮</button></gem-icon-button>
     </div></div></message-actions></div>`
-  const articleBlock = `<response-element class="no-md md-has-block-component"><code-block><div class="code-block">
+  // 真实嵌套：.code-block > 有底色的 .formatted-code-block-internal-container（大圆角、顶部 26px 内边距）
+  //   > .animated-opacity > [头部（标了语言才有）, pre]
+  const articleBlock = `<response-element class="no-md md-has-block-component"><code-block><div class="code-block" style="position:relative">
+      <div class="formatted-code-block-internal-container" style="background:#171717;color:#e3e3e3;border-radius:40px;padding:26px 0 0 32px"><div class="animated-opacity">
       <div class="code-block-decoration header-formatted" style="display:flex;justify-content:space-between;position:sticky;top:0"><span>Markdown</span><div class="buttons">
         <gem-icon-button arialabel="Download code"><button aria-label="Download code"><span class="mat-mdc-button-persistent-ripple"></span></button></gem-icon-button>
         <gem-icon-button arialabel="Copy code"><button aria-label="Copy code"><span class="mat-mdc-button-persistent-ripple"></span></button></gem-icon-button>
       </div></div>
-      <pre><code role="text" data-test-id="code-content" class="code-container formatted">${escapeHtml(markdown)}</code></pre>
-    </div></code-block></response-element>`
+      <pre style="margin:0"><code role="text" data-test-id="code-content" class="code-container formatted">${escapeHtml(markdown)}</code></pre>
+    </div></div></div></code-block></response-element>`
   const turn = (id, query, busy) => `<div class="conversation-container" id="${id}">
       <user-query><div class="query-text gds-body-l collapsed" style="white-space:pre-wrap">${escapeHtml(query)}</div><button aria-label="Expand">⌄</button></user-query>
       <model-response><div class="response-container">
@@ -147,6 +150,45 @@ export async function verifyGeminiLongArticle(cdp, swCdp) {
       html.includes("<script>") || !html.includes("&lt;script&gt;") || /他/.test(html) || !html.includes("TA认为")) {
     throw new Error(`Gemini 长文 X 草稿投递异常: ${JSON.stringify({ title: x?.input?.title, sourceUrl: x?.sourceUrl, head: html.slice(0, 300) })}`)
   }
+
+  // 2.5 没标语言的代码块没有头部（2026-10 实测 d8c61168…：框里直接是 pre）：按钮改放在看得见的框里
+  //     最上面补的一行、靠右，不压到正文、不贴大圆角；头部回来后按钮回到头部、补的那行收掉
+  await evaluate(cdp, pageCheck(async function () {
+    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+    const assert = (condition, label) => { if (!condition) throw new Error(label) }
+    const waitFor = async (predicate, label, timeoutMs = 6000) => {
+      const deadline = Date.now() + timeoutMs
+      while (Date.now() < deadline) {
+        if (predicate()) return
+        await delay(50)
+      }
+      throw new Error(label)
+    }
+    const turn = document.getElementById("gemini-rewrite")
+    const frame = turn.querySelector("code-block .formatted-code-block-internal-container")
+    const header = frame.querySelector(".code-block-decoration")
+    const headerParent = header.parentElement
+    const headerNext = header.nextElementSibling
+    const actions = () => turn.querySelector("[data-ccs-long-article-actions]")
+    const ownRow = () => frame.querySelector(":scope > [data-ccs-gemini-block-actions]")
+    header.remove()
+    await waitFor(() => ownRow()?.contains(actions()), "代码块没有头部时长文按钮没有挪到代码块顶部那一行")
+    assert(frame.firstElementChild === ownRow(), "补的那一行应在看得见的框里最上面")
+    const frameRect = frame.getBoundingClientRect()
+    const actionsRect = actions().getBoundingClientRect()
+    const preRect = frame.querySelector("pre").getBoundingClientRect()
+    const where = JSON.stringify({ frame: [frameRect.top, frameRect.right], actions: [actionsRect.top, actionsRect.right, actionsRect.bottom], preTop: preRect.top })
+    assert(actionsRect.top >= frameRect.top && actionsRect.top - frameRect.top <= 16, `按钮不在框顶：${where}`)
+    assert(frameRect.right - actionsRect.right >= 16 && frameRect.right - actionsRect.right <= 48, `按钮没有靠右，或贴进了圆角：${where}`)
+    assert(actionsRect.bottom <= preRect.top + 1, `按钮压到了正文：${where}`)
+    await waitFor(() => actions().dataset.ccsLongArticleState === "ready" && ![...actions().querySelectorAll("button")].some((button) => button.disabled), "挪到补的那一行后按钮不可用")
+    headerParent.insertBefore(header, headerNext)
+    await waitFor(() => header.querySelector(".buttons")?.lastElementChild === actions() && !ownRow(), "头部回来后按钮没有回到头部，或补的那一行没收掉")
+    const headerRect = header.getBoundingClientRect()
+    if (Math.abs((headerRect.top + headerRect.height / 2) - (actions().getBoundingClientRect().top + actions().getBoundingClientRect().height / 2)) > 1) {
+      throw new Error("头部回来后按钮与图标没对齐")
+    }
+  }))
 
   // 3. Gemini 也可能直接把文章渲染成页面（h1 / h2 / p，没有代码块）：同样识别为可用
   await evaluate(cdp, pageCheck(async function () {

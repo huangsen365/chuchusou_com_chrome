@@ -21,7 +21,7 @@
   `modules/articleRewriteRuntime.js`。Gemini 把速答要求的 writing block 渲染成「Plaintext」代码块。
 - **长文「注入X草稿 / 生成封面」**：按钮、状态机与投递只有一份（`modules/longArticleActions.js`），站点各自实现
   `inspect(response)`（是否改写工作流的长文、文章怎么取、按钮放哪）：ChatGPT 在同文件里，Gemini 在
-  `modules/geminiLongArticle.js`（Gemini 常把整篇放进「Markdown」代码块，按钮放代码块头部右上角，经 `articleFromMarkdown` 只拼字符串转换，
+  `modules/geminiLongArticle.js`（Gemini 常把整篇放进「Markdown」代码块，按钮放代码块头部右上角（没标语言的代码块没有头部，就在框里最上面补一行），经 `articleFromMarkdown` 只拼字符串转换，
   Gemini 页面开着 Trusted Types）。后台来源校验 `trustedArticleSource`：发起页与文章来源须是同一个站点。
 - **存储键名唯一登记处 `shared/storageKeys.js`**（`globalThis.CCSStorageKeys`）：SW importScripts、内容脚本 manifest、
   popup / sidepanel bundle 里都是第一个加载。键常量一律 `globalThis.CCSStorageKeys.X` / `.PREFIX.X`；新增键先登记。
