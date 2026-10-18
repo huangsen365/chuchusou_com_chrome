@@ -39,6 +39,7 @@ import { verifyPlainArticleActions } from "./lib/verify-plain-article-actions.mj
 import { chatgptRedesignFixture, verifyChatgptRedesign } from "./lib/verify-chatgpt-redesign.mjs"
 import { geminiSelectAFixture, verifyGeminiSelectA } from "./lib/verify-gemini-select-a.mjs"
 import { geminiLongArticleFixture, verifyGeminiLongArticle } from "./lib/verify-gemini-long-article.mjs"
+import { claudeLongArticleFixture, claudeSelectAFixture, verifyClaudeLongArticle, verifyClaudeSelectA } from "./lib/verify-claude-actions.mjs"
 
 const root = process.cwd()
 const buildDir = path.join(root, "build/chrome-mv3-prod")
@@ -215,6 +216,14 @@ async function main() {
             window.__submitClicks += 1
           })
         </script>`)
+      return
+    }
+    if (hostname === "claude.ai" && (req.url || "").startsWith("/chat/select-a-fixture")) {
+      res.end(claudeSelectAFixture())
+      return
+    }
+    if (hostname === "claude.ai" && (req.url || "").startsWith("/chat/long-article-fixture")) {
+      res.end(claudeLongArticleFixture())
       return
     }
     if (hostname === "gemini.google.com" && (req.url || "").startsWith("/app/long-article-fixture")) {
@@ -1435,6 +1444,23 @@ async function main() {
     if (geminiLongArticlePage.exceptions.length > 0) fail(`Gemini 长文双动作未捕获异常: ${geminiLongArticlePage.exceptions[0]}`)
     console.log(`${TAG} ✓ Gemini 长文双动作正常（Markdown 代码块 / 渲染版两种文章 / 生成中等待态 / 来源校验 / 封面与 X 草稿投递 / TA 替换 / Trusted Types 下可用）`)
     geminiLongArticlePage.cdp.close()
+
+    // Claude：速答（两篇回答是代码块）出选A按钮；选A改写出的长文（直接渲染，h2 主标题 / h3 小标题）出长文双动作。
+    // 选A点两次会让形式轮换计数器前进两格，测完放回原值
+    const varietyCounterBeforeClaude = await readVarietyCounter()
+    const claudeSelectAPage = await openSiteFixture("https://claude.ai/chat/select-a-fixture")
+    await verifyClaudeSelectA(claudeSelectAPage.cdp)
+    if (await readVarietyCounter() === varietyCounterBeforeClaude) fail("Claude 选A改写没有经后台生成改写提示词（轮换计数器未前进）")
+    await evaluate(swCdp, `new Promise((resolve) => chrome.storage.local.set({ ccs_rewrite_variety_counter: ${JSON.stringify(varietyCounterBeforeClaude)} }, resolve))`)
+    if (claudeSelectAPage.exceptions.length > 0) fail(`Claude 选A改写未捕获异常: ${claudeSelectAPage.exceptions[0]}`)
+    console.log(`${TAG} ✓ Claude 选A改写正常（代码块速答识别 / Copy 后单按钮 / 生成中不出 / 底栏重绘恢复 / 完整填入 / 不自动发送 / 草稿保护）`)
+    claudeSelectAPage.cdp.close()
+
+    const claudeLongArticlePage = await openSiteFixture("https://claude.ai/chat/long-article-fixture")
+    await verifyClaudeLongArticle(claudeLongArticlePage.cdp, swCdp)
+    if (claudeLongArticlePage.exceptions.length > 0) fail(`Claude 长文双动作未捕获异常: ${claudeLongArticlePage.exceptions[0]}`)
+    console.log(`${TAG} ✓ Claude 长文双动作正常（h2 主标题 / h3 小标题 / 生成中等待态 / 来源校验 / 封面与 X 草稿投递 / TA 替换）`)
+    claudeLongArticlePage.cdp.close()
 
     const docsFixture = await openSiteFixture("https://docs.google.com/document/u/0/d/smoke-doc/edit?tab=t.0#heading=h.smoke")
     const docsButtons = await evaluate(docsFixture.cdp, `(() => {

@@ -5,6 +5,7 @@
  * 各网站的 DOM 知识（data-testid / 私有 class / 属性名）只能写在该站点的适配器文件里：
  *   ChatGPT      → modules/chatGptDom.js（其它模块经 window.CCSModules.ChatGptDom 取用）
  *   Gemini       → modules/geminiDom.js（geminiSelectARewrite 经 window.CCSModules.GeminiDom 取用）
+ *   Claude       → modules/claudeDom.js（claudeSelectARewrite / claudeLongArticle 经 window.CCSModules.ClaudeDom 取用）
  *   X            → modules/xTweetFastQa.js（读推文 / 长文）、modules/xArticleDraftDelivery.js
  *                  （写长文草稿）、modules/xArticleMainWorld.js（MAIN world，必须自包含）
  *   知乎          → modules/zhihuFastQa.js
@@ -33,7 +34,12 @@ const SITES = [
   {
     site: "Gemini",
     adapters: ["modules/geminiDom.js"],
-    tokens: ["model-response", "code-block-decoration", "message-actions", "markdown-main-panel", "message-content", "conversation-container", "user-query"]
+    tokens: ["model-response", "code-block-decoration", "message-actions copy-button", "markdown-main-panel", "message-content", "conversation-container", "user-query"]
+  },
+  {
+    site: "Claude",
+    adapters: ["modules/claudeDom.js"],
+    tokens: ['data-testid="assistant-message"', 'data-testid="user-message"', 'data-testid="message-actions"', "data-perf-reply-text", "data-not-prose", "TurnStatus"]
   },
   {
     site: "X",
@@ -102,6 +108,14 @@ const geminiLongIndex = mainScripts.indexOf("modules/geminiLongArticle.js")
 const longActionsIndex = mainScripts.indexOf("modules/longArticleActions.js")
 if (geminiLongIndex === -1 || geminiLongIndex < geminiDomIndex || geminiLongIndex < longActionsIndex) {
   violations.push("manifest 里 modules/geminiDom.js 与 modules/longArticleActions.js 必须先于 modules/geminiLongArticle.js 加载")
+}
+const claudeDomIndex = mainScripts.indexOf("modules/claudeDom.js")
+for (const consumer of ["modules/claudeSelectARewrite.js", "modules/claudeLongArticle.js"]) {
+  const index = mainScripts.indexOf(consumer)
+  const runtime = consumer.endsWith("SelectARewrite.js") ? runtimeIndex : longActionsIndex
+  if (claudeDomIndex === -1 || index === -1 || index < claudeDomIndex || index < runtime) {
+    violations.push(`manifest 里 modules/claudeDom.js 与共用模块必须先于 ${consumer} 加载`)
+  }
 }
 // content.js 单独补注入时也要带上 chatGptDom.js
 const reinject = fs.readFileSync(path.join(root, "background/events/menuState.js"), "utf8")

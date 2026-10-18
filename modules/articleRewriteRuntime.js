@@ -248,7 +248,7 @@
   }
 
   // 「选A并优化改写」按钮的点击：取改写提示词 → 填进当前站点的输入框（不覆盖草稿、不自动发送）。
-  // siteName 只用于提示文案。ChatGPT 与 Gemini 的按钮共用这一份。
+  // siteName 只用于提示文案。ChatGPT、Gemini 与 Claude 的按钮共用这一份。
   async function fillSelectARewriteFromButton(button, { siteName = 'AI' } = {}) {
     const original = button.textContent || '↗ 选A并优化改写';
     button.disabled = true;
@@ -275,6 +275,113 @@
         button.textContent = original;
       }, 2500);
     }
+  }
+
+  // 站点版「选A并优化改写」按钮（Gemini、Claude）：一条回复一个判断，是速答格式就在整条回复的复制按钮后面放入口。
+  // 站点只提供页面结构 site = { siteName, isSupportedPage, responses, isStreaming, bodyFor, ignoreSelector,
+  // blockTexts, copyAnchor }；ChatGPT 一轮多条消息的结构另由 chatGptSelectARewrite.js 处理。
+  const SITE_BUTTON_MARKER = 'data-ccs-select-a-rewrite';
+  const SITE_BUTTON_CLASS = 'ccs-select-a-rewrite';
+  const SITE_STYLE_ID = 'ccs-site-select-a-rewrite-styles';
+
+  function ensureSiteButtonStyles() {
+    if (document.getElementById(SITE_STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = SITE_STYLE_ID;
+    style.textContent = `
+      .${SITE_BUTTON_CLASS} {
+        display: inline-flex;
+        align-items: center;
+        align-self: center;
+        box-sizing: border-box;
+        flex: 0 0 auto;
+        width: max-content;
+        max-width: 100%;
+        min-height: 32px;
+        margin: 0 2px;
+        padding: 4px 10px;
+        border: 0;
+        border-radius: 16px;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1.2;
+        opacity: 0.85;
+        white-space: nowrap;
+        transition: background-color 140ms ease, opacity 140ms ease;
+      }
+      .${SITE_BUTTON_CLASS}:hover:not(:disabled) {
+        background-color: color-mix(in srgb, currentColor 8%, transparent);
+        opacity: 1;
+      }
+      .${SITE_BUTTON_CLASS}:focus-visible {
+        outline: 2px solid color-mix(in srgb, currentColor 42%, transparent);
+        outline-offset: 2px;
+      }
+      .${SITE_BUTTON_CLASS}:disabled { cursor: wait; opacity: 0.55; }
+      @media (prefers-reduced-motion: reduce) { .${SITE_BUTTON_CLASS} { transition: none; } }
+    `;
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  function siteResponseMatches(site, response) {
+    const body = site.bodyFor(response);
+    if (!body || site.isStreaming(response)) return false;
+    const text = responseTextForMatching(body, { ignoreSelector: site.ignoreSelector || '' });
+    return matchesSelectARewriteText(text, site.blockTexts(response), { allowNoBlocks: true });
+  }
+
+  function injectSiteButton(site, response) {
+    const anchor = site.copyAnchor(response);
+    const current = response.querySelector(`[${SITE_BUTTON_MARKER}]`);
+    if (!anchor || !siteResponseMatches(site, response)) {
+      current?.remove();
+      return;
+    }
+    if (current) {
+      if (current.previousElementSibling !== anchor) anchor.insertAdjacentElement('afterend', current);
+      return;
+    }
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = SITE_BUTTON_CLASS;
+    button.setAttribute(SITE_BUTTON_MARKER, 'true');
+    button.setAttribute('aria-label', '选A并优化改写');
+    button.title = `将“选A”和文章优化改写提示词填入 ${site.siteName} 输入框；不会覆盖草稿，也不会自动发送`;
+    button.textContent = '↗ 选A并优化改写';
+    button.addEventListener('click', () => void fillSelectARewriteFromButton(button, { siteName: site.siteName }));
+    anchor.insertAdjacentElement('afterend', button);
+  }
+
+  function startSiteSelectAButton(site) {
+    const api = { inject: (response) => injectSiteButton(site, response), matches: (response) => siteResponseMatches(site, response) };
+    try {
+      if (window.top !== window || !site.isSupportedPage()) return api;
+    } catch (_) {
+      return api;
+    }
+    ensureSiteButtonStyles();
+    let scheduled = false;
+    const schedule = () => {
+      if (scheduled) return;
+      scheduled = true;
+      // 后台标签页里 requestAnimationFrame 不触发：页面隐藏时改用定时器，保证切回前按钮已重建
+      (document.hidden ? (fn) => setTimeout(fn, 32) : requestAnimationFrame)(() => {
+        scheduled = false;
+        site.responses().forEach(api.inject);
+      });
+    };
+    // 生成结束时（Gemini 的 aria-busy、Claude 的 data-is-streaming 翻成 false）正文可能不再变化，也要重判
+    const observer = new MutationObserver(schedule);
+    observer.observe(document.documentElement, {
+      childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['aria-busy', 'data-is-streaming']
+    });
+    window.addEventListener('popstate', schedule);
+    schedule();
+    return api;
   }
 
   function requestGoogleDocRewrite(sourceUrl, target) {
@@ -308,6 +415,7 @@
     matchesSelectARewriteText,
     normalizeGoogleDocUrl,
     requestGoogleDocRewrite,
-    responseTextForMatching
+    responseTextForMatching,
+    startSiteSelectAButton
   };
 })();

@@ -66,8 +66,11 @@
         "modules/chatGptSelectARewrite.js",
         "modules/geminiDom.js",
         "modules/geminiSelectARewrite.js",
+        "modules/claudeDom.js",
+        "modules/claudeSelectARewrite.js",
         "modules/longArticleActions.js",
         "modules/geminiLongArticle.js",
+        "modules/claudeLongArticle.js",
         "modules/xArticleDraftDelivery.js",
         "dockbar.js",
         "content.js"

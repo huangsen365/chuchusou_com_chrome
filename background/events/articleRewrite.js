@@ -125,11 +125,12 @@ function ccsHandleGetSelectARewritePrompt(request, sender, sendResponse) {
   } catch (_) {
     senderHost = '';
   }
-  // 「选A并优化改写」按钮只在 ChatGPT 与 Gemini 页面出现
+  // 「选A并优化改写」按钮只在 ChatGPT、Gemini 与 Claude 页面出现
   if (!(
     senderHost === 'chatgpt.com' || senderHost.endsWith('.chatgpt.com') ||
     senderHost === 'chat.openai.com' || senderHost.endsWith('.chat.openai.com') ||
-    senderHost === 'gemini.google.com'
+    senderHost === 'gemini.google.com' ||
+    senderHost === 'claude.ai' || senderHost.endsWith('.claude.ai')
   )) {
     respond({ success: false, error: 'sender-not-supported-ai-site' });
     return true;

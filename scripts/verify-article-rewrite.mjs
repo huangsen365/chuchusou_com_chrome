@@ -136,6 +136,7 @@ async function verifyApi(name, api, hooks) {
   assert(api.matchesSelectARewriteText(FULL_RESPONSE, []), `${name}: full text must match without blocks`)
   assert(!api.matchesSelectARewriteText(`${COMPACT_RESPONSE}\n额外说明`, twoBlocks, { allowNoBlocks: true }), `${name}: trailing content accepted by text matcher`)
   assert(typeof api.fillSelectARewriteFromButton === "function", `${name}: shared select-A click handler missing`)
+  assert(typeof api.startSiteSelectAButton === "function", `${name}: shared site select-A runner (Gemini / Claude) missing`)
 
   const prompt = await api.buildSelectARewritePrompt()
   assert(prompt.startsWith("选A并且按照提示词改写：\n# 通用「GPT-4.5 感」"), `${name}: Select-A prefix/template missing`)

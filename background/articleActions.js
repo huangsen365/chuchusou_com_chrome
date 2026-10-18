@@ -107,10 +107,21 @@
     }
   }
 
+  function isClaudeUrl(value) {
+    try {
+      const url = new URL(String(value || ''));
+      const host = url.hostname.toLowerCase();
+      return url.protocol === 'https:' && (host === 'claude.ai' || host.endsWith('.claude.ai'));
+    } catch (_) {
+      return false;
+    }
+  }
+
   // 长文动作（注入X草稿 / 生成封面）支持的来源站点
   function articleSiteOf(value) {
     if (isChatGptUrl(value)) return 'chatgpt';
     if (isGeminiUrl(value)) return 'gemini';
+    if (isClaudeUrl(value)) return 'claude';
     return '';
   }
 
@@ -126,7 +137,7 @@
     }
   }
 
-  // 发起方与文章来源必须是同一个支持的站点（ChatGPT 或 Gemini），且来源就是发起页（SPA 换页时看标签页地址）
+  // 发起方与文章来源必须是同一个支持的站点（ChatGPT / Gemini / Claude），且来源就是发起页（SPA 换页时看标签页地址）
   function trustedArticleSource(senderUrl, sourceUrl, senderTabUrl) {
     const sender = normalizeUrl(senderUrl);
     const source = normalizeUrl(sourceUrl);

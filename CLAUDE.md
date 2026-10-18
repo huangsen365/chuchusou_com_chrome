@@ -14,13 +14,16 @@
   `modules/` `content/` `popup/` `sidepanel/` 里的 JS。importScripts 的 JS 不许再有 TS 孪生
   （`verify-sw-bridge` 守卫）；要把某个 JS 改写成 TS，就在 `src/background.ts` 里 import 它并删掉原文件。
 - **站点 DOM 适配器**：ChatGPT 选择器只在 `modules/chatGptDom.js`（content.js / longArticleActions 等经
-  `window.CCSModules.ChatGptDom` 取用），Gemini 在 `modules/geminiDom.js`，X / 知乎 / Google Docs 各在自己的适配器里；
-  `verify:site-adapters` 守卫。ChatGPT 改版时先改 chatGptDom.js，Gemini 改版先改 geminiDom.js。
-- **「选A并优化改写」按钮**：ChatGPT（`chatGptSelectARewrite.js`）与 Gemini（`geminiSelectARewrite.js`）各管自己页面的
-  按钮位置；速答回复的识别（`matchesSelectARewriteText`）和点击填入（`fillSelectARewriteFromButton`）共用
-  `modules/articleRewriteRuntime.js`。Gemini 把速答要求的 writing block 渲染成「Plaintext」代码块。
+  `window.CCSModules.ChatGptDom` 取用），Gemini 在 `modules/geminiDom.js`，Claude 在 `modules/claudeDom.js`，X / 知乎 /
+  Google Docs 各在自己的适配器里；`verify:site-adapters` 守卫。哪个站改版就先改它的 xxxDom.js。
+- **「选A并优化改写」按钮**：ChatGPT 一轮多条消息，单独由 `chatGptSelectARewrite.js` 处理；Gemini / Claude 走
+  `articleRewriteRuntime.js` 的 `startSiteSelectAButton(site)`（`geminiSelectARewrite.js` / `claudeSelectARewrite.js` 只描述
+  页面结构）。速答回复的识别（`matchesSelectARewriteText`）和点击填入（`fillSelectARewriteFromButton`）三站共用。
+  Gemini / Claude 都把速答要求的 writing block 渲染成代码块。
 - **长文「注入X草稿 / 生成封面」**：按钮、状态机与投递只有一份（`modules/longArticleActions.js`），站点各自实现
-  `inspect(response)`（是否改写工作流的长文、文章怎么取、按钮放哪）：ChatGPT 在同文件里，Gemini 在
+  `inspect(response)`（是否改写工作流的长文、文章怎么取、按钮放哪）：ChatGPT 在同文件里，Claude 在
+  `modules/claudeLongArticle.js`（长文直接渲染：# 主标题显示成 h2、## 小标题 h3，按钮在底栏 Copy 后面；
+  Claude 的底栏由 React 管，重渲染会把按钮挤到最前，每次检查都放回 Copy 后面），Gemini 在
   `modules/geminiLongArticle.js`（Gemini 常把整篇放进「Markdown」代码块，按钮放代码块头部右上角（没标语言的代码块没有头部，就在框里最上面补一行），经 `articleFromMarkdown` 只拼字符串转换，
   Gemini 页面开着 Trusted Types）。后台来源校验 `trustedArticleSource`：发起页与文章来源须是同一个站点。
 - **存储键名唯一登记处 `shared/storageKeys.js`**（`globalThis.CCSStorageKeys`）：SW importScripts、内容脚本 manifest、
@@ -186,7 +189,7 @@ attachInit()              // ← 必须在 importScripts 之后：依赖 g.MenuS
 1. `shared/storageKeys.js`（键名注册表，必须第一个）
 2. `content/*.js`（SelectionManager / TextEncoder / ToastUI / ClipboardHelper）
 3. `modules/*.js` + `shared/promptLanguage.js` / `promptTemplate.js` / `rewriteVariety.js` / `rewriteConceptMemory.js`
-   （站点适配器 `siteFastQaRuntime` → `xTweetFastQa` / `zhihuFastQa`；`chatGptDom` 先于所有 ChatGPT 相关模块，`geminiDom` 先于 `geminiSelectARewrite`）
+   （站点适配器 `siteFastQaRuntime` → `xTweetFastQa` / `zhihuFastQa`；`chatGptDom` 先于所有 ChatGPT 相关模块，`geminiDom` / `claudeDom` 先于各自站点的按钮模块）
 4. `dockbar.js`、`content.js`（最后）
 
 另有一组 MAIN world 脚本 `modules/xArticleMainWorld.js`（仅 x.com 长文编辑页，必须自包含）。

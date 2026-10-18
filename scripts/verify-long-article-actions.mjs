@@ -316,6 +316,16 @@ assert(
 )
 assert(!bg.api.trustedArticleSource("https://gemini.google.com.evil.test/app/abc", "https://gemini.google.com.evil.test/app/abc"), "lookalike Gemini host accepted")
 assert(!bg.api.trustedArticleSource("https://www.google.com/search?q=x", "https://www.google.com/search?q=x"), "plain Google pages are not article sources")
+assert(bg.api.trustedArticleSource("https://claude.ai/chat/abc", "https://claude.ai/chat/abc"), "trusted Claude source rejected")
+assert(
+  bg.api.trustedArticleSource("https://claude.ai/new", "https://claude.ai/chat/abc", "https://claude.ai/chat/abc"),
+  "Claude SPA navigation source rejected"
+)
+assert(
+  !bg.api.trustedArticleSource("https://claude.ai/chat/abc", "https://gemini.google.com/app/abc", "https://gemini.google.com/app/abc"),
+  "a Claude sender must not act for a Gemini source"
+)
+assert(!bg.api.trustedArticleSource("https://claude.ai.evil.test/chat/abc", "https://claude.ai.evil.test/chat/abc"), "lookalike Claude host accepted")
 const delivery = await bg.api.createAndDeliverXArticleDraft(article, "https://chatgpt.com/c/abc")
 assert(delivery.success === true, "X article task delivery failed")
 assert(bg.createdTabs[0]?.url === "https://x.com/compose/articles", "wrong X composer URL")

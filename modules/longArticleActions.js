@@ -249,11 +249,16 @@
     return validArticle(extractArticleSnapshot(block));
   }
 
-  // 已渲染的文章（正文里恰好一个 <h1> 作主标题），站点无关
-  function articleFromRenderedRoot(root) {
-    const headings = root.querySelectorAll('h1');
-    if (headings.length !== 1) return null;
-    return { title: normalizeText(headings[0].textContent || ''), ...sanitizeBody(root, headings[0]) };
+  // 已渲染的文章，站点无关：默认正文里恰好一个 <h1> 作主标题；站点知道主标题是哪个元素时直接传进来
+  // （Claude 把 # 主标题显示成 h2、## 小标题显示成 h3）。主标题之外的各级标题统一成 h2。
+  function articleFromRenderedRoot(root, titleElement = null) {
+    let title = titleElement;
+    if (!title) {
+      const headings = root.querySelectorAll('h1');
+      if (headings.length !== 1) return null;
+      title = headings[0];
+    }
+    return { title: normalizeText(title.textContent || ''), ...sanitizeBody(root, title) };
   }
 
   function escapeHtml(value) {
