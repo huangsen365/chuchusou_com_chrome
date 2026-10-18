@@ -183,7 +183,7 @@
         cursor: pointer;
         transition: background-color 120ms ease, color 120ms ease, opacity 120ms ease;
       }
-      [${BUTTON_MARKER}]:hover:not(:disabled) {
+      [${BUTTON_MARKER}]:hover:not(:disabled):not([data-ccs-state="success"]) {
         background: rgb(29 155 240 / 10%);
         color: rgb(29 155 240);
       }
@@ -193,7 +193,7 @@
       }
       [${BUTTON_MARKER}]:disabled { cursor: wait; opacity: 0.58; }
       [${BUTTON_MARKER}][data-ccs-state="unavailable"] { cursor: not-allowed; opacity: 0.38; }
-      [${BUTTON_MARKER}][data-ccs-state="success"] { color: rgb(0 186 124); }
+      [${BUTTON_MARKER}][data-ccs-state="success"] { color: rgb(0 186 124); cursor: default; }
       [${BUTTON_MARKER}][data-ccs-state="error"] { color: rgb(244 33 46); }
       [${BUTTON_MARKER}] svg { width: 19px; height: 19px; fill: currentColor; }
       @media (prefers-reduced-motion: reduce) {
@@ -231,35 +231,35 @@
     ownsElement(element, root) {
       return belongsToTweetRoot(element, root);
     },
-    copy(state, content) {
+    copy(state, content, engine) {
       const isArticle = content?.kind === 'article';
       if (state === 'idle') {
         return {
-          label: isArticle ? '用 ChatGPT 速答这篇 X 长文' : '用 ChatGPT 速答这条推文',
+          label: isArticle ? `用 ${engine} 速答这篇 X 长文` : `用 ${engine} 速答这条推文`,
           title: isArticle
-            ? '速答 · ChatGPT：仅发送这篇 X 长文的标题和正文'
-            : '速答 · ChatGPT：仅发送这条推文正文'
+            ? `速答 · ${engine}：仅发送这篇 X 长文的标题和正文`
+            : `速答 · ${engine}：仅发送这条推文正文`
         };
       }
       if (state === 'busy') {
         return {
-          label: '正在发送到 ChatGPT',
-          title: isArticle ? '正在提取 X 长文并打开 ChatGPT' : '正在准备速答并打开 ChatGPT'
+          label: `正在发送到 ${engine}`,
+          title: isArticle ? `正在提取 X 长文并打开 ${engine}` : `正在准备速答并打开 ${engine}`
         };
       }
       if (state === 'success') {
         return {
-          label: '已发送到 ChatGPT',
-          title: isArticle ? 'X 长文已发送到速答 · ChatGPT' : '推文正文已发送到速答 · ChatGPT'
+          label: `已发送到 ${engine}`,
+          title: isArticle ? `X 长文已发送到速答 · ${engine}` : `推文正文已发送到速答 · ${engine}`
         };
       }
-      if (state === 'error') return { label: '发送失败，可以重试', title: '发送失败，点击重试' };
+      if (state === 'error') return { label: `发送到 ${engine} 失败，可以重试`, title: `发送到 ${engine} 失败，点击重试` };
       return { label: '未提取到 X 正文', title: '这则 X 内容没有可提取的正文' };
     },
-    successToast(content) {
+    successToast(content, engine) {
       return content.kind === 'article'
-        ? 'X 长文标题和正文已发送到速答 · ChatGPT'
-        : '推文正文已发送到速答 · ChatGPT';
+        ? `X 长文标题和正文已发送到速答 · ${engine}`
+        : `推文正文已发送到速答 · ${engine}`;
     },
     unavailableToast: '未提取到这则 X 内容的正文'
   };

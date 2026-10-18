@@ -223,15 +223,14 @@
         font: 400 14px/22px system-ui, sans-serif;
         transition: color 120ms ease, opacity 120ms ease;
       }
-      [${BUTTON_MARKER}]:hover:not(:disabled) { color: #175199; }
+      [${BUTTON_MARKER}]:hover:not(:disabled):not([data-ccs-state="success"]) { color: #175199; }
       [${BUTTON_MARKER}]:focus-visible {
         outline: 2px solid rgb(23 81 153 / 45%);
         outline-offset: 3px;
         border-radius: 3px;
       }
       [${BUTTON_MARKER}]:disabled { cursor: wait; opacity: 0.58; }
-      [${BUTTON_MARKER}][data-ccs-state="success"] { color: #1a7f37; opacity: 1; }
-      [${BUTTON_MARKER}][data-ccs-state="success"]:disabled { cursor: default; }
+      [${BUTTON_MARKER}][data-ccs-state="success"] { color: #1a7f37; opacity: 1; cursor: default; }
       [${BUTTON_MARKER}][data-ccs-state="error"] { color: #b42318; opacity: 1; }
       [${BUTTON_MARKER}][data-ccs-state="unavailable"] { cursor: not-allowed; opacity: 0.38; }
       [${BUTTON_MARKER}] svg { width: 17px; height: 17px; fill: currentColor; }
@@ -278,19 +277,19 @@
     ownsElement(element, root) {
       return element.closest(ROOT_SELECTOR) === root;
     },
-    copy(state, content) {
+    copy(state, content, engine) {
       const isArticle = content?.kind === 'article';
       if (state === 'idle') {
         return {
-          label: isArticle ? '用 ChatGPT 速答这篇知乎文章' : '用 ChatGPT 速答这则知乎回答',
+          label: isArticle ? `用 ${engine} 速答这篇知乎文章` : `用 ${engine} 速答这则知乎回答`,
           title: isArticle
-            ? '展开并提取这篇知乎文章，发送到速答 · ChatGPT'
-            : '展开并提取这则知乎回答，发送到速答 · ChatGPT'
+            ? `展开并提取这篇知乎文章，发送到速答 · ${engine}`
+            : `展开并提取这则知乎回答，发送到速答 · ${engine}`
         };
       }
-      if (state === 'busy') return { label: '正在发送到 ChatGPT', title: '正在提取知乎全文并打开 ChatGPT' };
-      if (state === 'success') return { label: '已发送到 ChatGPT', title: '知乎正文已发送到速答 · ChatGPT' };
-      if (state === 'error') return { label: '发送失败，可以重试', title: '发送失败，点击重试' };
+      if (state === 'busy') return { label: `正在发送到 ${engine}`, title: `正在提取知乎全文并打开 ${engine}` };
+      if (state === 'success') return { label: `已发送到 ${engine}`, title: `知乎正文已发送到速答 · ${engine}` };
+      if (state === 'error') return { label: `发送到 ${engine} 失败，可以重试`, title: `发送到 ${engine} 失败，点击重试` };
       return { label: '未提取到知乎正文', title: '当前内容没有可用于速答的正文' };
     },
     visibleText(state) {
@@ -300,10 +299,10 @@
       if (state === 'unavailable') return '不可用';
       return '速答';
     },
-    successToast(content) {
+    successToast(content, engine) {
       return content.kind === 'article'
-        ? '知乎文章正文已发送到速答 · ChatGPT'
-        : '知乎回答正文已发送到速答 · ChatGPT';
+        ? `知乎文章正文已发送到速答 · ${engine}`
+        : `知乎回答正文已发送到速答 · ${engine}`;
     },
     unavailableToast: '未提取到这则知乎内容的正文'
   };

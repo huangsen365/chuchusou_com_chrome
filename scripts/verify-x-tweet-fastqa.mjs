@@ -174,6 +174,19 @@ assert(
   "unrelated fastqa errors must retain their original message"
 )
 
+// 闪电可选的引擎：每家都要有速答快捷菜单项（投递走它）和 engines.json 里的显示名
+const engineIds = Array.from(legacyModules.runtime.engineIds)
+assert(engineIds.join(",") === "chatgpt,gemini,claude", `site fastqa engines must be ChatGPT / Gemini / Claude: ${engineIds}`)
+assert(legacyModules.runtime.normalizeEngineId("grok") === "chatgpt", "unknown engine must fall back to ChatGPT")
+assert(legacyModules.runtime.normalizeEngineId(undefined) === "chatgpt", "missing default engine must fall back to ChatGPT")
+assert(legacyModules.runtime.normalizeEngineId("claude") === "claude", "listed engine must be kept")
+const unifiedMenuConfig = fs.readFileSync(path.join(root, "config/unifiedMenuConfig.json"), "utf8")
+const enginesConfig = JSON.parse(fs.readFileSync(path.join(root, "config/engines.json"), "utf8"))
+for (const engineId of engineIds) {
+  assert(unifiedMenuConfig.includes(`"ccs-fastqa-${engineId}-quick"`), `ccs-fastqa-${engineId}-quick must exist for the site fastqa button`)
+  assert(enginesConfig.engines?.[engineId]?.label, `config/engines.json must label ${engineId}`)
+}
+
 const legacyRuntimeSource = fs.readFileSync(path.join(root, "modules/siteFastQaRuntime.js"), "utf8")
 const legacyAdapterSource = fs.readFileSync(path.join(root, "modules/xTweetFastQa.js"), "utf8")
 assert(legacyRuntimeSource.includes("adapter.findActionContainers?.(root)"), "shared runtime must support multiple action containers")

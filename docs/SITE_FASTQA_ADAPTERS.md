@@ -1,7 +1,21 @@
 # 站点内嵌速答适配器
 
 站点内嵌速答采用“共享运行时 + 网站适配器”结构。共享层负责动态扫描、按钮注入、
-去重、状态恢复、Toast 和 `速答 · ChatGPT` 投递；网站适配器只处理本站 DOM。
+去重、状态恢复、Toast、引擎选择和速答投递；网站适配器只处理本站 DOM。
+
+## 引擎选择
+
+- 可选 ChatGPT / Gemini / Claude（`siteFastQaRuntime.js` 的 `ENGINE_IDS`：选A改写 → 长文注入X草稿 / 生成封面
+  这条链路只在这三家走得通）。投递走 `ccs-fastqa-<engine>-quick`，与右键「速答快捷」同一条后台链路。
+- 点闪电发到默认引擎；鼠标停在闪电上 0.35 秒弹出引擎浮层（键盘：焦点在闪电上按 ↓ / ↑），选哪家只这一次发到哪家，
+  行尾「设为默认」才写 `CCSStorageKeys.SITE_FASTQA_ENGINE`（其它已打开页面经 `storage.onChanged` 同步）。
+- 浮层是挂在 body 上的 shadow DOM，`position: fixed` 跟着按钮，上方放不下放下方，按页面背景亮度自动深浅色；
+  浮层开着时收起按钮的原生 title。
+- 引擎显示名和图标来自 `config/engines.json`：内容脚本读不到扩展文件（没开 `web_accessible_resources`），经后台
+  `ccsGetEngineLabels` 代读；读到之前不建按钮。
+- 发完一家后按钮保持可用（绿色「已发送」），还能悬停换另一家；同一家 3 秒内重复点击被拦下，浮层里那一行显示「已发送」。
+  失败后点「重试」发回失败的那一家。
+- 适配器的 `copy(state, content, engineLabel)` / `successToast(content, engineLabel)` 收到的是这一次的引擎名，文案里不要写死引擎。
 
 ## 分层
 
@@ -30,7 +44,7 @@
 1. 在 `manifest.json` 中把适配器放在 `siteFastQaRuntime.js` 之后。
 2. 新增专项校验（参考 `scripts/verify-zhihu-fastqa.mjs`），覆盖正文隔离、输入格式、URL 安全和 manifest 加载顺序。
 3. 在 `scripts/verify-extension-smoke.mjs` 增加真实域名映射夹具，验证生产 build 的
-   单实例注入、按钮位置、动态 DOM 重建和现有 ChatGPT fastqa 链路。
+   单实例注入、按钮位置、动态 DOM 重建和 fastqa 投递链路（X 夹具上已覆盖引擎浮层的悬停 / 临时选择 / 设为默认 / 键盘）。
 
 ## 适配约束
 

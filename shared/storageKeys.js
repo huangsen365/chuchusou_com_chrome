@@ -21,6 +21,7 @@
     MENU_ICON_SUPPORT: 'ccs_menu_icon_supported', // 右键菜单图标探测失败后持久化 false，之后跳过图标更新
     SCHEMA_VERSION: 'ccs_schema_version',        // 存储结构版本（storageDefaults / SW init 写默认值）
     VOICE_MIC_GRANTED_AT: 'ccs_voice_mic_granted_at', // 麦克风授权引导页记录的授权时间
+    SITE_FASTQA_ENGINE: 'ccs_site_fastqa_engine', // X / 知乎速答闪电的默认引擎（chatgpt / gemini / claude）
 
     // ---- 封面生成器（popup / sidepanel / 右键菜单 / 长文封面共用）----
     COVER_PIN: 'ccs_sidepanel_pinned_action',    // 侧边栏置顶的封面风格 { taskId, categoryId, ... }

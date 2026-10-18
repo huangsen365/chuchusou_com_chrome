@@ -26,6 +26,10 @@
   Claude 的底栏由 React 管，重渲染会把按钮挤到最前，每次检查都放回 Copy 后面），Gemini 在
   `modules/geminiLongArticle.js`（Gemini 常把整篇放进「Markdown」代码块，按钮放代码块头部右上角（没标语言的代码块没有头部，就在框里最上面补一行），经 `articleFromMarkdown` 只拼字符串转换，
   Gemini 页面开着 Trusted Types）。后台来源校验 `trustedArticleSource`：发起页与文章来源须是同一个站点。
+- **X / 知乎的速答闪电**：共享运行时 `modules/siteFastQaRuntime.js` + 各站适配器（`xTweetFastQa.js` / `zhihuFastQa.js`）。
+  点闪电发默认引擎，悬停 0.35 秒弹出 ChatGPT / Gemini / Claude 浮层，选哪家只这一次；「设为默认」写
+  `CCSStorageKeys.SITE_FASTQA_ENGINE`。内容脚本 fetch 不到扩展文件（没开 web_accessible_resources），引擎名经后台
+  `ccsGetEngineLabels` 读 engines.json。细节见 `docs/SITE_FASTQA_ADAPTERS.md`。
 - **存储键名唯一登记处 `shared/storageKeys.js`**（`globalThis.CCSStorageKeys`）：SW importScripts、内容脚本 manifest、
   popup / sidepanel bundle 里都是第一个加载。键常量一律 `globalThis.CCSStorageKeys.X` / `.PREFIX.X`；新增键先登记。
   `verify:storage-keys` 会拦下任何未登记的 `ccs_` 名字（字符串 / 属性 / 对象键）和抄成字面量的键常量；

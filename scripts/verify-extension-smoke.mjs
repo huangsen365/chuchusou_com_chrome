@@ -1557,6 +1557,175 @@ async function main() {
     }
     if (xFixture.exceptions.length > 0) fail(`X 速答适配器未捕获异常: ${xFixture.exceptions[0]}`)
     console.log(`${TAG} ✓ X 速答适配器注入正常（单实例 / 分享前 / idle）`)
+
+    // 引擎选择浮层：悬停弹出三家 → 这次发 Gemini（默认不变）→ 已发送那家不能再点 →
+    // 「设为默认」Claude → Esc 关闭 → 直接点闪电发到 Claude。全程用 CDP trusted 鼠标 / 键盘事件。
+    const siteEngineKey = "ccs_site_fastqa_engine"
+    const xPoint = (selector) => evaluate(xFixture.cdp, `(() => {
+      const host = document.querySelector('[data-ccs-site-fastqa-picker]');
+      const element = ${JSON.stringify(selector)} === 'lightning'
+        ? document.querySelector('[data-ccs-x-tweet-fastqa]')
+        : host?.shadowRoot?.querySelector(${JSON.stringify(selector)});
+      const rect = element?.getBoundingClientRect();
+      return rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null;
+    })()`)
+    const readXPicker = () => evaluate(xFixture.cdp, `(() => {
+      const host = document.querySelector('[data-ccs-site-fastqa-picker]');
+      const panel = host?.shadowRoot?.querySelector('[data-ccs-picker]');
+      const button = document.querySelector('[data-ccs-x-tweet-fastqa]');
+      const rect = host?.isConnected ? panel?.getBoundingClientRect() : null;
+      const anchor = button?.getBoundingClientRect();
+      return {
+        open: !!host?.isConnected && !!panel?.hasAttribute('data-open'),
+        expanded: button?.getAttribute('aria-expanded') || '',
+        title: button?.getAttribute('title'),
+        state: button?.dataset.ccsState || '',
+        engine: button?.dataset.ccsEngine || '',
+        label: button?.getAttribute('aria-label') || '',
+        rows: Array.from(panel?.querySelectorAll('[data-ccs-picker-row]') || []).map((row) => ({
+          engine: row.dataset.engine,
+          text: row.querySelector('[data-ccs-picker-send]')?.textContent?.trim() || '',
+          disabled: !!row.querySelector('[data-ccs-picker-send]')?.disabled,
+          tags: Array.from(row.querySelectorAll('[data-ccs-picker-tag]')).map((tag) => tag.textContent),
+          pin: !!row.querySelector('[data-ccs-picker-pin]')
+        })),
+        inViewport: !!rect && rect.top >= 0 && rect.left >= 0 && rect.bottom <= innerHeight && rect.right <= innerWidth,
+        adjacent: !!rect && !!anchor && (Math.abs(rect.bottom - anchor.top) <= 12 || Math.abs(rect.top - anchor.bottom) <= 12)
+      };
+    })()`)
+    const pollXPicker = async (predicate, rounds = 30) => {
+      let state = null
+      for (let i = 0; i < rounds; i++) {
+        state = await readXPicker()
+        if (predicate(state)) return state
+        await wait(80)
+      }
+      return state
+    }
+    const xMouse = async (point, click = false) => {
+      await xFixture.cdp.call("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y })
+      if (!click) return
+      await xFixture.cdp.call("Input.dispatchMouseEvent", { type: "mousePressed", x: point.x, y: point.y, button: "left", buttons: 1, clickCount: 1 })
+      await xFixture.cdp.call("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x, y: point.y, button: "left", buttons: 0, clickCount: 1 })
+    }
+    const readSiteEngine = () => evaluate(swCdp, `new Promise((resolve) =>
+      chrome.storage.local.get([${JSON.stringify(siteEngineKey)}], (data) => resolve(data[${JSON.stringify(siteEngineKey)}] ?? null)))`)
+    const relayRecordFor = async (target) => {
+      const url = new URL(target.url)
+      const relayId = url.searchParams.get("ccs_pp") || new URLSearchParams(url.hash.slice(1)).get("ccs_pp")
+      if (!relayId) return null
+      return evaluate(swCdp, `new Promise((resolve) => {
+        const key = ${JSON.stringify("ccs_ai_pending_prompt_")} + ${JSON.stringify(relayId)};
+        (chrome.storage.session || chrome.storage.local).get([key], (data) => resolve(data[key] || null));
+      })`)
+    }
+    const openedEngineTarget = async (before, host) => findTarget(port, (target) =>
+      target.type === "page" && !before.has(target.id) && (target.url || "").includes(`${host}/`), 8000)
+    const pageTargetIds = async () => new Set(
+      (await fetch(`http://127.0.0.1:${port}/json/list`).then((r) => r.json())).map((target) => target.id)
+    )
+
+    await xFixture.cdp.call("Page.bringToFront")
+    await xMouse(await xPoint("lightning"))
+    const xPickerOpen = await pollXPicker((state) => state?.open)
+    const pickerRow = (state, engine) => state?.rows?.find((row) => row.engine === engine)
+    if (!xPickerOpen?.open || xPickerOpen.expanded !== "true" || xPickerOpen.title !== null ||
+        xPickerOpen.rows.map((row) => row.engine).join(",") !== "chatgpt,gemini,claude" ||
+        !pickerRow(xPickerOpen, "chatgpt").text.includes("ChatGPT") || !pickerRow(xPickerOpen, "gemini").text.includes("Gemini") ||
+        !pickerRow(xPickerOpen, "claude").text.includes("Claude") ||
+        !pickerRow(xPickerOpen, "chatgpt").tags.includes("默认") || pickerRow(xPickerOpen, "chatgpt").pin ||
+        !pickerRow(xPickerOpen, "gemini").pin || !pickerRow(xPickerOpen, "claude").pin ||
+        xPickerOpen.rows.some((row) => row.disabled) || !xPickerOpen.inViewport || !xPickerOpen.adjacent) {
+      fail(`X 速答悬停引擎浮层异常: ${JSON.stringify(xPickerOpen)}`)
+    }
+
+    const beforeGemini = await pageTargetIds()
+    await xMouse(await xPoint('[data-engine="gemini"] [data-ccs-picker-send]'), true)
+    const xGeminiTarget = await openedEngineTarget(beforeGemini, "gemini.google.com")
+    if (!xGeminiTarget) fail("X 速答浮层选 Gemini 后未打开 Gemini 标签页")
+    const xGeminiRecord = await relayRecordFor(xGeminiTarget)
+    if (xGeminiRecord?.relayEngine !== "gemini" || !xGeminiRecord.prompt?.includes("共享运行时 X 主推文正文。")) {
+      fail(`X 速答 → Gemini relay 记录异常: ${JSON.stringify(xGeminiRecord)?.slice(0, 600)}`)
+    }
+    await xFixture.cdp.call("Page.bringToFront")
+    const xAfterGemini = await pollXPicker((state) => state?.state === "success")
+    const engineAfterOneOff = await readSiteEngine()
+    if (xAfterGemini?.state !== "success" || xAfterGemini.engine !== "gemini" || !xAfterGemini.label.includes("Gemini") ||
+        xAfterGemini.open || xAfterGemini.expanded !== "false" || engineAfterOneOff !== null) {
+      fail(`X 速答临时选 Gemini 后状态 / 默认引擎异常: ${JSON.stringify({ ...xAfterGemini, engineAfterOneOff })}`)
+    }
+
+    await xMouse({ x: 600, y: 500 })
+    await xMouse(await xPoint("lightning"))
+    const xPickerAfterSend = await pollXPicker((state) => state?.open)
+    if (!xPickerAfterSend?.open || !pickerRow(xPickerAfterSend, "gemini")?.disabled ||
+        !pickerRow(xPickerAfterSend, "gemini").tags.includes("已发送") ||
+        pickerRow(xPickerAfterSend, "chatgpt")?.disabled || pickerRow(xPickerAfterSend, "claude")?.disabled) {
+      fail(`X 速答发送后浮层应只锁住已发送的 Gemini: ${JSON.stringify(xPickerAfterSend)}`)
+    }
+
+    await xMouse(await xPoint('[data-engine="claude"] [data-ccs-picker-pin]'), true)
+    const xPickerPinned = await pollXPicker((state) => pickerRow(state, "claude")?.tags?.includes("默认"))
+    const pinnedEngine = await readSiteEngine()
+    if (pinnedEngine !== "claude" || !xPickerPinned?.open || !pickerRow(xPickerPinned, "claude").tags.includes("默认") ||
+        pickerRow(xPickerPinned, "claude").pin || !pickerRow(xPickerPinned, "chatgpt")?.pin) {
+      fail(`X 速答「设为默认」异常: ${JSON.stringify({ pinnedEngine, ...xPickerPinned })}`)
+    }
+
+    await xFixture.cdp.call("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 })
+    await xFixture.cdp.call("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 })
+    const xPickerClosed = await pollXPicker((state) => state && !state.open)
+    if (xPickerClosed?.open || xPickerClosed?.expanded !== "false" || !xPickerClosed?.title) {
+      fail(`X 速答浮层 Esc 关闭 / 还原提示异常: ${JSON.stringify(xPickerClosed)}`)
+    }
+
+    // 键盘：焦点在闪电上按 ↓ 打开浮层并聚焦第一项；Esc 关闭后焦点回到闪电
+    const xKey = async (key, code, keyCode) => {
+      await xFixture.cdp.call("Input.dispatchKeyEvent", { type: "keyDown", key, code, windowsVirtualKeyCode: keyCode })
+      await xFixture.cdp.call("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode: keyCode })
+    }
+    const xFocus = () => evaluate(xFixture.cdp, `(() => {
+      const host = document.querySelector('[data-ccs-site-fastqa-picker]');
+      const inner = host?.isConnected ? host.shadowRoot.activeElement : null;
+      return {
+        onLightning: document.activeElement === document.querySelector('[data-ccs-x-tweet-fastqa]'),
+        pickerEngine: inner?.closest('[data-ccs-picker-row]')?.dataset.engine || '',
+        pickerSend: !!inner?.matches('[data-ccs-picker-send]')
+      };
+    })()`)
+    await evaluate(xFixture.cdp, `document.querySelector('[data-ccs-x-tweet-fastqa]').focus()`)
+    await xKey("ArrowDown", "ArrowDown", 40)
+    const xKeyboardOpen = await pollXPicker((state) => state?.open)
+    const xKeyboardFocus = await xFocus()
+    if (!xKeyboardOpen?.open || xKeyboardFocus.pickerEngine !== "chatgpt" || !xKeyboardFocus.pickerSend) {
+      fail(`X 速答键盘 ↓ 打开浮层异常: ${JSON.stringify({ open: xKeyboardOpen?.open, ...xKeyboardFocus })}`)
+    }
+    await xKey("Escape", "Escape", 27)
+    const xKeyboardClosed = await pollXPicker((state) => state && !state.open)
+    const xKeyboardBack = await xFocus()
+    if (xKeyboardClosed?.open || !xKeyboardBack.onLightning) {
+      fail(`X 速答键盘 Esc 关闭后焦点未回到闪电: ${JSON.stringify({ open: xKeyboardClosed?.open, ...xKeyboardBack })}`)
+    }
+
+    // 成功状态 3 秒后复位，复位后闪电按新默认显示 Claude
+    const xIdleClaude = await pollXPicker((state) => state?.state === "idle" && state.engine === "claude", 80)
+    if (xIdleClaude?.state !== "idle" || xIdleClaude.engine !== "claude" || !xIdleClaude.label.includes("用 Claude 速答")) {
+      fail(`X 速答默认改为 Claude 后闪电文案异常: ${JSON.stringify(xIdleClaude)}`)
+    }
+    const beforeClaude = await pageTargetIds()
+    await xMouse(await xPoint("lightning"), true)
+    const xClaudeTarget = await openedEngineTarget(beforeClaude, "claude.ai")
+    if (!xClaudeTarget) fail("X 速答默认 Claude 时点闪电未打开 Claude 标签页")
+    const xClaudeRecord = await relayRecordFor(xClaudeTarget)
+    if (xClaudeRecord?.relayEngine !== "claude" || !xClaudeRecord.prompt?.includes("共享运行时 X 主推文正文。")) {
+      fail(`X 速答 → Claude relay 记录异常: ${JSON.stringify(xClaudeRecord)?.slice(0, 600)}`)
+    }
+    await evaluate(swCdp, `new Promise((resolve) => chrome.storage.local.remove(${JSON.stringify(siteEngineKey)}, () => resolve(true)))`)
+    for (const target of [xGeminiTarget, xClaudeTarget]) {
+      await browserCdp.call("Target.closeTarget", { targetId: target.id }).catch(() => {})
+    }
+    if (xFixture.exceptions.length > 0) fail(`X 速答引擎浮层未捕获异常: ${xFixture.exceptions[0]}`)
+    console.log(`${TAG} ✓ X 速答引擎浮层正常（悬停弹出三家 / 临时发 Gemini 不改默认 / 已发送那家锁住 / 设为默认 Claude / Esc 关闭 / 键盘 ↓ 打开与 Esc 还焦点 / 点闪电发 Claude）`)
     xFixture.cdp.close()
 
     const xArticleFixture = await openSiteFixture("https://x.com/article-fastqa")

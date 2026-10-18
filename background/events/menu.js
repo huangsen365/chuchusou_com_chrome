@@ -528,7 +528,27 @@ function ccsHandleExecuteMenuAction(request, sender, sendResponse) {
   return true; // 异步响应
 }
 
+// 页面内入口（X / 知乎速答闪电的引擎选择）取引擎显示名与图标：内容脚本读不到扩展里的
+// config/engines.json（没开 web_accessible_resources），由这里代读。
+function ccsHandleGetEngineLabels(request, sender, sendResponse) {
+  const engineIds = Array.isArray(request.engineIds)
+    ? request.engineIds.filter((engineId) => typeof engineId === 'string')
+    : [];
+  loadEnginesConfig()
+    .then(() => {
+      const engines = {};
+      engineIds.forEach((engineId) => {
+        const engine = getEngine(engineId);
+        if (engine?.label) engines[engineId] = { label: engine.label, icon: engine.icon || '' };
+      });
+      sendResponse({ success: true, engines });
+    })
+    .catch((error) => sendResponse({ success: false, error: error?.message || String(error) }));
+  return true;
+}
+
 ccsRegisterMessageHandlers({
   getMenuStructure: ccsHandleGetMenuStructure,
-  executeMenuAction: ccsHandleExecuteMenuAction
+  executeMenuAction: ccsHandleExecuteMenuAction,
+  ccsGetEngineLabels: ccsHandleGetEngineLabels
 });
