@@ -46,12 +46,19 @@
     '【短篇回答】', '【中篇回答】', '更口语', '活人感'
   ]);
 
+  // 联网搜索过的回复会在 A/B 后面自己补一段来源列表（Claude 实测：「Sources:」段落 + 链接列表），
+  // 只放过以来源标题开头的尾巴，其它多出来的内容仍不算速答回复
+  const TRAILING_SOURCES_PATTERN = [
+    '(?:\\n+(?:[Ss]ources?|[Rr]eferences?|[Cc]itations?|来源|参考来源|参考资料|参考链接|参考文献|资料来源|信息来源|引用来源)',
+    '[ \\t]*(?:[:：][^\\n]*)?(?:\\n[\\s\\S]*)?)?'
+  ].join('');
+
   function answerShapePattern(aPattern, bPattern) {
     return new RegExp([
       '^(?:[^\\n]*[^\\s\\n][^\\n]*\\n+)?【短篇回答】[ \\t]*\\n+([\\s\\S]+?)\\n+',
       '【中篇回答】[ \\t]*\\n+([\\s\\S]+?)\\n+',
       `${aPattern}[ \\t]*\\n+`,
-      `${bPattern}$`
+      `${bPattern}${TRAILING_SOURCES_PATTERN}$`
     ].join(''), 'u');
   }
 

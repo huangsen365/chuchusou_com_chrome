@@ -5,7 +5,7 @@ import { evaluate, wait } from "./cdp.mjs"
 //   [data-cds="TurnStatus"]；正文 [data-perf-reply-text]；速答的两篇回答是代码块 [data-not-prose]
 //   （悬停复制按钮 + 「已复制」状态 + pre），A / B 是两个普通段落；选A改写的长文直接渲染成正文，
 //   # 主标题显示成 h2、## 小标题显示成 h3；底栏 [data-testid="message-actions"] 第一个按钮是「Copy」；
-//   用户消息 [data-testid="user-message"] 全文都在 DOM 里。
+//   用户消息 [data-testid="user-message"] 全文都在 DOM 里；联网搜索过的回复会在 A/B 后面再写一段来源列表。
 export const CLAUDE_ARTICLE_TITLE = "他每天写一点，三年后换了一种想问题的方式"
 
 const REWRITE_PROMPT = `选A并且按照提示词改写：
@@ -48,6 +48,10 @@ const composer = `<div contenteditable="true" role="textbox" data-testid="chat-i
     document.querySelector('[data-testid="chat-input-send"]').addEventListener('click', () => { window.__claudeSends += 1 })
   </script>`
 
+// 联网搜索过的速答回复，Claude 会在 A/B 后面自己写一段来源（2026-10 claude.ai/chat/0913f71f… 实测：「Sources:」段落 + 链接列表）
+const sourcesList = `<p dir="ltr">Sources:</p><ul dir="ltr"><li><a class="underline" href="https://example.com/a">来源文章一</a></li>` +
+  `<li><span class="inline"><a class="underline" href="https://example.com/b">来源文章二</a></span></li></ul>`
+
 export function claudeSelectAFixture() {
   const fastAnswer = `<p dir="ltr">【短篇回答】</p>${codeBlock("这是 Claude 代码块里的短篇回答。")}<p dir="ltr">【中篇回答】</p>${codeBlock("这是 Claude 代码块里的中篇回答。")}` +
     `<p dir="ltr" id="claude-choice-a">A：是否继续生成详细内容？</p><p dir="ltr" id="claude-choice-b">B：是否需要将【短篇回答】和【中篇回答】改得更口语、更有活人感？</p>`
@@ -57,6 +61,8 @@ export function claudeSelectAFixture() {
       ${turn("claude-fast", "请针对以下主题生成回答：夹具主题", fastAnswer)}
       ${turn("claude-plain", "随便聊聊", "<p>这是一条普通回答，没有速答结构。</p>")}
       ${turn("claude-streaming", "请针对以下主题生成回答：另一个主题", fastAnswer.replace(/ id="claude-choice-[ab]"/g, ""), "true")}
+      ${turn("claude-sources", "请针对以下主题生成回答：联网主题", fastAnswer.replace(/ id="claude-choice-[ab]"/g, "") + sourcesList)}
+      ${turn("claude-trailing", "请针对以下主题生成回答：多话主题", fastAnswer.replace(/ id="claude-choice-[ab]"/g, "") + "<p dir=\"ltr\">还想了解哪方面？</p>")}
     </main>
     ${composer}`
 }
@@ -84,6 +90,10 @@ export async function verifyClaudeSelectA(cdp) {
     assert(!button().closest('[data-not-prose]'), '选A按钮跑进了代码块')
     assert(!turn('claude-plain').querySelector(marker), '普通回答不该有选A按钮')
     assert(!turn('claude-streaming').querySelector(marker), '生成中的回复不该有选A按钮')
+    await waitFor(() => turn('claude-sources').querySelector(marker), 'A/B 后面带来源列表（Sources:）的速答回复没有出现选A按钮')
+    assert(!turn('claude-trailing').querySelector(marker), 'A/B 后面还有别的正文，不该算速答回复')
+    turn('claude-sources').remove()
+    turn('claude-trailing').remove()
     assert(document.querySelectorAll(marker).length === 1, '选A按钮重复')
 
     // 生成结束（data-is-streaming 翻成 false）后按钮出现

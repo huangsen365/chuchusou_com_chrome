@@ -1453,7 +1453,7 @@ async function main() {
     if (await readVarietyCounter() === varietyCounterBeforeClaude) fail("Claude 选A改写没有经后台生成改写提示词（轮换计数器未前进）")
     await evaluate(swCdp, `new Promise((resolve) => chrome.storage.local.set({ ccs_rewrite_variety_counter: ${JSON.stringify(varietyCounterBeforeClaude)} }, resolve))`)
     if (claudeSelectAPage.exceptions.length > 0) fail(`Claude 选A改写未捕获异常: ${claudeSelectAPage.exceptions[0]}`)
-    console.log(`${TAG} ✓ Claude 选A改写正常（代码块速答识别 / Copy 后单按钮 / 生成中不出 / 底栏重绘恢复 / 完整填入 / 不自动发送 / 草稿保护）`)
+    console.log(`${TAG} ✓ Claude 选A改写正常（代码块速答识别 / A/B 后带来源列表也认 / Copy 后单按钮 / 生成中不出 / 底栏重绘恢复 / 完整填入 / 不自动发送 / 草稿保护）`)
     claudeSelectAPage.cdp.close()
 
     const claudeLongArticlePage = await openSiteFixture("https://claude.ai/chat/long-article-fixture")

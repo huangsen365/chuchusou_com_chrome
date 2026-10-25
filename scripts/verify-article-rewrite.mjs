@@ -135,6 +135,13 @@ async function verifyApi(name, api, hooks) {
   assert(!api.matchesSelectARewriteText(COMPACT_RESPONSE, ["短篇正文", ""]), `${name}: compact text with an empty block accepted`)
   assert(api.matchesSelectARewriteText(FULL_RESPONSE, []), `${name}: full text must match without blocks`)
   assert(!api.matchesSelectARewriteText(`${COMPACT_RESPONSE}\n额外说明`, twoBlocks, { allowNoBlocks: true }), `${name}: trailing content accepted by text matcher`)
+  // 联网搜索后回复末尾自带来源列表（Claude 2026-10 实测「Sources:」+ 链接）：仍是速答回复
+  const withSources = `${COMPACT_RESPONSE}\n\nSources:\n\nForward Deployed Engineer vs DevOps Engineer\n人人都是产品经理：FDE 的起源与价值分化`
+  assert(api.matchesSelectARewriteText(withSources, twoBlocks), `${name}: trailing Sources list rejected`)
+  assert(api.isFullSelectARewriteResponse(`${FULL_RESPONSE}\n\n参考资料：\n某篇文章`), `${name}: trailing 参考资料 list rejected`)
+  assert(api.isCompactSelectARewriteResponse(`${COMPACT_RESPONSE}\nSources: https://example.com/a`), `${name}: same-line Sources rejected`)
+  assert(!api.isCompactSelectARewriteResponse(`${COMPACT_RESPONSE}\n\n还想了解哪方面？\n\nSources:\n某篇文章`), `${name}: extra content before Sources accepted`)
+  assert(!api.isCompactSelectARewriteResponse(`${COMPACT_RESPONSE}\n\nSourcesmith 是一个工具`), `${name}: word starting with Sources accepted as a sources heading`)
   assert(typeof api.fillSelectARewriteFromButton === "function", `${name}: shared select-A click handler missing`)
   assert(typeof api.startSiteSelectAButton === "function", `${name}: shared site select-A runner (Gemini / Claude) missing`)
 
