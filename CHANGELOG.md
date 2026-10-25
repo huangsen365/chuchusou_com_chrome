@@ -1,5 +1,18 @@
 # 更新日志
 
+## v1.21.1 (2026-10-26)
+
+**速答回复末尾带来源列表时，「选A并优化改写」也会出现**。详细见 [releases/v1.21.1.md](./releases/v1.21.1.md)。
+
+### 🐛 修复
+
+- **联网搜索过的速答回复看不到「↗ 选A并优化改写」**：Claude 联网搜索后会在 A/B 两行后面自己补一段「Sources:」加链接列表，扩展要求 B 行必须是回复最后一行，于是不认这条回复、按钮不出现。现在 A/B 后面跟着以来源标题开头的一段（Sources / References / 来源 / 参考资料等）也认；其它多出来的内容仍不算速答回复。ChatGPT、Gemini、Claude 共用这条规则。
+
+### 🛠 技术改动
+
+- 冒烟测试（真 Chrome）的 Claude 夹具新增「A/B 后带来源列表 → 出按钮」「A/B 后还有别的正文 → 不出按钮」两个场景；单元测试覆盖同一行的 Sources、中文「参考资料」、以 Sources 开头的普通单词等边界。
+- 新增待调研文档 `docs/TO-BE-IMPLEMENTED/voice-command-routing.md`（语音指令选引擎，未实现）。
+
 ## v1.21.0 (2026-10-18)
 
 **X 和知乎上的速答闪电可以选 ChatGPT、Gemini、Claude**。详细见 [releases/v1.21.0.md](./releases/v1.21.0.md)。
