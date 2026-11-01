@@ -46,6 +46,10 @@
   // Long user messages render collapsed: only the first ~10k characters plus a
   // "Show more" toggle. The rest is not in the DOM until the user expands it.
   const COLLAPSED_USER_MESSAGE_SELECTOR = '[data-user-message-bubble] button[aria-expanded="false"]';
+  const ATTACHMENT_CARD_SELECTOR = '[class~="group/resource-card"]';
+  const ATTACHMENT_OBSERVED_ATTRIBUTES = Object.freeze([
+    'aria-label', 'title', 'hidden', 'data-tab-id', 'data-message-id', 'data-chatgpt-search-message-ids'
+  ]);
 
   function messageRole(root) {
     const legacy = root.getAttribute('data-message-author-role');
@@ -118,6 +122,35 @@
     return previous && messageRole(previous) === 'user' ? previous : null;
   }
 
+  function textAttachments(message) {
+    const conversationId = location.pathname.match(/\/c\/([^/]+)(?:\/|$)/u)?.[1];
+    const ids = (message.getAttribute('data-chatgpt-search-message-ids') || message.getAttribute('data-message-id') || '')
+      .split(/\s+/u).filter(Boolean);
+    return Array.from(message.querySelectorAll(ATTACHMENT_CARD_SELECTOR)).flatMap((card, index) => {
+      const button = card.querySelector('button[aria-label]');
+      const name = button?.getAttribute('aria-label') || '';
+      const title = Array.from(card.querySelectorAll('[title]')).find((node) => node.getAttribute('title') === name);
+      // 卡片结构、同名标题与类型共同识别文本附件；文件名不能证明它是某一种提示词。
+      if (!title || !/\.(?:txt|md)$/iu.test(name)) return [];
+      const previewIds = conversationId ? ids.map((id) => `chatgpt-file:${conversationId}:user:${id}:${index}:${name}`) : [];
+      return [{ card, name, index, previewIds }];
+    });
+  }
+
+  function attachmentPreviews(attachment) {
+    // 实页预览身份包含会话、用户消息、索引和文件名，避免借用其他消息的同名附件。
+    return Array.from(document.querySelectorAll('[role="tabpanel"][data-tab-id]')).filter((panel) =>
+      panel.getAttribute('aria-label') === attachment.name && attachment.previewIds.includes(panel.getAttribute('data-tab-id'))
+    );
+  }
+
+  function userTextWithoutAttachments(message) {
+    const clone = message.cloneNode(true);
+    clone.querySelectorAll(`${ATTACHMENT_CARD_SELECTOR}, button, [role="toolbar"], nav, menu, [role="menu"], svg, style, script`)
+      .forEach((node) => node.remove());
+    return (clone.innerText || clone.textContent || '').trim();
+  }
+
   function responseCopyButton(turn) {
     const legacy = Array.from(turn.querySelectorAll('button[data-testid="copy-turn-action-button"]'))
       .find((button) => !button.closest(WRITING_BLOCK_SELECTOR));
@@ -158,7 +191,8 @@
     MESSAGE_SELECTOR, ASSISTANT_SELECTOR, TURN_SELECTOR, MARKDOWN_SELECTOR,
     WRITING_BLOCK_SELECTOR, WRITING_EDITOR_SELECTOR, WRITING_BLOCK_HEADER_SELECTOR,
     WRITING_BLOCK_COPY_BUTTON_SELECTORS, COMPOSER_SELECTORS, COMPOSER_EXCLUDE_SELECTOR,
-    SEND_BUTTON_SELECTOR, STOP_BUTTON_SELECTOR, STOP_CONTROL_SELECTOR, messageRole, messages,
+    SEND_BUTTON_SELECTOR, STOP_BUTTON_SELECTOR, STOP_CONTROL_SELECTOR, ATTACHMENT_OBSERVED_ATTRIBUTES,
+    textAttachments, attachmentPreviews, userTextWithoutAttachments, messageRole, messages,
     isCollapsedUserMessage, assistantMessages, assistantMessageFor, turnFor, markdownRoots, markdownFor,
     writingBlocks, previousUserMessage, responseCopyButton, actionAnchor, insertAfterAction
   };

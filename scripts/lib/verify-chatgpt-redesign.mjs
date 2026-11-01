@@ -296,7 +296,227 @@ export async function verifyChatgptRedesign(cdp, swCdp) {
     }
     throw new Error('移除同轮 A/B chunk 后长文动作未恢复到 Copy 后')
   }).toString()})()`)
-  return {...result, actionLayout: true}
+  await verifyChatgptAttachmentWorkflow(cdp, swCdp)
+  return {...result, actionLayout: true, attachmentWorkflow: true, punctuationIndependentActions: true}
+}
+
+// 模板变成 Pasted text 附件时，来源判定必须绑定请求及附件身份；
+// 文章可用性不依赖末句标点，生成中和长度门槛继续保护操作。
+export async function verifyChatgptAttachmentWorkflow(cdp, swCdp) {
+  await evaluate(swCdp, `(() => {
+    const api = globalThis.CCSArticleActions;
+    globalThis.__ccsAttachmentOriginalActions = {
+      x: api.createAndDeliverXArticleDraft,
+      cover: api.createLongArticleCover
+    };
+    globalThis.__ccsAttachmentActionCalls = [];
+    api.createAndDeliverXArticleDraft = async (input) => {
+      globalThis.__ccsAttachmentActionCalls.push({action:'x', title:input.title, bodyText:input.bodyText});
+      return {success:true};
+    };
+    api.createLongArticleCover = async (input) => {
+      globalThis.__ccsAttachmentActionCalls.push({action:'cover', title:input.title, bodyText:input.bodyText});
+      return {success:true};
+    };
+  })()`)
+  try {
+    await evaluate(cdp, `(${(async function () {
+      const assert = (condition, label) => { if (!condition) throw new Error(label) }
+      const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+      const waitFor = async (predicate, label) => {
+        const deadline = Date.now() + 4500
+        while (Date.now() < deadline) {
+          if (predicate()) return
+          await delay(50)
+        }
+        throw new Error(label)
+      }
+      const sourceTurn = document.querySelector('[data-turn-key="turn-long"]')
+      const prompt = sourceTurn.querySelector('[data-user-message-bubble]').textContent
+      const articleHtml = sourceTurn.querySelector('[data-markdown-text-style="assistant-message"]').innerHTML
+      const root = document.createElement('div')
+      const originalUrl = location.href
+      document.querySelector('main').append(root)
+      history.pushState({}, '', '/c/attachment-fixture')
+      const conversationId = 'attachment-fixture'
+      const filename = 'Pasted text(20261101-194310).txt'
+      const marker = '[data-ccs-long-article-actions]'
+      const card = (name = filename) => {
+        const node = document.createElement('span')
+        node.className = 'group/resource-card relative'
+        node.innerHTML = '<button class="peer/resource-card" aria-busy="false"></button><span><span title=""></span><span>Document</span></span>'
+        node.querySelector('button').setAttribute('aria-label', name)
+        node.querySelector('[title]').setAttribute('title', name)
+        node.querySelector('[title]').textContent = name
+        return node
+      }
+      const user = (id, content, legacy = false) => {
+        const node = document.createElement('div')
+        if (legacy) {
+          node.setAttribute('data-message-author-role', 'user')
+          node.setAttribute('data-message-id', id)
+        } else {
+          node.setAttribute('data-chatgpt-search-unit-key', id + ':0:user')
+          node.setAttribute('data-chatgpt-search-message-ids', id)
+        }
+        if (typeof content === 'string') {
+          const bubble = document.createElement('div')
+          bubble.setAttribute('data-user-message-bubble', 'true')
+          bubble.style.whiteSpace = 'pre-wrap'
+          bubble.textContent = content
+          node.append(bubble)
+        } else node.append(content)
+        return node
+      }
+      const articleTurn = (id, attachmentUser, legacy = false) => {
+        const turn = document.createElement('div')
+        if (legacy) turn.setAttribute('data-testid', 'conversation-turn-' + id)
+        else turn.setAttribute('data-turn-key', id)
+        const assistant = document.createElement('div')
+        if (legacy) {
+          assistant.setAttribute('data-message-author-role', 'assistant')
+          assistant.setAttribute('data-message-id', id + '-assistant')
+        } else {
+          assistant.setAttribute('data-chatgpt-search-unit-key', id + ':2:assistant')
+          assistant.setAttribute('data-chatgpt-search-message-ids', id + '-assistant')
+        }
+        assistant.innerHTML = '<div data-testid="chatgpt-writing-block" data-oai-writing-block-surface><header><span class="contents"><button aria-label="Copy">Copy</button></span><button aria-label="Open editor">Open editor</button></header><div class="writing-block-editor"><div class="ProseMirror markdown prose" contenteditable="true" role="textbox" aria-label="Start writing"></div></div></div>'
+        assistant.querySelector('.ProseMirror').innerHTML = articleHtml
+        turn.append(attachmentUser, assistant)
+        return {turn, assistant, editor:assistant.querySelector('.ProseMirror')}
+      }
+      const atCopy = (turn) => {
+        const actions = turn.querySelector(marker)
+        return actions?.closest('header') && actions.previousElementSibling?.querySelector('button[aria-label="Copy"]') &&
+          !actions.closest('.ProseMirror') && !actions.closest('span.contents')
+      }
+      try {
+        for (const legacy of [false, true]) {
+          const id = legacy ? 'attachment-legacy' : 'attachment-modern'
+          const source = user(id + '-source', prompt, legacy)
+          const attachment = user(id + '-user', card(), legacy)
+          const {turn, assistant, editor} = articleTurn(id, attachment, legacy)
+          root.append(source, turn)
+          const actions = () => turn.querySelector(marker)
+          const ready = () => actions()?.dataset.ccsLongArticleState === 'ready'
+          await waitFor(ready, id + ': 连续模板加附件没有识别为改写来源')
+          assert(atCopy(turn), id + ': 附件长文按钮未位于 Writing Copy 后')
+          assert(turn.querySelectorAll(marker).length === 1, id + ': 附件长文动作重复')
+          const articleMarkup = editor.innerHTML
+          editor.innerHTML = '<h1>正文长度门槛</h1><p>太短的正文</p>'
+          await waitFor(() => actions()?.dataset.ccsLongArticleState === 'unavailable', id + ': 过短附件文章错误启用动作')
+          assert([...actions().querySelectorAll('button')].every((button) => button.disabled), id + ': 正文过短仍可投递')
+          editor.innerHTML = articleMarkup
+          await waitFor(ready, id + ': 恢复足量正文后动作未恢复')
+          const finalParagraph = editor.querySelector('p:last-child')
+          finalParagraph.textContent = '第二个维度是预算'
+          await waitFor(() => actions()?.dataset.ccsLongArticleState === 'settling', id + ': 修改正文后没有等待稳定')
+          await waitFor(ready, id + ': 无句末标点的单篇文章未启用动作')
+          assert([...actions().querySelectorAll('button')].every((button) => !button.disabled), id + ': 无句号文章仍有禁用按钮')
+          assert(atCopy(turn), id + ': 无句号文章按钮未位于长文 Copy 后')
+          assert(!actions().querySelector('.ccs-long-article-action-hint'), id + ': 可用文章仍显示疑似断尾提示')
+          assistant.setAttribute('data-is-streaming', 'true')
+          await waitFor(() => actions()?.dataset.ccsLongArticleState === 'generating', id + ': 无句号文章生成中仍可操作')
+          assert([...actions().querySelectorAll('button')].every((button) => button.disabled), id + ': 流式生成中未禁用动作')
+          assistant.removeAttribute('data-is-streaming')
+          await waitFor(ready, id + ': 流式结束后无句号文章没有恢复可用')
+
+          const extraAttachment = user(id + '-extra', card('rewrite-notes.md'), legacy)
+          source.after(extraAttachment)
+          await waitFor(ready, id + ': 多个连续纯文本附件阻断了模板来源')
+          const ordinary = user(id + '-ordinary', '请根据附件写另一篇普通文章。', legacy)
+          attachment.before(ordinary)
+          await waitFor(() => !actions(), id + ': 越过普通用户消息借用了旧模板')
+          ordinary.remove()
+          await waitFor(ready, id + ': 移除普通提问后连续附件来源未恢复')
+          const barrier = document.createElement('div')
+          if (legacy) barrier.setAttribute('data-message-author-role', 'assistant')
+          else {
+            barrier.setAttribute('data-chatgpt-search-unit-key', id + '-barrier:1:assistant')
+            barrier.setAttribute('data-chatgpt-search-message-ids', id + '-barrier')
+          }
+          barrier.textContent = '已完成上一轮回答。'
+          turn.before(barrier)
+          await waitFor(() => !actions(), id + ': 越过其他轮 assistant 借用了旧模板')
+          barrier.remove()
+          await waitFor(ready, id + ': 恢复邻接请求后动作没有恢复')
+          // 点击实际扩展入口；后台已替换成记录器，验证无句号正文既能注入 X 也能生成封面。
+          actions().querySelector('[data-ccs-long-article-x-draft]').click()
+          actions().querySelector('[data-ccs-long-article-cover]').click()
+          await waitFor(() => [...actions().querySelectorAll('button')].every((button) => button.textContent.includes('✓ 已完成')), id + ': 无句号文章的 X 或封面操作未成功')
+          root.replaceChildren()
+        }
+
+        // 单独的附件不能靠文件名授权；只有本消息、本附件的可见预览有完整模板指纹才确认。
+        const previewUser = user('attachment-preview-user', card())
+        const {turn:previewTurn} = articleTurn('attachment-preview', previewUser)
+        root.append(previewTurn)
+        const previewActions = () => previewTurn.querySelector(marker)
+        await delay(200)
+        assert(!previewActions(), '没有模板依据的 Pasted text 附件被直接识别')
+        const preview = document.createElement('div')
+        preview.setAttribute('role', 'tabpanel')
+        preview.setAttribute('aria-label', filename)
+        preview.setAttribute('data-app-shell-tab-panel-controller', 'right')
+        const tabId = (messageId, name = filename, conversation = conversationId) =>
+          'chatgpt-file:' + conversation + ':user:' + messageId + ':0:' + name
+        preview.setAttribute('data-tab-id', tabId('different-user'))
+        preview.textContent = prompt
+        root.append(preview)
+        await delay(200)
+        assert(!previewActions(), '同名文件的其他消息预览误授权当前附件')
+        preview.setAttribute('data-tab-id', tabId('attachment-preview-user', filename, 'another-conversation'))
+        preview.append(document.createTextNode(' '))
+        await delay(200)
+        assert(!previewActions(), '其他会话的附件预览误授权当前附件')
+        preview.setAttribute('data-tab-id', tabId('attachment-preview-user'))
+        preview.textContent = '普通笔记，不含选 A 改写提示词。'
+        await delay(200)
+        assert(!previewActions(), '不含完整模板指纹的附件预览被识别')
+        preview.textContent = prompt
+        await waitFor(() => previewActions()?.dataset.ccsLongArticleState === 'ready', '精确绑定的模板附件预览未恢复按钮')
+        assert(atCopy(previewTurn), '预览确认后的附件长文动作没有放在 Copy 后')
+        preview.remove()
+        await delay(200)
+        assert(previewActions()?.dataset.ccsLongArticleState === 'ready', '关闭已验证附件预览后按钮消失')
+        const duplicateUser = user('attachment-duplicate-user', card())
+        const {turn:duplicateTurn} = articleTurn('attachment-duplicate', duplicateUser)
+        root.append(duplicateTurn)
+        await delay(200)
+        assert(!duplicateTurn.querySelector(marker), '同名新附件继承了其他消息的验证缓存')
+        duplicateTurn.remove()
+        history.pushState({}, '', '/c/another-attachment-fixture')
+        root.append(document.createTextNode('route changed'))
+        await waitFor(() => !previewActions(), 'SPA 切换会话后沿用了旧附件的模板验证缓存')
+        history.pushState({}, '', '/c/attachment-fixture')
+        root.append(preview)
+        await waitFor(() => previewActions()?.dataset.ccsLongArticleState === 'ready', '回到原会话后可见预览未重新确认附件')
+        preview.remove()
+        previewUser.querySelector('[title]').textContent = 'changed.txt'
+        previewUser.querySelector('[title]').setAttribute('title', 'changed.txt')
+        previewUser.querySelector('button').setAttribute('aria-label', 'changed.txt')
+        await waitFor(() => !previewActions(), '附件身份变化后仍保留旧的模板验证缓存')
+      } finally {
+        root.remove()
+        history.pushState({}, '', originalUrl)
+        document.dispatchEvent(new Event('visibilitychange'))
+      }
+    }).toString()})()`, {timeoutMs:55_000})
+    const calls = await evaluate(swCdp, 'globalThis.__ccsAttachmentActionCalls')
+    if (calls.filter((call) => call.action === 'x').length !== 2 ||
+        calls.filter((call) => call.action === 'cover').length !== 2 ||
+        calls.some((call) => !call.bodyText.endsWith('第二个维度是预算'))) {
+      throw new Error('无句号文章未通过新旧 DOM 的 X 与封面操作: ' + JSON.stringify(calls))
+    }
+  } finally {
+    await evaluate(swCdp, `(() => {
+      const original = globalThis.__ccsAttachmentOriginalActions;
+      globalThis.CCSArticleActions.createAndDeliverXArticleDraft = original.x;
+      globalThis.CCSArticleActions.createLongArticleCover = original.cover;
+      delete globalThis.__ccsAttachmentOriginalActions;
+      delete globalThis.__ccsAttachmentActionCalls;
+    })()`)
+  }
 }
 
 // 用真实浏览器布局和命中检测检查文字按钮，而不只断言 CSS 声明存在。

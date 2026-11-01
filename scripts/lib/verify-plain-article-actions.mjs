@@ -131,7 +131,9 @@ export async function verifyPlainArticleActions(cdp) {
     await waitFor(ready, '重新起稿完成后按钮未恢复')
     const ending = article.lastElementChild.textContent
     article.lastElementChild.textContent = '末篇也在此处中断'
-    await waitFor(() => !actions(), '两篇残稿错误显示可投递动作')
+    await waitFor(() => actions()?.dataset.ccsLongArticleState === 'settling', '末篇正文变化后没有等待稳定')
+    await waitFor(ready, '无句末标点的末篇文章被错误禁用')
+    assert([...actions().querySelectorAll('button')].every((button) => !button.disabled), '无句末标点的末篇动作不可用')
     article.lastElementChild.textContent = ending
     await waitFor(ready, '恢复成稿结尾后按钮未恢复')
     message.after(partial)

@@ -34,10 +34,11 @@
   const STOP_PATTERN = /^(?:stop|stop generating|stop streaming|stop response|停止|停止生成|停止回答|停止流式传输)$/iu;
   const ACTION_STATE_TITLES = {
     generating: '内容正在生成中，请耐心等待；完成后即可使用此操作。',
-    settling: '内容刚生成完成，正在确认完整性，请稍候。',
+    settling: '内容刚生成完成，正在等待页面稳定，请稍候。',
     unavailable: '暂未读取到完整文章，当前操作不可用。'
   };
   const stability = new WeakMap();
+  const verifiedAttachments = new WeakMap();
   // 普通回复的动作栏在 assistant 节点外，按消息持有才能正确去重、迁移和清理。
   const actionGroups = new Map();
 
@@ -87,6 +88,43 @@
     const text = messageText(message);
     if (isArticleRewritePromptText(text)) return true;
     return ChatGptDom.isCollapsedUserMessage(message) && REWRITE_PROMPT_HEAD.test(text);
+  }
+
+  function hasVerifiedAttachmentPrompt(message, attachments) {
+    if (!attachments.length) return false;
+    const signature = `${location.href}\u0000${attachments.map(({ name, index, previewIds }) => `${index}:${name}:${previewIds.join(' ')}`).join('\u0000')}`;
+    let record = verifiedAttachments.get(message);
+    if (!record || record.signature !== signature) {
+      record = { signature, files: new Set() };
+      verifiedAttachments.set(message, record);
+    }
+    for (const attachment of attachments) {
+      const key = `${attachment.index}:${attachment.name}`;
+      const preview = ChatGptDom.attachmentPreviews(attachment).find(isVisible);
+      if (preview) {
+        if (isArticleRewritePromptText(messageText(preview))) record.files.add(key);
+        else record.files.delete(key);
+      }
+    }
+    return record.files.size > 0;
+  }
+
+  function hasWorkflowSource(assistant) {
+    const previous = ChatGptDom.previousUserMessage(assistant);
+    if (!previous) return false;
+    const messages = ChatGptDom.messages();
+    let index = messages.indexOf(previous);
+    while (index >= 0 && ChatGptDom.messageRole(messages[index]) === 'user') {
+      const message = messages[index];
+      if (isWorkflowSourceMessage(message)) return true;
+      const attachments = ChatGptDom.textAttachments(message);
+      if (hasVerifiedAttachmentPrompt(message, attachments)) return true;
+      if (!attachments.length) return false;
+      // 只有纯附件消息可以延续紧邻的模板请求，普通追问或另一条回复都切断来源链。
+      if (normalizeText(ChatGptDom.userTextWithoutAttachments(message))) return false;
+      index -= 1;
+    }
+    return false;
   }
 
   function isVisible(element) {
@@ -384,7 +422,7 @@
     const template = document.createElement('template');
     template.innerHTML = snapshot.bodyHtml;
     const last = template.content.lastElementChild;
-    // 只把正文段落中的断句作为重起稿线索；列表、标题、图片等结尾不据此判为残稿。
+    // 仅用于区分同轮先前的稿件，不据此限制当前文章能否使用。
     if (!last?.matches('p') || !last.textContent.trim()) return null;
     return /[。！？.!?…][”’"'）)\]】]*$/u.test(last.textContent.trim()) ? 'sentence' : 'fragment';
   }
@@ -399,9 +437,8 @@
         .filter((message) => ChatGptDom.writingBlocks(message).length || ChatGptDom.markdownRoots(message).some((node) => node.querySelector('h1')));
       if (articleMessages.at(-1) !== assistant) return null;
       if (articleMessages.length > 1) {
-        // Work 同轮可能保留中途截断的稿件，再输出完整成稿。只接受末篇，
-        // 且前稿必须明确断在正文句中；两篇完整文章仍不自动代选，也不拼接。
-        if (!extractArticle(block) || articleEnding(block) !== 'sentence') return null;
+        // Work 同轮可能保留中途截断的稿件再重新起稿。只给末篇保留入口，
+        // 前稿必须有正文断句线索；当前文章不要求句号结尾，两篇成稿仍不自动代选或拼接。
         if (!articleMessages.slice(0, -1).every((message) => {
           const earlier = singleArticleBlock(message);
           return earlier && articleEnding(earlier) === 'fragment';
@@ -420,14 +457,14 @@
       toolbar = copyButton.closest('[role="toolbar"], [role="group"]');
     }
     if (!copyButton && !toolbar) return null;
-    const previous = ChatGptDom.previousUserMessage(assistant);
-    if (!previous || !isWorkflowSourceMessage(previous)) return null;
+    if (!hasWorkflowSource(assistant)) return null;
+    const snapshot = extractArticleSnapshot(block);
     return {
       block,
       copyButton,
       toolbar,
       streaming: isStreaming(turn || assistant, block, copyButton),
-      snapshot: extractArticleSnapshot(block)
+      snapshot
     };
   }
 
@@ -513,7 +550,7 @@
       const ariaLabel = state === 'generating'
         ? `${defaultLabel}（内容生成中）`
         : state === 'settling'
-          ? `${defaultLabel}（正在确认内容完整性）`
+          ? `${defaultLabel}（正在等待内容稳定）`
           : state === 'unavailable'
             ? `${defaultLabel}（内容尚未就绪）`
             : defaultLabel;
@@ -751,6 +788,7 @@
         'disabled',
         'aria-disabled',
         'aria-busy',
+        ...ChatGptDom.ATTACHMENT_OBSERVED_ATTRIBUTES,
         'data-streaming',
         'data-is-streaming',
         'data-generating',
