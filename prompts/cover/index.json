@@ -5,7 +5,7 @@
   "engines": [
     {
       "id": "chatgpt-images",
-      "label": "ChatGPT Images 2.5",
+      "label": "ChatGPT Images 2.6",
       "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}"
     }
   ],

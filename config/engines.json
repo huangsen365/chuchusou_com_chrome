@@ -53,11 +53,11 @@
     },
     "chatgpt-images": {
       "id": "chatgpt-images",
-      "label": "ChatGPT Images 2.5",
+      "label": "ChatGPT Images 2.6",
       "icon": "🎨",
       "urlPattern": "https://chatgpt.com/?prompt=${PROMPT}",
       "searchUrlPattern": "https://chatgpt.com/?prompt=${KEYWORD}",
-      "description": "OpenAI ChatGPT Images 2.5（封面/图像生成）"
+      "description": "OpenAI ChatGPT Images 2.6（封面/图像生成）"
     }
   },
 
