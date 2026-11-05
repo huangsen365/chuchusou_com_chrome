@@ -1,5 +1,14 @@
 # 更新日志
 
+## v1.21.3 (2026-11-05)
+
+**封面生成器跟进 ChatGPT Images 2.6**。详细见 [releases/v1.21.3.md](./releases/v1.21.3.md)。
+
+### 🔧 改进
+
+- **文案跟进 ChatGPT Images 2.6**：扩展名称与描述、封面引擎名（右键菜单 / Popup / 侧边栏）、欢迎页、README 里的「ChatGPT Images 2.5」都改为 2.6。
+- **侧边栏「💡 不知道填什么？(2)」搜索词更新**：原来跳 Google 搜的还是「ChatGPT Images 2.0 提示词」，现在搜「ChatGPT Images 2.6 提示词」。
+
 ## v1.21.2 (2026-11-02)
 
 **ChatGPT 把长提示词收成附件后，「注入X草稿 / 生成封面」也会出现**。详细见 [releases/v1.21.2.md](./releases/v1.21.2.md)。
