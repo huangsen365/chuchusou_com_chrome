@@ -72,9 +72,13 @@
       .trim();
   }
 
-  function matchesAnswerShape(text, pattern) {
+  function answerShapeMatch(text, pattern) {
     const match = pattern.exec(normalizeMatchText(text));
-    return Boolean(match?.[1]?.trim() && match?.[2]?.trim());
+    return match?.[1]?.trim() && match?.[2]?.trim() ? match : null;
+  }
+
+  function matchesAnswerShape(text, pattern) {
+    return Boolean(answerShapeMatch(text, pattern));
   }
 
   function isFullSelectARewriteResponse(text) {
@@ -127,14 +131,35 @@
     return ['【短篇回答】', shortText, '【中篇回答】', middleText, outsideText].join('\n');
   }
 
+  const SHORT_HEADING_LINE_PATTERN = /^【短篇回答】[ \t]*$/gmu;
+
+  function sameTextIgnoringSpace(a, b) {
+    return String(a || '').replace(/\s+/gu, '') === String(b || '').replace(/\s+/gu, '');
+  }
+
+  // 模型把草稿和自检过程漏进正文时（Gemini 2026-11 实测：先写一版短篇，发现用了禁用词，列出约束和草稿，
+  // 最后才按结构重写一遍），最终答案前面会多出独立块。这时只看收尾那一段：从最后一个独占一行的
+  // 【短篇回答】起是完整的紧凑版，而且两篇正文正好是最后两个块；前面的草稿不让整条回复失效。
+  function matchesFinalAnswerAfterDrafts(directText, blockTexts) {
+    if (blockTexts.length <= 2) return false;
+    const text = normalizeMatchText(directText);
+    const lastHeading = Array.from(text.matchAll(SHORT_HEADING_LINE_PATTERN)).pop();
+    if (!lastHeading) return false;
+    const match = answerShapeMatch(text.slice(lastHeading.index), COMPACT_RESPONSE_PATTERN);
+    const [shortBlock, middleBlock] = blockTexts.slice(-2);
+    return Boolean(match && shortBlock && middleBlock) &&
+      sameTextIgnoringSpace(match[1], shortBlock) && sameTextIgnoringSpace(match[2], middleBlock);
+  }
+
   // 站点无关的判定：directText 是整条回复的文字，blockTexts 是回复里独立文本块（ChatGPT 的 writing block、
   // Gemini 的代码块）的正文。完整版 A/B 直接认；紧凑版只在恰好两块且都有内容时认——allowNoBlocks
-  // 时（站点可能把两篇回答直接写成段落）没有块也认。
+  // 时（站点可能把两篇回答直接写成段落）没有块也认；多于两块时只认「草稿在前、收尾完整」这一种。
   function matchesSelectARewriteText(directText, blockTexts = [], { allowNoBlocks = false } = {}) {
     if (isFullSelectARewriteResponse(directText)) return true;
     const blocksOk = (blockTexts.length === 2 && blockTexts.every(Boolean)) ||
       (allowNoBlocks && blockTexts.length === 0);
-    return blocksOk && isCompactSelectARewriteResponse(directText);
+    if (blocksOk && isCompactSelectARewriteResponse(directText)) return true;
+    return matchesFinalAnswerAfterDrafts(directText, blockTexts);
   }
 
   function matchesResponseText(message, options) {

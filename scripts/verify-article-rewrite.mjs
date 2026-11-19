@@ -126,7 +126,7 @@ async function verifyApi(name, api, hooks) {
   assert(api.isCompactSelectARewriteResponse(COMPACT_RESPONSE), `${name}: compact Select-A response rejected`)
   assert(!api.isCompactSelectARewriteResponse(`${COMPACT_RESPONSE}\n额外说明`), `${name}: trailing response content accepted`)
   assert(!api.isCompactSelectARewriteResponse(COMPACT_RESPONSE.replace("更口语", "更简洁")), `${name}: incomplete B constraint accepted`)
-  // 站点无关判定：紧凑版 A/B 要恰好两个有内容的独立块；allowNoBlocks（Gemini）时没有块也认
+  // 站点无关判定：紧凑版 A/B 要恰好两个有内容的独立块；allowNoBlocks（Gemini / Claude）时没有块也认
   const twoBlocks = ["短篇正文", "中篇正文"]
   assert(api.matchesSelectARewriteText(COMPACT_RESPONSE, twoBlocks), `${name}: compact text with two blocks rejected`)
   assert(!api.matchesSelectARewriteText(COMPACT_RESPONSE, []), `${name}: compact text without blocks accepted by default`)
@@ -135,6 +135,35 @@ async function verifyApi(name, api, hooks) {
   assert(!api.matchesSelectARewriteText(COMPACT_RESPONSE, ["短篇正文", ""]), `${name}: compact text with an empty block accepted`)
   assert(api.matchesSelectARewriteText(FULL_RESPONSE, []), `${name}: full text must match without blocks`)
   assert(!api.matchesSelectARewriteText(`${COMPACT_RESPONSE}\n额外说明`, twoBlocks, { allowNoBlocks: true }), `${name}: trailing content accepted by text matcher`)
+  // 模型把草稿和自检漏进正文（Gemini 2026-11 实测）：最终答案前面多出草稿块，收尾那段结构完整、
+  // 两篇正文正好是最后两个块才认
+  const finalBlocks = ["这是独立 Writing block 中的短篇回答。", "这是独立 Writing block 中的中篇回答。"]
+  const draftBlock = "这是用了禁用词的短篇草稿。"
+  const draftLeak = [
+    "【短篇回答】", draftBlock, "（哦，等等，这个词全文不用！立刻改掉！）", "让我重新检查约束：", "短篇草稿：",
+    "这是改过的短篇。", "中篇草稿：", "这是中篇草稿。", "输出严格遵循第一轮输出结构要求。", COMPACT_RESPONSE
+  ].join("\n")
+  assert(api.matchesSelectARewriteText(draftLeak, [draftBlock, ...finalBlocks]), `${name}: final answer after a leaked draft block rejected`)
+  assert(api.matchesSelectARewriteText(draftLeak, [draftBlock, ...finalBlocks], { allowNoBlocks: true }), `${name}: final answer after a leaked draft block rejected under allowNoBlocks`)
+  assert(
+    api.matchesSelectARewriteText(`先打个草稿：\n${draftBlock}\n再检查一遍约束。\n另一版草稿\n${COMPACT_RESPONSE}`, [draftBlock, "另一版草稿", ...finalBlocks]),
+    `${name}: draft blocks before the only short-answer heading rejected`
+  )
+  const multiParagraph = COMPACT_RESPONSE.replace("这是独立 Writing block 中的中篇回答。", "中篇第一段。\n\n中篇第二段。")
+  assert(
+    api.matchesSelectARewriteText(`【短篇回答】\n${draftBlock}\n重写一遍：\n${multiParagraph}`, [draftBlock, finalBlocks[0], "中篇第一段。\n\n\n  中篇第二段。"]),
+    `${name}: multi-paragraph final block rejected over blank-line differences`
+  )
+  assert(!api.matchesSelectARewriteText(draftLeak, [...finalBlocks, "收尾之后的别的块"]), `${name}: last two blocks are not the final answers but accepted`)
+  assert(!api.matchesSelectARewriteText(draftLeak, [draftBlock, finalBlocks[0], "页面上不是这篇中篇"]), `${name}: final block text differs from the final answer but accepted`)
+  assert(!api.matchesSelectARewriteText(draftLeak, [draftBlock, finalBlocks[0], ""]), `${name}: empty final block accepted`)
+  assert(
+    !api.matchesSelectARewriteText(draftLeak.replace(/\n【中篇回答】/u, "\n字数统计：76字。\n【中篇回答】"), [draftBlock, ...finalBlocks]),
+    `${name}: stray text between the final short answer and the next heading accepted`
+  )
+  assert(!api.matchesSelectARewriteText(`${draftLeak}\n额外说明`, [draftBlock, ...finalBlocks]), `${name}: trailing content after a draft leak accepted`)
+  assert(!api.matchesSelectARewriteText(draftLeak.replace("更口语", "更简洁"), [draftBlock, ...finalBlocks]), `${name}: incomplete B after a draft leak accepted`)
+  assert(!api.matchesSelectARewriteText("这是一条普通回答。\n代码一\n代码二\n代码三", ["代码一", "代码二", "代码三"]), `${name}: plain reply with three blocks accepted`)
   // 联网搜索后回复末尾自带来源列表（Claude 2026-10 实测「Sources:」+ 链接）：仍是速答回复
   const withSources = `${COMPACT_RESPONSE}\n\nSources:\n\nForward Deployed Engineer vs DevOps Engineer\n人人都是产品经理：FDE 的起源与价值分化`
   assert(api.matchesSelectARewriteText(withSources, twoBlocks), `${name}: trailing Sources list rejected`)

@@ -19,7 +19,8 @@
 - **「选A并优化改写」按钮**：ChatGPT 一轮多条消息，单独由 `chatGptSelectARewrite.js` 处理；Gemini / Claude 走
   `articleRewriteRuntime.js` 的 `startSiteSelectAButton(site)`（`geminiSelectARewrite.js` / `claudeSelectARewrite.js` 只描述
   页面结构）。速答回复的识别（`matchesSelectARewriteText`）和点击填入（`fillSelectARewriteFromButton`）三站共用。
-  Gemini / Claude 都把速答要求的 writing block 渲染成代码块。
+  Gemini / Claude 都把速答要求的 writing block 渲染成代码块。简短 A/B 的回复要恰好两个块；模型把草稿和自检
+  漏进正文、前面多出块时（Gemini 2026-11 实测），只认收尾那段完整、两篇正文正好是最后两个块的回复。
 - **长文「注入X草稿 / 生成封面」**：按钮、状态机与投递只有一份（`modules/longArticleActions.js`），站点各自实现
   `inspect(response)`（是否改写工作流的长文、文章怎么取、按钮放哪）：ChatGPT 在同文件里，Claude 在
   `modules/claudeLongArticle.js`（长文直接渲染：# 主标题显示成 h2、## 小标题 h3，按钮在底栏 Copy 后面；

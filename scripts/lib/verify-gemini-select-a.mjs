@@ -28,6 +28,19 @@ export function geminiSelectAFixture() {
     </div>`
   const choices = "A：是否继续生成详细内容？\nB：是否需要将【短篇回答】和【中篇回答】改得更口语、更有活人感？"
   const fastAnswer = `<p>【短篇回答】</p>${codeBlock("这是 Gemini 代码块里的短篇回答。")}<p>【中篇回答】</p>${codeBlock("这是 Gemini 代码块里的中篇回答。")}<p id="gemini-choices">${choices}</p>`
+  // 没标语言的代码块没有头部，框里直接是 pre > code
+  const plainBlock = (text) => `<response-element class="no-md md-has-block-component"><code-block><div class="code-block"><div class="formatted-code-block-internal-container"><div class="animated-opacity"><pre><code role="text" data-test-id="code-content" class="code-container formatted">${text}</code></pre></div></div></div></code-block></response-element>`
+  // 模型把草稿和自检过程漏进正文（2026-11 实测 1162b3b7…）：先一版短篇草稿（代码块），接着自检
+  // （段落 + 有序列表）和草稿，最后才按结构重写一遍——回复里有三个代码块，收尾那段才是速答。
+  // betweenFinalAnswers：夹在最终短篇和【中篇回答】之间的内容（收尾不干净的反例）
+  const draftLeak = (betweenFinalAnswers = "") => [
+    `<p>【短篇回答】</p>${plainBlock("这是用了禁用词的短篇草稿。")}`,
+    "<p>（哦，等等，这个词全文不用！立刻改掉！）</p><p>让我重新检查约束：</p>",
+    '<ol start="1"><li><p>禁用词全文不用。</p></li><li><p>约1句话，80字以内。</p></li></ol>',
+    "<p>短篇草稿：\n这是改过的短篇草稿。</p><p>输出严格遵循第一轮输出结构要求。</p>",
+    `<p>【短篇回答】</p>${plainBlock("这是 Gemini 重写后的短篇回答。")}${betweenFinalAnswers}`,
+    `<p>【中篇回答】</p>${plainBlock("这是 Gemini 重写后的中篇第一段。\n\n这是 Gemini 重写后的中篇第二段。")}<p>${choices}</p>`
+  ].join("")
   return `<!doctype html><meta charset="utf-8"><title>Gemini select-A fixture</title>
     <style>
       body { font: 16px/1.5 system-ui; }
@@ -38,6 +51,8 @@ export function geminiSelectAFixture() {
       ${response("gemini-fast", fastAnswer)}
       ${response("gemini-plain", "<p>这是一条普通回答，没有速答结构。</p>")}
       ${response("gemini-streaming", fastAnswer.replace('id="gemini-choices"', ""), "true")}
+      ${response("gemini-draft-leak", draftLeak())}
+      ${response("gemini-draft-noisy", draftLeak("<p>字数统计：76字。</p>"))}
     </main>
     <rich-textarea><div class="ql-editor ql-blank" contenteditable="true" role="textbox" aria-label="Enter a prompt for Gemini"><p><br></p></div></rich-textarea>
     <button class="send-button" type="button" aria-label="Send message">Send</button>
@@ -65,6 +80,15 @@ export async function verifyGeminiSelectA(cdp) {
     const composer = document.querySelector('rich-textarea .ql-editor')
 
     await waitFor(() => button(), 'Gemini 速答回复没有出现选A按钮')
+
+    // 草稿和自检漏进正文：前面多一个草稿代码块，收尾那段完整 → 仍有按钮；收尾那段还夹着别的话 → 没有
+    const leaked = turn('gemini-draft-leak')
+    assert(leaked.querySelectorAll('code-block').length === 3, '草稿夹具应有三个代码块')
+    await waitFor(() => leaked.querySelector(marker), '草稿漏进正文的 Gemini 速答回复没有出现选A按钮')
+    assert(leaked.querySelector(marker).previousElementSibling?.tagName === 'COPY-BUTTON', '草稿回复的选A按钮没有紧跟在复制按钮后面')
+    assert(!turn('gemini-draft-noisy').querySelector(marker), '收尾不干净的草稿回复不该有选A按钮')
+    leaked.remove()
+    turn('gemini-draft-noisy').remove()
     assert(button().previousElementSibling?.tagName === 'COPY-BUTTON', '选A按钮没有紧跟在整条回复的复制按钮后面')
     assert(!button().closest('code-block'), '选A按钮跑进了代码块')
     assert(!turn('gemini-plain').querySelector(marker), '普通回答不该有选A按钮')
