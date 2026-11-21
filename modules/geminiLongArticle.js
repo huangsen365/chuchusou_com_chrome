@@ -3,8 +3,9 @@
 
   // Gemini 版「注入X草稿 / 生成封面」：选A改写产出的长文放这两个动作——文章在代码块里时放在代码块右上角：
   // 有头部（标了语言，如「Markdown」）就跟在下载 / 复制代码后面，没有头部就在代码块最上面补一行靠右放；
-  // 渲染成页面时放在整条回复底栏的复制按钮后面。补的那一行用代码块正文的文字颜色（框是深底，页面文字是深色，
-  // 直接继承就看不见）。
+  // 渲染成页面时放在整条回复底栏的复制按钮后面。补的那一行里是自带底色和文字颜色的实心按钮：框是深底，
+  // 页面文字在浅色主题下是深色、深色主题下是浅色，按钮跟着继承就会时有时无。这一行还吸顶：长文往下滚，
+  // 按钮一直停在代码块顶部右上角（标了语言的头部本来就吸顶）。
   // 按钮、状态机与投递共用 modules/longArticleActions.js，这里只回答 Gemini 页面上的三件事：
   //   哪条回复是改写工作流的长文（同一轮用户消息是改写提示词）、文章怎么取、按钮放哪。
   // Gemini 常把整篇放进「Markdown」代码块（原文 # 主标题 / ## 小标题 / **加粗**），也可能直接渲染成页面。
@@ -32,14 +33,37 @@
     const style = document.createElement('style');
     style.id = `${OWN_ROW_MARKER}-styles`;
     // 按钮被挪走（头部出现 / 不再是长文）后这一行不留任何空白
-    style.textContent = `[${OWN_ROW_MARKER}] { display: flex; justify-content: flex-end; align-items: center; padding-right: 24px; }
-      [${OWN_ROW_MARKER}]:empty { display: none; }`;
+    // 这一行只装我们的按钮，所以直接按 button 选：比共用样式（一个类名）优先，悬停 / 禁用 / 焦点各自再压一层。
+    // 颜色写死（浅蓝底、深蓝字），不取页面或代码块的颜色。
+    // 吸顶后这一行浮在正文上面：整行不接鼠标，只有按钮接，下面的正文照常能点能选。
+    style.textContent = `[${OWN_ROW_MARKER}] { display: flex; justify-content: flex-end; align-items: center; padding-right: 24px;
+        position: sticky; z-index: 1; pointer-events: none; }
+      [${OWN_ROW_MARKER}]:empty { display: none; }
+      [${OWN_ROW_MARKER}] > * { gap: 8px; pointer-events: auto; }
+      [${OWN_ROW_MARKER}] button { padding: 3px 12px; border-radius: 14px; background: #a8c7fa; color: #062e6f; opacity: 1; }
+      [${OWN_ROW_MARKER}] button:hover:not(:disabled) { background: #c2d9fc; opacity: 1; }
+      [${OWN_ROW_MARKER}] button:focus-visible { outline: 2px solid #a8c7fa; outline-offset: 2px; }
+      [${OWN_ROW_MARKER}] button:disabled { opacity: .7; }`;
     (document.head || document.documentElement).appendChild(style);
+  }
+
+  // 吸顶位置是相对滚动区的内容边算的，而 Gemini 的对话滚动区顶部有内边距（2026-11 实测 72px，它自己的头部
+  // 写死 top: -72px 抵消）。这里把最近那层滚动区的内边距读出来抵消，停在滚动区顶边下 8px。
+  // overflow: clip 的那层（代码块的框）不算滚动区。
+  function stickyTop(row) {
+    let scroller = row.parentElement;
+    while (scroller && scroller !== document.documentElement) {
+      const overflowY = getComputedStyle(scroller).overflowY;
+      if (overflowY !== 'visible' && overflowY !== 'clip') break;
+      scroller = scroller.parentElement;
+    }
+    const padding = scroller && scroller !== document.documentElement ? parseFloat(getComputedStyle(scroller).paddingTop) || 0 : 0;
+    return `${8 - padding}px`;
   }
 
   // 没有头部的代码块：在看得见的框里最上面补一行（只装我们的按钮，靠右，避开大圆角）。框顶有内边距
   // （实测 26px），这一行往上收进内边距，按钮离框顶约 8px，正文只往下让一点。
-  function placeInOwnRow(frame, actions, textColor) {
+  function placeInOwnRow(frame, actions) {
     ensureRowStyles();
     let row = frame.querySelector(`:scope > [${OWN_ROW_MARKER}]`);
     if (!row) {
@@ -54,8 +78,8 @@
     const marginTop = `${-Math.max(0, paddingTop - 8)}px`;
     if (row.style.marginTop !== marginTop) row.style.marginTop = marginTop;
     if (row.style.marginBottom !== '4px') row.style.marginBottom = '4px';
-    // 按钮的文字颜色是继承来的：框有深色底，自己却没有文字颜色（颜色定在正文上），继承到的是页面的深色字
-    if (textColor && getComputedStyle(row).color !== textColor) row.style.color = textColor;
+    const top = stickyTop(row);
+    if (row.style.top !== top) row.style.top = top;
   }
 
   function articleSource(response) {
@@ -74,7 +98,7 @@
             placeInHeader(header, actions);
             frame.querySelector(`:scope > [${OWN_ROW_MARKER}]`)?.remove();
           } else {
-            placeInOwnRow(frame, actions, GeminiDom.codeBlockTextColor(response));
+            placeInOwnRow(frame, actions);
           }
         }
       };

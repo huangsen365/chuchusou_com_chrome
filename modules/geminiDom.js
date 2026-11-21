@@ -10,7 +10,8 @@
   //   （例如 ``` 不带 markdown）没有这个头部，内容直接是 pre。有底色和大圆角的那层是
   //   .formatted-code-block-internal-container（头部也在它里面）；
   //   代码块自己有底色，浅色主题下也是深底白字（2026-11 实测）：底色在 .formatted-code-block-internal-container 上，
-  //   文字颜色却定在 pre > code 上（有头部时头部另有自己的颜色），框本身的文字颜色还是页面的深色；
+  //   文字颜色却定在 pre > code 上（有头部时头部另有自己的颜色），框本身的文字颜色还是页面的——浅色主题下是深色字，
+  //   放进框里的自家控件不能靠继承颜色；
   //   回复底栏是 <message-actions>，其中 <copy-button> 是整条回复的复制（不随界面语言变）；
   //   一轮问答是 .conversation-container，用户那条是其中的 <user-query>（折叠显示时全文仍在 DOM 里）。
   const RESPONSE_SELECTOR = 'model-response';
@@ -21,7 +22,6 @@
   // 按顺序取：看得见的框优先（它在 .code-block 里面，合成一个选择器会先命中外层）
   const CODE_BLOCK_FRAME_SELECTORS = Object.freeze(['.formatted-code-block-internal-container', '.code-block']);
   const CODE_CONTENT_SELECTOR = 'pre code, pre';
-  const CODE_TEXT_SELECTORS = Object.freeze(['pre code', 'pre']);
   const RESPONSE_COPY_SELECTOR = 'message-actions copy-button';
   const TURN_SELECTOR = '.conversation-container';
   const USER_QUERY_SELECTOR = 'user-query';
@@ -68,15 +68,6 @@
     return blocks[0];
   }
 
-  // 回复里唯一代码块正文的文字颜色；放进框里的自家控件要用它才看得见（框本身的文字颜色是页面的）
-  function codeBlockTextColor(response) {
-    const blocks = markdownFor(response)?.querySelectorAll(CODE_BLOCK_SELECTOR) || [];
-    if (blocks.length !== 1) return '';
-    // 按顺序取最里面的那层：颜色定在 code 上，外层 pre 还是页面的文字颜色（合成一个选择器会先命中 pre）
-    const content = CODE_TEXT_SELECTORS.map((selector) => blocks[0].querySelector(selector)).find(Boolean);
-    return content ? getComputedStyle(content).color : '';
-  }
-
   function responseCopyAnchor(response) {
     return response.querySelector(RESPONSE_COPY_SELECTOR);
   }
@@ -89,6 +80,6 @@
   window.CCSModules.GeminiDom = {
     RESPONSE_SELECTOR, MARKDOWN_SELECTOR, CODE_BLOCK_SELECTOR, CODE_BLOCK_CHROME_SELECTOR,
     RESPONSE_COPY_SELECTOR, isSupportedPage, responses, markdownFor, isStreaming,
-    codeBlockTexts, codeBlockActions, codeBlockFrame, codeBlockTextColor, responseCopyAnchor, userQueryText
+    codeBlockTexts, codeBlockActions, codeBlockFrame, responseCopyAnchor, userQueryText
   };
 })();

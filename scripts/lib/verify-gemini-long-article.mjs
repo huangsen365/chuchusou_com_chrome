@@ -183,15 +183,62 @@ export async function verifyGeminiLongArticle(cdp, swCdp) {
     assert(actionsRect.top >= frameRect.top && actionsRect.top - frameRect.top <= 16, `按钮不在框顶：${where}`)
     assert(frameRect.right - actionsRect.right >= 16 && frameRect.right - actionsRect.right <= 48, `按钮没有靠右，或贴进了圆角：${where}`)
     assert(actionsRect.bottom <= preRect.top + 1, `按钮压到了正文：${where}`)
-    // 框是深底、页面是深色字：按钮要用正文的白字才看得见（直接继承会是深色字落在深色底上）
-    const colors = JSON.stringify({
-      button: getComputedStyle(actions().querySelector("button")).color, code: getComputedStyle(frame.querySelector("pre code")).color,
-      page: getComputedStyle(document.body).color, frame: getComputedStyle(frame).backgroundColor
-    })
-    assert(getComputedStyle(frame).color === getComputedStyle(document.body).color, `夹具应与真实页面一致：框自己没有文字颜色 ${colors}`)
-    assert(getComputedStyle(actions().querySelector("button")).color === getComputedStyle(frame.querySelector("pre code")).color, `补的那一行里按钮没有用正文的文字颜色：${colors}`)
-    assert(getComputedStyle(actions().querySelector("button")).color !== getComputedStyle(document.body).color, `按钮还是页面的深色字，在深色框里看不见：${colors}`)
     await waitFor(() => actions().dataset.ccsLongArticleState === "ready" && ![...actions().querySelectorAll("button")].some((button) => button.disabled), "挪到补的那一行后按钮不可用")
+    // 这一行里是自带底色和文字颜色的实心按钮：框是深底，页面文字浅色主题下是深色、深色主题下是浅色，
+    // 靠继承颜色的文字按钮会时有时无（v1.21.5 之前浅色主题下看不见）
+    const look = () => {
+      const style = getComputedStyle(actions().querySelector("button"))
+      return { color: style.color, background: style.backgroundColor, radius: parseFloat(style.borderTopLeftRadius), opacity: style.opacity }
+    }
+    const channels = (value) => (value.match(/[\d.]+/g) || []).map(Number)
+    const luminance = (value) => {
+      const [r, g, b] = channels(value).map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 })
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+    const contrast = (a, b) => { const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05) }
+    const lightTheme = look()
+    const shown = JSON.stringify({ ...lightTheme, frame: getComputedStyle(frame).backgroundColor, page: getComputedStyle(document.body).color })
+    assert(channels(lightTheme.background).length === 3 && lightTheme.opacity === "1" && lightTheme.radius >= 10, `补的那一行里不是实心按钮：${shown}`)
+    assert(contrast(lightTheme.color, lightTheme.background) >= 4.5, `按钮文字与按钮底色对比不够：${shown}`)
+    assert(contrast(lightTheme.background, getComputedStyle(frame).backgroundColor) >= 3, `按钮底色与代码块底色分不开：${shown}`)
+    const [first, second] = [...actions().querySelectorAll("button")].map((button) => button.getBoundingClientRect())
+    assert(second.left - first.right >= 6, `两个按钮挨在一起：${JSON.stringify({ gap: second.left - first.right })}`)
+    // 换成深色主题的页面颜色（浅色字、深色页面）：按钮不变
+    document.body.style.color = "#e3e3e3"
+    document.body.style.background = "#131314"
+    const darkTheme = look()
+    document.body.style.color = ""
+    document.body.style.background = ""
+    assert(JSON.stringify(darkTheme) === JSON.stringify(lightTheme), `按钮颜色跟着页面主题变了：${JSON.stringify({ lightTheme, darkTheme })}`)
+    // 这一行吸顶：长文往下滚，按钮停在滚动区顶边下 8px。Gemini 的对话滚动区顶部有 72px 内边距，吸顶位置是按
+    // 内容边算的——夹具临时把这一轮放进同样的滚动区，验证内边距被抵消、浮着的那一行不挡下面的正文
+    assert(ownRow().style.top === "8px", `页面自己滚动时吸顶位置应是 8px：${ownRow().style.top}`)
+    const scroller = document.createElement("div")
+    scroller.style.cssText = "height:480px;overflow-y:scroll;padding-top:72px;position:relative"
+    turn.parentElement.insertBefore(scroller, turn)
+    scroller.appendChild(turn)
+    const pre = frame.querySelector("pre")
+    pre.style.minHeight = "3000px" // 夹具文章短：把代码块撑到几屏高
+    await waitFor(() => ownRow()?.contains(actions()) && ownRow().style.top === "-64px", "放进有内边距的滚动区后没有重新计算吸顶位置")
+    scroller.scrollIntoView({ block: "start" })
+    scroller.scrollTop += Math.round(frame.getBoundingClientRect().top - scroller.getBoundingClientRect().top) + 1500
+    await delay(150)
+    const scrollerTop = scroller.getBoundingClientRect().top
+    const stuck = { actions: actions().getBoundingClientRect().top - scrollerTop, frame: frame.getBoundingClientRect().top - scrollerTop }
+    const rowRect = ownRow().getBoundingClientRect()
+    const underRow = document.elementFromPoint(rowRect.left + 40, rowRect.top + rowRect.height / 2)
+    const underRowIsText = Boolean(underRow) && !ownRow().contains(underRow) && frame.contains(underRow)
+    const buttonRect = actions().querySelector("button").getBoundingClientRect()
+    const onButton = document.elementFromPoint(buttonRect.left + buttonRect.width / 2, buttonRect.top + buttonRect.height / 2)
+    const buttonReachable = Boolean(onButton) && actions().contains(onButton)
+    pre.style.minHeight = ""
+    scroller.parentElement.insertBefore(turn, scroller)
+    scroller.remove()
+    assert(stuck.frame < -1000, `没有滚过代码块顶部，没法验证吸顶：${JSON.stringify(stuck)}`)
+    assert(Math.abs(stuck.actions - 8) <= 2, `滚到代码块中部时按钮没有停在滚动区顶边下 8px：${JSON.stringify(stuck)}`)
+    assert(underRowIsText, "吸顶的那一行挡住了下面正文的点击和选中")
+    assert(buttonReachable, "吸顶后按钮点不到")
+    await waitFor(() => ownRow()?.contains(actions()) && ownRow().style.top === "8px", "移出滚动区后吸顶位置没有恢复")
     headerParent.insertBefore(header, headerNext)
     await waitFor(() => header.querySelector(".buttons")?.lastElementChild === actions() && !ownRow(), "头部回来后按钮没有回到头部，或补的那一行没收掉")
     const headerRect = header.getBoundingClientRect()
