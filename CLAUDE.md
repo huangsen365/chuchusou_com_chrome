@@ -25,7 +25,7 @@
   `inspect(response)`（是否改写工作流的长文、文章怎么取、按钮放哪）：ChatGPT 在同文件里，Claude 在
   `modules/claudeLongArticle.js`（长文直接渲染：# 主标题显示成 h2、## 小标题 h3，按钮在底栏 Copy 后面；
   Claude 的底栏由 React 管，重渲染会把按钮挤到最前，每次检查都放回 Copy 后面），Gemini 在
-  `modules/geminiLongArticle.js`（Gemini 常把整篇放进「Markdown」代码块，按钮放代码块头部右上角（没标语言的代码块没有头部，就在框里最上面补一行），经 `articleFromMarkdown` 只拼字符串转换，
+  `modules/geminiLongArticle.js`（Gemini 常把整篇放进「Markdown」代码块，按钮放代码块头部右上角（没标语言的代码块没有头部，就在框里最上面补一行；框是深底而页面文字是深色，这一行用正文的文字颜色；它不吸顶，2026-11 试过 position: sticky，Gemini 滚动区顶部有 72px 偏移，会停在正文中间），经 `articleFromMarkdown` 只拼字符串转换，
   Gemini 页面开着 Trusted Types）。后台来源校验 `trustedArticleSource`：发起页与文章来源须是同一个站点。
 - **X / 知乎的速答闪电**：共享运行时 `modules/siteFastQaRuntime.js` + 各站适配器（`xTweetFastQa.js` / `zhihuFastQa.js`）。
   点闪电发默认引擎，悬停 0.35 秒弹出 ChatGPT / Gemini / Claude 浮层，选哪家只这一次；「设为默认」写

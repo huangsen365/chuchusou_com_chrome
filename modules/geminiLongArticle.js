@@ -3,7 +3,8 @@
 
   // Gemini 版「注入X草稿 / 生成封面」：选A改写产出的长文放这两个动作——文章在代码块里时放在代码块右上角：
   // 有头部（标了语言，如「Markdown」）就跟在下载 / 复制代码后面，没有头部就在代码块最上面补一行靠右放；
-  // 渲染成页面时放在整条回复底栏的复制按钮后面。
+  // 渲染成页面时放在整条回复底栏的复制按钮后面。补的那一行用代码块正文的文字颜色（框是深底，页面文字是深色，
+  // 直接继承就看不见）。
   // 按钮、状态机与投递共用 modules/longArticleActions.js，这里只回答 Gemini 页面上的三件事：
   //   哪条回复是改写工作流的长文（同一轮用户消息是改写提示词）、文章怎么取、按钮放哪。
   // Gemini 常把整篇放进「Markdown」代码块（原文 # 主标题 / ## 小标题 / **加粗**），也可能直接渲染成页面。
@@ -38,7 +39,7 @@
 
   // 没有头部的代码块：在看得见的框里最上面补一行（只装我们的按钮，靠右，避开大圆角）。框顶有内边距
   // （实测 26px），这一行往上收进内边距，按钮离框顶约 8px，正文只往下让一点。
-  function placeInOwnRow(frame, actions) {
+  function placeInOwnRow(frame, actions, textColor) {
     ensureRowStyles();
     let row = frame.querySelector(`:scope > [${OWN_ROW_MARKER}]`);
     if (!row) {
@@ -53,6 +54,8 @@
     const marginTop = `${-Math.max(0, paddingTop - 8)}px`;
     if (row.style.marginTop !== marginTop) row.style.marginTop = marginTop;
     if (row.style.marginBottom !== '4px') row.style.marginBottom = '4px';
+    // 按钮的文字颜色是继承来的：框有深色底，自己却没有文字颜色（颜色定在正文上），继承到的是页面的深色字
+    if (textColor && getComputedStyle(row).color !== textColor) row.style.color = textColor;
   }
 
   function articleSource(response) {
@@ -71,7 +74,7 @@
             placeInHeader(header, actions);
             frame.querySelector(`:scope > [${OWN_ROW_MARKER}]`)?.remove();
           } else {
-            placeInOwnRow(frame, actions);
+            placeInOwnRow(frame, actions, GeminiDom.codeBlockTextColor(response));
           }
         }
       };

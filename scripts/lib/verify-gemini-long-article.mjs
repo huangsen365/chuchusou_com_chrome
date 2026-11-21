@@ -40,13 +40,15 @@ export function geminiLongArticleFixture() {
     </div></div></message-actions></div>`
   // 真实嵌套：.code-block > 有底色的 .formatted-code-block-internal-container（大圆角、顶部 26px 内边距）
   //   > .animated-opacity > [头部（标了语言才有）, pre]
+  // 颜色（2026-11 实测，浅色主题）：框是深底但自己没有文字颜色（继承页面的深色字），白字定在 pre > code 上，
+  //   头部另有自己的浅色字
   const articleBlock = `<response-element class="no-md md-has-block-component"><code-block><div class="code-block" style="position:relative">
-      <div class="formatted-code-block-internal-container" style="background:#171717;color:#e3e3e3;border-radius:40px;padding:26px 0 0 32px"><div class="animated-opacity">
-      <div class="code-block-decoration header-formatted" style="display:flex;justify-content:space-between;position:sticky;top:0"><span>Markdown</span><div class="buttons">
+      <div class="formatted-code-block-internal-container" style="background:#141414;border-radius:40px;padding:26px 0 0 32px"><div class="animated-opacity">
+      <div class="code-block-decoration header-formatted" style="display:flex;justify-content:space-between;position:sticky;top:0;color:#e3e3e3;background:#141414"><span>Markdown</span><div class="buttons">
         <gem-icon-button arialabel="Download code"><button aria-label="Download code"><span class="mat-mdc-button-persistent-ripple"></span></button></gem-icon-button>
         <gem-icon-button arialabel="Copy code"><button aria-label="Copy code"><span class="mat-mdc-button-persistent-ripple"></span></button></gem-icon-button>
       </div></div>
-      <pre style="margin:0"><code role="text" data-test-id="code-content" class="code-container formatted">${escapeHtml(markdown)}</code></pre>
+      <pre style="margin:0"><code role="text" data-test-id="code-content" class="code-container formatted" style="color:#fff">${escapeHtml(markdown)}</code></pre>
     </div></div></div></code-block></response-element>`
   const turn = (id, query, busy) => `<div class="conversation-container" id="${id}">
       <user-query><div class="query-text gds-body-l collapsed" style="white-space:pre-wrap">${escapeHtml(query)}</div><button aria-label="Expand">⌄</button></user-query>
@@ -57,7 +59,7 @@ export function geminiLongArticleFixture() {
     </div>`
   return `<!doctype html><meta charset="utf-8"><title>Gemini long-article fixture</title>
     <style>
-      body { font: 16px/1.5 system-ui; } .buttons-container-v2 { display: flex; align-items: center; }
+      body { font: 16px/1.5 system-ui; color: #1f1f1f; background: #faf9f9; } .buttons-container-v2 { display: flex; align-items: center; }
       /* 与真实 Gemini 相同的尺寸（2026-10 实测）：头部 flex 居中；右侧按钮组是普通块，里面是 36px 高的行内块图标。
          图标按钮里没有文字（字形不在文档流里），行内块的基线就是它的底边——vertical-align: middle 因此对不齐 */
       .code-block-decoration { align-items: center; } .code-block-decoration .buttons { display: block; line-height: 20px; font-size: 15px; }
@@ -181,6 +183,14 @@ export async function verifyGeminiLongArticle(cdp, swCdp) {
     assert(actionsRect.top >= frameRect.top && actionsRect.top - frameRect.top <= 16, `按钮不在框顶：${where}`)
     assert(frameRect.right - actionsRect.right >= 16 && frameRect.right - actionsRect.right <= 48, `按钮没有靠右，或贴进了圆角：${where}`)
     assert(actionsRect.bottom <= preRect.top + 1, `按钮压到了正文：${where}`)
+    // 框是深底、页面是深色字：按钮要用正文的白字才看得见（直接继承会是深色字落在深色底上）
+    const colors = JSON.stringify({
+      button: getComputedStyle(actions().querySelector("button")).color, code: getComputedStyle(frame.querySelector("pre code")).color,
+      page: getComputedStyle(document.body).color, frame: getComputedStyle(frame).backgroundColor
+    })
+    assert(getComputedStyle(frame).color === getComputedStyle(document.body).color, `夹具应与真实页面一致：框自己没有文字颜色 ${colors}`)
+    assert(getComputedStyle(actions().querySelector("button")).color === getComputedStyle(frame.querySelector("pre code")).color, `补的那一行里按钮没有用正文的文字颜色：${colors}`)
+    assert(getComputedStyle(actions().querySelector("button")).color !== getComputedStyle(document.body).color, `按钮还是页面的深色字，在深色框里看不见：${colors}`)
     await waitFor(() => actions().dataset.ccsLongArticleState === "ready" && ![...actions().querySelectorAll("button")].some((button) => button.disabled), "挪到补的那一行后按钮不可用")
     headerParent.insertBefore(header, headerNext)
     await waitFor(() => header.querySelector(".buttons")?.lastElementChild === actions() && !ownRow(), "头部回来后按钮没有回到头部，或补的那一行没收掉")
